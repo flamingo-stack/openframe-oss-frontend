@@ -3,7 +3,6 @@ import {
   DirectoryGroupVisibility,
   DirectoryMembershipScope,
   DirectoryReadOnlyReason,
-  OrgDeviceKind,
 } from '@/generated/schema-enums';
 import { presentationFor } from '@/lib/exhaustive-map';
 
@@ -43,18 +42,6 @@ export function groupMembershipLabel(settings: {
   if (settings.dynamic == null) return null;
   if (!settings.dynamic) return 'Assigned';
   return `Dynamic · processing ${settings.membershipPaused ? 'Paused' : 'On'}`;
-}
-
-const DEVICE_KINDS = {
-  [OrgDeviceKind.ENTRA]: 'Entra device',
-  [OrgDeviceKind.INTUNE]: 'Intune device',
-  [OrgDeviceKind.CHROMEOS]: 'ChromeOS device',
-  [OrgDeviceKind.MOBILE]: 'Mobile device',
-} satisfies Record<OrgDeviceKind, string>;
-
-/** A device's line among a group's members: "Entra device" (Figma 733:99325). */
-export function memberDeviceLabel(kind: string): string {
-  return presentationFor(DEVICE_KINDS, kind) ?? kind;
 }
 
 const READ_ONLY_REASONS = {

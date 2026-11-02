@@ -29,7 +29,7 @@ interface UsersViewProps {
 export function UsersView({ organizationId, embedded = false, loading = false }: UsersViewProps) {
   const { params, setParam, setParams } = useApiParams({
     search: { type: 'string', default: '' },
-    tenant: { type: 'array', default: [] },
+    customer: { type: 'array', default: [] },
     status: { type: 'array', default: [] },
     license: { type: 'array', default: [] },
   });
@@ -44,8 +44,8 @@ export function UsersView({ organizationId, embedded = false, loading = false }:
 
   // Memoized for its identity, not for speed: `useDeferredQuery` tells a pending refetch by comparing references.
   const selections = useMemo<UserSelections>(
-    () => ({ tenant: params.tenant, status: params.status, license: params.license }),
-    [params.tenant, params.status, params.license],
+    () => ({ customer: params.customer, status: params.status, license: params.license }),
+    [params.customer, params.status, params.license],
   );
   const filter = useMemo(() => toFilter(selections), [selections]);
   const { deferredFilters, deferredSearch, isPending } = useDeferredQuery(filter, debouncedSearch);

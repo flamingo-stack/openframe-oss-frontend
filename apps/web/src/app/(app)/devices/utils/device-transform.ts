@@ -170,6 +170,12 @@ export function machineToDevice(ref: deviceFields_machine$key): Device {
     ip,
     macAddress: machine.macAddress ?? undefined,
 
+    // Directory
+    directorySources: machine.directorySources,
+    directoryUserLink: machine.directoryUserLink,
+    directoryUserName: machine.directoryUserName,
+    directoryUserCount: machine.directoryUserIds.length,
+
     // System Status
     last_enrolled_at: machine.registeredAt ?? undefined,
 

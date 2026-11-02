@@ -22,6 +22,7 @@ export default function ArchivedDevices() {
       lockedFilters={ARCHIVE_FILTERS}
       defaultStatuses={NO_ITEMS}
       hideFilters={['status']}
+      withoutDirectory
       showAddDevice={false}
       readOnlyRows
       emptyMessage="No archived devices."

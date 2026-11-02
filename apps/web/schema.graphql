@@ -542,7 +542,13 @@ input DeviceFilterInput {
   osTypes: [String!]
   organizationIds: [String!]
   tagKeys: [String!]
-  tagValues: [String!]}
+  tagValues: [String!]
+
+  """SOURCES filter: machines one of these directories knows. Matches nothing in OSS."""
+  directorySources: [DirectorySource!]
+  """USER filter. NONE also matches a machine no external directory integration wrote (every machine in OSS)."""
+  userLinks: [DirectoryUserLink!]
+}
 
 type DeviceFilterOption {
   value: String!
@@ -556,7 +562,13 @@ type DeviceFilters {
   osTypes: [DeviceFilterOption!]!
   organizationIds: [DeviceFilterOption!]!
   tagKeys: [TagFilterOption!]!
-  filteredCount: Int!}
+  filteredCount: Int!
+
+  """SOURCES filter options; [] in OSS, and on the schedule and bundle device pickers."""
+  directorySources: [DeviceFilterOption!]!
+  """USER filter options: PRIMARY, SHARED, NONE. A machine without a directory link counts as NONE."""
+  userLinks: [DeviceFilterOption!]!
+}
 
 type DeviceLogConnection {
   edges: [DeviceLogEdge!]!
@@ -781,6 +793,9 @@ type DirectoryConnection {
   # openframe-saas-tenant#4270 (W1)
   "The stored write opt-in (true for a new connection). Writes also need write consent: see access.state."
   writeEnabled: Boolean!
+
+  "W3. Intune availability for Microsoft 365; null for Google Workspace."
+  intune: DirectoryIntuneState
 }
 
 """
@@ -1891,7 +1906,17 @@ type Machine implements Node & AssignableTarget {
   """
   Package managers as last reported by the device agent. Null until the first report.
   """
-  packageManagers: MachinePackageManagers}
+  packageManagers: MachinePackageManagers
+
+  """SOURCES column: the directories that know this machine besides the agent; [] when none, and always in OSS."""
+  directorySources: [DirectorySource!]!
+  """USER column: who the machine is tied to; NONE when nobody, and always in OSS."""
+  directoryUserLink: DirectoryUserLink!
+  """Account ids (DirectoryAccount.id) of the tied users, the primary user first. SHARED shows 'N recent users' with N = its length."""
+  directoryUserIds: [String!]!
+  """Display name of the user for PRIMARY; null otherwise. devices(search) also matches it."""
+  directoryUserName: String
+}
 
 type Mutation {
   setTenantRemoteAccessMode(mode: RemoteAccessMode!): TenantRemoteAccessPolicyPayload!
@@ -2549,6 +2574,9 @@ type Mutation {
   updateDirectoryUser(input: UpdateDirectoryUserInput!): DirectoryUserPayload!
   "W2. Microsoft 365: block / allow sign-in. Google Workspace: suspend / unsuspend."
   setDirectoryUserSuspended(input: SetDirectoryUserSuspendedInput!): DirectoryUserPayload!
+
+  "W3. Link a directory record to an agent machine: a suggestion or any machine from the search (D25)."
+  linkDirectoryDevice(input: LinkDirectoryDeviceInput!): DirectoryDeviceLinkPayload!
 }
 
 input MutationDeleteInput {
@@ -2741,8 +2769,19 @@ type OrgDevice {
   # openframe-saas-tenant#4270 (W1)
   "The connection behind connectionId."
   connection: DirectoryConnection
-  "Which directory record family the row is: derived from the source until the kind is stored."
-  kind: OrgDeviceKind!
+
+  "Null when the provider gives none (Entra records carry one only through their Intune part)."
+  serialNumber: String
+  "The record's own user link (D20)."
+  userLink: DirectoryUserLink!
+  "Set when the record is linked to an agent machine (MANAGED)."
+  machineLink: DirectoryMachineLink
+  "Agent machines that may be this record, best first; empty when linked or not linkable. Not a link (D24)."
+  suggestions: [DirectoryMachineSuggestion!]!
+  "The record can carry an agent (Windows, macOS, Linux): Link is offered. Google records never (D27)."
+  linkable: Boolean!
+  "Customers that see the device (they claim its declared owner)."
+  customers: [Organization!]!
 }
 
 type OrgUser {
@@ -3741,6 +3780,9 @@ type Query {
 
   "One group. With organizationId the group must touch that customer. Null when not found or not visible."
   directoryGroup(id: ID!, organizationId: ID): DirectoryGroup
+
+  "W3. Directory data of one agent machine: linked users and one card per linked directory record."
+  deviceDirectory(machineId: ID!): DeviceDirectory!
 }
 
 """
@@ -6691,8 +6733,8 @@ type DirectoryConnectionImpact {
 
 # Directory users and groups (waves W1 and W2), as openframe-saas-tenant#4270 and #4284 serve them: their
 # schema-directory/directory-users.graphqls and directory-groups.graphqls without the Query and Mutation extensions
-# (folded into those types above), plus OrgDeviceKind from org-devices.graphqls. Merged by hand until the waves are on an
-# environment; replace with npm run fetch-schema then. Devices (W3) are not in it yet.
+# (folded into those types above), and devices (W3), as #4320 and oss-lib#2910 serve them. Merged by hand until the waves are on an
+# environment; replace with npm run fetch-schema then.
 
 # ---------- Users ----------
 
@@ -6712,6 +6754,9 @@ input DirectoryUserFilterInput {
   secondFactor: [SecondFactorState!]
   "The 'Unused licenses' preset: holds a license and no sign-in for 45+ days, on accounts whose sign-in data is READ."
   unusedLicenses: Boolean
+
+  "W3 (D33, F1). Customer block: accounts these customers' rules claim, plus their OpenFrame accounts."
+  organizationIds: [ID!]
 }
 
 input DirectoryUserOrderInput { field: DirectoryUserSortField!, direction: SortDirection! }
@@ -6730,6 +6775,9 @@ type DirectoryUserFilters {
   unusedLicenses: Int!
   "Persons left out of the preset because their tenant returns no sign-in data (Needs Entra ID P1); shown as not readable (design D17)."
   unusedLicensesNotReadable: Int!
+
+  "W3 (D33). One option per active customer (value = organization id); counts under the current search and the other filters."
+  customers: [DirectoryFilterOption!]!
 }
 
 "Shape identical to DirectoryConnectionFilterOption (#4233), which stays as it is."
@@ -6886,6 +6934,9 @@ type DirectoryUserDevice {
   link: DirectoryDeviceUserLink!
   "The directory record."
   directoryDevice: OrgDevice!
+
+  "W3. Set for managed devices."
+  machine: Machine
 }
 
 enum DirectoryDeviceUserLink { DECLARED SEEN }
@@ -7042,4 +7093,105 @@ enum DirectoryReadOnlyReason {
   DYNAMIC_MEMBERSHIP EXCHANGE_MANAGED
 }
 
-enum OrgDeviceKind { ENTRA INTUNE CHROMEOS MOBILE }
+# ---------- Devices (W3), openframe-saas-tenant#4320 and openframe-oss-lib#2910 ----------
+
+input LinkDirectoryDeviceInput { orgDeviceId: ID!, machineId: ID! }
+
+"userErrors: NOT_FOUND (record or machine), NOT_LINKABLE (D27)."
+type DirectoryDeviceLinkPayload { device: OrgDevice, userErrors: [UserError!]! }
+
+type DeviceDirectory {
+  machineId: ID!
+  "Directory users tied to the machine through its linked records, the primary user first (D30: directory users only)."
+  users: [DirectoryDeviceUser!]!
+  "One card per linked Microsoft record part: Entra, and Intune when the record has an Intune part (D28). No Google cards (D21)."
+  cards: [DirectoryDeviceCard!]!
+  "Why there is no Intune card on a Microsoft machine; null when there is one or no Microsoft record."
+  intuneUnavailable: IntuneUnavailableReason
+}
+
+type DirectoryDeviceUser {
+  account: DirectoryAccount!
+  "DECLARED shows the PRIMARY USER tag."
+  link: DirectoryDeviceUserLink!
+  "The account's direct directory groups (stored), for the GROUP column and filter (D30)."
+  groups: [DirectoryGroupRef!]!
+}
+
+type DirectoryDeviceCard {
+  record: OrgDevice!
+  "Exactly one of these is set."
+  entra: EntraDeviceCard
+  intune: IntuneDeviceCard
+  "True when the live part of the card could not be read; stored values only."
+  liveDataUnavailable: Boolean!
+}
+
+type EntraDeviceCard {
+  joinType: EntraJoinType
+  managed: Boolean
+  compliant: Boolean
+  approximateLastSignInAt: Instant
+  "Registered owner(s)."
+  owners: [DirectoryAccount!]!
+  "Groups the device is a direct member of (stored, design D28)."
+  memberOf: [DirectoryGroupRef!]!
+}
+
+enum EntraJoinType { ENTRA_JOINED HYBRID_JOINED REGISTERED }
+
+type IntuneDeviceCard {
+  primaryUser: DirectoryAccount
+  complianceState: IntuneComplianceState!
+  encrypted: Boolean
+  ownerType: IntuneOwnerType!
+  "Management channel (D28), e.g. CONFIGURATION_MANAGER_MDM = co-managed with ConfigMgr."
+  management: IntuneManagementAgent!
+  enrolledAt: Instant
+  lastSyncAt: Instant
+  operatingSystem: String
+  osVersion: String
+}
+
+enum IntuneComplianceState { COMPLIANT NONCOMPLIANT IN_GRACE_PERIOD CONFIG_MANAGER CONFLICT ERROR UNKNOWN }
+enum IntuneOwnerType { COMPANY PERSONAL UNKNOWN }
+enum IntuneManagementAgent { MDM EAS EAS_MDM INTUNE_CLIENT EAS_INTUNE_CLIENT CONFIGURATION_MANAGER
+                             CONFIGURATION_MANAGER_MDM CONFIGURATION_MANAGER_MDM_EAS JAMF GOOGLE_CLOUD_DPC UNKNOWN }
+"NOT_LICENSED: 'No Intune licence'. NOT_CONSENTED: 'No Intune access'. NOT_ENROLLED: licensed and consented, but this device is not in Intune; no design (hide the Intune card)."
+enum IntuneUnavailableReason { NOT_LICENSED NOT_CONSENTED NOT_ENROLLED }
+
+"One possible match: the WHY column names the keys that agree (D24)."
+type DirectoryMachineSuggestion {
+  machine: Machine!
+  matchedKeys: [DirectoryMatchKey!]!
+}
+enum DirectoryMatchKey { HOSTNAME OS SERIAL_NUMBER }
+
+type DirectoryMachineLink {
+  machine: Machine!
+  via: DirectoryMachineLinkVia!
+  "SUGGESTION and MANUAL only."
+  linkedBy: User
+  linkedAt: Instant
+}
+
+"""
+How the record came to the machine. AUTOMATIC: hostname, OS and serial number all agree (D24). SUGGESTION: a
+technician accepted a suggestion. MANUAL: a technician picked the machine from the search (D25).
+"""
+enum DirectoryMachineLinkVia { AUTOMATIC SUGGESTION MANUAL }
+
+enum DirectoryIntuneState { NOT_LICENSED NOT_CONSENTED AVAILABLE }
+
+"""Who the machine is tied to. PRIMARY: one declared user. SHARED: several users, or recent users only. NONE: nobody."""
+enum DirectoryUserLink {
+  PRIMARY
+  SHARED
+  NONE
+}
+
+"""A directory that knows the machine besides the agent."""
+enum DirectorySource {
+  MICROSOFT_365
+  GOOGLE_WORKSPACE
+}

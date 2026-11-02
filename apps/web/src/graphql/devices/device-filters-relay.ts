@@ -35,6 +35,14 @@ export const deviceFiltersRelayQuery = graphql`
         value
         count
       }
+      directorySources {
+        value
+        count
+      }
+      userLinks {
+        value
+        count
+      }
       filteredCount
     }
   }

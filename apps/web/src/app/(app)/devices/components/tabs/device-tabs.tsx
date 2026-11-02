@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  AddressBookIcon,
   AlertTriangleIcon,
   BookBookmarkIcon,
   // BracketCurlyEllipsisVrIcon, // Queries tab temporarily disabled
@@ -23,10 +24,13 @@ import { useIncidentsGate } from '@/app/(app)/incidents/hooks/use-incidents-gate
 import { AssignedArticlesTab } from '@/app/(app)/knowledge-base/components/assigned-articles/assigned-articles-tab';
 import { deviceArticlesTarget } from '@/app/(app)/knowledge-base/components/assigned-articles/assigned-articles-target';
 import type { DeviceDetailTab } from '@/lib/routes';
+import { useDirectoryGate } from '../../hooks/use-directory-gate';
 import { useSessionRecordingsGate } from '../../hooks/use-session-recordings-gate';
 import type { Device } from '../../types/device.types';
 import { AgentsTab } from './agents-tab';
 import { DeviceLogsTab } from './device-logs/device-logs-tab';
+import { DirectoryTab } from './directory-tab';
+import { DirectoryUsersTab } from './directory-users-tab';
 import { HardwareTab } from './hardware-tab';
 import { IncidentsTab } from './incidents-tab';
 import { NetworkTab } from './network-tab';
@@ -68,11 +72,31 @@ function GatedRemoteSessionsTab({ device }: { device: Device | null }) {
   );
 }
 
+/** Directory users where the tenant has directories (D30), the machine's local accounts where it has none. */
+function GatedUsersTab({ device }: { device: Device | null }) {
+  const gate = useDirectoryGate();
+  if (gate === 'off') return <UsersTab device={device} />;
+  return (
+    <LoadingWhen loading={gate === 'loading'}>
+      <DirectoryUsersTab device={device} />
+    </LoadingWhen>
+  );
+}
+
+function GatedDirectoryTab({ device }: { device: Device | null }) {
+  return (
+    <LoadingWhen loading={useDirectoryGate() === 'loading'}>
+      <DirectoryTab device={device} />
+    </LoadingWhen>
+  );
+}
+
 // `satisfies` links each gated id to the route registry's tab union — renaming it in
 // TAB_IDS.deviceDetails without updating this fails tsc.
 export const REMOTE_SESSIONS_TAB_ID = 'remote-sessions' satisfies DeviceDetailTab;
 const INCIDENTS_TAB_ID = 'incidents' satisfies DeviceDetailTab;
 const DEVICE_LOGS_TAB_ID = 'device-logs' satisfies DeviceDetailTab;
+const DIRECTORY_TAB_ID = 'directory' satisfies DeviceDetailTab;
 
 /** Every tab, gated ones included — `useDeviceTabs` narrows it to the visible set. */
 export const ALL_DEVICE_TABS: TabItem[] = [
@@ -147,7 +171,13 @@ export const ALL_DEVICE_TABS: TabItem[] = [
     id: 'users',
     label: 'Users',
     icon: UsersIcon,
-    component: UsersTab,
+    component: GatedUsersTab,
+  },
+  {
+    id: DIRECTORY_TAB_ID,
+    label: 'Directory',
+    icon: AddressBookIcon,
+    component: GatedDirectoryTab,
   },
   {
     id: 'software',
@@ -188,9 +218,11 @@ export const ALL_DEVICE_TABS: TabItem[] = [
 export function useDeviceTabs(): TabItem[] {
   const recordingsGate = useSessionRecordingsGate();
   const incidentsGate = useIncidentsGate();
+  const directoryGate = useDirectoryGate();
   return ALL_DEVICE_TABS.filter(
     tab =>
       (tab.id !== REMOTE_SESSIONS_TAB_ID || recordingsGate !== 'off') &&
-      (tab.id !== INCIDENTS_TAB_ID || incidentsGate !== 'off'),
+      (tab.id !== INCIDENTS_TAB_ID || incidentsGate !== 'off') &&
+      (tab.id !== DIRECTORY_TAB_ID || directoryGate !== 'off'),
   );
 }

@@ -36,11 +36,13 @@ import type { TableSkeletonColumn } from '@/app/components/shared/table-column-l
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { DirectoryMembershipScope, OrgUserSource } from '@/generated/schema-enums';
 import { toClaimingCustomer } from '@/graphql/directory/customer-claim-fields';
+import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { singleColumnFilter } from '../../../software/components/shared/column-filters';
-import { memberDeviceLabel, nestedGroupLabel, pickMembershipScope } from '../../utils/group-presentation';
+import { deviceOrigin } from '../../utils/device-presentation';
+import { nestedGroupLabel, pickMembershipScope } from '../../utils/group-presentation';
 import { topAdminRole } from '../../utils/user-presentation';
 import { UserTabHeading } from '../user-detail/user-tab-heading';
 import { LicensesCell } from '../users-list/user-row-cells';
@@ -107,7 +109,20 @@ const groupMembersTableFragment = graphql`
               ... on OrgDevice {
                 id
                 displayName
-                deviceKind: kind
+                deviceSource: source
+                deviceSourceId: sourceId
+                deviceCustomers: customers {
+                  name
+                  image {
+                    imageUrl
+                    hash
+                  }
+                }
+                machineLink {
+                  machine {
+                    machineId
+                  }
+                }
               }
             }
           }
@@ -152,12 +167,18 @@ function toMemberRow({ member, viaGroup }: MemberNode, customerId: string | unde
         via,
       };
     case 'OrgDevice':
-      // No page of its own: the device page exists only for agent machines, and W3 links them.
+      // The device page exists only for agent machines: a record no machine is linked to opens nothing.
       return {
         id: `${member.id}:${via ?? ''}`,
         kind: 'device',
+        href: member.machineLink ? routes.devices.details(member.machineLink.machine.machineId) : null,
         name: member.displayName,
-        detail: memberDeviceLabel(member.deviceKind),
+        detail: deviceOrigin(member.deviceSource, member.deviceSourceId).member,
+        customers: member.deviceCustomers.map(customer => ({
+          name: customer.name,
+          imageUrl: getFullImageUrl(customer.image?.imageUrl, customer.image?.hash),
+          claim: null,
+        })),
         via,
       };
     default:

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { toFilter, type UserSelections } from './users-filter';
 
-const none: UserSelections = { tenant: [], status: [], license: [] };
+const none: UserSelections = { customer: [], status: [], license: [] };
 
 describe('toFilter', () => {
   it('is null when no funnel is ticked, so the list reads unfiltered', () => {
@@ -12,16 +12,8 @@ describe('toFilter', () => {
     expect(toFilter({ ...none, status: ['SUSPENDED'] })).toEqual({ statuses: ['SUSPENDED'] });
   });
 
-  it('splits the tenant funnel into connections and the OpenFrame option', () => {
-    expect(toFilter({ ...none, tenant: ['c-1', 'OPENFRAME'] })).toEqual({
-      connectionIds: ['c-1'],
-      includeOpenFrame: true,
-    });
-    expect(toFilter({ ...none, tenant: ['c-1'] })).toEqual({ connectionIds: ['c-1'], includeOpenFrame: false });
-  });
-
-  it('narrows to OpenFrame users alone with an empty connection list', () => {
-    expect(toFilter({ ...none, tenant: ['OPENFRAME'] })).toEqual({ connectionIds: [], includeOpenFrame: true });
+  it('sends the ticked customers (D33)', () => {
+    expect(toFilter({ ...none, customer: ['o-1', 'o-2'] })).toEqual({ organizationIds: ['o-1', 'o-2'] });
   });
 
   it('splits the licence funnel into SKUs and the no-licence option', () => {

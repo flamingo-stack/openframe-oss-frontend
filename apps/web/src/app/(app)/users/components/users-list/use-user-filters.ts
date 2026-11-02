@@ -10,7 +10,7 @@ import { useRetryKey } from '@/app/components/shared';
 import { userStatusTag } from '../../utils/user-presentation';
 
 /**
- * The Users list's funnels — Customer (by tenant), Status, and Licences on a customer's tab — with how many users
+ * The Users list's funnels — Customer, Status, and Licences on a customer's tab — with how many users
  * each option matches.
  *
  * Unlike `useSoftwareActionFilters` this sends the list's own narrowing: `directoryUserFilters` counts each block
@@ -19,7 +19,7 @@ import { userStatusTag } from '../../utils/user-presentation';
 const userFiltersQuery = graphql`
   query useUserFiltersQuery($organizationId: ID, $search: String, $filter: DirectoryUserFilterInput) {
     directoryUserFilters(organizationId: $organizationId, search: $search, filter: $filter) {
-      tenants {
+      customers {
         value
         label
         count
@@ -39,7 +39,7 @@ const userFiltersQuery = graphql`
 `;
 
 export interface UserFilterOptions {
-  tenants: DataTableFilterOption[];
+  customers: DataTableFilterOption[];
   statuses: DataTableFilterOption[];
   licenses: DataTableFilterOption[];
 }
@@ -69,8 +69,8 @@ export function useUserFilters(
   );
   const facets = data.directoryUserFilters;
   return {
-    // The tenant's own name, and "OpenFrame" for users added here: the server's labels.
-    tenants: toOptions(facets.tenants),
+    // One option per active customer; empty on a customer's own tab (contract §11.2).
+    customers: toOptions(facets.customers),
     statuses: toOptions(facets.statuses, value => userStatusTag(value).label),
     // The product name per SKU, and the server's word for "no licence".
     licenses: toOptions(facets.licenses),

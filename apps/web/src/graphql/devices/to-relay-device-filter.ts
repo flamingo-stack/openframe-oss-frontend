@@ -1,5 +1,5 @@
 import type { DeviceFilterInput } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { DeviceStatus, DeviceType } from '@/generated/schema-enums';
+import { DeviceStatus, DeviceType, DirectorySource, DirectoryUserLink } from '@/generated/schema-enums';
 
 /** The enum-typed shape the generated Relay operations expect for `DeviceFilterInput`. */
 export interface RelayDeviceFilter {
@@ -9,6 +9,8 @@ export interface RelayDeviceFilter {
   organizationIds?: string[] | null;
   tagKeys?: string[] | null;
   tagValues?: string[] | null;
+  directorySources?: DirectorySource[] | null;
+  userLinks?: DirectoryUserLink[] | null;
 }
 
 function keepKnown<T extends string>(values: string[] | undefined, allowed: Record<string, T>): T[] | undefined {
@@ -36,5 +38,7 @@ export function toRelayDeviceFilter(filter: DeviceFilterInput | undefined | null
     organizationIds: filter.organizationIds ?? null,
     tagKeys: filter.tagKeys ?? null,
     tagValues: filter.tagValues ?? null,
+    directorySources: keepKnown(filter.directorySources, DirectorySource) ?? null,
+    userLinks: keepKnown(filter.userLinks, DirectoryUserLink) ?? null,
   };
 }

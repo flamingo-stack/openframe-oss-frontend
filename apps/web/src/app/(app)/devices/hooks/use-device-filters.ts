@@ -43,6 +43,8 @@ export function useDeviceFilters(filters?: DeviceFilterInput): DeviceFilters {
       osTypes: [...data.deviceFilters.osTypes],
       organizationIds: [...data.deviceFilters.organizationIds],
       tagKeys: [...data.deviceFilters.tagKeys],
+      directorySources: [...data.deviceFilters.directorySources],
+      userLinks: [...data.deviceFilters.userLinks],
       filteredCount: data.deviceFilters.filteredCount,
     }),
     [data.deviceFilters],

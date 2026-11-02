@@ -26,6 +26,7 @@ import { DeviceActionsDropdown } from '@/app/(app)/devices/components/device-act
 import { DeviceFacets } from '@/app/(app)/devices/components/device-facets';
 import { type UseDevicesResult, useDevices } from '@/app/(app)/devices/hooks/use-devices';
 import { useDevicesUrlParams } from '@/app/(app)/devices/hooks/use-devices-url-params';
+import { useDirectoryGate } from '@/app/(app)/devices/hooks/use-directory-gate';
 import { useGridInfiniteScroll } from '@/app/(app)/devices/hooks/use-grid-infinite-scroll';
 import { useRowRemoteAccessPolicies } from '@/app/(app)/devices/hooks/use-remote-access-policy';
 import { DEVICES_PAGE_SIZE } from '@/app/(app)/devices/queries/devices-api';
@@ -40,8 +41,15 @@ import { NO_ITEMS } from '../no-next-page';
 
 /** The loaded table's actions column, minus the actions: the loading panel's columns take the same widths. */
 const PENDING_ACTIONS_COLUMN = getDeviceActionsColumn<Device>();
-/** The grid's filter row while the facets are out: every column with its static label, holding the row's height. */
-const PENDING_FILTER_COLUMNS = getDeviceFilterColumns(null);
+
+/**
+ * The USER and SOURCES columns (Figma 865:55733, 187:61663). Drawn while the flag is read: most tenants of a SaaS build
+ * have it, so the table does not gain two columns when it answers.
+ */
+function useDirectoryColumns(panel: DevicesPanelProps): boolean {
+  const gate = useDirectoryGate();
+  return !panel.withoutDirectory && gate !== 'off';
+}
 
 /** The per-row overflow menu. Post-action list refresh is handled centrally, so it takes no callback. */
 function renderDeviceRowActions(device: Device): ReactNode {
@@ -106,6 +114,8 @@ export interface DevicesPanelProps {
    * it doesn't flash before the answer is known.
    */
   isCheckingOrganizations?: boolean;
+  /** No USER or SOURCES columns, whatever the tenant has: the archive page's deleted records. */
+  withoutDirectory?: boolean;
   /**
    * Drops the per-row actions dropdown, leaving only the open-in-new-tab arrow.
    * Used by the archive page: DELETED devices are read-only records.
@@ -181,6 +191,7 @@ function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters
     readOnlyRows = false,
   } = panel;
   const router = useRouter();
+  const directoryColumns = useDirectoryColumns(panel);
 
   const {
     params,
@@ -202,6 +213,8 @@ function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters
     params.statuses.length > 0 ||
     params.osTypes.length > 0 ||
     params.organizationIds.length > 0 ||
+    params.userLinks.length > 0 ||
+    params.directorySources.length > 0 ||
     params.tags.length > 0;
 
   // Pristine, genuinely-empty view (no search, no filters, no devices): show the
@@ -215,8 +228,8 @@ function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters
 
   const filterColumns = useMemo(() => {
     const hidden = new Set(hideFilters ?? []);
-    return getDeviceFilterColumns(deviceFilters).filter(c => !hidden.has(c.key));
-  }, [deviceFilters, hideFilters]);
+    return getDeviceFilterColumns(deviceFilters, { directoryColumns }).filter(c => !hidden.has(c.key));
+  }, [deviceFilters, hideFilters, directoryColumns]);
   // Post-action list refresh is handled centrally: useDeviceActions invalidates
   // the device query roots, so no per-row refetch callback is needed.
   // The row menus disable Remote Control on DENY_ACCESS; only the table has them.
@@ -229,8 +242,10 @@ function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters
       ...(params.statuses.length > 0 ? [{ id: 'status', value: params.statuses }] : []),
       ...(params.osTypes.length > 0 ? [{ id: 'os', value: params.osTypes }] : []),
       ...(params.organizationIds.length > 0 ? [{ id: 'organization', value: params.organizationIds }] : []),
+      ...(params.userLinks.length > 0 ? [{ id: 'user', value: params.userLinks }] : []),
+      ...(params.directorySources.length > 0 ? [{ id: 'sources', value: params.directorySources }] : []),
     ],
-    [params.statuses, params.osTypes, params.organizationIds],
+    [params.statuses, params.osTypes, params.organizationIds, params.userLinks, params.directorySources],
   );
 
   const onColumnFiltersChange = useCallback<OnChangeFn<ColumnFiltersState>>(
@@ -344,6 +359,7 @@ function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters
       actionsColumn={actionsColumn}
       hideColumns={hideColumns}
       hideFilters={hideFilters}
+      directoryColumns={directoryColumns}
       emptyMessage={emptyMessage}
       hasNextPage={hasNextPage}
       isFetchingNextPage={isFetchingNextPage}
@@ -447,6 +463,7 @@ function DevicesPanelBodyReader(props: DevicesPanelBodyProps) {
  * with empty tags. Only what the request answers draws its loading form: the rows.
  */
 function DevicesPanelPending({ panel: props, chrome, viewMode }: DevicesPanelBodyProps) {
+  const directoryColumns = useDirectoryColumns(props);
   return (
     <DevicesPanelView<Device>
       pageSize={DEVICES_PAGE_SIZE}
@@ -464,11 +481,13 @@ function DevicesPanelPending({ panel: props, chrome, viewMode }: DevicesPanelBod
         disabled: true,
       })}
       devices={NO_ITEMS}
-      filterColumns={PENDING_FILTER_COLUMNS}
+      // The grid's filter row while the facets are out: every column with its static label, holding the row's height.
+      filterColumns={getDeviceFilterColumns(null, { directoryColumns })}
       // The loaded table always carries a row-actions column, and it takes real width from the others.
       actionsColumn={PENDING_ACTIONS_COLUMN}
       hideColumns={props.hideColumns}
       hideFilters={props.hideFilters}
+      directoryColumns={directoryColumns}
     />
   );
 }

@@ -29,6 +29,8 @@ export function useDevicesUrlParams(options: UseDevicesUrlParamsOptions = {}) {
     statuses: { type: 'array', default: [] },
     osTypes: { type: 'array', default: [] },
     organizationIds: { type: 'array', default: [] },
+    userLinks: { type: 'array', default: [] },
+    directorySources: { type: 'array', default: [] },
     tags: { type: 'array', default: [] },
     viewMode: { type: 'string', default: 'table' },
   });
@@ -85,9 +87,11 @@ export function useDevicesUrlParams(options: UseDevicesUrlParamsOptions = {}) {
       ...(effectiveStatuses.length > 0 && { statuses: effectiveStatuses }),
       osTypes: params.osTypes,
       organizationIds: params.organizationIds,
+      ...(params.userLinks.length > 0 && { userLinks: params.userLinks }),
+      ...(params.directorySources.length > 0 && { directorySources: params.directorySources }),
       ...(tagValues.length > 0 && { tagValues }),
     }),
-    [effectiveStatuses, params.osTypes, params.organizationIds, tagValues],
+    [effectiveStatuses, params.osTypes, params.organizationIds, params.userLinks, params.directorySources, tagValues],
   );
 
   const tableFilters = useMemo(
@@ -95,8 +99,10 @@ export function useDevicesUrlParams(options: UseDevicesUrlParamsOptions = {}) {
       status: selectedStatuses,
       os: params.osTypes,
       organization: params.organizationIds,
+      user: params.userLinks,
+      sources: params.directorySources,
     }),
-    [selectedStatuses, params.osTypes, params.organizationIds],
+    [selectedStatuses, params.osTypes, params.organizationIds, params.userLinks, params.directorySources],
   );
 
   const tagOptions: TagSearchOption<string>[] = useMemo(
@@ -110,6 +116,8 @@ export function useDevicesUrlParams(options: UseDevicesUrlParamsOptions = {}) {
         statuses: columnFilters.status || [],
         osTypes: columnFilters.os || [],
         organizationIds: columnFilters.organization || [],
+        userLinks: columnFilters.user || [],
+        directorySources: columnFilters.sources || [],
       });
       document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
     },

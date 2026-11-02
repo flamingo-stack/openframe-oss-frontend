@@ -34,6 +34,12 @@ export const deviceFieldsFragment = graphql`
     timezone
     registeredAt
     updatedAt
+    # The USER and SOURCES columns: stored on the machine, written by the SaaS
+    # matcher, inert in OSS (none, empty).
+    directorySources
+    directoryUserLink
+    directoryUserIds
+    directoryUserName
     toolConnections {
       id
       machineId

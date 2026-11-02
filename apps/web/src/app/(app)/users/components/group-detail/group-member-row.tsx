@@ -2,7 +2,6 @@
 
 import { MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { EMPTY_VALUE } from '@/lib/empty-value';
 import { CustomerCell, ProviderMarks, UserCell, type UserRow } from '../users-list/user-row-cells';
 
 export type MemberKind = 'user' | 'group' | 'device';
@@ -61,11 +60,10 @@ export function MemberTypeCell({ row }: { row: MemberRow }) {
 }
 
 /**
- * A user's customers, named by its rules. A subgroup has none of its own (Figma 733:99325); a device's customers are the
- * devices wave's (`OrgDevice.customers`, W3), so it shows the empty mark until then.
+ * A user's customers, named by its rules; a device's, the ones that claim its declared owner. A subgroup has none of
+ * its own (Figma 733:99325).
  */
 export function MemberCustomerCell({ row }: { row: MemberRow }) {
   if (row.kind === 'group') return <TruncateText>Counted through its members</TruncateText>;
-  if (row.kind === 'device') return <TruncateText>{EMPTY_VALUE}</TruncateText>;
   return <CustomerCell row={row} showTenant={false} />;
 }

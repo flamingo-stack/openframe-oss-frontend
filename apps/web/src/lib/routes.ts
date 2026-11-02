@@ -53,6 +53,7 @@ export const TAB_IDS = {
     'os',
     'network',
     'users',
+    'directory',
     'software',
     'remote-sessions',
     'device-logs',

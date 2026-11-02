@@ -105,6 +105,10 @@ const directoryUsersTableFragment = graphql`
             }
             devices {
               managed {
+                machine {
+                  displayName
+                  hostname
+                }
                 directoryDevice {
                   displayName
                 }
@@ -151,9 +155,12 @@ function toUserRow(node: PersonNode): UserRow {
     tenant: firstAccount?.connection
       ? { name: firstAccount.connection.name, provider: firstAccount.connection.provider }
       : null,
-    devices: node.accounts.flatMap(account =>
-      [...account.devices.managed, ...account.devices.unmanaged].map(device => device.directoryDevice.displayName),
-    ),
+    devices: node.accounts.flatMap(({ devices: { managed, unmanaged } }) => [
+      ...managed.map(
+        ({ machine, directoryDevice }) => machine?.displayName || machine?.hostname || directoryDevice.displayName,
+      ),
+      ...unmanaged.map(({ directoryDevice }) => directoryDevice.displayName),
+    ]),
     status: userStatusTag(node.status),
     statusTooltip: statusAccount ? userStatusTooltip(statusAccount.statusReason, statusAccount.statusDetail) : null,
     lastSignIn: lastSignInLabel(node.lastSignInAt, signInData, 'relative'),
@@ -162,7 +169,7 @@ function toUserRow(node: PersonNode): UserRow {
 }
 
 /**
- * The columns. The global page (Figma 733:99047) names the customer and narrows by tenant; a customer's Users tab
+ * The columns. The global page (Figma 733:99047) names the customer and narrows by it; a customer's Users tab
  * (733:98943) is already one customer, so it shows the licences instead and narrows by them.
  */
 function buildColumns(options: UserFilterOptions, customerScoped: boolean): ColumnDef<UserRow>[] {
@@ -179,12 +186,12 @@ function buildColumns(options: UserFilterOptions, customerScoped: boolean): Colu
       ? []
       : [
           {
-            id: USER_COLUMNS.tenant.id,
-            header: USER_COLUMNS.tenant.header,
+            id: USER_COLUMNS.customer.id,
+            header: USER_COLUMNS.customer.header,
             cell: ({ row }: { row: Row<UserRow> }) => <CustomerCell row={row.original} />,
             enableSorting: false,
             filterFn: multiSelectFilterFn,
-            meta: liveColumnMeta(USER_COLUMNS.tenant, { filter: { options: options.tenants } }),
+            meta: liveColumnMeta(USER_COLUMNS.customer, { filter: { options: options.customers } }),
           },
         ]),
     {
@@ -240,7 +247,7 @@ function filterGroups(options: UserFilterOptions, customerScoped: boolean): Filt
         group(CUSTOMER_USER_COLUMNS.license.id, CUSTOMER_USER_COLUMNS.license.header, options.licenses),
       ]
     : [
-        group(USER_COLUMNS.tenant.id, USER_COLUMNS.tenant.header, options.tenants),
+        group(USER_COLUMNS.customer.id, USER_COLUMNS.customer.header, options.customers),
         group(USER_COLUMNS.status.id, USER_COLUMNS.status.header, options.statuses),
       ];
 }
@@ -267,7 +274,7 @@ interface DirectoryUsersTableProps {
   onFiltersClose: () => void;
 }
 
-const UNREAD_FILTER_OPTIONS: UserFilterOptions = { tenants: [], statuses: [], licenses: [] };
+const UNREAD_FILTER_OPTIONS: UserFilterOptions = { customers: [], statuses: [], licenses: [] };
 
 /** The Users rows, with their own boundary; in its scope the reader draws placeholder rows and does not fetch. */
 export function DirectoryUsersTable(props: DirectoryUsersTableProps) {
@@ -415,7 +422,7 @@ function UsersRows({
         currentFilters={{ ...selections }}
         onFilterChange={filters =>
           onSelectionsChange({
-            tenant: filters.tenant ?? [],
+            customer: filters.customer ?? [],
             status: filters.status ?? [],
             license: filters.license ?? [],
           })

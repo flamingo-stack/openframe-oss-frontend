@@ -4,13 +4,11 @@ import {
   DirectoryGroupVisibility,
   DirectoryMembershipScope,
   DirectoryReadOnlyReason,
-  OrgDeviceKind,
 } from '@/generated/schema-enums';
 import {
   groupMembershipLabel,
   groupTypeLabel,
   groupVisibilityLabel,
-  memberDeviceLabel,
   nestedGroupLabel,
   pickMembershipScope,
   readOnlyTooltip,
@@ -28,12 +26,9 @@ describe('group labels', () => {
     expect(nestedGroupLabel(DirectoryGroupKind.SECURITY)).toBe('Security group, nested');
   });
 
-  it('names every visibility and device kind', () => {
+  it('names every visibility', () => {
     for (const visibility of Object.values(DirectoryGroupVisibility)) {
       expect(groupVisibilityLabel(visibility)).not.toBe(visibility);
-    }
-    for (const kind of Object.values(OrgDeviceKind)) {
-      expect(memberDeviceLabel(kind)).toMatch(/device$/);
     }
   });
 });
