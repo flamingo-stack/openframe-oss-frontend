@@ -4,7 +4,6 @@ import {
   BookBookmarkIcon,
   BracketCurlyEllipsisVrIcon,
   BracketCurlyIcon,
-  BracketSquareCheckIcon,
   ChartDonutIcon,
   ClipboardListIcon,
   ClockHistoryIcon,
@@ -180,7 +179,9 @@ const NAV_MODULES = {
     prefixes: ['/monitoring/query'],
     match: [{ path: '/monitoring', exact: true, query: { tab: 'queries' } }, '/monitoring/query'],
   },
-  // The Software module — behind `software-management`, like its routes.
+  // The Software module — behind `software-management`, like its routes. Its tabs
+  // (Software Actions, Vulnerabilities) and their detail pages are pages under
+  // `/software`, not rows of their own: the prefix marks Software active on them.
   software: {
     label: 'Software',
     icon: Parcel02Icon,
@@ -189,14 +190,6 @@ const NAV_MODULES = {
     gates: ['softwareManagement'],
     category: NotificationCategory.SOFTWARE,
     beta: true,
-  },
-  // A view of the Software module, so the same gate. The detail page is singular.
-  vulnerabilities: {
-    label: 'Vulnerabilities',
-    icon: BracketSquareCheckIcon,
-    path: routes.software.vulnerabilities,
-    prefixes: ['/software/vulnerabilities', '/software/vulnerability'],
-    gates: ['softwareManagement'],
   },
   logs: {
     label: 'Logs',
@@ -326,7 +319,7 @@ const GROUPED_LAYOUT: { groups: readonly NavGroup[]; leaves: readonly NavModuleI
       icon: BracketCurlyIcon,
       children: ['scripts', 'schedules', 'policies', 'queries'],
     },
-    { id: 'monitor', label: 'Monitor', icon: ActivityIcon, children: ['incidents', 'vulnerabilities', 'logs'] },
+    { id: 'monitor', label: 'Monitor', icon: ActivityIcon, children: ['incidents', 'logs'] },
   ],
   leaves: ['knowledge-base'],
 };
