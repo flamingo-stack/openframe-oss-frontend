@@ -83,9 +83,11 @@ import {
 import { isSaasTenantMode } from '@/lib/app-mode';
 import { notificationGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
-import { ATTENTION_IDLE_MS, isSessionActive, subscribeAttention } from '@/lib/session-activity';
+import { ATTENTION_IDLE_MS, isSessionActive, PRESENCE_IDLE_MS, subscribeAttention } from '@/lib/session-activity';
 import { withNotificationIcon } from './notification-category-icons';
 import {
+  ADMIN_AI_MESSAGE_TYPE,
+  ADMIN_AI_TICKET_MESSAGE_TYPE,
   type NotificationAction,
   notificationTargetsDialog,
   notificationTargetsLocation,
@@ -103,6 +105,7 @@ const POPUP_OFFSET_CLASS = 'top-16 md:top-[4.5rem]';
 const NOTIFICATIONS_HISTORY_HREF = routes.notifications({ tab: 'history' });
 
 const DRAWER_FILTER_PAIRS = [UNFILTERED_NOTIFICATION_PAIR];
+const MINGO_REPLY_TYPES = new Set<string>([ADMIN_AI_MESSAGE_TYPE, ADMIN_AI_TICKET_MESSAGE_TYPE]);
 /** Write a JSON custom-scalar field: RecordProxy.setValue rejects objects, so use the normalizer's unsafe setter. */
 function setJsonScalar(record: unknown, name: string, value: Record<string, unknown> | null) {
   (record as Record<string, (v: unknown, n: string) => void>).setValue__UNSAFE(value, name);
@@ -474,9 +477,10 @@ function EntityViewAutoReader() {
     // Called live rather than snapshotted into state: the idle timer lapsing fires no
     // event, so a captured boolean would go stale and re-open the very hole this closes.
     //
-    // Same cross-device consequence as the arrival-time path above, so the same gate:
-    // it stops a tab left sitting on an entity from reading — and retracting from the
-    // phone — notifications that arrive later.
+    // Same cross-device consequence as the arrival-time path, so the attention window, with
+    // no exception for Mingo replies: this runs over every loaded row, not one arrival. It
+    // stops a tab left sitting on an entity from reading — and retracting from the phone —
+    // notifications that arrive later.
     //
     // It does NOT help at the moment of navigation: navigating is itself input, so the
     // gate passes by construction, and this effect then reads EVERY loaded unread
@@ -547,7 +551,8 @@ interface NotificationsLiveBridgeProps {
  * `dialogId`, i.e. Mingo messages, their ticket-linked variant, and approval
  * requests. Such notifications are redundant — the message or approval card is
  * already rendering in the chat — so the popup is skipped and the notification
- * auto-marked read. Requires an actively-attended session, not merely a visible tab.
+ * auto-marked read. Requires an attended session, how recently depending on the type
+ * (below), not merely a visible tab.
  */
 function isWatchingNotificationDialog(payload: NatsNotificationPayload): boolean {
   const dialogId = payloadDialogId(payload);
@@ -556,7 +561,17 @@ function isWatchingNotificationDialog(payload: NatsNotificationPayload): boolean
   // read state is CROSS-DEVICE — it drives PushRetractionListener, which pulls the
   // banner off the user's phone. A visible tab on an unattended desk satisfied the
   // old gate, so a laptop left open silently cleared notifications nobody saw.
-  return isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS });
+  //
+  // A Mingo reply is measured against presence instead. The user asked for it and is
+  // waiting on it, which produces no input (the thread scrolls itself), and it lands when
+  // the run ends, usually past the attention window: a popup and a phone push for the
+  // reply they were reading. Presence is also where the server stops holding the push for
+  // its grace, so past it the reply alerts like anything else. The cost: input recency
+  // cannot tell a reader from someone who sent a prompt and walked off with the window
+  // focused, and that person's phone stays silent. Nobody is waiting on an approval or a
+  // client chat message, and missing one costs more, so they keep the tight window.
+  const idleAfterMs = payload.type && MINGO_REPLY_TYPES.has(payload.type) ? PRESENCE_IDLE_MS : ATTENTION_IDLE_MS;
+  return isSessionActive({ idleAfterMs });
 }
 
 /**

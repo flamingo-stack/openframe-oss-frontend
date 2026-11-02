@@ -33,6 +33,8 @@ import { isMobileShell } from './platform';
  * consumers (item stays unread, push still arrives), but it does mean the phone
  * can buzz for something on screen. If that proves worse than the loss risk, raise
  * the cancel call site alone; the threshold is per-call for exactly that reason.
+ * It did prove worse for one case: a Mingo reply landing in the chat on screen is
+ * read on arrival under PRESENCE_IDLE_MS; `isWatchingNotificationDialog` says why.
  *
  * ## Two implementations, not one plus an event
  *
@@ -85,7 +87,10 @@ import { isMobileShell } from './platform';
  * "not watching" — roughly the life of the live tile plus a beat.
  */
 export const ATTENTION_IDLE_MS = 10_000;
-/** Presence only costs a skipped grace window; be generous. */
+/**
+ * Presence itself only costs a skipped grace window, so be generous. It also bounds
+ * the one cross-device read above (a Mingo reply on screen): raising it widens that.
+ */
 export const PRESENCE_IDLE_MS = 5 * 60_000;
 
 /** Movement events fire continuously; one timestamp write per this window is plenty. */
@@ -229,7 +234,7 @@ function startSource(): void {
 /**
  * @param idleAfterMs how long without input still counts as active. Use
  *   {@link ATTENTION_IDLE_MS} for anything irreversible (auto-read, push cancel),
- *   {@link PRESENCE_IDLE_MS} for reporting presence.
+ *   {@link PRESENCE_IDLE_MS} for reporting presence and the Mingo reply case above.
  */
 export function isSessionActive({ idleAfterMs }: { idleAfterMs: number }): boolean {
   if (typeof window === 'undefined') return false;
