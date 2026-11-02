@@ -19,7 +19,8 @@ export const REVEAL_CAP_MS = 4000;
 
 interface RevealContextValue {
   held: boolean;
-  report: (id: string, answered: boolean) => void;
+  /** `pending`: waited on unless a part below has already answered for it. */
+  report: (id: string, answer: boolean | 'pending') => void;
 }
 
 const RevealContext = createContext<RevealContextValue | null>(null);
@@ -55,8 +56,9 @@ export function RevealTogether({ children }: { children: ReactNode }) {
   }, [settle]);
 
   const report = useCallback(
-    (id: string, answered: boolean) => {
-      parts.current.set(id, answered);
+    (id: string, answer: boolean | 'pending') => {
+      if (answer !== 'pending') parts.current.set(id, answer);
+      else if (!parts.current.has(id)) parts.current.set(id, false);
       settle();
     },
     [settle],
@@ -81,6 +83,19 @@ export function useRevealPart(id: string, answered: boolean): void {
   useLayoutEffect(() => {
     report?.(id, answered);
   }, [report, id, answered]);
+}
+
+/**
+ * A section whose answer comes from a part below it (a Relay reader that mounts once its data is
+ * in) waits on it while `waiting`, and reads as answered once not (its gate shut). Layout effects
+ * run children first, so on a cached return the part below has answered before this registers:
+ * `pending` keeps that answer instead of overwriting it.
+ */
+export function useRevealWait(id: string, waiting: boolean): void {
+  const report = useContext(RevealContext)?.report;
+  useLayoutEffect(() => {
+    report?.(id, waiting ? 'pending' : true);
+  }, [report, id, waiting]);
 }
 
 /** Whether the page still holds its sections in their loading form. False outside a `RevealTogether` page. */

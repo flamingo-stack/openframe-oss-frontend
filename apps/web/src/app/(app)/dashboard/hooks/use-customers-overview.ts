@@ -195,6 +195,8 @@ export function useCustomersOverview(limit: number = CUSTOMERS_OVERVIEW_LIMIT) {
     queryFn: () => fetchCustomersOverview(limit),
     enabled: isAuthenticated,
     staleTime: 3 * 60 * 1000,
+    // Read again on every return to the dashboard, drawn over the last answer: no skeleton.
+    refetchOnMount: 'always',
     gcTime: 10 * 60 * 1000,
     retry: 1,
     retryDelay: 1000,

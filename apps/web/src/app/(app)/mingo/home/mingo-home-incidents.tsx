@@ -8,7 +8,7 @@ import type { mingoHomeIncidentsQuery as MingoHomeIncidentsQueryType } from '@/_
 import { IncidentSeverityTag } from '@/app/(app)/incidents/components/incident-tags';
 import { useIncidentsGate } from '@/app/(app)/incidents/hooks/use-incidents-gate';
 import { ContentErrorBoundary, useRetryKey } from '@/app/components/shared/content-error-boundary';
-import { useRevealHeld, useRevealPart } from '@/app/components/shared/reveal-together';
+import { useRevealHeld, useRevealPart, useRevealWait } from '@/app/components/shared/reveal-together';
 import { SectionLoadError } from '@/app/components/shared/section-load-error';
 import { InsightSeverity, InsightStatus } from '@/generated/schema-enums';
 import { EMPTY_VALUE } from '@/lib/empty-value';
@@ -63,7 +63,7 @@ const CARD_GRID = 'grid grid-cols-2 gap-[var(--spacing-system-mf)] content-lg:gr
 export function MingoHomeIncidents() {
   const gate = useIncidentsGate();
   // Waited on until the gate says off, or the counts (or their failure) report it below.
-  useRevealPart('incidents', gate === 'off');
+  useRevealWait('incidents', gate !== 'off');
   // The page's loading state draws the section's own, as the unanswered gate does.
   const loading = useLoadingScope() || gate === 'loading';
 

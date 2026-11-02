@@ -6,7 +6,7 @@
 import { act, StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { REVEAL_CAP_MS, RevealTogether, useRevealHeld, useRevealPart } from './reveal-together';
+import { REVEAL_CAP_MS, RevealTogether, useRevealHeld, useRevealPart, useRevealWait } from './reveal-together';
 
 function Part({ id, answered }: { id: string; answered: boolean }) {
   useRevealPart(id, answered);
@@ -22,6 +22,12 @@ function Page({ a, b }: { a: boolean; b: boolean }) {
       <Part id="b" answered={b} />
     </RevealTogether>
   );
+}
+
+/** A section whose answer comes from a reader below it, mounted once its data is in. */
+function GatedSection({ cached }: { cached: boolean }) {
+  useRevealWait('gated', true);
+  return cached ? <Part id="gated" answered /> : <p data-part="gated">skeleton</p>;
 }
 
 let container: HTMLDivElement;
@@ -88,6 +94,31 @@ describe('RevealTogether', () => {
     act(() => vi.advanceTimersByTime(REVEAL_CAP_MS));
     expect(state('a')).toBe('content');
     expect(state('b')).toBe('skeleton');
+  });
+
+  it('keeps the answer of a cached reader below a section that registers after it', () => {
+    act(() =>
+      root.render(
+        <RevealTogether>
+          <GatedSection cached />
+          <Part id="a" answered />
+        </RevealTogether>,
+      ),
+    );
+    expect(state('a')).toBe('content');
+    expect(state('gated')).toBe('content');
+  });
+
+  it('waits on a section whose reader has not mounted yet', () => {
+    act(() =>
+      root.render(
+        <RevealTogether>
+          <GatedSection cached={false} />
+          <Part id="a" answered />
+        </RevealTogether>,
+      ),
+    );
+    expect(state('a')).toBe('skeleton');
   });
 
   it('holds nothing outside such a page', () => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useLayoutEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { needsYouSoftwareSourceQuery as NeedsYouSoftwareSourceQueryType } from '@/__generated__/needsYouSoftwareSourceQuery.graphql';
 import { useRetryKey } from '@/app/components/shared/content-error-boundary';
@@ -49,7 +49,9 @@ export function NeedsYouSoftwareSource({ onReport }: { onReport: ReportSource })
     [data.softwareActions.edges],
   );
 
-  useEffect(() => {
+  // Before paint: a source read from the store answers in the same commit, so a return to
+  // the page draws its rows, not the card's loading form, for a frame.
+  useLayoutEffect(() => {
     onReport('software', { status: 'ready', rows });
   }, [onReport, rows]);
 
