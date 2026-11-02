@@ -122,7 +122,7 @@ function DeviceGuardrailsForm({ policy, onSaved }: { policy: TenantRemoteAccessP
         control={form.control}
         render={({ field, fieldState }) => (
           <Select value={field.value} onValueChange={field.onChange}>
-            <SelectTrigger label={MODE_LABEL} error={fieldState.error?.message}>
+            <SelectTrigger label={MODE_LABEL} labelVariant="large" error={fieldState.error?.message}>
               {/* Children override Radix's item mirror, so the closed trigger
                   reads the label straight from the mode, not from a mounted item. */}
               <SelectValue placeholder="Select a permission">

@@ -137,7 +137,7 @@ export function AssignArticleModal({ target, isOpen, onClose, onAssigned }: Assi
         </>
       }
     >
-      <FieldWrapper label="Articles">
+      <FieldWrapper label="Articles" labelVariant="large">
         <Autocomplete
           multiple
           options={mergedOptions}

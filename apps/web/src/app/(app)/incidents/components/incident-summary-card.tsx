@@ -82,7 +82,10 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
         <Cell>
           <InfoCell
             loading={loading}
-            icon={renderDeviceTypeIcon(incident?.deviceType ?? undefined, `${DEVICE_ICON_CLASS} text-ods-text-primary`)}
+            icon={renderDeviceTypeIcon(
+              incident?.deviceType ?? undefined,
+              `${DEVICE_ICON_CLASS} text-ods-text-secondary`,
+            )}
             iconSkeleton={{ className: DEVICE_ICON_CLASS }}
             value={
               // Only a device that resolved gets a link — a QA seed or a retired

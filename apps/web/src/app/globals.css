@@ -55,8 +55,7 @@ input[type='number'] {
  * `MobileBurgerMenu` keeps its `aria-modal` panel mounted permanently and marks
  * it `inert` while closed, so without it the card would never appear at all.
  * Radix `Dialog`/`Drawer` (9997–9999) are deliberately NOT matched — they
- * already out-rank the card, and the Mingo drawer's layering over it is
- * intentional (see WALKTHROUGH_OVERLAP_Z in `components/app-layout.tsx`).
+ * already out-rank the card.
  */
 body:has([aria-modal='true']:not([inert]), [role='alertdialog']) .of-walkthrough-card {
   display: none;

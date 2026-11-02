@@ -1,4 +1,4 @@
-import { appStyleSources } from '@flamingo-stack/openframe-frontend-core/style-sources';
+import { appStyleSources, withRouteStylesTailwind } from '@flamingo-stack/openframe-frontend-core/style-sources';
 import openframeCorePreset from '@flamingo-stack/openframe-frontend-core/tailwind.config.ts';
 import type { Config } from 'tailwindcss';
 
@@ -11,4 +11,5 @@ const config: Config = {
   presets: [openframeCorePreset],
 };
 
-export default config;
+// Under `next-styles build` the root sheet carries no utilities: each page brings its own.
+export default withRouteStylesTailwind(config);

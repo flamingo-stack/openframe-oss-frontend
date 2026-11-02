@@ -5,7 +5,7 @@ import { Button, useLoadingScope } from '@flamingo-stack/openframe-frontend-core
 import { useRouter } from 'next/navigation';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
-import { routes } from '@/lib/routes';
+import { getLandingPath } from '@/lib/app-mode';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 
 const LABEL = 'Skip onboarding (dev)';
@@ -31,7 +31,7 @@ export function DevSkipOnboardingButton() {
   if (useLoadingScope()) return null;
   if (gate !== 'on' || !hasProgress) return null;
 
-  const skip = () => skipOnboarding(() => router.replace(routes.dashboard));
+  const skip = () => skipOnboarding(() => router.replace(getLandingPath()));
 
   return (
     <div data-loading-optional className="contents">

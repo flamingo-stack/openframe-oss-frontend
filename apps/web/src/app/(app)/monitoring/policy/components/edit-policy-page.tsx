@@ -225,17 +225,26 @@ export function EditPolicyPage({ policyId }: EditPolicyPageProps) {
                 onChange: (e: React.ChangeEvent<HTMLInputElement>) => setHasName(!!e.target.value.trim()),
               })}
               label="Name"
+              labelVariant="large"
               placeholder="Enter Policy Name"
               error={errors.name?.message}
             />
           </div>
 
           {/* Description */}
-          <Textarea {...register('description')} label="Description" rows={3} placeholder="Enter Policy Description" />
+          <Textarea
+            {...register('description')}
+            label="Description"
+            labelVariant="large"
+            rows={3}
+            placeholder="Enter Policy Description"
+          />
 
           {/* Query + inline test block */}
           <div className="space-y-1">
-            <Label className="!mb-0">Query</Label>
+            <Label variant="large" className="!mb-0">
+              Query
+            </Label>
             <Controller
               name="query"
               control={control}

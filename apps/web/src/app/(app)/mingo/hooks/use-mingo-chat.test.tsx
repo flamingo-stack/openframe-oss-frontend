@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MingoDialogsPage } from '../utils/dialog-row-status';
 import { forgetCreatedDialogs } from '../utils/insert-new-dialog';
 import { mingoDialogQueryKeys } from '../utils/query-keys';
-import { useMingoChat } from './use-mingo-chat';
+import { useMingoDialogChat } from './use-mingo-chat';
 
 type DialogsData = InfiniteData<MingoDialogsPage, string | undefined>;
 
@@ -32,16 +32,16 @@ vi.mock('../services/mingo-api-service', () => ({
   useStopGenerationMutation: () => ({ mutateAsync: vi.fn() }),
 }));
 
-const LIST_KEY = mingoDialogQueryKeys.list({ limit: 20, withPendingApproval: true, scope: 'my' });
+const LIST_KEY = mingoDialogQueryKeys.list({ limit: 20, scope: 'my' });
 
 let container: HTMLDivElement;
 let root: Root;
 let client: QueryClient;
-let chat: ReturnType<typeof useMingoChat>;
+let chat: ReturnType<typeof useMingoDialogChat>;
 
 function renderChat() {
   function Probe() {
-    chat = useMingoChat(null);
+    chat = useMingoDialogChat(null);
     return null;
   }
   act(() =>
@@ -73,7 +73,7 @@ afterEach(() => {
   forgetCreatedDialogs();
 });
 
-describe('useMingoChat - createDialog', () => {
+describe('useMingoDialogChat - createDialog', () => {
   it('lists an ordinary dialog as untitled and refetches the lists', async () => {
     renderChat();
     const invalidate = vi.spyOn(client, 'invalidateQueries');

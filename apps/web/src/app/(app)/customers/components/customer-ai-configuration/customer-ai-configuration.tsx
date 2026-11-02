@@ -294,7 +294,7 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
                     name="assistantName"
                     control={form.control}
                     render={({ field, fieldState }) => (
-                      <Input {...field} label="Assistant Name" error={fieldState.error?.message} />
+                      <Input {...field} label="Assistant Name" labelVariant="large" error={fieldState.error?.message} />
                     )}
                   />
 
@@ -309,6 +309,7 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
                 <div className="w-full shrink-0 content-md:w-[274px]">
                   <ImageUploader
                     fieldLabel="Assistant Avatar"
+                    labelVariant="large"
                     value={avatarUrl}
                     onChange={handleAvatarChange}
                     onRemove={handleAvatarRemove}

@@ -184,10 +184,7 @@ export function SettingsHub() {
     >
       <div className="flex flex-col gap-[var(--spacing-system-l)]">
         {/* Organization + Profile */}
-        <AccountSettingsCard
-          onEditProfile={() => setIsEditModalOpen(true)}
-          onVerifyEmail={() => setIsVerificationModalOpen(true)}
-        />
+        <AccountSettingsCard onEditProfile={() => setIsEditModalOpen(true)} />
 
         {user?.emailVerified === false && <EmailVerificationBanner onResend={() => setIsVerificationModalOpen(true)} />}
 
@@ -222,12 +219,16 @@ export function SettingsHub() {
         })}
       </LoadingWhen>
 
-      {/* Log Out — pinned to the bottom-left of the page */}
-      <div className="mt-auto">
-        <Button variant="outline" onClick={openLogoutConfirm} leftIcon={<Logout01Icon className="text-ods-error" />}>
-          Log Out
-        </Button>
-      </div>
+      {/* Log Out — pinned to the bottom-left of the page, on an OSS tenant only: its desktop
+          has no other (no user cell in the header, the burger menu is the phone's). The
+          Mingo-first shell logs out from its account menu (sidebar and phone drawer). */}
+      {isOssTenantMode() && (
+        <div className="mt-auto">
+          <Button variant="outline" onClick={openLogoutConfirm} leftIcon={<Logout01Icon className="text-ods-error" />}>
+            Log Out
+          </Button>
+        </div>
+      )}
 
       {/* Modals */}
       {user && (

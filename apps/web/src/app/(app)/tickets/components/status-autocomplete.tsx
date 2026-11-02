@@ -1,7 +1,8 @@
 'use client';
 
-import { CheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { CheckIcon, Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  Autocomplete,
   type AutocompleteOption,
   ColorSwatch,
   TruncateText,
@@ -30,4 +31,31 @@ export function renderStatusOption(option: AutocompleteOption, isSelected: boole
 export function statusStartAdornment(option: StatusOption | undefined): ReactNode | undefined {
   if (!option) return undefined;
   return <ColorSwatch color={option.color} />;
+}
+
+interface StatusFilterProps {
+  /** The tenant's statuses (value = status id). */
+  options: StatusOption[];
+  value: string[];
+  onChange: (statusIds: string[]) => void;
+  className?: string;
+}
+
+/**
+ * Tickets narrowed to some statuses (`?status=`, status ids): the filter modal's Status
+ * section, and the board's control while a status filter is applied.
+ */
+export function StatusFilter({ options, value, onChange, className }: StatusFilterProps) {
+  return (
+    <Autocomplete
+      multiple
+      options={options}
+      value={value}
+      onChange={onChange}
+      placeholder="Show All Statuses"
+      startAdornment={<Filter02Icon className="size-6 text-ods-text-secondary" />}
+      renderOption={renderStatusOption}
+      className={className}
+    />
+  );
 }

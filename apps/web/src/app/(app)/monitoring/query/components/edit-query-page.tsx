@@ -274,6 +274,7 @@ export function EditQueryPage({ queryId }: EditQueryPageProps) {
                   onChange: (e: React.ChangeEvent<HTMLInputElement>) => setHasName(!!e.target.value.trim()),
                 })}
                 label="Name"
+                labelVariant="large"
                 placeholder="Enter Query Name"
                 error={errors.name?.message}
               />
@@ -298,7 +299,9 @@ export function EditQueryPage({ queryId }: EditQueryPageProps) {
 
                 return (
                   <div className="space-y-1">
-                    <Label className="!mb-0">Frequency</Label>
+                    <Label variant="large" className="!mb-0">
+                      Frequency
+                    </Label>
                     <div className="flex gap-3">
                       <Input
                         type="number"
@@ -332,11 +335,19 @@ export function EditQueryPage({ queryId }: EditQueryPageProps) {
           </div>
 
           {/* Description */}
-          <Textarea {...register('description')} label="Description" rows={3} placeholder="Enter Query Description" />
+          <Textarea
+            {...register('description')}
+            label="Description"
+            labelVariant="large"
+            rows={3}
+            placeholder="Enter Query Description"
+          />
 
           {/* Query + inline test block */}
           <div className="space-y-1">
-            <Label className="!mb-0">Query</Label>
+            <Label variant="large" className="!mb-0">
+              Query
+            </Label>
             <Controller
               name="query"
               control={control}

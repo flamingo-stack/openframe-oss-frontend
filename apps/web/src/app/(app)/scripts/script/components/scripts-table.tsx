@@ -627,7 +627,8 @@ function ScriptsTableContent({
           { icon: <PlayIcon />, label: 'Run on one device or push to many at once' },
           { icon: <TerminalIcon />, label: 'Write in PowerShell, Bash, Python, or Batch' },
           {
-            icon: <AgentMark agent="mingo" className="size-5" />,
+            // The slot's own size (16px, 24px from content-md), as its neighbours' glyphs.
+            icon: <AgentMark agent="mingo" className="size-full" />,
             label: 'Let Mingo suggest or generate scripts for you',
           },
         ]}

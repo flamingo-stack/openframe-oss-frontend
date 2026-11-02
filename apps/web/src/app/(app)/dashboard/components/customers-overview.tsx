@@ -4,8 +4,14 @@ import { DashboardInfoCard, EntityImage, TitleBlock, TruncateText } from '@flami
 import { LoadingRegion, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { DEVICE_STATUS } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { IdCardIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { LoadError, LoadingItems, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  LoadError,
+  LoadingItems,
+  LoadingWhen,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { EmptyState } from '@/app/components/shared';
+import { useRevealHeld, useRevealPart } from '@/app/components/shared/reveal-together';
 import { getFullImageUrl } from '@/lib/image-url';
 import { pluralize } from '@/lib/pluralize';
 import { loadErrorProps } from '@/lib/query-state';
@@ -39,9 +45,10 @@ function DeviceCards({ org }: { org: CustomerRow | null }) {
         percentage={org ? (online ? org.activePct : org.inactivePct) : undefined}
         href={
           org
-            ? count > 0
-              ? `/devices?organizationIds=${org.organizationId}&statuses=${status}`
-              : `/devices?organizationIds=${org.organizationId}`
+            ? routes.devices.filtered({
+                organizationIds: [org.organizationId],
+                statuses: count > 0 ? [status] : undefined,
+              })
             : undefined
         }
       />
@@ -109,9 +116,15 @@ function CustomerOverviewRow({ org }: { org: CustomerRow | null }) {
 
 type CustomersOverviewData = ReturnType<typeof useCustomersOverview>;
 
-/** The customers, read. */
+/** The customers, read; in its loading form until the page shows its sections (`RevealTogether`). */
 export function CustomersOverviewSection() {
-  return <CustomersOverview customers={useCustomersOverview(CUSTOMERS_OVERVIEW_LIMIT)} />;
+  const customers = useCustomersOverview(CUSTOMERS_OVERVIEW_LIMIT);
+  useRevealPart('customers', !(customers.loading && customers.rows.length === 0));
+  return (
+    <LoadingWhen loading={useRevealHeld()}>
+      <CustomersOverview customers={customers} />
+    </LoadingWhen>
+  );
 }
 
 /** The section over the customers it is handed; with none (or in a loading scope) its rows draw their loading state. */
