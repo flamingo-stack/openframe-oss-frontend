@@ -14,6 +14,8 @@ describe('mingo sheet store', () => {
       lastPage: null,
       listOpen: false,
       listAfterNavigation: false,
+      outsidePage: null,
+      newChatPage: null,
     });
     window.sessionStorage.clear();
   });
@@ -97,6 +99,26 @@ describe('mingo sheet store', () => {
     expect(window.sessionStorage.getItem('of.mingo-last-page')).toBe('/devices/?statuses=ONLINE');
     store().rememberPage('/mingo/');
     expect(store().lastPage).toBe('/mingo/');
+  });
+
+  it('keeps the page a new chat was started over until a page outside Mingo is on screen again', () => {
+    store().rememberOutsidePage('/settings/');
+    expect(store().newChatPage).toBeNull();
+
+    store().rememberNewChatPage();
+    expect(store().newChatPage).toBe('/settings/');
+    expect(window.sessionStorage.getItem('of.mingo-new-chat-page')).toBe('/settings/');
+
+    // Back on the same page: the new chat is over, though the page has not changed.
+    store().rememberOutsidePage('/settings/');
+    expect(store().newChatPage).toBeNull();
+    expect(window.sessionStorage.getItem('of.mingo-new-chat-page')).toBeNull();
+  });
+
+  it('starts a new chat over no page when none was on screen', () => {
+    store().rememberNewChatPage();
+    expect(store().newChatPage).toBeNull();
+    expect(window.sessionStorage.getItem('of.mingo-new-chat-page')).toBeNull();
   });
 
   it('keeps the dragged height for this viewer', () => {

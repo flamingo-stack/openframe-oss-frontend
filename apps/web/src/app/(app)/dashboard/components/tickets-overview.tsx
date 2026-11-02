@@ -2,9 +2,10 @@
 
 import { DashboardInfoCard, TicketStatusTag, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
 import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
-import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 import { SectionLoadError } from '@/app/components/shared';
+import { useRevealHeld, useRevealPart } from '@/app/components/shared/reveal-together';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
@@ -23,9 +24,15 @@ interface TicketsOverviewLinks {
   filterLinks?: boolean;
 }
 
-/** The ticket counts, read. */
+/** The ticket counts, read; in its loading form until the page shows its sections (`RevealTogether`). */
 export function TicketsOverviewSection({ filterLinks = false }: TicketsOverviewLinks) {
-  return <TicketsOverview tickets={useTicketsOverview()} filterLinks={filterLinks} />;
+  const tickets = useTicketsOverview();
+  useRevealPart('tickets', !tickets.isLoading);
+  return (
+    <LoadingWhen loading={useRevealHeld()}>
+      <TicketsOverview tickets={tickets} filterLinks={filterLinks} />
+    </LoadingWhen>
+  );
 }
 
 /** The four cards in order: each card's static title, the status kind it counts and the count it reads. */

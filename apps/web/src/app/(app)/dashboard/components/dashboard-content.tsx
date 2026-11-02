@@ -6,6 +6,7 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
 import { InitialSetupCard } from '@/app/(app)/onboarding/components/initial-setup-card';
 import { useInitialSetupActive } from '@/app/(app)/onboarding/hooks/use-initial-setup-active';
+import { RevealTogether, useRevealPart } from '@/app/components/shared/reveal-together';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { isSaasTenantMode } from '@/lib/app-mode';
 import { CustomersOverview, CustomersOverviewSection } from './customers-overview';
@@ -47,17 +48,22 @@ function InitialSetupSection() {
 }
 
 /**
- * Onboarding v2's welcome ("OpenFrame isn't your typical RMM") above the overview,
- * until the user closes it — the dashboard's and Mingo's home's. The same wrapper as
- * the setup card, so a dismissed banner collapses the gap. Nothing while the flag is
- * unanswered or off.
+ * Onboarding v2's welcome ("OpenFrame isn't your typical RMM"), until the user closes it.
+ * Optional (closable, absent with nothing to offer), so it keeps no place while anything
+ * about it is unanswered: nothing until the flag says on, then the banner's own reads.
  */
-export function IntroBannerSection() {
+export function IntroBanner() {
   const onboardingV2 = useFeatureFlagGate('onboarding-v2');
+  useRevealPart('intro-flag', onboardingV2 !== 'loading');
   if (onboardingV2 !== 'on') return null;
+  return <MingoIntroBanner />;
+}
+
+/** The banner above the classic overview: the setup card's wrapper, so a dismissed banner collapses the gap. */
+function IntroBannerSection() {
   return (
     <div className={BANNER_WRAPPER_CLASS}>
-      <MingoIntroBanner />
+      <IntroBanner />
     </div>
   );
 }
@@ -142,7 +148,11 @@ export function DashboardOverviews({ live = false }: { live?: boolean }) {
   );
 }
 
-/** The dashboard page's content: the overviews over their data. */
+/** The dashboard page's content: the overviews over their data, shown together. */
 export default function DashboardContent() {
-  return <DashboardOverviews live />;
+  return (
+    <RevealTogether>
+      <DashboardOverviews live />
+    </RevealTogether>
+  );
 }

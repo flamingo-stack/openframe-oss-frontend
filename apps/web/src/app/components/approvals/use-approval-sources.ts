@@ -44,10 +44,21 @@ export interface SourceStatus {
   loadMore: () => void;
 }
 
+/**
+ * What the server counts in each section while it has pages left to load. `null` otherwise:
+ * with every page in, the cards are the count, the server's can be over them (a request a
+ * chat and a ticket share, a client's approval the page does not show).
+ */
+export interface ApprovalTotals {
+  requests: number | null;
+  tickets: number | null;
+}
+
 export interface ApprovalSourcesResult {
   sources: ApprovalSources;
   /** The paged sources (notifications, waiting chats, the Tech Required lane) as the one list reads them. */
   status: SourceStatus;
+  totals: ApprovalTotals;
   /** The tenant's Tech Required status, once the statuses answered. */
   techRequiredStatusId: string | null;
 }
@@ -255,6 +266,10 @@ export function useApprovalSources(): ApprovalSourcesResult {
   return {
     sources: { notifications, dialogs, tickets: saas ? tickets : null, decisions, chatTitles },
     status: combined(notificationsStatus, requestsStatus, ticketsStatus),
+    totals: {
+      requests: dialogsQuery.hasNextPage ? (dialogsQuery.data?.pages.at(-1)?.filteredCount ?? null) : null,
+      tickets: ticketsQuery.hasNextPage ? (ticketsQuery.data?.pages.at(-1)?.filteredCount ?? null) : null,
+    },
     techRequiredStatusId: laneId,
   };
 }

@@ -201,20 +201,21 @@ export function resolvePageContext(href: string, openView: ContextRefWithLabel |
  *
  * A phone (`phone`) opens a chat from the chat list over a page, and a new one starts on
  * Mingo's home: there the home, and a chat page whose last page is the home, are about
- * the page the list was opened over (`outsidePage`), the page Mingo's × leads back to.
+ * the page the new chat was started over (`newChatPage`). The home reached any other way
+ * has none: it is about no page, as a desktop's.
  */
 export function pageContextHref(
   location: { pathname: string; search: string },
   lastPage: string | null,
-  phone?: { outsidePage: string | null },
+  phone?: { newChatPage: string | null },
 ): string {
   const path = trimSlash(location.pathname);
   const home = routes.mingo.home;
   if (path === CHAT_PATH) {
     const opener = lastPage !== null && trimSlash(lastPage.split('?')[0]) !== home ? lastPage : null;
-    return opener ?? phone?.outsidePage ?? lastPage ?? home;
+    return opener ?? phone?.newChatPage ?? lastPage ?? home;
   }
-  if (path === home && phone) return phone.outsidePage ?? home;
+  if (path === home && phone) return phone.newChatPage ?? home;
   return `${location.pathname}${location.search}`;
 }
 
