@@ -16,7 +16,7 @@ import { canOpenFaeApp, openFaeApp } from '@/lib/fae-app';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { MINGO_DIALOG_NOT_FOUND } from '../hooks/use-mingo-dialog-selection';
 import { GettingStartedBlock } from './getting-started-block';
-import { clearGettingStartedView } from './getting-started-view';
+import { clearGettingStartedView, useGettingStartedAside } from './getting-started-view';
 import { doneTourStepIds } from './tour-progress';
 import { TOUR_DIALOG_TITLE, type TourAction, type TourStep, tourGreeting, tourPrompt, tourSteps } from './tour-steps';
 
@@ -31,12 +31,22 @@ export interface MingoTourInput {
   dialogError: string | null;
   /** A chip opened its section (`href`) and its prompt is on its way: where the host shows the answer. */
   onStepOpened?: (href: string) => void;
+  /**
+   * The open conversation is on screen (the sheet over the page, or its own page),
+   * not only behind the page: there the block shows even once it was closed.
+   */
+  onScreen?: boolean;
+  /** The block's ×: the host closes the conversation where it is on screen, as the chat's own × does. */
+  onClose?: () => void;
 }
 
 export interface MingoTour {
   /** `state`, with Mingo's greeting at the head of the tour's conversation. */
   state: UnifiedChatState;
-  /** The Getting Started block while the tour's conversation is open, else null. */
+  /**
+   * The Getting Started block while the tour's conversation is open (once the block
+   * was closed, only while it is on screen), else null.
+   */
   aboveComposer: ReactNode;
 }
 
@@ -54,9 +64,18 @@ export interface MingoTour {
  * prompt there through the state it was given, opens its section beside the
  * chat and marks its step done on the server. "Finish tour" completes the
  * user's onboarding and "Skip Onboarding" (once confirmed) skips it, either of
- * which takes the block away.
+ * which takes the block away. The block's × sets the conversation aside as any
+ * other chat is: the host closes it where it is open, and from then on the block
+ * shows only where the conversation is on screen, not over every page.
  */
-export function useMingoTour({ state, createNamedDialog, dialogError, onStepOpened }: MingoTourInput): MingoTour {
+export function useMingoTour({
+  state,
+  createNamedDialog,
+  dialogError,
+  onStepOpened,
+  onScreen = false,
+  onClose,
+}: MingoTourInput): MingoTour {
   const router = useRouter();
   const environment = useRelayEnvironment();
   const { toast } = useToast();
@@ -173,7 +192,15 @@ export function useMingoTour({ state, createNamedDialog, dialogError, onStepOpen
       trackDashboardActivity(EVENT_SUBTYPE.SKIP_ONBOARDING_MINGO);
     });
 
-  const showing = dialogId !== null && activeDialogId === dialogId;
+  // Closed (its ×), the block goes the way of any chat set aside: behind the page
+  // there is only the "Continue" chip, and the block is back with the conversation.
+  const [aside, setAside] = useGettingStartedAside();
+  const handleClose = () => {
+    setAside();
+    onClose?.();
+  };
+
+  const showing = dialogId !== null && activeDialogId === dialogId && (onScreen || !aside);
 
   // The conversation Mingo greeted in keeps the greeting after the tour, finished
   // or skipped: the server keeps it recorded, and the greeting is a local message,
@@ -226,6 +253,7 @@ export function useMingoTour({ state, createNamedDialog, dialogError, onStepOpen
           onAction={handleAction}
           onFinish={handleFinish}
           onSkip={() => setSkipConfirmOpen(true)}
+          onClose={handleClose}
           onOpenFae={canOpenFaeApp() ? openFaeApp : undefined}
           busy={isLoading}
         />

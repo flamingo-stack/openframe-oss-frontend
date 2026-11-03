@@ -40,6 +40,7 @@ afterEach(() => {
 const onAction = vi.fn(() => true);
 const onFinish = vi.fn();
 const onSkip = vi.fn();
+const onClose = vi.fn();
 const onOpenFae = vi.fn();
 
 /** `openFae: null` renders the block where Fae cannot run. */
@@ -52,6 +53,7 @@ function render(done: TourStepId[] = [], busy = false, openFae: (() => void) | n
         onAction={onAction}
         onFinish={onFinish}
         onSkip={onSkip}
+        onClose={onClose}
         onOpenFae={openFae ?? undefined}
         busy={busy}
       />,
@@ -267,6 +269,21 @@ describe('GettingStartedBlock', () => {
     click(skip);
     expect(onSkip).toHaveBeenCalledTimes(1);
     expect(onFinish).not.toHaveBeenCalled();
+  });
+
+  it('closes from the end of the title row, after the chevron, in either shape', () => {
+    for (const done of [[], ['devices']] as TourStepId[][]) {
+      onClose.mockClear();
+      onSkip.mockClear();
+      render(done);
+      const headerButtons = [...(container.querySelector('header')?.querySelectorAll('button') ?? [])];
+      const close = headerButtons.at(-1);
+      expect(close?.getAttribute('aria-label')).toBe('Close');
+      expect(headerButtons.at(-2)?.hasAttribute('aria-expanded')).toBe(true);
+      click(close as Element);
+      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(onSkip).not.toHaveBeenCalled();
+    }
   });
 });
 

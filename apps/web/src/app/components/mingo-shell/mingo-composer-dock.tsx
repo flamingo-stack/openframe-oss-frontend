@@ -15,7 +15,8 @@
  *   `useComposerTarget`. Launcher requests: `useComposerLauncherDrain`.
  * - The Getting Started tour (onboarding v2): `useMingoTour` — Mingo's greeting at the
  *   head of the tour's conversation and its step block above the composer, on every
- *   page while that conversation is the open one. A step chip sends into it and opens
+ *   page while that conversation is the open one, until its × sets the conversation
+ *   aside as any other chat. A step chip sends into it and opens
  *   its section; it does not follow to the chat page, the block stays over the dock.
  *   "Reset Onboarding" in the chat's ⋯ once the tour is over.
  * - Per route (`dockViewOf`): width, placeholder, memory strip. The model row
@@ -235,6 +236,7 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   const showSheetAfterNavigation = useMingoSheetStore(s => s.showAfterNavigation);
   const openFull = useMingoSheetStore(s => s.openFull);
   const lastPage = useMingoSheetStore(s => s.lastPage);
+  const outsidePage = useMingoSheetStore(s => s.outsidePage);
   // The chat page holding "What to ask Mingo?": a chat not created yet, on its page.
   const query = useSearchParams();
   const whatToAskPage = route === 'chat' && isMingoWhatToAsk(query);
@@ -267,6 +269,15 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
     onStepOpened: href => {
       if (samePath(href, pathname)) showSheet();
       else showSheetAfterNavigation();
+    },
+    onScreen: sheetOpen || route === 'chat',
+    // The block's × closes the tour's chat as the chat's own × would: the sheet goes
+    // down over the page; its page closes to the page it was opened from ("Close
+    // chat"), or on a phone to the last page outside Mingo (the top bar's ×). Behind
+    // a page there is nothing to close: the block goes, the "Continue" chip stays.
+    onClose: () => {
+      if (sheetOpen) hideSheet();
+      else if (route === 'chat') navigate(phone ? (outsidePage ?? routes.dashboard) : (lastPage ?? routes.mingo.home));
     },
   });
   const target = useComposerTarget({
