@@ -264,6 +264,7 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
     state: chat.state,
     createNamedDialog: chat.createNamedDialog,
     dialogError: chat.dialogError,
+    dialogCreatedAt: chat.dialogCreatedAt,
     // A chip's answer opens over the section it opened: at once when that is this
     // page, else on the page the navigation lands on.
     onStepOpened: href => {

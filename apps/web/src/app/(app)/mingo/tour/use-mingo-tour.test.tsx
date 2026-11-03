@@ -3,7 +3,9 @@
 // back; any other conversation, a failed archive or an ended tour leave the
 // onboarding alone. And that the conversation keeps Mingo's greeting once the
 // tour is over: it is a local message, and archiving the conversation (which
-// skips the tour) then unarchiving it brought it back empty. And that "Skip
+// skips the tour) then unarchiving it brought it back empty. It is dated when the
+// conversation was created: dated when opened, a tour chat with nothing else in it
+// read as a chat just started. And that "Skip
 // Onboarding" skips the tour only once confirmed, closing the dialog when the
 // skip lands. And that the block's × sets the conversation aside: the host closes
 // it, and the block shows only while the conversation is on screen.
@@ -94,7 +96,11 @@ let tour: MingoTour;
 function renderTour(
   archiveDialog: (id: string) => Promise<void>,
   activeDialogId = TOUR_DIALOG,
-  { onScreen, onClose }: { onScreen?: boolean; onClose?: () => void } = {},
+  {
+    onScreen,
+    onClose,
+    dialogCreatedAt,
+  }: { onScreen?: boolean; onClose?: () => void; dialogCreatedAt?: string | null } = {},
 ) {
   const state = {
     activeDialogId,
@@ -106,7 +112,7 @@ function renderTour(
     archiveDialog,
   } as unknown as UnifiedChatState;
   function Probe() {
-    tour = useMingoTour({ state, createNamedDialog: vi.fn(), dialogError: null, onScreen, onClose });
+    tour = useMingoTour({ state, createNamedDialog: vi.fn(), dialogError: null, dialogCreatedAt, onScreen, onClose });
     return <>{tour.aboveComposer}</>;
   }
   act(() => root.render(<Probe />));
@@ -193,6 +199,17 @@ describe('useMingoTour - the greeting', () => {
     expect(greetingIds()).toEqual([`tour-greeting-${TOUR_DIALOG}`]);
     expect(tour.state.messages[0]).toMatchObject({ role: 'assistant' });
     expect(tour.aboveComposer).toBeNull();
+  });
+
+  it('is dated when the conversation was created, not when it was opened', () => {
+    useOnboardingStore.getState().setUser(progress());
+    renderTour(
+      vi.fn(async () => {}),
+      TOUR_DIALOG,
+      { dialogCreatedAt: '2026-11-03T15:08:54.129Z' },
+    );
+
+    expect(tour.state.messages[0]).toMatchObject({ timestamp: '2026-11-03T15:08:54.129Z' });
   });
 
   it('is not added to any other conversation', () => {

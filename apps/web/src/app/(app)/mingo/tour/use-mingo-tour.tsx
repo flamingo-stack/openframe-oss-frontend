@@ -29,6 +29,8 @@ export interface MingoTourInput {
   createNamedDialog: (title: string) => Promise<string | null>;
   /** Why the open conversation could not be fetched, or null. */
   dialogError: string | null;
+  /** When the open conversation was created (the server's record), or null until it has loaded. */
+  dialogCreatedAt?: string | null;
   /** A chip opened its section (`href`) and its prompt is on its way: where the host shows the answer. */
   onStepOpened?: (href: string) => void;
   /**
@@ -72,6 +74,7 @@ export function useMingoTour({
   state,
   createNamedDialog,
   dialogError,
+  dialogCreatedAt = null,
   onStepOpened,
   onScreen = false,
   onClose,
@@ -209,11 +212,13 @@ export function useMingoTour({
   const greetedDialogId = createdDialogId ?? user?.tourDialogId ?? null;
   const greeted = greetedDialogId !== null && activeDialogId === greetedDialogId;
 
-  // When the tour began, for the greeting's timestamp: the handoff marker on
-  // the device that pressed "Start with Mingo"; elsewhere the first time this
-  // panel showed the conversation.
+  // When the tour began, for the greeting's timestamp: when its conversation was
+  // created, once that has loaded. Meanwhile the handoff marker on the device that
+  // pressed "Start with Mingo", elsewhere the first time this panel showed the
+  // conversation. The time it was opened would date a greeting with nothing under it
+  // to this moment, and the tour's conversation would read as a chat just started.
   const [openedAt] = useState(() => new Date().toISOString());
-  const startedAt = handoff?.startedAt ?? openedAt;
+  const startedAt = dialogCreatedAt ?? handoff?.startedAt ?? openedAt;
 
   // The greeting heads the thread once all of it is loaded: with older pages
   // still to come it would land mid-conversation.
