@@ -1,5 +1,6 @@
 import {
   approvalBatchIdOf,
+  approvalIdOfPart,
   approvalStatusOf,
   type ChatMessage,
   type ChatToolPart,
@@ -9,13 +10,6 @@ import { approvalDisplaysInline } from '@flamingo-stack/openframe-frontend-core/
 
 /** The approval tiers an operator of this app answers: another tier's card is not drawn for them until it resolves. */
 export const DISPLAY_APPROVAL_TYPES: readonly string[] = ['CLIENT', 'ADMIN'];
-
-/** The id a tool part's approval is known by: its batch's, or its own for a card of one. */
-function approvalKeyOf(part: ChatToolPart): string | undefined {
-  const batchId = approvalBatchIdOf(part);
-  if (batchId !== undefined) return batchId;
-  return 'approval' in part ? part.approval?.id : undefined;
-}
 
 /**
  * A card of one waiting on this operator: drawn by the sticky `pendingApprovals` footer, not in the flow. A batch stays in
@@ -37,7 +31,7 @@ export function findLatestPendingApprovalId(messages: readonly ChatMessage[]): s
     const { parts } = messages[i];
     for (let j = parts.length - 1; j >= 0; j--) {
       const part = parts[j];
-      if (isToolPart(part) && approvalStatusOf(part) === 'pending') return approvalKeyOf(part);
+      if (isToolPart(part) && approvalStatusOf(part) === 'pending') return approvalIdOfPart(part);
     }
   }
   return undefined;
@@ -62,7 +56,7 @@ export function extractPendingApprovals(
     for (const part of message.parts) {
       if (!isToolPart(part)) continue;
       const status = approvalStatusOf(part);
-      const key = approvalKeyOf(part);
+      const key = approvalIdOfPart(part);
       if (status !== null && status !== 'pending' && key) resolved.add(key);
     }
   }
@@ -72,7 +66,7 @@ export function extractPendingApprovals(
   for (const message of messages) {
     for (const part of message.parts) {
       if (!isToolPart(part) || !isPendingFooterCard(part)) continue;
-      const key = approvalKeyOf(part);
+      const key = approvalIdOfPart(part);
       if (key) {
         if (resolved.has(key) || seen.has(key)) continue;
         seen.add(key);
@@ -98,7 +92,7 @@ export function stripPendingApprovals<M extends ChatMessage>(messages: readonly 
     for (const part of message.parts) {
       if (!isToolPart(part)) continue;
       const status = approvalStatusOf(part);
-      const key = approvalKeyOf(part);
+      const key = approvalIdOfPart(part);
       if (status !== null && status !== 'pending' && key && !answeredIn.has(key)) answeredIn.set(key, message);
     }
   }
@@ -109,7 +103,7 @@ export function stripPendingApprovals<M extends ChatMessage>(messages: readonly 
     const parts = message.parts.filter(part => {
       if (!isToolPart(part)) return true;
       if (isPendingFooterCard(part)) return false;
-      const key = approvalKeyOf(part);
+      const key = approvalIdOfPart(part);
       if (!key) return true;
       const answered = answeredIn.get(key);
       if (answered && answered !== message) return false;

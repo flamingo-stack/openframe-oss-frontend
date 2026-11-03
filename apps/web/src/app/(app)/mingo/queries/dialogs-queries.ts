@@ -211,6 +211,12 @@ const RECORD_CARDS_FRAGMENT = `... on RecordCardsData {
 
 /**
  * The same two parts on a backend from before the standard names (see `fetchMingoDialogMessages`).
+ *
+ * `videos` selects no `ref`. Released backends have it, but a dev build between saas-tenant efe93edef and 59a68a69e has
+ * `recordLink` in its place, and one unknown field fails the whole query with no flag to fall back on. What that costs: a
+ * hero video, recognised by its `ref`, reads back as a `record://video/<id>` source part of its own, and the strip draws
+ * no video part, so nothing shows.
+ *
  * TODO(CU-17tkuw61kfy): goes with the `standardNames` flag.
  */
 const OLD_ATTACHMENTS_FRAGMENT = `... on AttachmentsData {

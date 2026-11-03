@@ -1,8 +1,7 @@
 import {
-  approvalBatchIdOf,
+  approvalIdOfPart,
   approvalStatusOf,
   type ChatMessage,
-  type ChatToolPart,
   isToolPart,
 } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import type { MingoDialogStatus } from '@flamingo-stack/openframe-frontend-core/components/chat';
@@ -32,11 +31,6 @@ export function serverRowState(node: Pick<DialogNode, 'streamState' | 'pendingAp
   };
 }
 
-/** The id the backend knows a card's request by: a batch's, or a card of one's own. */
-function approvalIdOf(part: ChatToolPart): string | undefined {
-  return approvalBatchIdOf(part) ?? ('approval' in part ? part.approval?.id : undefined);
-}
-
 /**
  * The approval the chat waits on: a `pending` approval card (Mingo sends batches,
  * which stay in the thread) whose request no other copy has resolved.
@@ -49,10 +43,10 @@ function pendingApprovalIn(messages: readonly ChatMessage[]): { awaiting: boolea
         const status = approvalStatusOf(part);
         return status !== null && status !== 'pending';
       })
-      .map(approvalIdOf),
+      .map(approvalIdOfPart),
   );
-  const pending = approvals.find(part => approvalStatusOf(part) === 'pending' && !resolved.has(approvalIdOf(part)));
-  return pending ? { awaiting: true, id: approvalIdOf(pending) } : { awaiting: false };
+  const pending = approvals.find(part => approvalStatusOf(part) === 'pending' && !resolved.has(approvalIdOfPart(part)));
+  return pending ? { awaiting: true, id: approvalIdOfPart(pending) } : { awaiting: false };
 }
 
 /** The open chat's row, from its own stream: its phase and the approval cards in its thread. */

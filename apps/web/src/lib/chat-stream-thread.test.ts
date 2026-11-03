@@ -1,12 +1,18 @@
 import {
+  approvalStatusOf,
   type ChatMessage,
   type ChatStreamEntry,
   type ChatToolPart,
   isToolPart,
+  mingoUserText,
   textOfParts,
 } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
-import { createChatDialogStore, DEFAULT_DIALOG_SIDE } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { describe, expect, it } from 'vitest';
+import {
+  createChatDialogStore,
+  DEFAULT_DIALOG_SIDE,
+  processHistoricalMessages,
+} from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { bindMingoDialog, useMingoMessagesStore } from '@/app/(app)/mingo/stores/mingo-messages-store';
 import { bindTicketSide, useTicketDetailsStore } from '@/app/(app)/tickets/stores/ticket-details-store';
 import { createReducerMirror, type ReducerMirrorSnapshot } from '@/lib/chat-stream-thread';
@@ -508,5 +514,180 @@ describe("a key's decoder lives as long as its reducer's sequence", () => {
     seed('b');
 
     expect(mirror.bind('a').decode({ type: 'MESSAGE_END', streamSeq: 2 }).chunks).toEqual([]);
+  });
+});
+
+describe('what the decoder holds back, once the history took the message it was writing', () => {
+  const DIALOG = 'held-dialog';
+  const OTHER = 'held-other-dialog';
+  const store = () => useMingoMessagesStore.getState();
+  const thread = () => store().messagesByDialog.get(DIALOG) ?? [];
+  const feed = (...raw: Array<Record<string, unknown>>) => {
+    const bound = bindMingoDialog(DIALOG);
+    for (const chunk of raw) {
+      const entry = bound.decode(chunk);
+      if (entry.chunks.length > 0) bound.apply(entry);
+    }
+    bound.mutate(() => {});
+  };
+  const persisted = (id: string, text: string, streamSeq: number): ChatMessage => ({
+    id,
+    role: 'assistant',
+    metadata: { streamSeq },
+    parts: [{ type: 'text', text }],
+  });
+  const leaveAndComeBack = (rows: ChatMessage[]) => {
+    store().setActiveDialogId(OTHER);
+    store().setActiveDialogId(DIALOG);
+    store().setMessages(DIALOG, rows);
+  };
+  const said = () => thread().map(message => [message.role, textOfParts(message.parts)]);
+
+  beforeEach(() => {
+    store().resetAll();
+    store().setActiveDialogId(DIALOG);
+  });
+
+  it('the answer goes on after the persisted row, with nothing of the tail written twice', () => {
+    feed({ type: 'MESSAGE_START', streamSeq: 2 }, { type: 'TEXT', text: 'Run `ls', streamSeq: 3 });
+    leaveAndComeBack([userRow('u1', 'q1'), persisted('a1', 'Run `ls -la` now.', 9)]);
+
+    feed({ type: 'TEXT', text: ' Next line.', streamSeq: 10 }, { type: 'MESSAGE_END', streamSeq: 11 });
+
+    expect(said()).toEqual([
+      ['user', 'q1'],
+      ['assistant', 'Run `ls -la` now. Next line.'],
+    ]);
+  });
+
+  it.each([
+    ['an open code span', 'Run `ls'],
+    ['an open bracket', 'See ['],
+    ['a card token not finished', 'See [card://blog'],
+    ['a mention not finished', 'ask @dev'],
+    ['the spaces at its end', 'Run  '],
+  ])('%s makes no stray bubble in the next turn', (_name, tail) => {
+    feed({ type: 'MESSAGE_START', streamSeq: 2 }, { type: 'TEXT', text: tail, streamSeq: 3 });
+    leaveAndComeBack([userRow('u1', 'q1'), persisted('a1', `${tail} and the rest.`, 9)]);
+
+    feed(
+      { type: 'MESSAGE_START', streamSeq: 21 },
+      { type: 'TEXT', text: 'Second answer.', streamSeq: 22 },
+      { type: 'MESSAGE_END', streamSeq: 23 },
+    );
+
+    expect(said()).toEqual([
+      ['user', 'q1'],
+      ['assistant', `${tail} and the rest.`],
+      ['assistant', 'Second answer.'],
+    ]);
+  });
+
+  it('a live bubble the merge kept keeps its tail: the next chunk finishes it', () => {
+    feed({ type: 'MESSAGE_START', streamSeq: 2 }, { type: 'TEXT', text: 'Run `ls', streamSeq: 3 });
+    store().setMessages(DIALOG, [userRow('u1', 'q1'), ...thread()]);
+
+    feed({ type: 'TEXT', text: ' -la` now.', streamSeq: 4 }, { type: 'MESSAGE_END', streamSeq: 5 });
+
+    expect(said()).toEqual([
+      ['user', 'q1'],
+      ['assistant', 'Run `ls -la` now.'],
+    ]);
+  });
+
+  it('a copy under the same id that says something else is the history taking its place', () => {
+    feed({ type: 'MESSAGE_START', streamSeq: 2 }, { type: 'TEXT', text: 'Run `ls', streamSeq: 3 });
+    const [writing] = thread();
+    store().setMessages(DIALOG, [persisted(writing.id, 'Run `ls -la` now.', 9)]);
+
+    feed({ type: 'MESSAGE_END', streamSeq: 10 });
+
+    expect(said()).toEqual([['assistant', 'Run `ls -la` now.']]);
+  });
+
+  it('the sequence stays: a redelivery is still answered with nothing', () => {
+    feed({ type: 'MESSAGE_START', streamSeq: 2 }, { type: 'TEXT', text: 'Run `ls', streamSeq: 3 });
+    leaveAndComeBack([persisted('a1', 'Run `ls -la` now.', 9)]);
+
+    expect(bindMingoDialog(DIALOG).decode({ type: 'TEXT', text: 'Run `ls', streamSeq: 3 }).chunks).toEqual([]);
+  });
+});
+
+describe('a send whose text the backend reads as something else', () => {
+  const DIALOG = 'sent-dialog';
+  const store = () => useMingoMessagesStore.getState();
+  const thread = () => store().messagesByDialog.get(DIALOG) ?? [];
+  const bubble = (text: string): ChatMessage => ({ id: 'optimistic-1', role: 'user', parts: [{ type: 'text', text }] });
+
+  beforeEach(() => {
+    store().resetAll();
+    store().setActiveDialogId(DIALOG);
+  });
+
+  it('its echo is the send: what was sent is what comes back, and it draws no second row', () => {
+    const sent = 'Why is @device:abc slow?';
+    store().pushOptimisticSend(DIALOG, bubble(mingoUserText(sent)), sent);
+
+    const bound = bindMingoDialog(DIALOG);
+    bound.apply(bound.decode({ type: 'MESSAGE_REQUEST', text: sent, ownerType: 'ADMIN', streamSeq: 5 }));
+    bound.mutate(() => {});
+
+    expect(thread().map(message => textOfParts(message.parts))).toEqual([mingoUserText(sent)]);
+  });
+
+  it('with nothing said about it, the bubble is the send', () => {
+    const sent = 'Why is [MacBook](record://device/abc) slow?';
+    store().pushOptimisticSend(DIALOG, bubble(sent));
+
+    const bound = bindMingoDialog(DIALOG);
+    bound.apply(bound.decode({ type: 'MESSAGE_REQUEST', text: sent, ownerType: 'ADMIN', streamSeq: 5 }));
+    bound.mutate(() => {});
+
+    expect(thread().map(message => textOfParts(message.parts))).toEqual([sent]);
+  });
+});
+
+describe('a rejected batch on a ticket, refetched after a gap', () => {
+  const asking = {
+    type: 'APPROVAL_REQUEST',
+    approvalRequestId: 'req1',
+    approvalType: 'CLIENT',
+    toolCalls: [{ toolExecutionRequestId: 't1', toolName: 'run', toolTitle: 'Run ls', requiresApproval: true }],
+  };
+  const rejected = { type: 'APPROVAL_RESULT', approvalRequestId: 'req1', approved: false, displayName: 'Bob Admin' };
+  const refused = {
+    type: 'EXECUTED_TOOL',
+    toolExecutionRequestId: 't1',
+    integratedToolType: 'OPENFRAME',
+    toolFunction: 'run',
+    success: false,
+    result: 'Rejected by user',
+  };
+
+  it('stays rejected, and says who: the report on its row is no answer in the shared map', () => {
+    useTicketDetailsStore.getState().clearChatState();
+    const bound = bindTicketSide('client');
+    for (const chunk of [{ type: 'MESSAGE_START' }, asking, rejected, refused]) bound.apply(bound.decode(chunk));
+    bound.mutate(() => {});
+
+    const { approvalStatuses } = useTicketDetailsStore.getState();
+    expect(approvalStatuses).toEqual({ req1: 'rejected' });
+
+    const row = (id: string, messageData: unknown[]) => ({
+      id,
+      dialogId: 'd1',
+      chatType: 'CLIENT_CHAT',
+      createdAt: '2026-11-02T10:00:00Z',
+      owner: { type: 'ASSISTANT' },
+      messageData,
+    });
+    const { messages } = processHistoricalMessages(
+      [row('a1', [asking]), row('a2', [rejected]), row('a3', [refused])] as never,
+      { approvalStatuses },
+    );
+    const part = messages.flatMap(message => message.parts).find(isToolPart);
+    expect(part?.state).toBe('output-denied');
+    expect(part && approvalStatusOf(part)).toBe('rejected');
+    expect(part?.toolMetadata?.resolvedByName).toBe('Bob Admin');
   });
 });

@@ -223,8 +223,8 @@ function supportsDisplay(command: SlashCommandSummary): boolean {
  * command for it.
  *
  * Two table-id lookups, in priority order:
- *   1. `reference.sourceRepo` — Guide Mode V3, where the MCP metadata hands the
- *      registry table id back with the card, so no mapping is guessed;
+ *   1. `reference.sourceRepo`, when a row knows its table (derived in memory, no
+ *      wire carries it), so no mapping is guessed;
  *   2. the lib's documentType→table map, for refs that carry no repo.
  *
  * Both are matched against `SlashCommandSummary.primarySourceId`, and only a

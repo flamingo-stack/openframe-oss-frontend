@@ -27,6 +27,20 @@ function message(overrides: Partial<Message> & { id: string }): Message {
 
 const service = new RemoteSessionChatApiService();
 
+describe('decodeRemoteSessionChatChunk: a plain-text feed', () => {
+  it.each([
+    ['DIRECT_MESSAGE', 'ADMIN'],
+    ['MESSAGE_REQUEST', 'CLIENT'],
+  ])('a live %s from %s reads as it was typed, mention and all', (type, ownerType) => {
+    const text = 'ping me @support:help or see [card://blog_post:1]';
+    expect(decodeRemoteSessionChatChunk({ type, text, ownerType, streamSeq: 3 })?.body).toBe(text);
+  });
+
+  it('a chunk with no text is still no line', () => {
+    expect(decodeRemoteSessionChatChunk({ type: 'DIRECT_MESSAGE', text: '', ownerType: 'CLIENT' })).toBeNull();
+  });
+});
+
 describe('RemoteSessionChatApiService', () => {
   beforeEach(() => {
     tickets.fetchMessages.mockReset();

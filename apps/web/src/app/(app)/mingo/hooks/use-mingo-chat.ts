@@ -1,6 +1,10 @@
 'use client';
 
-import type { ChatMessage, ChatToolPart } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import {
+  type ChatMessage,
+  type ChatToolPart,
+  mingoUserText,
+} from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import type { ChatContextItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
@@ -16,6 +20,7 @@ import { adminDisplayName, makeChatRowId } from '@/lib/chat-stream-thread';
 import { appendImageHash, getFullImageUrl } from '@/lib/image-url';
 import { selectUser, useAuthStore } from '@/stores';
 import type { MessageListRef, MessagePageRef } from '../../tickets/services/ticket-service.types';
+import { textForMingoBackend } from '../queries/fetch-dialog-messages';
 import {
   type CreateMingoDialogOptions,
   useCreateDialogMutation,
@@ -226,6 +231,10 @@ export function useMingoDialogChat(dialogId: string | null): UseMingoDialogChat 
         setTyping(effectiveDialogId, true);
         removeWelcomeMessages(effectiveDialogId);
 
+        const text = content.trim();
+        // TODO(CU-17tkuw61kfy): `sent` is `text` once every backend reads record links, and its bubble with it.
+        const sent = await textForMingoBackend(effectiveDialogId, text);
+
         // Sending while an approval pends is an interrupt — backend will
         // cancel it and emit APPROVAL_RESULT (rejected) shortly. Flip the
         // latest pending one now so the card resolves in the same frame as
@@ -249,19 +258,19 @@ export function useMingoDialogChat(dialogId: string | null): UseMingoDialogChat 
             // Attach the picked context so the optimistic bubble renders its chips.
             ...(context?.contextItems?.length ? { contextItems: context.contextItems } : {}),
           },
-          parts: [{ type: 'text', text: content.trim() }],
+          parts: [{ type: 'text', text: sent === text ? text : mingoUserText(sent) }],
         };
 
         // Through the reducer: it records the sent text and consumes the
         // backend's MESSAGE_REQUEST echo itself (see `pushOptimisticSend`).
-        pushOptimisticSend(effectiveDialogId, optimisticMessage);
+        pushOptimisticSend(effectiveDialogId, optimisticMessage, sent);
         // The chat now has the latest message: first in the history at once. A list
         // read still in flight would put it back, so it is cancelled first.
         await queryClient.cancelQueries({ queryKey: mingoDialogQueryKeys.lists });
         raiseDialog(queryClient, effectiveDialogId);
         await sendMessageMutation.mutateAsync({
           dialogId: effectiveDialogId,
-          content: content.trim(),
+          content: sent,
           // Strip to the `{ type, id }` wire shape; mutation omits empties.
           // Internal `openView` maps to the API's `currentView` field.
           contextItems: context?.contextItems?.map(i => ({ type: i.type, id: i.id })),

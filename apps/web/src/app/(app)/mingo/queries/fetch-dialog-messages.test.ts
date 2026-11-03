@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const post = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/api-client', () => ({ apiClient: { post } }));
@@ -152,5 +152,111 @@ describe('fetchMingoDialogMessages', () => {
 
     await expect(fetchMingoDialogMessages(VARIABLES)).resolves.toBe(failure);
     expect(post).toHaveBeenCalledTimes(1);
+  });
+
+  describe('a fallback is not for the life of the page', () => {
+    beforeEach(() => vi.useFakeTimers({ toFake: ['Date'] }));
+    afterEach(() => vi.useRealTimers());
+
+    async function fallenBack() {
+      vi.resetModules();
+      const loaded = await import('./fetch-dialog-messages');
+      post.mockResolvedValueOnce(rejecting(NO_SOURCE_ID)).mockResolvedValueOnce(PAGE);
+      await loaded.fetchMingoDialogMessages(VARIABLES);
+      post.mockClear();
+      return loaded;
+    }
+
+    it('holds until the interval, then a backend upgraded under the page gets the newest shape back', async () => {
+      const { fetchMingoDialogMessages, FALLBACK_RECHECK_MS } = await fallenBack();
+      post.mockResolvedValue(PAGE);
+
+      vi.setSystemTime(Date.now() + FALLBACK_RECHECK_MS - 1);
+      await fetchMingoDialogMessages(VARIABLES);
+      expect(queryOfCall(0)).not.toContain('sourceId');
+
+      vi.setSystemTime(Date.now() + 1);
+      await fetchMingoDialogMessages(VARIABLES);
+      expect(queryOfCall(1)).toContain('sourceId');
+      expect(queryOfCall(1)).toContain('records');
+
+      await fetchMingoDialogMessages(VARIABLES);
+      expect(queryOfCall(2)).toContain('sourceId');
+      expect(post).toHaveBeenCalledTimes(3);
+    });
+
+    it('a backend still old falls back again, and is not asked again until the next interval', async () => {
+      const { fetchMingoDialogMessages, FALLBACK_RECHECK_MS } = await fallenBack();
+      vi.setSystemTime(Date.now() + FALLBACK_RECHECK_MS);
+      post.mockResolvedValueOnce(rejecting(NO_SOURCE_ID)).mockResolvedValue(PAGE);
+
+      await expect(fetchMingoDialogMessages(VARIABLES)).resolves.toBe(PAGE);
+      expect(post).toHaveBeenCalledTimes(2);
+
+      await fetchMingoDialogMessages(VARIABLES);
+      expect(post).toHaveBeenCalledTimes(3);
+      expect(queryOfCall(2)).not.toContain('sourceId');
+    });
+
+    it('a read that failed for another reason changes nothing', async () => {
+      const { fetchMingoDialogMessages, FALLBACK_RECHECK_MS } = await fallenBack();
+      vi.setSystemTime(Date.now() + FALLBACK_RECHECK_MS);
+      post.mockResolvedValueOnce({ ok: false, status: 503, error: 'down' }).mockResolvedValue(PAGE);
+
+      await fetchMingoDialogMessages(VARIABLES);
+      await fetchMingoDialogMessages(VARIABLES);
+      expect(queryOfCall(1)).not.toContain('sourceId');
+    });
+  });
+});
+
+describe('textForMingoBackend', () => {
+  // In a block: a function a `beforeEach` returns is its cleanup, and `mockReset` returns the mock.
+  beforeEach(() => {
+    post.mockReset();
+  });
+
+  const LINKED = 'Why is [MacBook Pro](record://device/abc-1) slow, and [the ticket](record://ticket/t2)?';
+
+  async function load() {
+    vi.resetModules();
+    return import('./fetch-dialog-messages');
+  }
+
+  it('leaves a text with no record link alone, and asks nothing', async () => {
+    const { textForMingoBackend } = await load();
+    await expect(textForMingoBackend('d-1', 'Why is it slow?')).resolves.toBe('Why is it slow?');
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('asks once when nothing has answered yet, and a current backend gets the links', async () => {
+    post.mockResolvedValue(PAGE);
+    const { textForMingoBackend } = await load();
+    await expect(textForMingoBackend('d-1', LINKED)).resolves.toBe(LINKED);
+    await expect(textForMingoBackend('d-1', LINKED)).resolves.toBe(LINKED);
+    expect(post).toHaveBeenCalledTimes(1);
+    const [, body] = post.mock.calls[0] as [string, { variables: object }];
+    expect(body.variables).toMatchObject({ dialogId: 'd-1', limit: 1 });
+  });
+
+  it('a backend from before the standard names gets the tokens it reads', async () => {
+    post.mockResolvedValueOnce(rejecting(NO_SOURCE_ID)).mockResolvedValue(PAGE);
+    const { textForMingoBackend } = await load();
+    await expect(textForMingoBackend('d-1', LINKED)).resolves.toBe('Why is @device:abc-1 slow, and @ticket:t2?');
+  });
+
+  it('a read this page already made is enough', async () => {
+    post.mockResolvedValueOnce(rejecting(NO_SOURCE_ID)).mockResolvedValue(PAGE);
+    const { fetchMingoDialogMessages, textForMingoBackend } = await load();
+    await fetchMingoDialogMessages(VARIABLES);
+    post.mockClear();
+    await expect(textForMingoBackend('d-2', LINKED)).resolves.toContain('@device:abc-1');
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('a read that fails sends the links: the send never hangs on the check', async () => {
+    post.mockRejectedValue(new Error('down'));
+    const { textForMingoBackend } = await load();
+    await expect(textForMingoBackend('d-1', LINKED)).resolves.toBe(LINKED);
   });
 });

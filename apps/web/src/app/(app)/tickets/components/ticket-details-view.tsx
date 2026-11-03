@@ -72,11 +72,12 @@ import { useDeviceActionsMenu } from '../../devices/hooks/use-device-actions-men
 import { useDeviceDetails } from '../../devices/hooks/use-device-details';
 import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
-import { APPROVAL_STATUS, ASSISTANT_CONFIG, CHAT_TYPE, CREATION_SOURCE } from '../constants';
+import { APPROVAL_STATUS, ASSISTANT_CONFIG, CHAT_TYPE } from '../constants';
 import { useApprovalRequests } from '../hooks/use-approval-requests';
 import { useAssignTicket } from '../hooks/use-assign-ticket';
 import { useAssigneeOptions } from '../hooks/use-assignee-options';
 import { useDirectChat } from '../hooks/use-direct-chat';
+import { useFaeFormMessage } from '../hooks/use-fae-form-message';
 import { useHistoricalMessages } from '../hooks/use-historical-messages';
 import { useSideChunkProcessor } from '../hooks/use-side-chunk-processor';
 import { useTicketDetail } from '../hooks/use-ticket-detail';
@@ -549,35 +550,12 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     [clientDisplayName, assistantName],
   );
 
+  const faeFormMessage = useFaeFormMessage(dialog, assistantName);
+
   const clientChatMessages = useMemo(() => {
     const visible = stripPendingApprovals(clientMessages).map(remapClientChatNames);
-    if (dialog?.creationSource !== CREATION_SOURCE.FAE_FORM || clientChat.hasNextPage) {
-      return visible;
-    }
-    const faeMessage: ChatMessage = {
-      id: `synthetic-fae-form-${dialog.id}`,
-      role: 'assistant',
-      metadata: {
-        createdAt: dialog.createdAt,
-        author: { name: assistantName, assistantType: ASSISTANT_CONFIG.FAE.type, authorType: 'fae' },
-      },
-      parts: [
-        {
-          type: 'text',
-          text: [
-            'Your request has been received. We will contact you shortly.',
-            '',
-            'Subject:',
-            dialog.title || '',
-            '',
-            'Description:',
-            dialog.description || '(No description provided)',
-          ].join('\n'),
-        },
-      ],
-    };
-    return [faeMessage, ...visible];
-  }, [clientMessages, remapClientChatNames, dialog, clientChat.hasNextPage, assistantName]);
+    return faeFormMessage && !clientChat.hasNextPage ? [faeFormMessage, ...visible] : visible;
+  }, [clientMessages, remapClientChatNames, faeFormMessage, clientChat.hasNextPage]);
 
   const menuActions = useMemo<ActionsMenuGroup[]>(() => {
     if (!dialog) return [];

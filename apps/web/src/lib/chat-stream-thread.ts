@@ -226,9 +226,10 @@ export interface ReducerMirror<K extends string> {
    * Land a host-authored optimistic user bubble THROUGH the reducer, so the
    * reducer records the pending echo text and consumes the backend's
    * MESSAGE_REQUEST echo itself (one-shot, text-matched) instead of the host
-   * blanket-dropping every echo bearing its own user id.
+   * blanket-dropping every echo bearing its own user id. `sentText` is what went to the backend when it is not what the
+   * bubble says, since the echo comes back as what was sent.
    */
-  pushOptimisticSend: (key: K, message: ChatMessage) => void;
+  pushOptimisticSend: (key: K, message: ChatMessage, sentText?: string) => void;
   /** Pre-curried, per-key-stable `{ apply, mutate, mergeApprovalStatuses }`.
    *  Memoized inside the mirror so React hosts need no `useCallback`. */
   bind: (key: K) => BoundMirror;
@@ -471,6 +472,7 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
    * why they may not be split across call sites.
    */
   function hydrate(key: K, messages: readonly ChatMessage[], hydrateOptions?: HydrateOptions): void {
+    discardHeldTextOfReplacedTurn(key, messages);
     // The lib's one incompleteness rule, shared with the NATS adapter: it walks the
     // trailing consecutive assistant run and reports whether it is still unfinished
     // (pending approval, executing tool, open compaction).
@@ -514,6 +516,25 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
 
     if (armAdopt) awaitingAdopt.add(key);
     else awaitingAdopt.delete(key);
+  }
+
+  /**
+   * The decoder holds a text's tail back while it could still be a token (an open code span, an open bracket, a space
+   * before a chip), and that tail continues the message it was writing. When the history took that message's place, the
+   * persisted row already says it: flushed later, it would be written twice, into the answer or as a stray bubble of its
+   * own. A live bubble the merge kept stays, and keeps its tail, because the next chunk finishes it.
+   *
+   * Read before `mutate`: its flush moves the live bubble past the copy the host merged from.
+   */
+  function discardHeldTextOfReplacedTurn(key: K, messages: readonly ChatMessage[]): void {
+    const decoder = decoderByKey.get(key);
+    if (!decoder) return;
+    const { dialogId, side } = identityFor(key);
+    const assistantRows = store.getSnapshot(dialogId, side).messages.filter(message => message.role === 'assistant');
+    const writing = assistantRows.at(-1);
+    if (!writing) return;
+    const copy = messages.find(message => message.id === writing.id);
+    if (!copy || textOfParts(copy.parts) !== textOfParts(writing.parts)) decoder.discardHeld();
   }
 
   /** Clears both halves of adopt-once. Runs inside the caller's `mutate`, and
@@ -685,10 +706,10 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
    * indicator, so the trailing assistant placeholder (and the phase flip
    * `pushOptimisticSend` performs) must not leak into the mirror.
    */
-  function pushOptimisticSend(key: K, message: ChatMessage): void {
+  function pushOptimisticSend(key: K, message: ChatMessage, sentText?: string): void {
     mutate(key, reducer => {
       const { messages, streamingPhase } = reducer.state;
-      reducer.pushOptimisticSend(textOfParts(message.parts));
+      reducer.pushOptimisticSend(sentText ?? textOfParts(message.parts));
       reducer.setMessages([...messages, message]);
       reducer.setPhase(streamingPhase);
     });

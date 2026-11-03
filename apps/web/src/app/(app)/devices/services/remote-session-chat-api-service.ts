@@ -79,7 +79,10 @@ export function decodeRemoteSessionChatChunk(
   const entry = createMingoDecoder().decode(payload);
   const chunk = entry.chunks.find(decoded => decoded.type === 'data-chat-participant');
   if (chunk?.type !== 'data-chat-participant' || chunk.data.kind === 'system' || !chunk.data.text) return null;
-  const { text: body, ownerType, displayName } = chunk.data;
+  const { ownerType, displayName } = chunk.data;
+  // This feed draws plain text, so a line reads as it was typed, as it does from history. The decoder's text is the chat
+  // thread's, where an old mention is a record link.
+  const body = (payload as { text: string }).text;
   // The decoder lifts the JetStream sequence onto the entry; a chunk without one gets a local id.
   const seq = typeof entry.seq === 'number' && entry.seq > 0 ? entry.seq : undefined;
   const id = seq !== undefined ? `seq-${seq}` : `live-${++liveRowCounter}`;
