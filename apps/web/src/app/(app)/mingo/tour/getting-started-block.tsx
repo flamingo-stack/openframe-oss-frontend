@@ -24,9 +24,11 @@ const DISABLED_CHIP =
 const EASE = '[transition-timing-function:cubic-bezier(0.2,0,0,1)]';
 const MOTION = cn('duration-300 motion-reduce:transition-none', EASE);
 
-/** The title row's glyph buttons: the chevron and the ×. */
-const TITLE_ROW_GLYPH =
-  'flex size-6 shrink-0 items-center justify-center rounded-md text-ods-text-primary hover:text-ods-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ods-accent';
+/**
+ * The title row's glyph buttons, the chevron and the ×: the lib's bare glyph at the row's
+ * 24px (the button caps a glyph at 20px), taking the accent on hover.
+ */
+const TITLE_ROW_GLYPH = 'size-6 shrink-0 rounded-md hover:text-ods-accent [&_svg]:h-6 [&_svg]:w-6';
 
 /**
  * A part that opens and folds as a sidebar group does: its grid row eases between `0fr` and `1fr` while the
@@ -200,8 +202,9 @@ export function GettingStartedBlock({
         {/* The two glyphs as a pair, closer together than the row's text. */}
         <div className="flex shrink-0 items-center gap-[var(--spacing-system-xxs)]">
           {/* Unfolds the grid into the list, and folds the list back into the grid. */}
-          <button
-            type="button"
+          <Button
+            variant="glyph"
+            size="wrap"
             aria-label={folded ? 'Show the steps' : 'Hide the steps'}
             aria-expanded={!folded}
             onClick={() => {
@@ -211,10 +214,17 @@ export function GettingStartedBlock({
             className={TITLE_ROW_GLYPH}
           >
             <FoldChevron up={folded} />
-          </button>
-          <button type="button" aria-label="Close" title="Close" onClick={onClose} className={TITLE_ROW_GLYPH}>
+          </Button>
+          <Button
+            variant="glyph"
+            size="wrap"
+            aria-label="Close"
+            title="Close"
+            onClick={onClose}
+            className={TITLE_ROW_GLYPH}
+          >
             <XmarkIcon size={24} />
-          </button>
+          </Button>
         </div>
       </header>
 
