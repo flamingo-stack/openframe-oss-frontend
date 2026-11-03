@@ -37,7 +37,7 @@ describe('renderMingoRecordChip', () => {
     expect(renderMingoRecordChip({ type: 'nothing', id: 'x' })).toBeNull();
   });
 
-  // TODO(CU-17tkuw635xx): goes with the old mention token, which the lib writes as a link labelled with itself.
+  // TODO(CU-17tkuw61kfy): goes with the old mention token, which the lib writes as a link labelled with itself.
   describe('an old mention token', () => {
     const propsOf = (element: unknown) =>
       isValidElement<{ label?: string; fallbackLabel?: string }>(element) ? element : null;

@@ -316,7 +316,7 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
         // Upstream paths verified live against the deployed instance
         // (2026-05-29 endpoint table).
         chatStreamUrl: content('/api/docs/chat'),
-        // TODO(CU-17tkuw635xx): only an old hub's approvals use it.
+        // TODO(CU-17tkuw61kfy): only an old hub's approvals use it.
         approvalToolUrl: content('/api/chat/agent/confirm-tool'),
         // Help Center ticket agent endpoints — proxied under `/content` like
         // every other endpoint, so they route through the existing `/content/*`

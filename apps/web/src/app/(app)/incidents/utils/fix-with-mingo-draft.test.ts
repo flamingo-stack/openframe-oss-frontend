@@ -50,7 +50,7 @@ describe('incidentMingoDraft', () => {
     expect(draft.text).toBe('Look at [this device](record://device/m-1) please.');
   });
 
-  // TODO(CU-17tkuw635xx): what the server sends until the mobile gate is armed.
+  // TODO(CU-17tkuw61kfy): what the server sends until the mobile gate is armed.
   it('turns the leading tokens of the prompt the server sends today into the same labelled mentions', () => {
     const draft = incidentMingoDraft(
       '@insight:qa-insight-2 @device:m-1\n\nUsing the insight and device context, investigate this problem.',
@@ -99,7 +99,7 @@ describe('linkedInsightId', () => {
     );
   });
 
-  // TODO(CU-17tkuw635xx): what the server sends until the mobile gate is armed.
+  // TODO(CU-17tkuw61kfy): what the server sends until the mobile gate is armed.
   it('reads the incident a token names, as a whole token', () => {
     expect(linkedInsightId('@insight:qa-insight-2 @device:m-1 why?')).toBe('qa-insight-2');
     expect(linkedInsightId('why is @insight:qa-insight-2 open?')).toBe('qa-insight-2');

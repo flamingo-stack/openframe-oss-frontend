@@ -232,7 +232,7 @@ export function useMingoDialogChat(dialogId: string | null): UseMingoDialogChat 
         removeWelcomeMessages(effectiveDialogId);
 
         const text = content.trim();
-        // TODO(CU-17tkuw635xx): `sent` is `text` once every backend reads record links, and its bubble with it.
+        // TODO(CU-17tkuw61kfy): `sent` is `text` once every backend reads record links, and its bubble with it.
         const sent = await textForMingoBackend(effectiveDialogId, text);
 
         // Sending while an approval pends is an interrupt — backend will

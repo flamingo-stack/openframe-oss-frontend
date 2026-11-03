@@ -12,7 +12,7 @@ const KIND_BY_MARKER = new Map<string, ContextEntityKind>(
 );
 
 /**
- * TODO(CU-17tkuw635xx): the prompt opens with `@marker:id` tokens until the mobile gate is armed, because frozen bundles
+ * TODO(CU-17tkuw61kfy): the prompt opens with `@marker:id` tokens until the mobile gate is armed, because frozen bundles
  * read only those, and with record links after it. This build reads both.
  */
 const LEADING_MARKER = /^@([A-Za-z]+):(\S+)\s*/;
