@@ -6,6 +6,7 @@ import {
   Chevron02DownIcon,
   ExternalLinkIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useState } from 'react';
 import { useGettingStartedView } from './getting-started-view';
@@ -83,6 +84,8 @@ export interface GettingStartedBlockProps {
   onAction: (step: TourStep, action: TourAction) => boolean;
   /** "Finish tour", offered on the last step. */
   onFinish: () => void;
+  /** "Skip Onboarding", offered in the title row whatever the shape and the step. */
+  onSkip: () => void;
   /**
    * "Open Fae - your client assistant", offered on the steps that open it (`TourStep.opensFae`).
    * Absent where Fae cannot run (a phone): the chip is not shown.
@@ -109,6 +112,9 @@ export interface GettingStartedBlockProps {
  *   title row unfolds it and folds it back; a step
  *   chip unfolds it on that step.
  *
+ * "Skip Onboarding" sits in the title row in either shape, so the tour can be
+ * left at any step; "Finish tour" ends it on the last one.
+ *
  * The shape is the user's, remembered across pages and tabs
  * (`getting-started-view.ts`): folding or unfolding it, and a chip folding it,
  * write it there. With nothing remembered (a tour started on another device) it
@@ -122,6 +128,7 @@ export function GettingStartedBlock({
   doneStepIds,
   onAction,
   onFinish,
+  onSkip,
   onOpenFae,
   busy = false,
 }: GettingStartedBlockProps) {
@@ -156,11 +163,27 @@ export function GettingStartedBlock({
       // laptop's height, the chat's header and a few lines stay on screen.
       className="flex max-h-[45vh] min-h-0 flex-col overflow-hidden rounded-md border border-ods-border bg-ods-card"
     >
-      <header className="flex shrink-0 items-center gap-[var(--spacing-system-sf)] border-b border-ods-border p-[var(--spacing-system-xsf)]">
-        <h2 className="text-ods-text-secondary text-h5">Getting started</h2>
-        <p className="text-ods-text-secondary text-h6">
+      {/* A container, so the title row fits itself to the block's width rather than the window's. */}
+      <header className="flex shrink-0 items-center gap-[var(--spacing-system-sf)] border-b border-ods-border p-[var(--spacing-system-xsf)] @container">
+        <h2 className="shrink-0 text-ods-text-secondary text-h5">Getting started</h2>
+        <p className="min-w-0 truncate text-ods-text-secondary text-h6">
           <span className="font-bold text-ods-text-primary">{done}</span> of {total} steps
         </p>
+        {/* Ends the tour at any step; "Finish tour" ends it on the last one. Not a prompt, so it
+            stays live while Mingo answers. A phone's composer has room for "Skip" alone. */}
+        <Button
+          variant="link"
+          size="compact"
+          noPaddingX
+          aria-label="Skip Onboarding"
+          onClick={onSkip}
+          className="ml-auto shrink-0"
+        >
+          {/* One text run: the button spaces its children apart. */}
+          <span>
+            Skip<span className="hidden @md:inline"> Onboarding</span>
+          </span>
+        </Button>
         {/* Unfolds the grid into the list, and folds the list back into the grid. */}
         <button
           type="button"
@@ -170,7 +193,7 @@ export function GettingStartedBlock({
             if (!folded) setPickedId(undefined);
             setFolded(!folded);
           }}
-          className="ml-auto flex size-6 items-center justify-center rounded-md text-ods-text-primary hover:text-ods-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ods-accent"
+          className="flex size-6 shrink-0 items-center justify-center rounded-md text-ods-text-primary hover:text-ods-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ods-accent"
         >
           <FoldChevron up={folded} />
         </button>
