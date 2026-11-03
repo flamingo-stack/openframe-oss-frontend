@@ -25,7 +25,7 @@ function status(overrides: Partial<AutoTopUpStatus> = {}): AutoTopUpStatus {
     resumesAt: null,
     minimumAmountUsd: 10,
     minimumThresholdUsd: 2,
-    paymentFailed: false,
+    switchedOff: null,
     paymentMethodSetupUrl: null,
     ...overrides,
   };
@@ -103,16 +103,30 @@ describe('AutoTopUpNotice', () => {
     expect(text()).toContain('Raise the limit in Manage AI Balance to resume sooner.');
   });
 
+  it('opens Manage AI Balance from the paused notice', () => {
+    const manage = vi.fn();
+    render(<AutoTopUpNotice status={status({ paused: true })} onManage={manage} />);
+    act(() => container.querySelector('button')?.click());
+    expect(manage).toHaveBeenCalledOnce();
+  });
+
   it('does not send a build that changes nothing to Manage AI Balance', () => {
     render(<AutoTopUpNotice status={status({ paused: true })} onManage={null} />);
     expect(text()).toContain('Auto top-up paused');
     expect(text()).not.toContain('Manage AI Balance');
+    expect(container.querySelector('button')).toBeNull();
   });
 
-  it('says the declined charge switched it off, with the way back', () => {
-    render(<AutoTopUpNotice status={status({ enabled: false, paymentFailed: true })} onManage={onManage} />);
+  it.each([
+    ['PAYMENT_FAILED', 'The last automatic charge was declined'],
+    ['AUTHENTICATION_ABANDONED', 'Your bank asked to confirm the last automatic charge'],
+    ['NO_PAYMENT_METHOD', 'There is no card on file that can be charged automatically'],
+  ] as const)('says %s switched it off, with the way back', (reason, why) => {
+    const manage = vi.fn();
+    render(<AutoTopUpNotice status={status({ enabled: false, switchedOff: reason })} onManage={manage} />);
     expect(text()).toContain('Auto top-up is switched off.');
+    expect(text()).toContain(why);
     act(() => container.querySelector('button')?.click());
-    expect(onManage).toHaveBeenCalled();
+    expect(manage).toHaveBeenCalledOnce();
   });
 });

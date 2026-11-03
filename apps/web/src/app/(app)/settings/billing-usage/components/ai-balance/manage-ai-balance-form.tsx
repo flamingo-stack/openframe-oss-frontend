@@ -16,7 +16,7 @@ import {
 } from './auto-top-up-settings';
 import { AutoTopUpSettingsFields } from './auto-top-up-settings-fields';
 import { AutoTopUpSetupNotice } from './auto-top-up-setup-notice';
-import { type AutoTopUpStatus, FALLBACK_MIN_TOP_UP_USD } from './auto-top-up-status';
+import { type AutoTopUpStatus, FALLBACK_MIN_TOP_UP_USD, SWITCHED_OFF_COPY } from './auto-top-up-status';
 import { useAiTopUp } from './use-ai-top-up';
 import { usePurchaseTokens } from './use-purchase-tokens';
 import { useUpdateAutoTopUp } from './use-update-auto-top-up';
@@ -53,9 +53,6 @@ const SUBMIT_LABEL: Record<Intent, string> = {
   // the tokens land once the invoice is paid.
   purchase: 'Proceed to Payment',
 };
-
-const PAYMENT_FAILED_MESSAGE =
-  'Switched off after a declined charge. Update your card in the Customer Portal, then turn it back on.';
 
 const CHECKED_DESCRIPTION = 'Automatically refill your balance when it drops below the threshold.';
 
@@ -160,7 +157,7 @@ export function ManageAiBalanceForm({ data, onClose }: ManageAiBalanceFormProps)
           checked={autoTopUp}
           onCheckedChange={setAutoTopUp}
           disabled={loading || pending}
-          error={settings?.paymentFailed && !autoTopUp ? PAYMENT_FAILED_MESSAGE : undefined}
+          error={settings?.switchedOff && !autoTopUp ? SWITCHED_OFF_COPY[settings.switchedOff].checkbox : undefined}
           description={autoTopUp ? CHECKED_DESCRIPTION : undefined}
         />
         {autoTopUp && settings?.paymentMethodSetupUrl && (

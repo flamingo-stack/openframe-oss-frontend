@@ -44,6 +44,17 @@ describe('toAutoTopUpStatus', () => {
     expect(toAutoTopUpStatus(settings({ enabled: false, pausedReason: 'SPEND_LIMIT_REACHED' })).paused).toBe(false);
   });
 
+  it('keeps the card reasons the system switched it off for, and none other', () => {
+    for (const reason of ['PAYMENT_FAILED', 'AUTHENTICATION_ABANDONED', 'NO_PAYMENT_METHOD']) {
+      expect(toAutoTopUpStatus(settings({ enabled: false, disabledReason: reason })).switchedOff).toBe(reason);
+    }
+    // A cancelled subscription is the lock screen's to say.
+    expect(toAutoTopUpStatus(settings({ enabled: false, disabledReason: 'SUBSCRIPTION_CANCELED' })).switchedOff).toBe(
+      null,
+    );
+    expect(toAutoTopUpStatus(settings({ enabled: false })).switchedOff).toBe(null);
+  });
+
   it('falls back to the shared floor when the backend states none', () => {
     expect(toAutoTopUpStatus(settings({ minimumAmountUsd: null, minimumThresholdUsd: null }))).toMatchObject({
       minimumAmountUsd: 10,

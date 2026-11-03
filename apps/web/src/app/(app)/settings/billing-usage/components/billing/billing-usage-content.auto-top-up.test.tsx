@@ -24,7 +24,7 @@ const { PAUSED, nothing } = vi.hoisted(() => {
     resumesAt: null,
     minimumAmountUsd: 10,
     minimumThresholdUsd: 2,
-    paymentFailed: false,
+    switchedOff: null,
     paymentMethodSetupUrl: null,
   };
   return { PAUSED: paused, nothing: () => null };

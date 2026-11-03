@@ -60,10 +60,11 @@ export interface AutoTopUpStatus {
   /** The floor of the threshold, in whole dollars. */
   minimumThresholdUsd: number;
   /**
-   * The system switched it off: the card declined an automatic charge, which
-   * is never retried. `false` when the customer switched it off, or it is on.
+   * Why the system switched it off over the card. `null` when the customer
+   * switched it off, or it is on. A cancelled subscription is left out: the
+   * lock screen says that.
    */
-  paymentFailed: boolean;
+  switchedOff: SwitchedOffReason | null;
   /**
    * Where to add a card, set only when enabling was refused for want of one.
    * Nothing is saved then: the arrangement is armed once the customer comes
@@ -71,6 +72,38 @@ export interface AutoTopUpStatus {
    */
   paymentMethodSetupUrl: string | null;
 }
+
+const SWITCHED_OFF_REASONS = [
+  AutoTopUpDisabledReason.PAYMENT_FAILED,
+  AutoTopUpDisabledReason.AUTHENTICATION_ABANDONED,
+  AutoTopUpDisabledReason.NO_PAYMENT_METHOD,
+] as const;
+
+export type SwitchedOffReason = (typeof SWITCHED_OFF_REASONS)[number];
+
+function isSwitchedOffReason(reason: string | null | undefined): reason is SwitchedOffReason {
+  return SWITCHED_OFF_REASONS.some(r => r === reason);
+}
+
+/** What the notice under the cards and the modal's checkbox say for each reason. */
+export const SWITCHED_OFF_COPY: Record<SwitchedOffReason, { notice: string; checkbox: string }> = {
+  PAYMENT_FAILED: {
+    notice:
+      'The last automatic charge was declined, so your balance no longer refills itself. Update your card in the Customer Portal, then turn auto top-up back on.',
+    checkbox: 'Switched off after a declined charge. Update your card in the Customer Portal, then turn it back on.',
+  },
+  AUTHENTICATION_ABANDONED: {
+    notice:
+      'Your bank asked to confirm the last automatic charge and nobody did, so your balance no longer refills itself. Turn auto top-up back on, or use a card that does not ask for confirmation.',
+    checkbox:
+      'Switched off after an unconfirmed charge. Turn it back on, or use a card that does not ask for confirmation.',
+  },
+  NO_PAYMENT_METHOD: {
+    notice:
+      'There is no card on file that can be charged automatically, so your balance no longer refills itself. Add a card, then turn auto top-up back on.',
+    checkbox: 'Switched off: no card on file can be charged automatically. Add a card, then turn it back on.',
+  },
+};
 
 export function toAutoTopUpStatus(ref: autoTopUpStatus_settings$key): AutoTopUpStatus {
   const data = readInlineData(autoTopUpStatusFragment, ref);
@@ -86,7 +119,7 @@ export function toAutoTopUpStatus(ref: autoTopUpStatus_settings$key): AutoTopUpS
     minimumAmountUsd,
     // The backend's own rule when it does not say: a fifth of the amount floor, rounded up.
     minimumThresholdUsd: data.minimumThresholdUsd ?? Math.ceil(minimumAmountUsd / 5),
-    paymentFailed: data.disabledReason === AutoTopUpDisabledReason.PAYMENT_FAILED,
+    switchedOff: isSwitchedOffReason(data.disabledReason) ? data.disabledReason : null,
     paymentMethodSetupUrl: data.paymentMethodSetupUrl ?? null,
   };
 }

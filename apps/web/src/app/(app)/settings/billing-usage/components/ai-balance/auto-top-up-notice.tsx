@@ -4,7 +4,7 @@ import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/compo
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { formatCurrency } from '@/lib/format-currency';
 import { formatDateTime } from '@/lib/format-date';
-import type { AutoTopUpStatus } from './auto-top-up-status';
+import { type AutoTopUpStatus, SWITCHED_OFF_COPY } from './auto-top-up-status';
 
 interface AutoTopUpNoticeProps {
   status: AutoTopUpStatus;
@@ -15,38 +15,36 @@ interface AutoTopUpNoticeProps {
 /**
  * Why the balance stopped refilling itself, under the balance it stopped
  * refilling — the only other place the tenant would learn it is the silence of
- * an assistant that stopped answering once that balance ran dry. Two reasons:
- *  - the system switched auto top-up off: the card declined an automatic
- *    charge, and one charge is one outcome — it is never retried;
+ * an assistant that stopped answering once that balance ran dry. Two cases:
+ *  - the system switched auto top-up off over the card (`switchedOff`);
  *  - the spend limit holds refills back: auto top-up stays on, and the next
  *    refill is tried at `resumesAt`.
  */
 export function AutoTopUpNotice({ status, onManage }: AutoTopUpNoticeProps) {
-  if (status.paymentFailed) {
+  const manageButton = onManage && (
+    <Button variant="outline" onClick={onManage}>
+      Manage AI Balance
+    </Button>
+  );
+
+  if (status.switchedOff) {
     return (
       <div className="flex flex-wrap items-center gap-[var(--spacing-system-m)] rounded-md border border-ods-warning bg-ods-card p-[var(--spacing-system-m)]">
         <AlertTriangleIcon className="size-6 shrink-0 text-ods-warning" />
         <div className="flex min-w-[16rem] flex-1 flex-col">
           <p className="font-bold text-ods-text-primary text-h3">Auto top-up is switched off.</p>
-          <p className="text-ods-text-secondary text-h4">
-            The last automatic charge was declined, so your balance no longer refills itself. Update your card in the
-            Customer Portal, then turn auto top-up back on.
-          </p>
+          <p className="text-ods-text-secondary text-h4">{SWITCHED_OFF_COPY[status.switchedOff].notice}</p>
         </div>
-        {onManage && (
-          <Button variant="outline" onClick={onManage}>
-            Manage AI Balance
-          </Button>
-        )}
+        {manageButton}
       </div>
     );
   }
 
   if (status.paused) {
     return (
-      <div className="flex items-center gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)]">
+      <div className="flex flex-wrap items-center gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)]">
         <AlertTriangleIcon className="size-6 shrink-0 text-ods-warning" />
-        <div className="flex min-w-0 flex-col">
+        <div className="flex min-w-[16rem] flex-1 flex-col">
           <p className="font-bold text-ods-text-primary text-h3">Auto top-up paused</p>
           <p className="text-ods-text-secondary text-h4">
             {spendLimitReachedSentence(status)}
@@ -54,6 +52,7 @@ export function AutoTopUpNotice({ status, onManage }: AutoTopUpNoticeProps) {
             {onManage ? ' Raise the limit in Manage AI Balance to resume sooner.' : ''}
           </p>
         </div>
+        {manageButton}
       </div>
     );
   }

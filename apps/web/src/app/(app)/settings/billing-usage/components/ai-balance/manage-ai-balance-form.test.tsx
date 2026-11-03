@@ -43,7 +43,7 @@ function status(overrides: Partial<AutoTopUpStatus> = {}): AutoTopUpStatus {
     resumesAt: null,
     minimumAmountUsd: 10,
     minimumThresholdUsd: 2,
-    paymentFailed: false,
+    switchedOff: null,
     paymentMethodSetupUrl: null,
     ...overrides,
   };
@@ -353,12 +353,16 @@ describe('turning auto top-up off', () => {
   });
 });
 
-describe('after a declined charge', () => {
-  it('says why the box is unticked', () => {
-    renderWith({ enabled: false, paymentFailed: true });
-    expect(text()).toContain('Switched off after a declined charge.');
+describe('after the system switched it off', () => {
+  it.each([
+    ['PAYMENT_FAILED', 'Switched off after a declined charge.'],
+    ['AUTHENTICATION_ABANDONED', 'Switched off after an unconfirmed charge.'],
+    ['NO_PAYMENT_METHOD', 'Switched off: no card on file can be charged automatically.'],
+  ] as const)('says why the box is unticked: %s', (reason, why) => {
+    renderWith({ enabled: false, switchedOff: reason });
+    expect(text()).toContain(why);
     click(checkbox());
-    expect(text()).not.toContain('Switched off after a declined charge.');
+    expect(text()).not.toContain(why);
   });
 });
 
