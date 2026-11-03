@@ -173,6 +173,7 @@ interface TicketDetailsStore {
   pushOptimisticSend: (side: ChatSide, message: ChatMessage) => void;
   updateMessage: (side: ChatSide, messageId: string, updates: Partial<ChatMessage>) => void;
   removeMessage: (side: ChatSide, messageId: string) => void;
+  /** The thread as it stands, deltas still in the batcher included: what a history merge builds its write from. */
   getMessages: (side: ChatSide) => ChatMessage[];
 
   // Approvals
@@ -263,7 +264,10 @@ export const useTicketDetailsStore = create<TicketDetailsStore>((set, get) => ({
     mirror.removeMessage(side, messageId);
   },
 
-  getMessages: side => get()[side].messages,
+  getMessages: side => {
+    mirror.flush();
+    return get()[side].messages;
+  },
 
   updateApprovalStatusInMessages: (side, requestId, status, resolvedByName) => {
     mirror.updateApprovalStatus(side, requestId, status, resolvedByName);
@@ -290,9 +294,7 @@ export const useTicketDetailsStore = create<TicketDetailsStore>((set, get) => ({
       return changed ? { approvalStatuses: next } : state;
     }),
 
-  // MERGE, don't replace: approve/reject are registered by the ticket view
-  // while `onMetadata` is registered by the per-side chunk processor, so a
-  // wholesale set would let whichever ran last clobber the other.
+  // MERGE, don't replace: a host that registers one handler leaves the others standing.
   setChatHandlers: (side, handlers) => {
     handlersBySide.set(side, { ...handlersBySide.get(side), ...handlers });
   },

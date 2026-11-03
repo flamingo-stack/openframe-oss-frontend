@@ -82,6 +82,7 @@ export function decodeRemoteSessionChatChunk(
   const { ownerType, displayName } = chunk.data;
   // This feed draws plain text, so a line reads as it was typed, as it does from history. The decoder's text is the chat
   // thread's, where an old mention is a record link.
+  // TODO(CU-17tkuw61kfy): the decoder stops rewriting with the old mention token, and `chunk.data.text` is this line.
   const body = (payload as { text: string }).text;
   // The decoder lifts the JetStream sequence onto the entry; a chunk without one gets a local id.
   const seq = typeof entry.seq === 'number' && entry.seq > 0 ? entry.seq : undefined;

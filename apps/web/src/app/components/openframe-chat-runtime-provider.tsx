@@ -232,21 +232,24 @@ function openMingo({ prompt }: AssistantOpenRequest): void {
 
 export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
-  // In-app doc-tree swap bridge — the same hook the hub wires into `navigate`.
-  // When a knowledge-base viewer is mounted it swaps the doc in place; otherwise
-  // its safe no-op fallback returns false and we `router.push` instead.
+  // In-app doc-tree swap bridge — the same hook the hub wires into `navigate`,
+  // its provider mounted by the app layout. When a knowledge-base viewer is on the
+  // page it swaps the doc in place; otherwise it finds no navigator, returns false
+  // and we `router.push` instead.
   const docNav = useDocNavigation();
 
   // Host-mode navigation callbacks — mirror MPH's `HubRuntimeProvider` so the
   // `openframe-docs` chips / cards / search results navigate identically here.
   const navigate = useCallback<NonNullable<ChatRuntime['navigation']['navigate']>>(
     ({ href, path }) => {
-      // 1. In-page doc-tree swap when the address is under a mounted viewer's route (or names a path in its tree).
-      if (docNav.navigate(path ?? stripSameOriginToPath(href))) return true;
+      const target = stripSameOriginToPath(href);
+      // 1. In-page doc-tree swap when the link (`path`, else the address) is a document of a mounted viewer. An address
+      //    with a fragment or a query names a place the swap would lose (it opens the document at its top), so it goes
+      //    to the router.
+      if (path != null ? docNav.navigate(path) : !/[?#]/.test(target) && docNav.navigate(target)) return true;
       // 2. Same-origin URL → soft-nav (hash targets get the smooth same-page tween
       //    + synthetic `hashchange` so FAQ auto-expand / scroll-to-hash still fire).
       if (!isCrossOriginUrl(href)) {
-        const target = stripSameOriginToPath(href);
         if (navigateSamePageHash(target)) return true;
         router.push(target);
         return true;

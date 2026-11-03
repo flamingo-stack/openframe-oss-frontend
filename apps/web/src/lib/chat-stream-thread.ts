@@ -228,6 +228,7 @@ export interface ReducerMirror<K extends string> {
    * MESSAGE_REQUEST echo itself (one-shot, text-matched) instead of the host
    * blanket-dropping every echo bearing its own user id. `sentText` is what went to the backend when it is not what the
    * bubble says, since the echo comes back as what was sent.
+   * TODO(CU-17tkuw61kfy): `sentText` goes with `textForMingoBackend`; the bubble is the send again.
    */
   pushOptimisticSend: (key: K, message: ChatMessage, sentText?: string) => void;
   /** Pre-curried, per-key-stable `{ apply, mutate, mergeApprovalStatuses }`.
@@ -244,6 +245,12 @@ export interface ReducerMirror<K extends string> {
    * defeats the cap the LRU exists to enforce.
    */
   setActiveKeys: (keys: readonly K[]) => void;
+  /**
+   * Land what the delta batcher holds, so a read of the thread is the thread. A host that builds a thread to write back
+   * (a history merge) reads after this: a write lays its copy over whatever landed since, and parts only grow, so the next
+   * delta could never bring the lost text back.
+   */
+  flush: () => void;
   /** Drop the reducer + snapshot cache + decoder for `key`. Force-flushes first. */
   drop: (key: K) => void;
   /** Every key this mirror has seen and not dropped. */
@@ -525,6 +532,9 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
    * own. A live bubble the merge kept stays, and keeps its tail, because the next chunk finishes it.
    *
    * Read before `mutate`: its flush moves the live bubble past the copy the host merged from.
+   *
+   * TODO(CU-17tkuw61kfy): goes with the lib's old text writer (`old-wire.ts`) and `MingoDecoder.discardHeld`. Only a token
+   * is ever held; with no old tokens the decoder has no tail.
    */
   function discardHeldTextOfReplacedTurn(key: K, messages: readonly ChatMessage[]): void {
     const decoder = decoderByKey.get(key);
@@ -705,6 +715,8 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
    * reducer's bare row does not, and the hosts drive their own typing
    * indicator, so the trailing assistant placeholder (and the phase flip
    * `pushOptimisticSend` performs) must not leak into the mirror.
+   *
+   * TODO(CU-17tkuw61kfy): `sentText` goes with `textForMingoBackend`.
    */
   function pushOptimisticSend(key: K, message: ChatMessage, sentText?: string): void {
     mutate(key, reducer => {
@@ -783,6 +795,7 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
     mergeApprovalStatuses,
     pushOptimisticSend,
     bind,
+    flush: flushDeltas,
     drop,
     knownKeys: () => [...knownKeys],
   };

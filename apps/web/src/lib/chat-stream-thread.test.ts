@@ -10,6 +10,7 @@ import {
 import {
   createChatDialogStore,
   DEFAULT_DIALOG_SIDE,
+  mergeHistoryWithRealtime,
   processHistoricalMessages,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -514,6 +515,97 @@ describe("a key's decoder lives as long as its reducer's sequence", () => {
     seed('b');
 
     expect(mirror.bind('a').decode({ type: 'MESSAGE_END', streamSeq: 2 }).chunks).toEqual([]);
+  });
+});
+
+describe('a history merge landing while deltas wait in the batcher', () => {
+  const MERGE_DIALOG = 'merge-dialog';
+  const userTurn = userRow('u1', 'go');
+
+  /** What both hosts do on a refetch: read the thread, merge, write. In one tick, with a slice still in the batcher. */
+  const mergeInto = (
+    existingMessages: ChatMessage[],
+    streamingMessageId: string | null,
+    write: (m: ChatMessage[]) => void,
+  ) =>
+    write(
+      mergeHistoryWithRealtime({
+        processedHistory: [userTurn],
+        rawHistoryIds: new Set(['u1']),
+        existingMessages,
+        streamingMessageId,
+        historyFetchedAt: Date.now(),
+        historyMaxStreamSeq: 0,
+        realtimeSeenStreamSeq: 0,
+      }),
+    );
+
+  beforeEach(() => {
+    useMingoMessagesStore.getState().resetAll();
+    useTicketDetailsStore.getState().clearChatState();
+  });
+
+  it('keeps the text the batcher held: parts only grow, so the next delta could never write it back', async () => {
+    const store = useMingoMessagesStore.getState();
+    store.setMessages(MERGE_DIALOG, [userTurn]);
+    const bound = bindMingoDialog(MERGE_DIALOG);
+    const feed = (raw: Record<string, unknown>) => bound.apply(bound.decode(raw));
+    feed({ type: 'MESSAGE_START', streamSeq: 1 });
+    feed({ type: 'TEXT', text: 'Hello ', streamSeq: 2 });
+    await flushDeltas();
+
+    feed({ type: 'TEXT', text: 'big ', streamSeq: 3 });
+    feed({ type: 'TEXT', text: 'world ', streamSeq: 4 });
+    mergeInto(store.getMessages(MERGE_DIALOG), store.getStreamingId(MERGE_DIALOG), merged =>
+      store.setMessages(MERGE_DIALOG, merged),
+    );
+
+    feed({ type: 'TEXT', text: 'and more', streamSeq: 5 });
+    feed({ type: 'MESSAGE_END', streamSeq: 6 });
+    await flushDeltas();
+
+    expect(textOf(useMingoMessagesStore.getState().getMessages(MERGE_DIALOG).at(-1))).toBe('Hello big world and more');
+  });
+
+  it('keeps the reasoning the batcher held too', async () => {
+    const store = useMingoMessagesStore.getState();
+    store.setMessages(MERGE_DIALOG, [userTurn]);
+    const bound = bindMingoDialog(MERGE_DIALOG);
+    const feed = (raw: Record<string, unknown>) => bound.apply(bound.decode(raw));
+    feed({ type: 'MESSAGE_START', streamSeq: 1 });
+    feed({ type: 'THINKING', text: 'one ', streamSeq: 2 });
+    await flushDeltas();
+
+    feed({ type: 'THINKING', text: 'two ', streamSeq: 3 });
+    mergeInto(store.getMessages(MERGE_DIALOG), store.getStreamingId(MERGE_DIALOG), merged =>
+      store.setMessages(MERGE_DIALOG, merged),
+    );
+    feed({ type: 'THINKING', text: 'three', streamSeq: 4 });
+    feed({ type: 'MESSAGE_END', streamSeq: 5 });
+    await flushDeltas();
+
+    const parts = useMingoMessagesStore.getState().getMessages(MERGE_DIALOG).at(-1)?.parts ?? [];
+    expect(parts.filter(part => part.type === 'reasoning').map(part => part.text)).toEqual(['one two three']);
+  });
+
+  it('on a ticket side, the same', async () => {
+    const store = useTicketDetailsStore.getState();
+    store.setMessages('client', [userTurn]);
+    const bound = bindTicketSide('client');
+    const feed = (raw: Record<string, unknown>) => bound.apply(bound.decode(raw));
+    feed({ type: 'MESSAGE_START', streamSeq: 1 });
+    feed({ type: 'TEXT', text: 'Hello ', streamSeq: 2 });
+    await flushDeltas();
+
+    feed({ type: 'TEXT', text: 'big ', streamSeq: 3 });
+    const live = store.getMessages('client');
+    mergeInto(live, live.at(-1)?.id ?? null, merged => store.setMessages('client', merged));
+
+    feed({ type: 'TEXT', text: 'and more', streamSeq: 4 });
+    feed({ type: 'MESSAGE_END', streamSeq: 5 });
+    await flushDeltas();
+
+    expect(textOf(useTicketDetailsStore.getState().getMessages('client').at(-1))).toBe('Hello big and more');
   });
 });
 

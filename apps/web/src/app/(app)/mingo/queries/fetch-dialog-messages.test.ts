@@ -97,16 +97,18 @@ describe('fetchMingoDialogMessages', () => {
     expect(queryOfCall(2)).toContain('... on AttachmentsData');
   });
 
-  it('gets its answer from a backend that rejects every flag in turn', async () => {
+  it('gets its answer from a backend missing every shape, each rejection naming only what the query still asks', async () => {
+    // `sourceId` sits inside `AttachmentsData`: a backend with no such type never gets to reject the field.
     post
-      .mockResolvedValueOnce(REJECTED)
       .mockResolvedValueOnce(rejecting(NO_SOURCE_ID))
       .mockResolvedValueOnce(rejecting(NO_CARDS_TYPE))
       .mockResolvedValue(PAGE);
     const fetchMingoDialogMessages = await loadFetch();
 
     await expect(fetchMingoDialogMessages(VARIABLES)).resolves.toBe(PAGE);
-    expect(post).toHaveBeenCalledTimes(4);
+    expect(post).toHaveBeenCalledTimes(3);
+    expect(queryOfCall(2)).not.toContain('sourceId');
+    expect(queryOfCall(2)).not.toContain('RecordCardsData');
   });
 
   it('falls back to GuideData on a backend without AttachmentsData, and stays there', async () => {
@@ -243,6 +245,13 @@ describe('textForMingoBackend', () => {
     post.mockResolvedValueOnce(rejecting(NO_SOURCE_ID)).mockResolvedValue(PAGE);
     const { textForMingoBackend } = await load();
     await expect(textForMingoBackend('d-1', LINKED)).resolves.toBe('Why is @device:abc-1 slow, and @ticket:t2?');
+  });
+
+  it('so does a backend from before AttachmentsData: it is older still, and was never asked for the new names', async () => {
+    post.mockResolvedValueOnce(REJECTED).mockResolvedValueOnce(rejecting(NO_CARDS_TYPE)).mockResolvedValue(PAGE);
+    const { textForMingoBackend } = await load();
+    await expect(textForMingoBackend('d-1', LINKED)).resolves.toBe('Why is @device:abc-1 slow, and @ticket:t2?');
+    expect(post).toHaveBeenCalledTimes(3);
   });
 
   it('a read this page already made is enough', async () => {

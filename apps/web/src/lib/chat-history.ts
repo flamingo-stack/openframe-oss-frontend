@@ -14,6 +14,10 @@ export const DISPLAY_APPROVAL_TYPES: readonly string[] = ['CLIENT', 'ADMIN'];
 /**
  * A card of one waiting on this operator: drawn by the sticky `pendingApprovals` footer, not in the flow. A batch stays in
  * its turn, and another tier's card stays where the lib's tier rule (`approvalDisplaysInline`) keeps it off screen.
+ *
+ * TODO(CU-17tkuw61kfy): only an old approval row with no tool list is a card of one (`message-decoder.ts`, the tenant's
+ * one writer `BatchApprovalPauseService` always lists its tools, and every listed call is a batch's). With those rows goes
+ * this, and the footer it feeds.
  */
 function isPendingFooterCard(part: ChatToolPart): boolean {
   if (approvalStatusOf(part) !== 'pending' || approvalBatchIdOf(part) !== undefined) return false;

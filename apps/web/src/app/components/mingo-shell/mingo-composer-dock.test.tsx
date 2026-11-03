@@ -53,7 +53,16 @@ const {
   viewport: { mdUp: true as boolean | undefined },
   CONTEXT_MEMORY: { items: [{ type: 'DEVICE', id: 'm-1', label: 'web-01' }], onRemove: () => {} },
   CAPABILITIES: { canRename: true, canArchive: true, unarchiveDialog: () => Promise.resolve() },
-  PENDING_APPROVALS: [{ type: 'approval_request', data: { requestId: 'r-1', status: 'pending' } }],
+  PENDING_APPROVALS: [
+    {
+      type: 'dynamic-tool',
+      toolName: 'run_script',
+      toolCallId: 'r-1',
+      state: 'approval-requested',
+      input: {},
+      approval: { id: 'r-1', descriptor: { approvalType: 'CLIENT' } },
+    },
+  ],
   RENDER_MENTION: () => null,
   RENDER_CONTEXT_ITEM: () => null,
 }));
@@ -165,8 +174,15 @@ const createIntentDialog = vi.fn(async () => null);
 const selectDialog = vi.fn();
 /** The session's thread handlers: the dock must hand them to the chat untouched. */
 const loadMoreMessages = vi.fn();
-const approveRequest = vi.fn();
-const rejectRequest = vi.fn();
+const actions = {
+  approve: vi.fn(),
+  reject: vi.fn(),
+  approveEscalation: vi.fn(),
+  rejectEscalation: vi.fn(),
+  pickSuggestion: vi.fn(),
+  selectAsk: vi.fn(),
+};
+const displayApprovalTypes = ['CLIENT'];
 const stopMessage = vi.fn();
 
 function setSurface({
@@ -188,8 +204,8 @@ function setSurface({
             sendMessage: vi.fn(),
             hasMoreMessages: true,
             loadMoreMessages,
-            approveRequest,
-            rejectRequest,
+            actions,
+            displayApprovalTypes,
             stopMessage,
           },
           sendInNewDialog,
@@ -661,8 +677,8 @@ describe('MingoComposerDock', () => {
       activeDialogId: 'd-1',
       hasMoreMessages: true,
       loadMoreMessages,
-      approveRequest,
-      rejectRequest,
+      actions,
+      displayApprovalTypes,
       stopMessage,
     });
   });

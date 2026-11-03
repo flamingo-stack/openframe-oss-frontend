@@ -2,11 +2,11 @@
  * Where the host's `navigate` sends a link, in order: a mounted document viewer swaps in place, a same-origin address
  * soft-navigates, anything else is left to the lib to open. A record's url carries no doc path, so the address alone has
  * to reach the viewer (contract 3.4): a composer hands back `/help-center/knowledge-base/<tree path>` and the navigator
- * registered at that route is what finds the node.
+ * registered at that route is what finds the node. Mounted through the app's own layout, so what is proven is what runs.
  */
-import { DocNavigationProvider, useDocNavigation } from '@flamingo-stack/openframe-frontend-core/components/docs';
+import { useDocumentTree, useDocNavigation } from '@flamingo-stack/openframe-frontend-core/components/docs';
 import { type ChatRuntime, ChatRuntimeContext } from '@flamingo-stack/openframe-frontend-core/contexts';
-import { act, useContext, useEffect } from 'react';
+import { act, type ReactNode, useContext, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -25,9 +25,12 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', async importO
   ...(await importOriginal<Record<string, unknown>>()),
   useEmptyStateConfig: () => ({ config: {}, loaded: false }),
 }));
+vi.mock('./app-layout', () => ({ AppLayout: ({ children }: { children: ReactNode }) => <>{children}</> }));
+vi.mock('./mingo-dialog-param-bridge', () => ({ MingoDialogParamBridge: () => null }));
+vi.mock('./shell-navigator-registrar', () => ({ ShellNavigatorRegistrar: () => null }));
 
 const KB = '/help-center/knowledge-base';
-const NODES = new Set(['openframe-cli/getting-started/quick start.md', 'openframe-cli/README.md']);
+const NODES = new Set(['openframe-cli/getting-started/quick-start.md', 'openframe-cli/README.md']);
 
 function Viewer() {
   const docNav = useDocNavigation();
@@ -43,6 +46,15 @@ function Viewer() {
   return null;
 }
 
+/** The lib's own tree, what `DocsHubPage` runs on the Knowledge Base page. */
+function RealTree({ onSelected }: { onSelected: (path: string) => void }) {
+  const { selectedPath } = useDocumentTree({ structureEndpoint: '/s', contentEndpoint: '/c', baseRoute: KB });
+  useEffect(() => {
+    onSelected(selectedPath);
+  }, [selectedPath, onSelected]);
+  return null;
+}
+
 function Probe({ onRuntime }: { onRuntime: (runtime: ChatRuntime | null) => void }) {
   const runtime = useContext(ChatRuntimeContext);
   useEffect(() => onRuntime(runtime));
@@ -51,22 +63,20 @@ function Probe({ onRuntime }: { onRuntime: (runtime: ChatRuntime | null) => void
 
 let root: Root | null = null;
 
-async function mount() {
-  const { OpenframeChatRuntimeProvider } = await import('./openframe-chat-runtime-provider');
+async function mount(viewer: ReactNode = <Viewer />) {
+  const { default: AppGroupLayout } = await import('../(app)/layout');
   const seen: { runtime: ChatRuntime | null } = { runtime: null };
   root = createRoot(document.createElement('div'));
   await act(async () => {
     root?.render(
-      <DocNavigationProvider>
-        <OpenframeChatRuntimeProvider>
-          <Viewer />
-          <Probe
-            onRuntime={runtime => {
-              seen.runtime = runtime;
-            }}
-          />
-        </OpenframeChatRuntimeProvider>
-      </DocNavigationProvider>,
+      <AppGroupLayout>
+        {viewer}
+        <Probe
+          onRuntime={runtime => {
+            seen.runtime = runtime;
+          }}
+        />
+      </AppGroupLayout>,
     );
   });
   const navigate = seen.runtime?.navigation.navigate;
@@ -93,13 +103,38 @@ describe('OpenframeChatRuntimeProvider navigate', () => {
     expect(mocks.push).not.toHaveBeenCalled();
   });
 
-  it('reads the tree path as the tree keys it, with no query or fragment and decoded', async () => {
-    const navigate = await mount();
+  it('swaps the real tree the Knowledge Base page runs on, and the address follows', async () => {
+    const tree = {
+      success: true,
+      data: [{ id: 'guide', name: 'Guide', slug: 'guide', path: 'openframe-cli/guide.md', type: 'file' }],
+    };
+    const response = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => response(tree)),
+    );
+    const selected: string[] = [];
+    const navigate = await mount(<RealTree onSelected={path => selected.push(path)} />);
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    });
 
-    expect(
-      navigate({ href: `${KB}/openframe-cli/getting-started/quick%20start.md?from=chat#install`, path: null }),
-    ).toBe(true);
-    expect(mocks.selectNode).toHaveBeenCalledWith({ path: 'openframe-cli/getting-started/quick start.md' });
+    await act(async () => {
+      expect(navigate({ href: `${KB}/openframe-cli/guide.md`, path: null })).toBe(true);
+    });
+    expect(selected.at(-1)).toBe('openframe-cli/guide.md');
+    expect(window.location.pathname).toBe(`${KB}/openframe-cli/guide.md`);
+    expect(mocks.push).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it('leaves an address with a fragment or a query to the router: the swap would lose the place it names', async () => {
+    const navigate = await mount();
+    const target = `${KB}/openframe-cli/getting-started/quick-start.md?from=chat#install`;
+
+    expect(navigate({ href: target, path: null })).toBe(true);
+    expect(mocks.selectNode).not.toHaveBeenCalled();
+    expect(mocks.push).toHaveBeenCalledWith(target);
   });
 
   it("takes a doc path it was handed, the old hub's doc rows", async () => {

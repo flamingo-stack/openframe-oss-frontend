@@ -14,7 +14,8 @@ interface MessagesVariables {
 /**
  * A backend rejects the WHOLE query over a message part type or field its schema lacks. Three such things can be missing
  * from an older backend, and the first rejection naming one drops it:
- *   - `AttachmentsData`: a backend from before saas-tenant#3633 has `GuideData` instead (the old fragment is used);
+ *   - `AttachmentsData`: a backend from before saas-tenant#3633 has `GuideData` instead (the old fragment is used). Older
+ *     than the new names too: `sourceId` sits inside that type, so it never rejects the field, and only this says so;
  *   - `RecordCardsData`: a backend from before saas-tenant#4330 stores no record cards (the fragment is left out);
  *   - `sourceId`: a backend from before CU-17tkuw61kfy has the old field names on both parts (the old fragments are used).
  *
@@ -68,7 +69,8 @@ export async function fetchMingoDialogMessages(variables: MessagesVariables) {
     const rejected = (name: string) => response.data?.errors?.some(error => error.message.includes(name)) ?? false;
     // `sourceId` before `RecordCardsData`: the rejection of the new names also says "Field 'records' in type
     // 'RecordCardsData'", and that backend has the type, with the old field in it.
-    if (!asked.legacyGuide && rejected('AttachmentsData')) asked = { ...asked, legacyGuide: true };
+    if (!asked.legacyGuide && rejected('AttachmentsData'))
+      asked = { ...asked, legacyGuide: true, standardNames: false };
     else if (asked.standardNames && rejected('sourceId')) asked = { ...asked, standardNames: false };
     else if (asked.recordCards && rejected('RecordCardsData')) asked = { ...asked, recordCards: false };
     else break;
