@@ -152,6 +152,7 @@ export function BillingUsageScreen({ data, onRefetch: refetch }: BillingUsageScr
     onManageAiBalance: aiBalanceOffered ? openAiBalanceModal : null,
     onCancel: () => setCancelling(true),
     onRenewed: refetch,
+    onDowngradeUndone: refetch,
   });
 
   // No subscription record at all. Every figure below would be a zero or a dash
