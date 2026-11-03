@@ -118,7 +118,7 @@ When read-only: `billing-usage-content.tsx` renders every figure (plan, rates, n
 invoices) with a single **Manage Billing** header action in place of the plan/AI-limit/cancel/pay
 actions; `/checkout/*` 404s; the AI spend bar stays off (its only action is the limit control); and
 the lock screen is `read-only-lock-content.tsx` — `WorkspaceInactiveScreen` with Manage Billing for
-owners/admins, the "contact the owner" copy (`no-access-copy.ts`) for everyone else.
+owners/admins, its default "your workspace administrator can restore access" copy for everyone else.
 
 When hidden: Settings shows a **Usage** card (`billing-usage/components/usage-view.tsx` — device/AI
 counters and workspace limits over its own price-free query), `/checkout/*` 404s, and the subscription lock screen renders `WorkspaceInactiveScreen`

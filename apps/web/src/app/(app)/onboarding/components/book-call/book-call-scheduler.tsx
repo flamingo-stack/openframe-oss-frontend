@@ -14,6 +14,7 @@ import type {
   SchedulingLink,
 } from '@flamingo-stack/openframe-frontend-core/schemas/meeting-booking-schema';
 import { CONTENT_BASE } from '@/app/(app)/help-center/endpoints';
+import { SignedInBookingForm } from '@/app/components/shared/signed-in-booking-form';
 import { formatDateTime } from '@/lib/format-date';
 
 export interface BookCallSchedulerProps {
@@ -34,6 +35,7 @@ export function BookCallScheduler({ link, onBack, className }: BookCallScheduler
       // heading, and repeating the meeting name only pushed the picker down.
       hosts={link.hosts}
       fallbackUrl={link.link}
+      detailsForm={SignedInBookingForm}
       onBack={onBack}
       onBooked={(booking: BookingConfirmation) =>
         toast({
