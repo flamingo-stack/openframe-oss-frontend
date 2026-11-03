@@ -102,6 +102,17 @@ version:
 | `OpenFrame-Console.app.tar.gz`, `*.sig` | the updater's macOS payload, and the updater signatures |
 | `updater.json` | the updater manifest |
 
+The `.dmg` window ("Drag to Applications") is laid out by Finder from
+`bundle.macOS.dmg` in `tauri.conf.json`. Its background,
+`src-tauri/installer/dmg-background.tiff`, is the 660×400 image and its 2× copy in
+one file (`tiffutil -cathidpicheck bg.png bg@2x.png -out dmg-background.tiff`;
+a 1× PNG alone is upscaled on Retina). The window is 428pt tall, not 400:
+Finder counts the title bar in that height (32pt, measured on macOS 27), and
+428 rather than 432 lets a shorter title bar show more of the image's empty
+bottom margin instead of bare window under it. Tauri skips this layout
+whenever `CI=true`, so the build step sets `TAURI_BUNDLER_DMG_IGNORE_CI`: without
+it the DMG ships with no background and the icons in Finder's name order.
+
 A push to `main` that touches `apps/desktop/` builds the same bundles as
 workflow artifacts (version `0.0.0-dev.<run>`), with no release.
 
