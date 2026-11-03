@@ -1,7 +1,7 @@
+import { RouteStyles } from '@flamingo-stack/openframe-frontend-core/route-styles';
 import type { Metadata, Viewport } from 'next';
-import { PublicEnvScript } from 'next-runtime-env';
 import './globals.css';
-import '@flamingo-stack/openframe-frontend-core/styles';
+import { PublicEnvScript } from 'next-runtime-env';
 import { DevTicketObserver } from '@/app/(auth)/auth/components/dev-ticket-observer';
 import { NatsAppProvider } from '@/lib/nats/nats-app-provider';
 import { sidebarWidthFoucScript } from '@/lib/navigation-sidebar-state';
@@ -124,6 +124,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: sidebarWidthFoucScript(isSaasTenantMode()) }} />
       </head>
       <body suppressHydrationWarning className="min-h-screen font-body antialiased" data-app-type="openframe">
+        {/* Each page's own Tailwind rules, written into its HTML by `next-styles build`; the complete sheet
+            loads after paint. Every page here is prerendered, so no path is needed (the lib's route-styles). */}
+        <RouteStyles />
         <GoogleTagManager noscriptFallback={!isStaticExport} />
         <RegistrationAttributionCapture />
         <EmbedShimRegistration />

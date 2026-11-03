@@ -139,6 +139,8 @@ describe('MentionTag new-tab segment', () => {
     const pair = container.firstElementChild;
     expect(pair?.className).toContain('max-w-full');
     expect(pair?.querySelector('a')?.className).toContain('min-w-0');
+    // The link is capped as the chip is, or a long label leaves a gap between the two segments.
+    expect(pair?.querySelector('a')?.className).toContain('max-w-[16rem]');
     expect(container.querySelector('[data-testid="inline-chip"]')?.className).toContain('max-w-[min(16rem,100%)]');
   });
 

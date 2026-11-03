@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useLayoutEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { needsYouTenantsSourceQuery as NeedsYouTenantsSourceQueryType } from '@/__generated__/needsYouTenantsSourceQuery.graphql';
 import { useRetryKey } from '@/app/components/shared/content-error-boundary';
@@ -54,7 +54,9 @@ export function NeedsYouTenantsSource({ onReport }: { onReport: ReportSource }) 
     [data.directoryConnections.edges],
   );
 
-  useEffect(() => {
+  // Before paint: a source read from the store answers in the same commit, so a return to
+  // the page draws its rows, not the card's loading form, for a frame.
+  useLayoutEffect(() => {
     onReport('tenants', { status: 'ready', rows });
   }, [onReport, rows]);
 
