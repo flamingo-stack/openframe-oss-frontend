@@ -3,7 +3,9 @@
 // back; any other conversation, a failed archive or an ended tour leave the
 // onboarding alone. And that the conversation keeps Mingo's greeting once the
 // tour is over: it is a local message, and archiving the conversation (which
-// skips the tour) then unarchiving it brought it back empty.
+// skips the tour) then unarchiving it brought it back empty. And that "Skip
+// Onboarding" skips the tour only once confirmed, closing the dialog when the
+// skip lands.
 
 import type { UnifiedChatState } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { act } from 'react';
@@ -12,7 +14,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type UserOnboardingProgress, useOnboardingStore } from '@/stores/onboarding-store';
 import { type MingoTour, useMingoTour } from './use-mingo-tour';
 
-const { skipUserInBackground } = vi.hoisted(() => ({ skipUserInBackground: vi.fn() }));
+const { skipUser, skipUserInBackground, trackDashboardActivity } = vi.hoisted(() => ({
+  skipUser: vi.fn(),
+  skipUserInBackground: vi.fn(),
+  trackDashboardActivity: vi.fn(),
+}));
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock('react-relay', () => ({ useRelayEnvironment: () => ({}) }));
@@ -33,8 +39,30 @@ vi.mock('@/graphql/onboarding/use-onboarding-mutations', () => ({
     completeUserStepInBackground: vi.fn(),
     completeUserInBackground: vi.fn(),
     setTourDialogInBackground: vi.fn(),
+    skipUser,
     skipUserInBackground,
+    isMutating: false,
   }),
+}));
+vi.mock('@/lib/analytics', async importOriginal => ({
+  ...(await importOriginal<object>()),
+  trackDashboardActivity,
+}));
+// The block and the dialog as their buttons: what is pinned here is the hook's wiring.
+vi.mock('./getting-started-block', () => ({
+  GettingStartedBlock: ({ onSkip }: { onSkip: () => void }) => (
+    <button type="button" onClick={onSkip}>
+      Skip Onboarding
+    </button>
+  ),
+}));
+vi.mock('@/app/components/shared/confirm-dialog', () => ({
+  ConfirmDialog: ({ open, onConfirm }: { open: boolean; onConfirm: () => void }) =>
+    open ? (
+      <button type="button" onClick={onConfirm}>
+        Confirm skip
+      </button>
+    ) : null,
 }));
 
 const TOUR_DIALOG = 'd-tour';
@@ -68,14 +96,16 @@ function renderTour(archiveDialog: (id: string) => Promise<void>, activeDialogId
   } as unknown as UnifiedChatState;
   function Probe() {
     tour = useMingoTour({ state, createNamedDialog: vi.fn(), dialogError: null });
-    return null;
+    return <>{tour.aboveComposer}</>;
   }
   act(() => root.render(<Probe />));
   return state;
 }
 
 beforeEach(() => {
+  skipUser.mockReset();
   skipUserInBackground.mockClear();
+  trackDashboardActivity.mockClear();
   useOnboardingStore.getState().reset();
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -160,5 +190,38 @@ describe('useMingoTour - the greeting', () => {
     );
 
     expect(greetingIds()).toEqual([]);
+  });
+});
+
+describe('useMingoTour - Skip Onboarding', () => {
+  const findButton = (text: string) =>
+    [...container.querySelectorAll('button')].find(button => button.textContent?.trim() === text) ?? null;
+  const click = (text: string) =>
+    act(() => findButton(text)?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+
+  it('skips the tour only once confirmed, and closes the dialog when the skip lands', () => {
+    skipUser.mockImplementation((onDone: () => void) => onDone());
+    useOnboardingStore.getState().setUser(progress());
+    renderTour(vi.fn(async () => {}));
+
+    click('Skip Onboarding');
+    expect(skipUser).not.toHaveBeenCalled();
+
+    click('Confirm skip');
+    expect(skipUser).toHaveBeenCalledTimes(1);
+    expect(trackDashboardActivity).toHaveBeenCalledWith('skip_onboarding_mingo');
+    expect(findButton('Confirm skip')).toBeNull();
+  });
+
+  it('keeps the dialog open while the skip has not landed', () => {
+    useOnboardingStore.getState().setUser(progress());
+    renderTour(vi.fn(async () => {}));
+
+    click('Skip Onboarding');
+    click('Confirm skip');
+
+    expect(skipUser).toHaveBeenCalledTimes(1);
+    expect(trackDashboardActivity).not.toHaveBeenCalled();
+    expect(findButton('Confirm skip')).not.toBeNull();
   });
 });
