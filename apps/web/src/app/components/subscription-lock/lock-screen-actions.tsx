@@ -3,7 +3,6 @@
 import {
   HeadphoneIcon,
   Logout01Icon,
-  Refresh01RightIcon,
   UserXmarkIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { ActionsMenuGroup } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -11,25 +10,70 @@ import { ActionsMenuDropdown, Button } from '@flamingo-stack/openframe-frontend-
 import { type ReactNode, useState } from 'react';
 import { DeleteAccountModal } from '@/app/(app)/settings/components/delete-account-modal';
 import { useLogoutConfirmStore } from '@/app/(auth)/auth/stores/logout-confirm-store';
-import { ContactSupportModal } from '@/app/components/shared/contact-support-modal';
+import { BillingContactSupportModal } from '@/app/components/shared/contact-support-modal';
 
 interface LockScreenActionsProps {
-  /** Rendered before the standard three — e.g. `CheckAgainButton`. */
-  leading?: ReactNode;
   className?: string;
 }
 
 /**
  * Re-reads the lock. The status comes from the subscription query resolved once
  * in the app shell, so a full reload is the simplest way to re-resolve it once
- * access is restored — an invoice paid in the Stripe tab, or an admin fixing
- * things elsewhere.
+ * access is restored — an admin fixing things elsewhere. No glyph: the inactive
+ * screen's design draws its two buttons as plain labels.
  */
 export function CheckAgainButton() {
   return (
-    <Button variant="outline" leftIcon={<Refresh01RightIcon />} onClick={() => window.location.reload()}>
+    <Button variant="outline" onClick={() => window.location.reload()}>
       Check Again
     </Button>
+  );
+}
+
+/**
+ * The inactive screen's row: a re-check and a sign-out, as plain labels, with
+ * self-deletion moved off the row into the footer link below. No support form:
+ * the viewer here is waiting on an admin, not on us.
+ */
+export function InactiveScreenActions({ leading, className }: { leading?: ReactNode; className?: string }) {
+  const { logOut, modals } = useLockScreenActions();
+  return (
+    <>
+      <div className={className}>
+        {leading}
+        <CheckAgainButton />
+        <Button variant="outline" onClick={logOut}>
+          Log Out
+        </Button>
+      </div>
+      {modals}
+    </>
+  );
+}
+
+/** The inactive screen's footer link to `DeleteAccountModal`, which covers both roles. */
+export function DeleteMyAccountLink() {
+  const { deleteAccount, modals } = useLockScreenActions();
+  return (
+    <>
+      <Button variant="link" size="compact" className="underline underline-offset-2" onClick={deleteAccount}>
+        Delete My Account
+      </Button>
+      {modals}
+    </>
+  );
+}
+
+/** One support button with its own form, for a screen that has no full row (the inactive screen's error fallback). */
+export function ContactSupportButton() {
+  const { contactSupport, modals } = useLockScreenActions();
+  return (
+    <>
+      <Button variant="outline" leftIcon={<HeadphoneIcon className="text-ods-error" />} onClick={contactSupport}>
+        Contact Support
+      </Button>
+      {modals}
+    </>
   );
 }
 
@@ -41,7 +85,8 @@ export function CheckAgainButton() {
  * actions that stay available when the remedy itself is not. A member who cannot
  * touch billing gets exactly this row and nothing about plans or invoices; an
  * owner gets it under the invoice list. Which of those two screens renders is
- * decided in `subscription-plan-lock-content.tsx`.
+ * decided in `subscription-plan-lock-content.tsx`. The inactive screen has its
+ * own, shorter row (`InactiveScreenActions`).
  *
  * Self-deletion is here because without it the only way out of a dead tenant is
  * to write to support — and `DeleteAccountModal` already covers both roles
@@ -54,7 +99,7 @@ export function CheckAgainButton() {
  * Carries no payment surface of any kind, so it is safe on the native builds too
  * (App Store Guideline 3.1.1 — see `billing-visibility.ts`).
  */
-export function LockScreenActions({ leading, className }: LockScreenActionsProps) {
+export function LockScreenActions({ className }: LockScreenActionsProps) {
   const { logOut, deleteAccount, contactSupport, modals } = useLockScreenActions();
 
   return (
@@ -62,7 +107,6 @@ export function LockScreenActions({ leading, className }: LockScreenActionsProps
       <div
         className={className ?? 'flex flex-col gap-[var(--spacing-system-mf)] content-sm:flex-row content-sm:flex-wrap'}
       >
-        {leading}
         {/* All three glyphs carry the error red per the design — these are the
             exits, and the row reads as one. The LABELS stay primary: an outline
             button whose text went red would read as three destructive actions,
@@ -89,7 +133,7 @@ export function LockScreenActions({ leading, className }: LockScreenActionsProps
  * The paywall cannot take the button row above it — that screen's own primary
  * action is "Proceed to Payment", and three outline buttons of equal weight
  * beside it argue with it. The row belongs to the screens with nothing else to
- * do (`WorkspaceInactiveScreen`, `UnpaidInvoicesScreen`); here the exits sit in
+ * do (`UnpaidInvoicesScreen`); here the exits sit in
  * the header, out of the way of the thing the user came to do, which is pay.
  *
  * Only Delete Account is `danger`. The button row makes the same distinction
@@ -161,7 +205,7 @@ function useLockScreenActions() {
     modals: (
       <>
         <DeleteAccountModal open={deleteAccountOpen} onOpenChange={setDeleteAccountOpen} />
-        <ContactSupportModal open={supportOpen} onOpenChange={setSupportOpen} />
+        <BillingContactSupportModal open={supportOpen} onOpenChange={setSupportOpen} />
       </>
     ),
   };
