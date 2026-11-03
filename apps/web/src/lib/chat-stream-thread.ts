@@ -716,10 +716,15 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
    * indicator, so the trailing assistant placeholder (and the phase flip
    * `pushOptimisticSend` performs) must not leak into the mirror.
    *
-   * TODO(CU-17tkuw61kfy): `sentText` goes with `textForMingoBackend`.
+   * What the decoder still holds of a turn that ended with no MESSAGE_END (a crash, a lost chunk) goes in that turn's bubble
+   * first: the send moves the thread on, and the next chunk that closes it would write it below the new message.
+   *
+   * TODO(CU-17tkuw61kfy): `sentText` goes with `textForMingoBackend`, `closeHeld` with the lib's old text writer.
    */
   function pushOptimisticSend(key: K, message: ChatMessage, sentText?: string): void {
     mutate(key, reducer => {
+      const held = decoderByKey.get(key)?.closeHeld();
+      if (held) reducer.apply(held);
       const { messages, streamingPhase } = reducer.state;
       reducer.pushOptimisticSend(sentText ?? textOfParts(message.parts));
       reducer.setMessages([...messages, message]);

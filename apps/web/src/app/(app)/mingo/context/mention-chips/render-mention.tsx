@@ -57,7 +57,7 @@ const OBJECT_ID_RE = /^[0-9a-f]{24}$/i;
 export function renderMingoRecordChip({
   type,
   id,
-  label,
+  label: linkLabel,
 }: {
   type: string;
   id: string;
@@ -65,6 +65,9 @@ export function renderMingoRecordChip({
    *  never shows a bare id when the live resolve misses (e.g. a script id the resolver can't find). */
   label?: string;
 }): ReactNode {
+  // TODO(CU-17tkuw61kfy): goes with the old mention token. The lib writes `@device:m1` as a link labelled with itself, which
+  // names nothing: with no name, a chip reads its id.
+  const label = linkLabel === `@${type}:${id}` ? undefined : linkLabel;
   const icon = ICON_BY_MARKER.get(type);
   switch (type) {
     case CHAT_REFERENCE_MARKER:

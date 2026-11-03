@@ -1,4 +1,8 @@
-import { extractRecordLinks, parseRecordHref } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import {
+  createRecordLinkScanner,
+  extractRecordLinks,
+  parseRecordHref,
+} from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { CONTEXT_ENTITY_KIND, CONTEXT_ENTITY_MARKER, type ContextEntityKind } from '../../mingo/context/context-types';
 import type { MingoDraft } from '../../mingo/stores/mingo-launcher-store';
 import type { IncidentRow } from './incident-transform';
@@ -6,9 +10,6 @@ import type { IncidentRow } from './incident-transform';
 const KIND_BY_MARKER = new Map<string, ContextEntityKind>(
   (Object.entries(CONTEXT_ENTITY_MARKER) as [ContextEntityKind, string][]).map(([kind, marker]) => [marker, kind]),
 );
-
-/** One leading record link of the server prompt: `[label](record://<type>/<id>)`. */
-const LEADING_RECORD_LINK = /^\[((?:\\.|[^\\[\]\n])*)\]\((record:\/\/[^\s()<>]+)\)\s*/;
 
 /**
  * TODO(CU-17tkuw61kfy): the prompt opens with `@marker:id` tokens until the mobile gate is armed, because frozen bundles
@@ -25,8 +26,8 @@ export function linkedInsightId(text: string): string | undefined {
 
 /** The record the prompt opens with, and the text naming it; `type` and `id` are absent on a link that names none. */
 function leadingRecord(prompt: string): { whole: string; type?: string; id?: string } | null {
-  const link = LEADING_RECORD_LINK.exec(prompt);
-  if (link) {
+  const link = createRecordLinkScanner().exec(prompt);
+  if (link?.index === 0) {
     const record = parseRecordHref(link[2]);
     return { whole: link[0], type: record?.type, id: record?.id };
   }
@@ -48,7 +49,7 @@ export function incidentMingoDraft(prompt: string, incident: IncidentRow): Mingo
   for (;;) {
     const record = leadingRecord(rest);
     if (!record) break;
-    rest = rest.slice(record.whole.length);
+    rest = rest.slice(record.whole.length).trimStart();
     const kind = record.type ? KIND_BY_MARKER.get(record.type) : undefined;
     if (record.id && kind) mentions.push({ type: kind, id: record.id, label: labelFor(kind, record.id, incident) });
     else unknown.push(record.whole.trim());

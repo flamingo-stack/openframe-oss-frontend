@@ -35,6 +35,21 @@ describe('incidentMingoDraft', () => {
     expect(draft.text).toBe('Using the insight and device context, investigate this problem.');
   });
 
+  it('reads a leading link whose address is in angle brackets, the form the record-link grammar allows', () => {
+    const draft = incidentMingoDraft(
+      '[this incident](<record://insight/qa-insight-2>)\n\nInvestigate this problem.',
+      incident,
+    );
+    expect(draft.mentions).toEqual([{ type: 'INSIGHT', id: 'qa-insight-2', label: 'macOS firewall is off' }]);
+    expect(draft.text).toBe('Investigate this problem.');
+  });
+
+  it('leaves a link later in the prompt in the text: only what the prompt opens with is attached', () => {
+    const draft = incidentMingoDraft('Look at [this device](record://device/m-1) please.', incident);
+    expect(draft.mentions).toEqual([]);
+    expect(draft.text).toBe('Look at [this device](record://device/m-1) please.');
+  });
+
   // TODO(CU-17tkuw61kfy): what the server sends until the mobile gate is armed.
   it('turns the leading tokens of the prompt the server sends today into the same labelled mentions', () => {
     const draft = incidentMingoDraft(

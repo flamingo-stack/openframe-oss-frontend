@@ -705,6 +705,92 @@ describe('what the decoder holds back, once the history took the message it was 
   });
 });
 
+describe('a send over a turn that ended with no MESSAGE_END', () => {
+  const DIALOG = 'send-over-dialog';
+  const store = () => useMingoMessagesStore.getState();
+  const said = () =>
+    (store().messagesByDialog.get(DIALOG) ?? []).map(message => [message.role, textOfParts(message.parts)]);
+  const feed = (...raw: Array<Record<string, unknown>>) => {
+    const bound = bindMingoDialog(DIALOG);
+    for (const chunk of raw) {
+      const entry = bound.decode(chunk);
+      if (entry.chunks.length > 0) bound.apply(entry);
+    }
+    bound.mutate(() => {});
+  };
+  const bubble: ChatMessage = { id: 'optimistic-1', role: 'user', parts: [{ type: 'text', text: 'next q' }] };
+
+  beforeEach(() => {
+    store().resetAll();
+    store().setActiveDialogId(DIALOG);
+  });
+
+  it('leaves what the decoder held in that turn, above the new message, not in a bubble of its own below it', () => {
+    feed({ type: 'MESSAGE_START', streamSeq: 1 }, { type: 'TEXT', text: 'answer with `open code', streamSeq: 2 });
+    expect(said()).toEqual([['assistant', 'answer with']]);
+
+    store().pushOptimisticSend(DIALOG, bubble);
+    expect(said()).toEqual([
+      ['assistant', 'answer with `open code'],
+      ['user', 'next q'],
+    ]);
+
+    feed(
+      { type: 'MESSAGE_REQUEST', text: 'next q', ownerType: 'ADMIN', streamSeq: 3 },
+      { type: 'MESSAGE_START', streamSeq: 4 },
+      { type: 'TEXT', text: 'fresh', streamSeq: 5 },
+      { type: 'MESSAGE_END', streamSeq: 6 },
+    );
+    expect(said()).toEqual([
+      ['assistant', 'answer with `open code'],
+      ['user', 'next q'],
+      ['assistant', 'fresh'],
+    ]);
+  });
+
+  it('with nothing held is just the send, and leaves the phase as it was', () => {
+    feed({ type: 'MESSAGE_START', streamSeq: 1 }, { type: 'TEXT', text: 'done', streamSeq: 2 });
+    feed({ type: 'MESSAGE_END', streamSeq: 3 });
+
+    store().pushOptimisticSend(DIALOG, bubble);
+
+    expect(said()).toEqual([
+      ['assistant', 'done'],
+      ['user', 'next q'],
+    ]);
+  });
+});
+
+describe('a multi-round answer', () => {
+  it('keeps a text, a tool, its thinking and more text in the order they came, through the mirror', async () => {
+    const DIALOG = 'rounds-dialog';
+    useMingoMessagesStore.getState().resetAll();
+    const bound = bindMingoDialog(DIALOG);
+    for (const chunk of [
+      { type: 'MESSAGE_START', streamSeq: 1 },
+      { type: 'TEXT', text: 'one', streamSeq: 2 },
+      { type: 'EXECUTING_TOOL', toolExecutionRequestId: 'run-1', toolFunction: 'status', streamSeq: 3 },
+      {
+        type: 'EXECUTED_TOOL',
+        toolExecutionRequestId: 'run-1',
+        toolFunction: 'status',
+        result: 'ok',
+        success: true,
+        streamSeq: 4,
+      },
+      { type: 'THINKING', text: 'hm', streamSeq: 5 },
+      { type: 'TEXT', text: 'two', streamSeq: 6 },
+      { type: 'MESSAGE_END', streamSeq: 7 },
+    ]) {
+      bound.apply(bound.decode(chunk));
+    }
+    await flushDeltas();
+
+    const [message] = useMingoMessagesStore.getState().getMessages(DIALOG);
+    expect(message.parts.map(part => part.type)).toEqual(['text', 'dynamic-tool', 'reasoning', 'text']);
+  });
+});
+
 describe('a send whose text the backend reads as something else', () => {
   const DIALOG = 'sent-dialog';
   const store = () => useMingoMessagesStore.getState();
