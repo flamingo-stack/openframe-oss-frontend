@@ -139,7 +139,7 @@ export function DevicesOverview({ devices }: { devices?: DevicesOverviewData }) 
             href={
               // Archived devices live on their own page; /devices only lists the rest.
               card.status === DEVICE_STATUS.ARCHIVED
-                ? routes.devices.archive
+                ? routes.devices.archive()
                 : routes.devices.filtered({ statuses: [card.status] })
             }
           />

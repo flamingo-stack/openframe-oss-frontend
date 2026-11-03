@@ -185,7 +185,8 @@ function DirectoryCards({ directory }: { directory: DeviceDirectory | null }) {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 items-start gap-[var(--spacing-system-m)] content-md:grid-cols-2">
+        // Side by side only from content-lg: a tablet's half width clips the cards' one-line values (Figma 906:83542).
+        <div className="grid grid-cols-1 items-start gap-[var(--spacing-system-m)] content-lg:grid-cols-2">
           {cards.map(card => (
             <div key={`${card.record.id}:${card.entra ? 'entra' : 'intune'}`} className="min-w-0">
               {card.entra && <EntraCard entra={card.entra} stale={card.liveDataUnavailable} />}

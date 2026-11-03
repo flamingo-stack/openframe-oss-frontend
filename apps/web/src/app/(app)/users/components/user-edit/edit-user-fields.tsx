@@ -217,14 +217,15 @@ export function EditUserFields({ form: { control }, record, disabled }: EditUser
         <Controller
           name="leavingDate"
           control={control}
-          render={({ field }) => (
+          render={({ field, fieldState: { error } }) => (
             // A local field: it saves on a read-only account too (contract §11.5), never reaching the provider.
-            <FieldWrapper label="Leaving date" labelVariant="large">
+            <FieldWrapper label="Leaving date" labelVariant="large" error={error?.message}>
               <DatePicker
                 mode="single"
                 placeholder="MM/DD/YYYY"
                 value={field.value ?? undefined}
                 onChange={date => field.onChange(date ?? null)}
+                invalid={!!error}
                 disabled={disabled || !customerId}
               />
             </FieldWrapper>

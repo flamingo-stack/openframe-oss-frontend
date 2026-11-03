@@ -15,6 +15,8 @@ export function CustomerDevicesTab({ organizationId }: CustomerDevicesTabProps) 
     <DevicesPanel
       embedded
       addDeviceHref={routes.devices.new({ organizationId })}
+      // The Status funnel never offers DELETED, so this is the only way to the customer's deleted devices.
+      archiveHref={routes.devices.archive({ organizationId })}
       lockedFilters={lockedFilters}
       hideColumns={['organization']}
       hideFilters={['organization']}

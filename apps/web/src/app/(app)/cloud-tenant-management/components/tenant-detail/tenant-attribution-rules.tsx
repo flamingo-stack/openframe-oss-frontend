@@ -1,11 +1,14 @@
 'use client';
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  Button,
   type ColumnDef,
   type ColumnFiltersState,
   DataTable,
   type DataTableFilterOption,
+  FilterModal,
   type Row,
   type SortingState,
   Tag,
@@ -157,6 +160,7 @@ function AttributionRulesTable({ customers }: { customers: Customers | null }) {
   const loading = customers == null;
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   // Memoized for the table instance, which keys its row model on their identity.
   const rows = useMemo(() => (customers ? toRows(customers) : []), [customers]);
   const data = useMemo(
@@ -188,10 +192,46 @@ function AttributionRulesTable({ customers }: { customers: Customers | null }) {
     });
   };
   const sort = sorting[0] ? { id: sorting[0].id, desc: sorting[0].desc } : null;
+  const selected = Object.fromEntries(columnFilters.map(filter => [filter.id, filter.value as string[]]));
 
   return (
     <section className="flex flex-col gap-[var(--spacing-system-l)]">
-      <h2 className="text-ods-text-primary text-h2">Attribution Rules</h2>
+      <div className="flex items-center justify-between gap-[var(--spacing-system-m)]">
+        <h2 className="text-ods-text-primary text-h2">Attribution Rules</h2>
+        {/* The header filters and sorts from `content-md`; a phone has no header (Figma 3287:13732). */}
+        <Button
+          variant="outline"
+          size="icon"
+          className="content-md:hidden"
+          onClick={() => setFiltersOpen(true)}
+          disabled={loading}
+          aria-label="Filter attribution rules"
+          leftIcon={<Filter02Icon className="text-ods-text-primary" />}
+        />
+      </div>
+      <FilterModal
+        isOpen={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        filterGroups={[
+          { id: 'customer', title: ATTRIBUTION_RULE_COLUMNS.customer.header, options: optionsOf(rows, 'customer') },
+          { id: 'matchBy', title: ATTRIBUTION_RULE_COLUMNS.matchBy.header, options: optionsOf(rows, 'matchBy') },
+        ]}
+        currentFilters={selected}
+        onFilterChange={filters =>
+          setColumnFilters(
+            Object.entries(filters)
+              .filter(([, value]) => value.length > 0)
+              .map(([id, value]) => ({ id, value })),
+          )
+        }
+        sortConfig={{
+          columns: [{ key: ATTRIBUTION_RULE_COLUMNS.users.id, label: ATTRIBUTION_RULE_COLUMNS.users.header }],
+          sortBy: sort?.id,
+          sortDirection: sort?.desc ? 'desc' : 'asc',
+        }}
+        onSort={(columnId, direction) => setSorting([{ id: columnId, desc: direction === 'desc' }])}
+        onSortClear={() => setSorting([])}
+      />
       <DataTable table={table}>
         <DataTable.Header rightSlot={<DataTable.RowCount />} sort={sort} onSortChange={handleSortChange} />
         <DataTable.Body

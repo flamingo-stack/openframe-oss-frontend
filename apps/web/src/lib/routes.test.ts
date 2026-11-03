@@ -92,6 +92,11 @@ describe('filtered lists', () => {
     expect(routes.devices.filtered({ organizationIds: ['org 1'] })).toBe('/devices?organizationIds=org+1');
   });
 
+  it("opens the archive, or one customer's", () => {
+    expect(routes.devices.archive()).toBe('/devices/archive');
+    expect(routes.devices.archive({ organizationId: 'org-1' })).toBe('/devices/archive?organizationId=org-1');
+  });
+
   it('drops an empty filter, leaving the bare list', () => {
     expect(routes.devices.filtered({ organizationIds: [], statuses: [] })).toBe(routes.devices.list);
     expect(routes.devices.filtered({ statuses: [] })).toBe(routes.devices.list);

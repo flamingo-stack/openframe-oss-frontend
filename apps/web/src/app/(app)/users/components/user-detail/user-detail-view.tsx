@@ -11,7 +11,7 @@ import { type TabItem, TabNavigation, useLoadingScope } from '@flamingo-stack/op
 import { type ComponentType, memo } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { userDetailViewQuery as UserDetailViewQueryType } from '@/__generated__/userDetailViewQuery.graphql';
-import { useRetryKey } from '@/app/components/shared';
+import { ContentErrorBoundary, useRetryKey } from '@/app/components/shared';
 import type { UserDetailTab } from '@/lib/routes';
 import { USER_DETAIL_TITLE, UserDetailHeader, UserTitle } from './user-detail-header';
 import { UserDetailsTab } from './user-details-tab';
@@ -95,6 +95,15 @@ function userTabBody(tabId: string): ComponentType<IslandProps> {
   return tab.component as ComponentType<IslandProps>;
 }
 
+const USER_TAB_ERRORS: Record<UserDetailTab, string> = {
+  details: "Couldn't load this user's details.",
+  devices: "Couldn't load this user's devices.",
+  'user-groups': "Couldn't load this user's groups.",
+  licences: "Couldn't load this user's licences.",
+};
+
+const userTabError = (tabId: string) => USER_TAB_ERRORS[tabId as UserDetailTab] ?? USER_TAB_ERRORS.details;
+
 /**
  * A directory user's page. Not `PageLayout`: the title is the record, so only the island that reads it waits
  * (canon `software-detail-view`); the tabs sit beside it and draw from the first paint.
@@ -109,7 +118,13 @@ export function UserDetailView({ id, loading = false }: IslandProps) {
         <TabNavigation tabs={USER_DETAIL_TABS} urlSync defaultTab={USER_DETAIL_TABS[0].id}>
           {activeTab => {
             const TabBody = userTabBody(activeTab);
-            return <TabBody id={id} loading={loading} />;
+            return (
+              // Each tab its own boundary: a failed read costs that tab, not the title and the other tabs. The record's
+              // own failure still reaches the page's, through the title that reads it too.
+              <ContentErrorBoundary key={activeTab} label="UserTab" resetKey={id} message={userTabError(activeTab)}>
+                <TabBody id={id} loading={loading} />
+              </ContentErrorBoundary>
+            );
           }}
         </TabNavigation>
       </div>

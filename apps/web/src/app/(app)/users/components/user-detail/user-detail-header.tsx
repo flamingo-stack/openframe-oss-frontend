@@ -7,6 +7,7 @@ import {
   FloatingTooltip,
   NotFoundError,
   type PageActionButton,
+  Tag,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
@@ -14,6 +15,7 @@ import { graphql, useFragment } from 'react-relay';
 import type { userDetailHeader_person$key } from '@/__generated__/userDetailHeader_person.graphql';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
+import { readOnlyTooltip } from '../../utils/group-presentation';
 import { NO_CUSTOMER_REASON } from '../user-edit/edit-user-form';
 
 const userDetailHeaderFragment = graphql`
@@ -21,6 +23,7 @@ const userDetailHeaderFragment = graphql`
     displayName
     accounts {
       id
+      readOnlyReasons
       customers {
         __typename
       }
@@ -56,25 +59,33 @@ function EditUserUnavailable() {
   );
 }
 
-/** The user page's title (Figma 1014:1222): the name over the job title, with Back and Edit User. */
+/**
+ * The user page's title (Figma 1014:1222): the initials, the name over the job title, with Back and Edit User. The
+ * initials are drawn while the record is read too, so the name does not move over when it lands; there is no photo
+ * to show (contract F4).
+ */
 export function UserTitle({
   title,
   subtitle,
   loading,
   actions,
   selector,
+  adornment,
 }: {
   title: string;
   subtitle?: string;
   loading?: boolean;
   actions?: PageActionButton[];
   selector?: ReactNode;
+  adornment?: ReactNode;
 }) {
   const handleBack = useSafeBack(routes.users.list);
   return (
     <TitleBlock
       title={title}
       subtitle={subtitle}
+      image={{ src: '', alt: loading ? '' : title }}
+      titleAdornment={adornment}
       loading={loading}
       // Edit User is known before the record is: drawn for real and inert until the record says what it does.
       actions={loading ? [EDIT_USER_ACTION] : actions}
@@ -102,9 +113,23 @@ export function UserDetailHeader({ person: personKey }: { person: userDetailHead
   }
   const account = person.accounts[0];
   const subtitle = account?.details?.jobTitle ?? undefined;
+  // Figma 1019:38344: the provider fields cannot be changed. Edit User stays, for the local ones (FE-Q15).
+  const adornment =
+    account && account.readOnlyReasons.length > 0 ? (
+      <FloatingTooltip content={readOnlyTooltip(account.readOnlyReasons)} as="span">
+        <Tag label="Read only" variant="grey" />
+      </FloatingTooltip>
+    ) : undefined;
   // A write needs a customer that claims this account (contract §6).
   if (!account || account.customers.length === 0) {
-    return <UserTitle title={person.displayName} subtitle={subtitle} selector={<EditUserUnavailable />} />;
+    return (
+      <UserTitle
+        title={person.displayName}
+        subtitle={subtitle}
+        adornment={adornment}
+        selector={<EditUserUnavailable />}
+      />
+    );
   }
   const editAction: PageActionButton = {
     ...EDIT_USER_ACTION,
@@ -112,5 +137,5 @@ export function UserDetailHeader({ person: personKey }: { person: userDetailHead
     // keeps this page on the store the save has just updated (canon `customer-details-view`).
     onClick: () => router.push(routes.users.edit(account.id)),
   };
-  return <UserTitle title={person.displayName} subtitle={subtitle} actions={[editAction]} />;
+  return <UserTitle title={person.displayName} subtitle={subtitle} adornment={adornment} actions={[editAction]} />;
 }

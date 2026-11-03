@@ -362,7 +362,9 @@ export const routes = {
      */
     filtered: (o: { organizationIds?: readonly string[]; statuses?: readonly DeviceStatus[] }) =>
       withQuery(DEVICES_LIST_PATH, { organizationIds: o.organizationIds, statuses: o.statuses }),
-    archive: '/devices/archive',
+    /** Deleted devices. `organizationId`: one customer's, opened from its Devices tab (the same id its list locks). */
+    archive: (o?: { organizationId?: string | number }) =>
+      withQuery('/devices/archive', { organizationId: o?.organizationId }),
     /** The tenant's remote sessions on every device - a page tab beside the Devices list. */
     remoteSessions: '/devices/remote-sessions',
     new: (o?: { organizationId?: string }) => withQuery('/devices/new', { organizationId: o?.organizationId }),
