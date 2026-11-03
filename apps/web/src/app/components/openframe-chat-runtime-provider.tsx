@@ -241,8 +241,8 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
   // `openframe-docs` chips / cards / search results navigate identically here.
   const navigate = useCallback<NonNullable<ChatRuntime['navigation']['navigate']>>(
     ({ href, path }) => {
-      // 1. In-page doc-tree swap when `path` matches a mounted viewer.
-      if (path != null && docNav.navigate(path)) return true;
+      // 1. In-page doc-tree swap when the address is under a mounted viewer's route (or names a path in its tree).
+      if (docNav.navigate(path ?? stripSameOriginToPath(href))) return true;
       // 2. Same-origin URL → soft-nav (hash targets get the smooth same-page tween
       //    + synthetic `hashchange` so FAQ auto-expand / scroll-to-hash still fire).
       if (!isCrossOriginUrl(href)) {
@@ -313,6 +313,7 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
         // Upstream paths verified live against the deployed instance
         // (2026-05-29 endpoint table).
         chatStreamUrl: content('/api/docs/chat'),
+        // TODO(CU-17tkuw61kfy): only an old hub's approvals use it.
         approvalToolUrl: content('/api/chat/agent/confirm-tool'),
         // Help Center ticket agent endpoints — proxied under `/content` like
         // every other endpoint, so they route through the existing `/content/*`

@@ -6,15 +6,19 @@ import {
   type HistoricalMessage,
   maxPersistedStreamSeq,
   mergeHistoryWithRealtime,
-  processHistoricalMessagesWithErrors,
+  processHistoricalMessages,
 } from '@flamingo-stack/openframe-frontend-core';
+import {
+  approvalRequestIdOf,
+  type ChatMessage,
+  isToolPart,
+} from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { apiClient } from '@/lib/api-client';
-import { foldPendingApprovalsEnvelope } from '@/lib/chat-history';
 import { featureFlags } from '@/lib/feature-flags';
 import { sessionPollMeta, sessionPollsAllowed, sessionRetry } from '@/lib/session-poll';
 import type { ApprovalStatus } from '../../tickets/constants';
@@ -24,7 +28,7 @@ import { GET_MINGO_DIALOG_QUERY, normalizeAskMessageData } from '../queries/dial
 import { fetchMingoDialogMessages } from '../queries/fetch-dialog-messages';
 import { useApproveRequestMutation, useRejectRequestMutation } from '../services/mingo-api-service';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
-import type { DialogResponse, Message, MessagePage } from '../types';
+import type { DialogResponse, MessagePage } from '../types';
 import { historyStreamFloor } from '../utils/history-stream-floor';
 import { mingoDialogQueryKeys } from '../utils/query-keys';
 
@@ -90,9 +94,11 @@ export function useMingoDialogSelection() {
   const approveRequestMutation = useApproveRequestMutation();
   const rejectRequestMutation = useRejectRequestMutation();
 
+  // A card's control names its row or its batch; the backend knows the request.
   const handleApprove = useCallback(
-    async (requestId?: string) => {
-      if (!requestId || !activeDialogId) return;
+    async (id?: string) => {
+      if (!id || !activeDialogId) return;
+      const requestId = approvalRequestIdOf(getMessages(activeDialogId), id);
 
       // Optimistically flip *before* the network round-trip. Backend starts
       // streaming the continuation immediately on approval; if we wait for
@@ -128,12 +134,13 @@ export function useMingoDialogSelection() {
         });
       }
     },
-    [approveRequestMutation, toast, activeDialogId, updateApprovalStatusInMessages, setTyping, getTyping],
+    [approveRequestMutation, toast, activeDialogId, getMessages, updateApprovalStatusInMessages, setTyping, getTyping],
   );
 
   const handleReject = useCallback(
-    async (requestId?: string) => {
-      if (!requestId || !activeDialogId) return;
+    async (id?: string) => {
+      if (!id || !activeDialogId) return;
+      const requestId = approvalRequestIdOf(getMessages(activeDialogId), id);
 
       setApprovalStatuses(prev => ({
         ...prev,
@@ -162,18 +169,14 @@ export function useMingoDialogSelection() {
         });
       }
     },
-    [rejectRequestMutation, toast, activeDialogId, updateApprovalStatusInMessages, setTyping, getTyping],
+    [rejectRequestMutation, toast, activeDialogId, getMessages, updateApprovalStatusInMessages, setTyping, getTyping],
   );
 
-  const handleApproveRef = useRef(handleApprove);
-  const handleRejectRef = useRef(handleReject);
   const approvalStatusesRef = useRef(approvalStatuses);
   // Latest-value refs, written after the commit rather than during render:
   // a render-phase ref write is what `react-hooks/refs` forbids, and every
   // reader below runs in an effect, a timer or an event handler.
   useEffect(() => {
-    handleApproveRef.current = handleApprove;
-    handleRejectRef.current = handleReject;
     approvalStatusesRef.current = approvalStatuses;
   });
 
@@ -470,20 +473,12 @@ export function useMingoDialogSelection() {
     }));
 
     const assistantConfig = ASSISTANT_CONFIG.MINGO;
-    const { messages: rawProcessedMessages } = processHistoricalMessagesWithErrors(historicalMessages, {
+    const { messages: allProcessedMessages } = processHistoricalMessages(historicalMessages, {
       assistantName: assistantConfig.name,
       assistantType: assistantConfig.type,
       chatTypeFilter: CHAT_TYPE.ADMIN,
-      onApprove: handleApproveRef.current,
-      onReject: handleRejectRef.current,
       approvalStatuses: { ...approvalStatusesRef.current },
-      // Must match the realtime processor (use-mingo-realtime-subscription):
-      // an omitted option is not guaranteed to include ADMIN, and a history
-      // reprocess (reopen, reconnect invalidation, pagination) would silently
-      // drop pending ADMIN approval cards that rendered live.
-      displayApprovalTypes: ['CLIENT', 'ADMIN'],
     });
-    const allProcessedMessages = foldPendingApprovalsEnvelope(rawProcessedMessages as Message[]);
 
     if (allProcessedMessages.length === 0) {
       processedHistoryRef.current = { pageCount: pages.length, dataUpdatedAt, exemptId: streamingExemptId };
@@ -519,17 +514,14 @@ export function useMingoDialogSelection() {
         historyMaxStreamSeq,
         realtimeSeenStreamSeq: realtimeSeen,
       });
-      // Debug-only: this merge is where a realtime-only segment can vanish —
-      // history is the persisted truth, and the backend does NOT persist guide
-      // frames, so a card the reducer built lives ONLY in the realtime copy.
+      // Debug-only: this merge is where a realtime-only part can vanish —
+      // history is the persisted truth, and a card the backend did not persist
+      // lives ONLY in the realtime copy.
       // Counting approvals on both sides names the culprit instead of leaving
       // "the reducer had it, the screen didn't" unexplained.
       if (featureFlags.debugNatsChunks.enabled()) {
-        const approvals = (list: Message[]) =>
-          list.reduce(
-            (n, m) => n + (Array.isArray(m.content) ? m.content.filter(s => s.type === 'approval_request').length : 0),
-            0,
-          );
+        const approvals = (list: ChatMessage[]) =>
+          list.reduce((n, m) => n + m.parts.filter(part => isToolPart(part) && 'approval' in part).length, 0);
         console.log(
           `[mingo-merge] approvals before=${approvals(existingMessages)} after=${approvals(merged)} | historyMaxSeq=${historyMaxStreamSeq} realtimeSeen=${realtimeSeen} streamingExempt=${streamingExemptId ?? 'none'}`,
         );
@@ -573,7 +565,7 @@ export function useMingoDialogSelection() {
     refetchDialog: dialogQuery.refetch,
     refetchMessages: messagesQuery.refetch,
     dialogData: dialogQuery.data ?? null,
-    // Approval handlers for real-time processing
+    // What a card's approve and reject controls do
     handleApprove,
     handleReject,
     approvalStatuses,

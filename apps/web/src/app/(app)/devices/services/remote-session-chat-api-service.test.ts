@@ -144,6 +144,12 @@ describe('decodeRemoteSessionChatChunk', () => {
     });
   });
 
+  it('reads a redelivery again: the hook is what keeps a line from showing twice', () => {
+    const chunk = { type: 'DIRECT_MESSAGE', text: 'Hey', ownerType: 'CLIENT', streamSeq: 15 };
+    expect(decodeRemoteSessionChatChunk(chunk)).toMatchObject({ id: 'seq-15', body: 'Hey' });
+    expect(decodeRemoteSessionChatChunk(chunk)).toMatchObject({ id: 'seq-15', body: 'Hey' });
+  });
+
   it("turns the technician's echo into a technician row, named from the chunk or the signed-in user", () => {
     const named = decodeRemoteSessionChatChunk(
       { type: 'DIRECT_MESSAGE', text: 'Hi', ownerType: 'ADMIN', displayName: 'Roman K.', streamSeq: 16 },
@@ -161,6 +167,7 @@ describe('decodeRemoteSessionChatChunk', () => {
   it('drops system notices, assistant deltas, unknown owners and malformed chunks', () => {
     expect(decodeRemoteSessionChatChunk({ type: 'SYSTEM', text: 'joined the chat', streamSeq: 17 })).toBeNull();
     expect(decodeRemoteSessionChatChunk({ type: 'MESSAGE', text: 'delta', streamSeq: 18 })).toBeNull();
+    expect(decodeRemoteSessionChatChunk({ type: 'TEXT', text: 'an assistant slice', streamSeq: 18 })).toBeNull();
     expect(
       decodeRemoteSessionChatChunk({ type: 'DIRECT_MESSAGE', text: 'x', ownerType: 'ASSISTANT', streamSeq: 19 }),
     ).toBeNull();

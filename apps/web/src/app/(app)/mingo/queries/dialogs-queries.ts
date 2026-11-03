@@ -189,12 +189,31 @@ export const GET_MINGO_DIALOG_QUERY = `
 `;
 
 /**
- * An answer's attachments (cited sources, videos, cards), persisted in their own
- * row beside the answer text. Selected field for field as the live `ATTACHMENTS`
- * chunk carries them: the core lib decodes both through one function, so a
- * reloaded dialog renders exactly what the live turn did.
+ * An answer's sources, persisted in their own row beside the answer text, and the records it shows as cards (the
+ * assistant's `showRecords` call), stored as a part of their own and drawn where that part sits among the message's
+ * parts. Selected field for field as the live `ATTACHMENTS` and `RECORD_CARDS` chunks carry them: the core lib decodes
+ * both through one function (`createMingoDecoder`), so a reloaded dialog renders exactly what the live turn did.
  */
 const ATTACHMENTS_FRAGMENT = `... on AttachmentsData {
+              sources {
+                type
+                sourceId
+                url
+                title
+                mediaType
+                filename
+              }
+            }`;
+
+const RECORD_CARDS_FRAGMENT = `... on RecordCardsData {
+              records
+            }`;
+
+/**
+ * The same two parts on a backend from before the standard names (see `fetchMingoDialogMessages`).
+ * TODO(CU-17tkuw61kfy): goes with the `standardNames` flag.
+ */
+const OLD_ATTACHMENTS_FRAGMENT = `... on AttachmentsData {
               sources {
                 index
                 name
@@ -232,12 +251,7 @@ const ATTACHMENTS_FRAGMENT = `... on AttachmentsData {
               }
             }`;
 
-/**
- * The records an answer shows as cards (the assistant's `showRecords` call), stored as a part of their own and drawn
- * where that part sits among the message's parts. Selected as the live `RECORD_CARDS` chunk carries them: the core lib decodes both through
- * one function (`recordCardsEvent`).
- */
-const RECORD_CARDS_FRAGMENT = `... on RecordCardsData {
+const OLD_RECORD_CARDS_FRAGMENT = `... on RecordCardsData {
               cards {
                 entityType
                 entityId
@@ -248,7 +262,7 @@ const RECORD_CARDS_FRAGMENT = `... on RecordCardsData {
  * What a backend from before saas-tenant#3633 has in place of `AttachmentsData`
  * (see `fetchMingoDialogMessages`). `GuideData.text` is NOT selected:
  * payload-only records persist it as an empty string, which would replay as an
- * empty text segment.
+ * empty text part.
  */
 const LEGACY_GUIDE_FRAGMENT = `... on GuideData {
               payload
@@ -257,7 +271,10 @@ const LEGACY_GUIDE_FRAGMENT = `... on GuideData {
 export function getMingoDialogMessagesQuery({
   legacyGuide = false,
   recordCards = true,
-}: { legacyGuide?: boolean; recordCards?: boolean } = {}) {
+  standardNames = true,
+}: { legacyGuide?: boolean; recordCards?: boolean; standardNames?: boolean } = {}) {
+  const attachmentsFragment = standardNames ? ATTACHMENTS_FRAGMENT : OLD_ATTACHMENTS_FRAGMENT;
+  const recordCardsFragment = standardNames ? RECORD_CARDS_FRAGMENT : OLD_RECORD_CARDS_FRAGMENT;
   return `
   query GetAllMessages($dialogId: ID!, $cursor: String, $limit: Int, $sortField: String, $sortDirection: SortDirection) {
     messages(
@@ -303,9 +320,9 @@ export function getMingoDialogMessagesQuery({
               text
             }
 
-            ${legacyGuide ? LEGACY_GUIDE_FRAGMENT : ATTACHMENTS_FRAGMENT}
+            ${legacyGuide ? LEGACY_GUIDE_FRAGMENT : attachmentsFragment}
 
-            ${recordCards ? RECORD_CARDS_FRAGMENT : ''}
+            ${recordCards ? recordCardsFragment : ''}
 
             ... on AskData {
               ${ASK_INTRO_ALIAS}: text

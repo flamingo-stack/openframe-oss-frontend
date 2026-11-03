@@ -18,20 +18,19 @@
  *   - own-echo suppression is the reducer's (`pushOptimisticSend` records the
  *     sent text; the MESSAGE_REQUEST handler consumes exactly one match, with
  *     a content-dedup window for seq-less rows). The blanket
- *     `event.userId === currentUserId` drop this hook used to do ALSO
+ *     `userId === currentUserId` drop this hook used to do ALSO
  *     swallowed the same user's messages sent from a second tab or device,
  *     which the reducer's text-matched consumption does not.
  *   - the model-badge metadata mapping is the reducer's `onMetadata` EFFECT,
  *     wired once in `natsMirrorOptions` instead of being re-derived from the
- *     raw event by each host.
+ *     raw chunk by each host.
  *
- * Host-specific behaviour arrives via `interceptEvent` (tickets uses it for
+ * Host-specific behaviour arrives via `interceptEntry` (tickets uses it for
  * client-authored DIRECT_MESSAGE rows, which the lib reducer would otherwise
  * render as admin-authored).
  */
 
-import type { Message as ChatMessage } from '@flamingo-stack/openframe-frontend-core';
-import { type ChatStreamEvent, decodeNatsChunk } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import type { ChatMessage, ChatStreamEntry } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { useCallback, useEffect, useRef } from 'react';
 import type { BoundMirror } from '@/lib/chat-stream-thread';
 import { featureFlags } from '@/lib/feature-flags';
@@ -50,15 +49,15 @@ export interface UseChatChunkProcessorOptions {
   /** Approval statuses the reducer consults when an APPROVAL_REQUEST replays. */
   approvalStatuses?: Record<string, string>;
   /** Host hook, run before the shared `apply`. Return `true` to claim the
-   *  event (the shared path then skips `apply`). */
-  interceptEvent?: (event: ChatStreamEvent) => boolean;
+   *  entry (the shared path then skips `apply`). */
+  interceptEntry?: (entry: ChatStreamEntry) => boolean;
 }
 
 export function useChatChunkProcessor({
   boundMirror,
   messages,
   approvalStatuses,
-  interceptEvent,
+  interceptEntry,
 }: UseChatChunkProcessorOptions): (chunk: unknown) => void {
   // LATEST-REF IDIOM (assigned in the render body, deliberately): the returned
   // `processChunk` must have a STABLE identity — both hosts stash it in a ref
@@ -68,20 +67,20 @@ export function useChatChunkProcessor({
   // the new value; these are write-only mirrors of props, never read during
   // render, so they cannot desync the rendered output.
   const boundMirrorRef = useRef(boundMirror);
-  const interceptEventRef = useRef(interceptEvent);
+  const interceptEntryRef = useRef(interceptEntry);
   // Latest-value refs, written after the commit rather than during render:
   // a render-phase ref write is what `react-hooks/refs` forbids, and every
   // reader below runs in an effect, a timer or an event handler.
   useEffect(() => {
     boundMirrorRef.current = boundMirror;
-    interceptEventRef.current = interceptEvent;
+    interceptEntryRef.current = interceptEntry;
   });
 
   // EVICTION EPOCH. Both effects below write state into a specific reducer
   // INSTANCE, and LRU eviction silently replaces that instance behind an
   // UNCHANGED key — `bind(key)` is memoized per key, so nothing else about
   // these effects' inputs moves, and the replacement would be left without the
-  // persisted statuses and without the accumulator seed. The mirror bumps this
+  // persisted statuses and without the incomplete-turn extras. The mirror bumps this
   // counter per evicted key (and rebuilds the bound handle), which is the
   // dependency that re-arms both.
   const { evictionEpoch } = boundMirror;
@@ -107,8 +106,8 @@ export function useChatChunkProcessor({
   // Eviction is the case `hydrate` cannot cover: the store silently replaces a
   // reducer behind an UNCHANGED key, and the host has no reason to re-fetch —
   // so nothing would call `hydrate` again. The mirror's parking restores the
-  // thread, statuses, seq cursor and armed echoes, but NOT the per-turn kernel
-  // (accumulator), so an unfinished turn would resume into a fresh bubble.
+  // thread, statuses, seq cursor and armed echoes, but NOT the agent-busy phase
+  // of an unfinished turn.
   //
   // `expectingReplay: false`: the replacement gets no catchup replay, and an
   // adopt-once flag armed here would survive until the next genuine turn and
@@ -122,33 +121,34 @@ export function useChatChunkProcessor({
   }, [messages, boundMirror, evictionEpoch]);
 
   return useCallback((chunk: unknown) => {
-    const event = decodeNatsChunk(chunk);
+    const entry = boundMirrorRef.current.decode(chunk);
+    const applied = entry.chunks.length > 0;
     // The decode seam is the only place both halves are visible at once. The
     // raw-chunk log upstream shows what the backend sent; this one shows what
-    // it BECAME — and, crucially, what it did not: a chunk the decoder returns
-    // `null` for (an unknown type, or a guide frame kind that deliberately does
-    // not cross over into the NATS kernel) is invisible everywhere else.
+    // it BECAME — and, crucially, what it did not: a chunk the decoder answers
+    // with nothing (an unknown type, a redelivery) is invisible everywhere else.
     if (featureFlags.debugNatsChunks.enabled()) {
       const type = (chunk as { type?: unknown } | null)?.type;
-      console.log(`[chat-chunk] ${String(type)} → ${event?.type ?? 'DROPPED'}`, { chunk, event });
+      const became = applied ? entry.chunks.map(c => c.type).join(', ') : 'DROPPED';
+      console.log(`[chat-chunk] ${String(type)} → ${became}`, { chunk, entry });
     }
-    if (!event) return;
+    if (!applied) return;
 
-    if (interceptEventRef.current?.(event)) return;
+    if (interceptEntryRef.current?.(entry)) return;
 
-    boundMirrorRef.current.apply(event);
+    boundMirrorRef.current.apply(entry);
 
-    // Approval events only, and only under the debug flag: read the reducer
-    // back so the log says whether the event became a SEGMENT. Without this the
-    // trail dead-ends at "decoded fine, nothing on screen" and the two very
-    // different causes — the reducer refusing the card (its `approvalType` is
-    // not in `displayApprovalTypes`) and the card being created but later
-    // dropped by the history merge — look identical from outside.
-    if (event.type === 'approval-request' && featureFlags.debugNatsChunks.enabled()) {
+    // Approval chunks only, and only under the debug flag: read the reducer
+    // back so the log says whether the chunk became a PART. Without this the
+    // trail dead-ends at "decoded fine, nothing on screen" when the card was
+    // created but later dropped by the history merge.
+    if (
+      featureFlags.debugNatsChunks.enabled() &&
+      entry.chunks.some(decoded => decoded.type === 'tool-approval-request')
+    ) {
       boundMirrorRef.current.mutate(reducer => {
-        const reducerMessages = reducer.state.messages as Array<{ segments?: Array<{ type: string }> }>;
-        const last = reducerMessages[reducerMessages.length - 1];
-        console.log(`[chat-chunk] after apply → segments: ${JSON.stringify((last?.segments ?? []).map(s => s.type))}`);
+        const last = reducer.state.messages.at(-1);
+        console.log(`[chat-chunk] after apply → parts: ${JSON.stringify((last?.parts ?? []).map(p => p.type))}`);
       });
     }
   }, []);

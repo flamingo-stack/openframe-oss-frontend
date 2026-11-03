@@ -8,6 +8,8 @@ import { type InfiniteData, QueryClient, QueryClientProvider } from '@tanstack/r
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getFullImageUrl } from '@/lib/image-url';
+import { bindMingoDialog, useMingoMessagesStore } from '../stores/mingo-messages-store';
 import type { MingoDialogsPage } from '../utils/dialog-row-status';
 import { forgetCreatedDialogs } from '../utils/insert-new-dialog';
 import { mingoDialogQueryKeys } from '../utils/query-keys';
@@ -21,11 +23,15 @@ vi.mock('@flamingo-stack/openframe-frontend-core/hooks', async importOriginal =>
   ...(await importOriginal<object>()),
   useToast: () => ({ toast: vi.fn() }),
 }));
-vi.mock('@/stores', () => ({
-  selectUser: (state: { user: unknown }) => state.user,
-  useAuthStore: (selector: (state: { user: { id: string; firstName: string } }) => unknown) =>
-    selector({ user: { id: 'u-1', firstName: 'Ann' } }),
-}));
+vi.mock('@/stores', () => {
+  const state = { user: { id: 'u-1', firstName: 'Ann' } };
+  return {
+    selectUser: (current: { user: unknown }) => current.user,
+    useAuthStore: Object.assign((selector: (current: typeof state) => unknown) => selector(state), {
+      getState: () => state,
+    }),
+  };
+});
 vi.mock('../services/mingo-api-service', () => ({
   useCreateDialogMutation: () => ({ mutateAsync: createDialog }),
   useSendMessageMutation: () => ({ mutateAsync: vi.fn() }),
@@ -93,5 +99,81 @@ describe('useMingoDialogChat - createDialog', () => {
     expect(createDialog).toHaveBeenCalledWith({});
     expect(firstRow()).toMatchObject({ dialogId: 'd-new', title: 'Welcome to OpenFrame' });
     expect(invalidate).not.toHaveBeenCalled();
+  });
+});
+
+describe('useMingoDialogChat - the thread', () => {
+  const DIALOG = 'd-thread';
+
+  function renderThread() {
+    function Probe() {
+      chat = useMingoDialogChat(DIALOG);
+      return null;
+    }
+    act(() =>
+      root.render(
+        <QueryClientProvider client={client}>
+          <Probe />
+        </QueryClientProvider>,
+      ),
+    );
+  }
+
+  beforeEach(() => {
+    useMingoMessagesStore.getState().resetAll();
+  });
+
+  afterEach(() => {
+    useMingoMessagesStore.getState().resetAll();
+  });
+
+  it('draws an author avatar as a full URL, and keeps an untouched row the same object across chunks', () => {
+    useMingoMessagesStore.getState().setMessages(DIALOG, [
+      {
+        id: 'u-1',
+        role: 'user',
+        metadata: { author: { authorType: 'admin', name: 'Ann', avatar: '/api/images/ann.png' } },
+        parts: [{ type: 'text', text: 'Hello' }],
+      },
+    ]);
+    renderThread();
+    const [row] = chat.messages;
+    expect(row.metadata?.author?.avatar).toBe(getFullImageUrl('/api/images/ann.png'));
+
+    const bound = bindMingoDialog(DIALOG);
+    act(() => bound.apply(bound.decode({ type: 'MESSAGE_START', streamSeq: 1 })));
+
+    expect(chat.messages[0]).toBe(row);
+  });
+
+  it('sends one user row with its author and context, and the echo of it draws no second', async () => {
+    renderThread();
+    await act(async () => {
+      await chat.sendMessage('Check device 7', undefined, {
+        contextItems: [{ type: 'device', id: 'd-7', label: 'Device 7' }],
+      });
+    });
+    const bound = bindMingoDialog(DIALOG);
+    act(() =>
+      bound.apply(
+        bound.decode({
+          type: 'MESSAGE_REQUEST',
+          text: 'Check device 7',
+          ownerType: 'ADMIN',
+          userId: 'u-1',
+          streamSeq: 1,
+        }),
+      ),
+    );
+
+    expect(chat.messages).toHaveLength(1);
+    expect(chat.messages[0]).toMatchObject({
+      role: 'user',
+      metadata: {
+        author: { authorType: 'admin', name: 'Ann' },
+        contextItems: [{ type: 'device', id: 'd-7', label: 'Device 7' }],
+      },
+      parts: [{ type: 'text', text: 'Check device 7' }],
+    });
   });
 });

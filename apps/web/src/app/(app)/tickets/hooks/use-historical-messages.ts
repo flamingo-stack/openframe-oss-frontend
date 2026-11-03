@@ -2,17 +2,14 @@
 
 import {
   type AssistantType,
-  type Message as ChatMessage,
   computeHistoryPrepend,
   flattenMessagePagesChronological,
   type HistoricalMessage,
-  type MessageSegment,
   maxPersistedStreamSeq,
   mergeHistoryWithRealtime,
-  processHistoricalMessagesWithErrors,
+  processHistoricalMessages,
 } from '@flamingo-stack/openframe-frontend-core';
 import { useEffect, useRef } from 'react';
-import { foldPendingApprovalsEnvelope } from '@/lib/chat-history';
 import type { ChatType } from '../constants';
 import type { MessagePage } from '../services/ticket-service.types';
 import { type ChatSide, useTicketDetailsStore } from '../stores/ticket-details-store';
@@ -27,12 +24,10 @@ interface UseHistoricalMessageSyncOptions {
    *  merge uses to decide which realtime synthetics history can replace. */
   dataUpdatedAt: number;
   isFetched: boolean;
-  onApprove: (requestId?: string) => void | Promise<void>;
-  onReject: (requestId?: string) => void | Promise<void>;
 }
 
 /**
- * Runs `processHistoricalMessagesWithErrors` against each newly-fetched page of
+ * Runs `processHistoricalMessages` against each newly-fetched page of
  * ticket messages and feeds the result into the ticket-details-store.
  */
 export function useHistoricalMessages({
@@ -43,8 +38,6 @@ export function useHistoricalMessages({
   pages,
   dataUpdatedAt,
   isFetched,
-  onApprove,
-  onReject,
 }: UseHistoricalMessageSyncOptions) {
   const getMessages = useTicketDetailsStore(s => s.getMessages);
   const setMessages = useTicketDetailsStore(s => s.setMessages);
@@ -63,16 +56,6 @@ export function useHistoricalMessages({
   // reader below runs in an effect, a timer or an event handler.
   useEffect(() => {
     approvalStatusesRef.current = approvalStatuses;
-  });
-
-  const onApproveRef = useRef(onApprove);
-  const onRejectRef = useRef(onReject);
-  // Latest-value refs, written after the commit rather than during render:
-  // a render-phase ref write is what `react-hooks/refs` forbids, and every
-  // reader below runs in an effect, a timer or an event handler.
-  useEffect(() => {
-    onApproveRef.current = onApprove;
-    onRejectRef.current = onReject;
   });
 
   const processedPageCountRef = useRef(0);
@@ -115,34 +98,12 @@ export function useHistoricalMessages({
       upsertApprovalStatuses(historicalResolutions);
     }
 
-    const { messages: processed } = processHistoricalMessagesWithErrors(historical, {
+    const { messages: storeMessages } = processHistoricalMessages(historical, {
       assistantName: assistantConfig.name,
       assistantType: assistantConfig.type,
       chatTypeFilter: chatType,
-      onApprove: onApproveRef.current,
-      onReject: onRejectRef.current,
       approvalStatuses: { ...approvalStatusesRef.current, ...historicalResolutions },
-      // Must match the realtime processor (use-side-chunk-processor): an
-      // omitted option is not guaranteed to include ADMIN, and a history
-      // reprocess (reopen, reconnect refetch, pagination) would silently
-      // drop pending ADMIN approval cards that rendered live.
-      displayApprovalTypes: ['CLIENT', 'ADMIN'],
     });
-
-    const storeMessages: ChatMessage[] = foldPendingApprovalsEnvelope(
-      processed.map(msg => ({
-        id: msg.id,
-        role: msg.role,
-        content: msg.content as string | MessageSegment[],
-        name: msg.name,
-        assistantType: msg.assistantType,
-        authorType: msg.authorType,
-        timestamp: msg.timestamp,
-        avatar: msg.avatar,
-        // Carry the persisted per-row seq into the merge (per-role coverage).
-        streamSeq: msg.streamSeq,
-      })),
-    );
 
     // Empty snapshot (the merge itself also guards this): skip the no-op store write.
     if (storeMessages.length === 0) {

@@ -1,12 +1,17 @@
 'use client';
 
-import type { MessageSegment } from '@flamingo-stack/openframe-frontend-core';
+import type { ChatMessage, ChatToolPart } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import type { ChatContextItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { extractPendingApprovals, findLatestPendingApprovalId, stripPendingApprovals } from '@/lib/chat-history';
+import {
+  extractPendingApprovals,
+  findLatestPendingApprovalId,
+  isCompactingTail,
+  stripPendingApprovals,
+} from '@/lib/chat-history';
 import { adminDisplayName, makeChatRowId } from '@/lib/chat-stream-thread';
 import { appendImageHash, getFullImageUrl } from '@/lib/image-url';
 import { selectUser, useAuthStore } from '@/stores';
@@ -18,7 +23,6 @@ import {
   useStopGenerationMutation,
 } from '../services/mingo-api-service';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
-import type { CoreMessage } from '../types/message.types';
 import { insertNewDialog, raiseDialog } from '../utils/insert-new-dialog';
 import { mingoDialogQueryKeys } from '../utils/query-keys';
 
@@ -34,29 +38,9 @@ export interface MingoSendContext {
   currentList?: MessageListRef;
 }
 
-/**
- * A reducer row, ready to render.
- *
- * An INTERSECTION with the lib's own `Message`, never a re-declaration of the
- * fields this hook happens to touch. Everything the reducer and the history
- * decoder stamp on a row is owned by the lib — `hidden`, `streamSeq`,
- * `scrollAnchor`, and (Guide Mode V3) the answer's source/card/video metadata —
- * and a hand-listed shape silently drops whatever it does not name. That has
- * already cost a release once: `hidden` was missing here, so an
- * auto-continuation directive the reader must never see rendered as a bubble.
- *
- * What this adds is only what THIS hook guarantees beyond the lib's optional
- * fields: a resolved display name and a real timestamp.
- */
-export type ProcessedMessage = CoreMessage & {
-  name: string;
-  assistantType?: 'fae' | 'mingo';
-  timestamp: Date;
-};
-
 interface UseMingoDialogChat {
   // Messages
-  messages: ProcessedMessage[];
+  messages: ChatMessage[];
   isLoading: boolean;
 
   // Actions
@@ -67,7 +51,7 @@ interface UseMingoDialogChat {
   stopGeneration: () => Promise<void>;
 
   // Approval system
-  approvals: MessageSegment[];
+  approvals: ChatToolPart[];
 
   // State
   isCreatingDialog: boolean;
@@ -76,47 +60,27 @@ interface UseMingoDialogChat {
   assistantType: 'mingo';
 }
 
-/** Structural equality on the rendered `content`. Arrays (segment lists) are
- *  compared by reference first (cheap, hits for unchanged messages) and only
- *  fall back to a stringify when lengths match — strings compare by value. */
-function isContentEqual(a: ProcessedMessage['content'], b: ProcessedMessage['content']): boolean {
-  if (a === b) return true;
-  const aIsArray = Array.isArray(a);
-  const bIsArray = Array.isArray(b);
-  if (aIsArray !== bIsArray) return false;
-  if (!aIsArray || !bIsArray) return false; // both strings, already not === above
-  if (a.length !== b.length) return false;
-  return JSON.stringify(a) === JSON.stringify(b);
+/** JSON equality: parts and metadata are JSON. By reference first, which hits for every unchanged message. */
+function isSameJson(a: unknown, b: unknown): boolean {
+  return a === b || JSON.stringify(a) === JSON.stringify(b);
 }
 
-/** Keys compared by a dedicated rule above, and therefore skipped by the
- *  catch-all sweep. */
-const STRUCTURALLY_COMPARED_KEYS: ReadonlySet<string> = new Set(['content', 'timestamp']);
-
-/** Whether two processed messages render identically — drives reference reuse
- *  so the lib's reference-equality memo can skip unchanged messages.
- *
- *  The remaining fields are swept generically rather than listed. A list has to
- *  be extended for every field the lib adds to a row, and forgetting to is
- *  invisible: the pair compares equal, the previous object is reused, and the
- *  new field never reaches the screen — which is the same class of bug as the
- *  `hidden` omission this type's doc-comment describes, one step later in the
- *  pipeline. The sweep compares by reference, exactly as the `contextItems`
- *  rule it replaces did (that value is set once on the optimistic send and
- *  never mutated), so a field the reducer rebuilds per chunk costs a re-render
- *  rather than a stale bubble — the safe direction of the two. */
-function isSameProcessedMessage(a: ProcessedMessage, b: ProcessedMessage): boolean {
-  if (a.timestamp.getTime() !== b.timestamp.getTime()) return false;
-  if (!isContentEqual(a.content, b.content)) return false;
-
-  return shallowEqualExcept(a, b, STRUCTURALLY_COMPARED_KEYS);
+/** Whether two rows render identically — drives reference reuse so the lib's reference-equality memo can skip unchanged
+ *  messages. */
+function isSameMessage(a: ChatMessage, b: ChatMessage): boolean {
+  return a.role === b.role && isSameJson(a.parts, b.parts) && isSameJson(a.metadata, b.metadata);
 }
 
-/** Own-key shallow equality, minus the keys the caller compares itself. */
-function shallowEqualExcept<T extends object>(a: T, b: T, skip: ReadonlySet<string>): boolean {
-  const keys = Object.keys(a);
-  if (keys.length !== Object.keys(b).length) return false;
-  return keys.every(key => skip.has(key) || a[key as keyof T] === b[key as keyof T]);
+/**
+ * A row with its author's avatar as a full URL. It is stored as a relative `imageUrl` (GraphQL owner image or the
+ * optimistic auth-store avatar); resolved once here so both the standalone page and the embeddable chat get an absolute
+ * src.
+ */
+function withFullAvatar(message: ChatMessage): ChatMessage {
+  const author = message.metadata?.author;
+  const avatar = getFullImageUrl(author?.avatar);
+  if (!author?.avatar || !avatar || avatar === author.avatar) return message;
+  return { ...message, metadata: { ...message.metadata, author: { ...author, avatar } } };
 }
 
 export function useMingoDialogChat(dialogId: string | null): UseMingoDialogChat {
@@ -155,10 +119,10 @@ export function useMingoDialogChat(dialogId: string | null): UseMingoDialogChat 
   const sendMessageMutation = useSendMessageMutation();
   const stopGenerationMutation = useStopGenerationMutation();
 
-  // Previous render's processed messages, keyed by id, for reference reuse.
-  const stableMessagesRef = useRef<Map<string, ProcessedMessage>>(new Map());
+  // Previous render's messages, keyed by id, for reference reuse.
+  const stableMessagesRef = useRef<Map<string, ChatMessage>>(new Map());
 
-  const messages = useMemo((): ProcessedMessage[] => {
+  const messages = useMemo((): ChatMessage[] => {
     if (!dialogId) {
       stableMessagesRef.current = new Map();
       return [];
@@ -168,39 +132,23 @@ export function useMingoDialogChat(dialogId: string | null): UseMingoDialogChat 
     // Which approval cards render in the flow, which are lifted into the sticky
     // footer, and how duplicates are deduped is `@/lib/chat-history` — shared
     // with tickets, which consumes the same stream and must sort cards the same
-    // way. This hook only maps what survives into `ProcessedMessage`.
-    const processed: ProcessedMessage[] = [];
-
-    for (const msg of stripPendingApprovals(currentMessages)) {
-      // SPREAD FIRST, then override. The row already carries everything the lib
-      // stamped on it; this hook only resolves the two fields it owns. Listing
-      // the fields to copy instead is what drops the lib's own metadata (see
-      // `ProcessedMessage`).
-      processed.push({
-        ...msg,
-        name: msg.name || 'Unknown',
-        // `msg.avatar` is a relative `imageUrl` (GraphQL owner image or the
-        // optimistic auth-store avatar); resolve to a full URL once here so
-        // both the standalone page and the embeddable chat get an absolute src.
-        avatar: getFullImageUrl(msg.avatar) ?? null,
-        assistantType: msg.assistantType as 'fae' | 'mingo' | undefined,
-        timestamp: msg.timestamp || new Date(),
-      });
-    }
+    // way.
+    const processed = stripPendingApprovals(currentMessages).map(withFullAvatar);
 
     // Reference reconciliation: the lib memoizes each rendered message and
-    // compares `content` BY REFERENCE, so it only skips re-rendering when the
-    // exact same instance is passed again. The mapping above builds fresh
-    // objects on every realtime chunk, defeating that memo and forcing the
-    // whole list (and every open menu/card inside it) to re-render. Reuse the
-    // previous render's object for any message whose processed output is
-    // structurally unchanged — comparing the FINAL result (not the source) so
-    // the cross-message approval dedup above stays correct.
+    // compares `parts` BY REFERENCE, so it only skips re-rendering when the
+    // exact same instance is passed again. The steps above can build fresh
+    // objects on every realtime chunk (a filtered bubble, a resolved avatar),
+    // defeating that memo and forcing the whole list (and every open menu/card
+    // inside it) to re-render. Reuse the previous render's object for any
+    // message whose output is structurally unchanged — comparing the FINAL
+    // result (not the source) so the cross-message approval dedup above stays
+    // correct.
     const prevStable = stableMessagesRef.current;
-    const nextStable = new Map<string, ProcessedMessage>();
+    const nextStable = new Map<string, ChatMessage>();
     const reconciled = processed.map(msg => {
       const previous = prevStable.get(msg.id);
-      const stable = previous && isSameProcessedMessage(previous, msg) ? previous : msg;
+      const stable = previous && isSameMessage(previous, msg) ? previous : msg;
       nextStable.set(msg.id, stable);
       return stable;
     });
@@ -217,13 +165,10 @@ export function useMingoDialogChat(dialogId: string | null): UseMingoDialogChat 
     return extractPendingApprovals(messagesByDialog.get(dialogId) || []);
   }, [dialogId, messagesByDialog]);
 
-  const isCompacting = useMemo(() => {
-    if (!dialogId) return false;
-    const lastMsg = messagesByDialog.get(dialogId)?.at(-1);
-    if (lastMsg?.role !== 'assistant' || !Array.isArray(lastMsg.content)) return false;
-    const tail = lastMsg.content.at(-1);
-    return tail?.type === 'context_compaction' && tail.status === 'started';
-  }, [dialogId, messagesByDialog]);
+  const isCompacting = useMemo(
+    () => (dialogId ? isCompactingTail(messagesByDialog.get(dialogId)) : false),
+    [dialogId, messagesByDialog],
+  );
 
   const createDialog = useCallback(
     async ({ title, ...options }: CreateMingoDialogOptions & { title?: string } = {}): Promise<string | null> => {
@@ -290,17 +235,21 @@ export function useMingoDialogChat(dialogId: string | null): UseMingoDialogChat 
           updateApprovalStatusInMessages(effectiveDialogId, pendingId, 'rejected');
         }
 
-        const optimisticMessage: CoreMessage = {
+        const optimisticMessage: ChatMessage = {
           id: makeChatRowId('optimistic'),
           role: 'user',
-          authorType: 'admin',
-          content: content.trim(),
-          name: adminDisplayName(user),
-          // Relative `imageUrl` with cache-bust hash; resolved to a full URL in the processed mapping.
-          avatar: appendImageHash(user?.image?.imageUrl, user?.image?.hash) ?? null,
-          timestamp: new Date(),
-          // Attach the picked context so the optimistic bubble renders its chips.
-          contextItems: context?.contextItems?.length ? context.contextItems : undefined,
+          metadata: {
+            createdAt: new Date().toISOString(),
+            author: {
+              authorType: 'admin',
+              name: adminDisplayName(user),
+              // Relative `imageUrl` with cache-bust hash; resolved to a full URL in the thread above.
+              avatar: appendImageHash(user?.image?.imageUrl, user?.image?.hash) ?? null,
+            },
+            // Attach the picked context so the optimistic bubble renders its chips.
+            ...(context?.contextItems?.length ? { contextItems: context.contextItems } : {}),
+          },
+          parts: [{ type: 'text', text: content.trim() }],
         };
 
         // Through the reducer: it records the sent text and consumes the

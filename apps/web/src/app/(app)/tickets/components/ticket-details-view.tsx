@@ -4,13 +4,14 @@ import {
   CHAT_APPEARANCE,
   ChatAppearanceContext,
   ChatInput,
-  type Message as ChatMessage,
+  type ChatMessageActions,
   ChatMessageList,
   LoadError,
   ModelDisplay,
   maxPersistedStreamSeq,
   NotFoundError,
 } from '@flamingo-stack/openframe-frontend-core';
+import { approvalRequestIdOf, type ChatMessage } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { getDeviceName, useOptionalTimeTracker } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
@@ -39,7 +40,7 @@ import {
 import { useContentLgUp, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation } from 'react-relay';
 import { useShallow } from 'zustand/react/shallow';
 import type { startTimerMutation as StartTimerMutationType } from '@/__generated__/startTimerMutation.graphql';
@@ -54,7 +55,13 @@ import { AssignedItemsView, useAssignedItems } from '@/components/assignments';
 import { startTimerMutation } from '@/graphql/time-tracker/start-timer-mutation';
 import { makeSetCurrentTimerUpdater, toTicketGlobalId } from '@/graphql/time-tracker/time-tracker-helpers';
 import { EVENT_SUBTYPE, type EventSubtype, trackDashboardActivity } from '@/lib/analytics';
-import { extractPendingApprovals, findLatestPendingApprovalId, stripPendingApprovals } from '@/lib/chat-history';
+import {
+  DISPLAY_APPROVAL_TYPES,
+  extractPendingApprovals,
+  findLatestPendingApprovalId,
+  isCompactingTail,
+  stripPendingApprovals,
+} from '@/lib/chat-history';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
@@ -193,16 +200,14 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const ticketDeviceName = getDeviceName(deviceDetails) || (dialog ? getTicketDeviceName(dialog) : '');
   const { items: deviceMenuItems } = useDeviceActionsMenu(deviceDetails, { deviceId: machineId });
 
-  const { client, clearChatState, setChatHandlers, updateApprovalStatusInMessages, recordHighestStreamSeq } =
-    useTicketDetailsStore(
-      useShallow(s => ({
-        client: s.client,
-        clearChatState: s.clearChatState,
-        setChatHandlers: s.setChatHandlers,
-        updateApprovalStatusInMessages: s.updateApprovalStatusInMessages,
-        recordHighestStreamSeq: s.recordHighestStreamSeq,
-      })),
-    );
+  const { client, clearChatState, updateApprovalStatusInMessages, recordHighestStreamSeq } = useTicketDetailsStore(
+    useShallow(s => ({
+      client: s.client,
+      clearChatState: s.clearChatState,
+      updateApprovalStatusInMessages: s.updateApprovalStatusInMessages,
+      recordHighestStreamSeq: s.recordHighestStreamSeq,
+    })),
+  );
   const approvalStatuses = useTicketDetailsStore(s => s.approvalStatuses);
 
   const { messages: clientMessages, isTyping: isClientChatTyping } = client;
@@ -210,12 +215,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   // end-user row the chat shows; technician and assistant rows do not move it.
   const newestClientMessageId = lastClientMessageId(clientMessages);
 
-  const isClientCompacting = useMemo(() => {
-    const lastMsg = clientMessages.at(-1);
-    if (lastMsg?.role !== 'assistant' || !Array.isArray(lastMsg.content)) return false;
-    const tail = lastMsg.content.at(-1);
-    return tail?.type === 'context_compaction' && tail.status === 'started';
-  }, [clientMessages]);
+  const isClientCompacting = useMemo(() => isCompactingTail(clientMessages), [clientMessages]);
 
   const currentUser = useAuthStore(state => state.user);
 
@@ -508,18 +508,21 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     [handleApproveRequest, handleRejectRequest, toast, updateApprovalStatusInMessages, refetchDialog],
   );
 
-  const handleApprove = useCallback(
-    (requestId?: string) => handleApprovalAction(requestId, true),
-    [handleApprovalAction],
-  );
-  const handleReject = useCallback(
-    (requestId?: string) => handleApprovalAction(requestId, false),
-    [handleApprovalAction],
-  );
-
+  // What a message's controls do: a stable object, because the lib's message memo compares it by reference. The handler
+  // behind it changes with its mutations' state, so it reads the latest one when a control is used. A control names its
+  // row or its batch; the backend knows the request.
+  const latestApprovalAction = useRef(handleApprovalAction);
   useEffect(() => {
-    setChatHandlers('client', { onApprove: handleApprove, onReject: handleReject });
-  }, [handleApprove, handleReject, setChatHandlers]);
+    latestApprovalAction.current = handleApprovalAction;
+  });
+  const clientChatActions = useMemo<ChatMessageActions>(() => {
+    const decide = (id: string, approving: boolean) =>
+      latestApprovalAction.current(
+        approvalRequestIdOf(useTicketDetailsStore.getState().client.messages, id),
+        approving,
+      );
+    return { approve: id => decide(id, true), reject: id => decide(id, false) };
+  }, []);
 
   useHistoricalMessages({
     side: 'client',
@@ -529,8 +532,6 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     pages: clientChat.rawPages,
     dataUpdatedAt: clientChat.dataUpdatedAt,
     isFetched: clientChat.isFetched,
-    onApprove: handleApprove,
-    onReject: handleReject,
   });
 
   const clientPendingApprovals = useMemo(
@@ -540,9 +541,10 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
 
   const remapClientChatNames = useCallback(
     (msg: ChatMessage): ChatMessage => {
-      if (msg.authorType === 'user' && clientDisplayName) return { ...msg, name: clientDisplayName };
-      if (msg.role === 'assistant') return { ...msg, name: assistantName };
-      return msg;
+      const author = msg.metadata?.author;
+      const name = author?.authorType === 'user' && clientDisplayName ? clientDisplayName : undefined;
+      const shown = name ?? (msg.role === 'assistant' ? assistantName : undefined);
+      return shown ? { ...msg, metadata: { ...msg.metadata, author: { ...author, name: shown } } } : msg;
     },
     [clientDisplayName, assistantName],
   );
@@ -554,20 +556,25 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     }
     const faeMessage: ChatMessage = {
       id: `synthetic-fae-form-${dialog.id}`,
-      content: [
-        'Your request has been received. We will contact you shortly.',
-        '',
-        'Subject:',
-        dialog.title || '',
-        '',
-        'Description:',
-        dialog.description || '(No description provided)',
-      ].join('\n'),
       role: 'assistant',
-      name: assistantName,
-      assistantType: ASSISTANT_CONFIG.FAE.type,
-      authorType: 'fae',
-      timestamp: new Date(dialog.createdAt),
+      metadata: {
+        createdAt: dialog.createdAt,
+        author: { name: assistantName, assistantType: ASSISTANT_CONFIG.FAE.type, authorType: 'fae' },
+      },
+      parts: [
+        {
+          type: 'text',
+          text: [
+            'Your request has been received. We will contact you shortly.',
+            '',
+            'Subject:',
+            dialog.title || '',
+            '',
+            'Description:',
+            dialog.description || '(No description provided)',
+          ].join('\n'),
+        },
+      ],
     };
     return [faeMessage, ...visible];
   }, [clientMessages, remapClientChatNames, dialog, clientChat.hasNextPage, assistantName]);
@@ -830,6 +837,8 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
           isLoading={loading || clientChat.isLoading}
           isTyping={isClientChatTyping}
           pendingApprovals={clientPendingApprovals}
+          actions={clientChatActions}
+          displayApprovalTypes={DISPLAY_APPROVAL_TYPES}
           assistantType={ASSISTANT_CONFIG.FAE.type}
           appearance={clientChatAppearance}
           // The technician reads this thread: the technicians' turns (`admin`)

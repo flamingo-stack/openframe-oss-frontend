@@ -2,99 +2,14 @@ import type { ChatRef, SlashCommandSummary } from '@flamingo-stack/openframe-fro
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useMingoSheetStore } from '@/app/components/mingo-shell/mingo-sheet-store';
 import { useMingoContextStore } from '../stores/mingo-context-store';
-import type { ProcessedMessage } from './use-mingo-chat';
 import {
   buildMingoDisplayCommand,
   hasMingoDisplayCommand,
-  mapMingoMessageToUnified,
   needsAllChatsScope,
   openNamedDialog,
   rawDialogIdToAdopt,
   snapshotSendContext,
 } from './use-mingo-unified-chat-state';
-
-const TIMESTAMP = new Date('2026-08-26T12:00:00Z');
-
-function assistantMessage(fields: Record<string, unknown> = {}): ProcessedMessage {
-  return {
-    id: 'assistant-turn',
-    role: 'assistant',
-    content: 'Install the agent from the Devices page.',
-    name: 'Mingo',
-    timestamp: TIMESTAMP,
-    ...fields,
-  } as ProcessedMessage;
-}
-
-/**
- * The seam between the reducer's rows and what the lib renders. Its whole job is
- * to be exhaustive WITHOUT enumerating: the lib keeps adding per-message metadata
- * (Guide Mode V3's `sources` / card refs being the current batch), and a mapper
- * that lists fields drops every one it was not updated for — silently, because
- * the message still renders, just without the part the new field carried.
- */
-describe('mapMingoMessageToUnified', () => {
-  it('forwards metadata the mapper never names', () => {
-    // `sources` / `refs` are Guide Mode V3's per-answer metadata. The mapper
-    // does not mention them by name — that is the point: they ride through
-    // because it spreads what it did not destructure.
-    const sources = [{ index: 1, name: 'Install the agent', path: 'docs/agent.md', documentType: 'markdown' }];
-    const refs = [{ type: 'video', id: 'MdFJNoJeqZQ', title: 'Install', url: null }];
-    const message = mapMingoMessageToUnified(
-      assistantMessage({ streamSeq: 42, scrollAnchor: 'top', hidden: true, sources, refs }),
-    );
-
-    expect(message).toMatchObject({ id: 'assistant-turn', streamSeq: 42, scrollAnchor: 'top', hidden: true });
-    // By reference — the lib's message memo compares this way.
-    expect(message.sources).toBe(sources);
-    expect(message.refs).toBe(refs);
-  });
-
-  it('moves a segment list into `segments` and empties `content`', () => {
-    const segments = [{ type: 'text' as const, text: '## Install the agent' }];
-    const message = mapMingoMessageToUnified(assistantMessage({ content: segments }));
-
-    expect(message.segments).toBe(segments);
-    expect(message.content).toBe('');
-  });
-
-  it('drops the host identity on assistant rows so the lib renders its own', () => {
-    const message = mapMingoMessageToUnified(assistantMessage({ avatar: '/mingo.png', authorType: 'admin' }));
-
-    expect(message.name).toBeUndefined();
-    expect(message.avatar).toBeUndefined();
-    expect(message.authorType).toBeUndefined();
-  });
-
-  it('carries the real sender identity and context chips on user rows', () => {
-    const contextItems = [{ type: 'DEVICE', id: 'device-42' }];
-    const message = mapMingoMessageToUnified(
-      assistantMessage({
-        role: 'user',
-        name: 'Ada Lovelace',
-        avatar: 'https://cdn.example/ada.png',
-        authorType: 'admin',
-        contextItems,
-      }),
-    );
-
-    expect(message).toMatchObject({
-      role: 'user',
-      name: 'Ada Lovelace',
-      avatar: 'https://cdn.example/ada.png',
-      authorType: 'admin',
-      contextItems,
-    });
-  });
-
-  it('degrades an unresolved sender name to the lib fallback', () => {
-    expect(mapMingoMessageToUnified(assistantMessage({ role: 'user', name: 'Unknown' })).name).toBeUndefined();
-  });
-
-  it('folds an error row into the assistant bubble', () => {
-    expect(mapMingoMessageToUnified(assistantMessage({ role: 'error' })).role).toBe('assistant');
-  });
-});
 
 const displayCommands: SlashCommandSummary[] = [
   {

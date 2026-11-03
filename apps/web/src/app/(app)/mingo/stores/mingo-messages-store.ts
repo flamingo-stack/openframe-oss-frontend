@@ -1,4 +1,5 @@
 import type { TokenUsageData } from '@flamingo-stack/openframe-frontend-core';
+import type { ChatMessage } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import {
   type ChatStreamReducer,
   createChatDialogStore,
@@ -13,25 +14,21 @@ import {
   createReducerMirror,
   type NatsMirrorHandlers,
   natsMirrorOptions,
-  toUnifiedMessage,
 } from '@/lib/chat-stream-thread';
 import { useAuthStore } from '@/stores';
-import type { Message } from '../types';
 
 /**
  * Phase 4 of the chat unification: message ACCUMULATION lives in the lib's
  * `createChatDialogStore` reducers (one per dialogId, side 'main'). This
  * zustand store survives as persistence/cache + identity only — dialog
  * list, active id, unread counts, loading/pagination, per-dialog seq
- * bookkeeping — plus a converted READ MIRROR of each reducer's snapshot
+ * bookkeeping — plus a READ MIRROR of each reducer's snapshot
  * (messages / streaming phase / streaming bubble id / token usage) so
  * existing selectors keep working unchanged. Thread commands (history
  * hydration, optimistic sends, welcome rows) delegate to the reducer.
  */
 
 // ─── Lib reducer registry (module-level, outlives React) ────────────────────
-
-const MINGO_IDENTITY = { assistantName: 'Mingo', assistantType: 'mingo' as const };
 
 const handlersByDialog = new Map<string, NatsMirrorHandlers>();
 
@@ -43,7 +40,7 @@ const mingoReducerOptions = natsMirrorOptions<string>(
 );
 
 /** All reducer-mirror scaffolding (create-or-get, retention, snapshot change
- *  detection, conversion cache, thread RMW, delta batching, approval-status
+ *  detection, thread RMW, delta batching, the per-key decoder, approval-status
  *  merge) lives in the shared `createReducerMirror` factory, and the NATS
  *  options block in `natsMirrorOptions` — this host supplies only the key
  *  mapping and the zustand patch. Mirror key = dialogId (side is always
@@ -60,7 +57,7 @@ const mirror = createReducerMirror<string>({
   // guarantee structural rather than incidental. Mirror key = dialogId = the
   // store's `dialogId`, so the mapping back is the identity.
   createStore: storeOptions => createChatDialogStore({ ...storeOptions, defaultCreateOptions: mingoReducerOptions }),
-  identityFor: dialogId => ({ dialogId, side: DEFAULT_DIALOG_SIDE, defaults: MINGO_IDENTITY }),
+  identityFor: dialogId => ({ dialogId, side: DEFAULT_DIALOG_SIDE }),
   options: mingoReducerOptions,
   onSnapshot: (dialogId, { messages, phase, streamingId, state: snap }) => {
     const usage = snap.dialogTokenUsage ?? null;
@@ -94,16 +91,12 @@ const mirror = createReducerMirror<string>({
 /** The dialog store behind this host's reducers (built by the mirror). */
 export const mingoChatDialogStore = mirror.store;
 
-/** Late-bind approve/reject + model-badge handlers (approve/reject are
- *  stamped onto approval segments; onMetadata rides the reducer effect). */
+/** Late-bind the model-badge handler (it rides the reducer effect). */
 export function setMingoChatHandlers(dialogId: string, handlers: NatsMirrorHandlers): void {
-  // MERGE, don't replace: approve/reject and `onMetadata` are registered by
-  // separate effects, so a wholesale set would let the later one clobber the
-  // earlier one.
-  handlersByDialog.set(dialogId, { ...handlersByDialog.get(dialogId), ...handlers });
+  handlersByDialog.set(dialogId, handlers);
 }
 
-/** Pre-curried `{ apply, mutate, mergeApprovalStatuses }` for one dialog.
+/** Pre-curried `{ decode, apply, mutate, mergeApprovalStatuses }` for one dialog.
  *  Identity is stable per dialogId (memoized inside the mirror). */
 export function bindMingoDialog(dialogId: string): BoundMirror {
   return mirror.bind(dialogId);
@@ -138,7 +131,7 @@ function dropDialogCaches(dialogId: string): void {
 
 interface MingoMessagesStore {
   // Read mirror of the lib reducer state — key is dialogId
-  messagesByDialog: Map<string, Message[]>;
+  messagesByDialog: Map<string, ChatMessage[]>;
   phaseByDialog: Map<string, StreamingPhase>;
   /** Id of the assistant bubble an open stream writes into (merge exemption). */
   streamingIdByDialog: Map<string, string | null>;
@@ -170,29 +163,29 @@ interface MingoMessagesStore {
   setActiveDialogId: (dialogId: string | null) => void;
 
   // Thread commands (delegate to the lib reducer)
-  setMessages: (dialogId: string, messages: Message[]) => void;
-  prependMessages: (dialogId: string, messages: Message[]) => void;
+  setMessages: (dialogId: string, messages: ChatMessage[]) => void;
+  prependMessages: (dialogId: string, messages: ChatMessage[]) => void;
   prependWithBoundaryMerge: (
     dialogId: string,
-    newMessages: Message[],
+    newMessages: ChatMessage[],
     boundaryMessageId?: string,
-    boundaryUpdates?: Partial<Message>,
+    boundaryUpdates?: Partial<ChatMessage>,
   ) => void;
-  addMessage: (dialogId: string, message: Message) => void;
+  addMessage: (dialogId: string, message: ChatMessage) => void;
   /** Optimistic local send. Routed through the reducer so IT owns own-echo
    *  suppression (text-matched, one-shot) — a blanket "drop every echo with
    *  my user id" would also hide this user's sends from other tabs. */
-  pushOptimisticSend: (dialogId: string, message: Message) => void;
-  updateMessage: (dialogId: string, messageId: string, updates: Partial<Message>) => void;
+  pushOptimisticSend: (dialogId: string, message: ChatMessage) => void;
+  updateMessage: (dialogId: string, messageId: string, updates: Partial<ChatMessage>) => void;
   removeMessage: (dialogId: string, messageId: string) => void;
-  /** Cross-message approval flip (reducer accumulator + projection). */
+  /** Cross-message approval flip (the reducer's projection). */
   updateApprovalStatusInMessages: (
     dialogId: string,
     requestId: string,
     status: 'approved' | 'rejected',
     resolvedByName?: string | null,
   ) => void;
-  getMessages: (dialogId: string) => Message[];
+  getMessages: (dialogId: string) => ChatMessage[];
   removeWelcomeMessages: (dialogId: string) => void;
 
   // Typing / phase (delegates to the reducer's phase machine)
@@ -259,8 +252,8 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
         // one pinned against the reducer LRU. Every other visited dialog
         // falls back to protection-by-recency (plus the store's own
         // mid-stream guard); if one is evicted, the store PUBLISHES that via
-        // `onEvict` and the mirror parks the key's last converted thread,
-        // re-seeding the replacement reducer with it on the next `getReducer`.
+        // `onEvict` and the mirror parks the key's state, re-seeding the
+        // replacement reducer with it on the next `getReducer`.
         mirror.setActiveKeys(dialogId ? [dialogId] : []);
         set({ activeDialogId: dialogId });
 
@@ -308,7 +301,7 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
 
       // Thread commands — the lib reducer owns the mutation semantics
       // `mirror.hydrate`, NOT a raw thread write: restoring a turn takes three
-      // steps that only work together (thread + `resumed`, accumulator seed,
+      // steps that only work together (thread, agent-busy extras,
       // adopt-once) — see `HydrateOptions`. This is the ONLY full-thread write
       // on the mingo hydration path (the paginated one goes through
       // `prependWithBoundaryMerge`), so it maps 1:1 onto the lib adapter's
@@ -318,7 +311,7 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
       },
 
       prependMessages: (dialogId, messages) => {
-        mutateMingoDialog(dialogId, r => r.prependMessages(messages.map(m => toUnifiedMessage(m))));
+        mutateMingoDialog(dialogId, r => r.prependMessages(messages));
       },
 
       prependWithBoundaryMerge: (dialogId, newMessages, boundaryMessageId?, boundaryUpdates?) => {

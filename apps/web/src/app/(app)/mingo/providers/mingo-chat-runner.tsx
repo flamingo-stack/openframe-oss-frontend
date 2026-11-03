@@ -76,8 +76,6 @@ export function MingoChatRunner({ store, onScreen }: { store: MingoChatStore; on
       key={subscription.activeDialogId}
       dialogId={subscription.activeDialogId}
       isActive
-      onApprove={subscription.onApprove}
-      onReject={subscription.onReject}
       approvalStatuses={subscription.approvalStatuses}
       onConnectionChange={subscription.onConnectionChange}
       onMetadata={subscription.onMetadata}

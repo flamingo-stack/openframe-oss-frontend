@@ -61,8 +61,6 @@ export function makeFakeChat({
     subscription: {
       activeDialogId,
       isSubscribed: activeDialogId !== null,
-      onApprove: noop,
-      onReject: noop,
       approvalStatuses: {},
       onConnectionChange: noop,
       onMetadata: noop,

@@ -10,6 +10,7 @@
  * during the outage, and their replay then rendered every one of them a second
  * time; nothing re-merged afterwards. The refetch now waits for the replay.
  */
+import type { ChatMessage } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -17,7 +18,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useMingoDialogSelection } from '../hooks/use-mingo-dialog-selection';
 import { DialogSubscription } from '../hooks/use-mingo-realtime-subscription';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
-import type { Message } from '../types';
 import { mingoDialogQueryKeys } from '../utils/query-keys';
 import {
   ApprovalSession,
@@ -100,8 +100,6 @@ function Host() {
       key={activeDialogId}
       dialogId={activeDialogId}
       isActive
-      onApprove={sel.handleApprove}
-      onReject={sel.handleReject}
       approvalStatuses={sel.approvalStatuses}
       initialOptStartSeq={sel.initialOptStartSeq}
       isInitialOptStartSeqReady={sel.isMessagesFetchedAfterMount}
@@ -121,10 +119,10 @@ async function wait(ms: number) {
 }
 
 /** What the user sees: each bubble's author, content and time. */
-function view(messages: Message[]) {
+function view(messages: ChatMessage[]) {
   return messages
     .filter(m => !m.id.startsWith('welcome-'))
-    .map(m => ({ role: m.role, text: renderedText(m), at: new Date(m.timestamp ?? 0).toISOString() }));
+    .map(m => ({ role: m.role, text: renderedText(m), at: new Date(m.metadata?.createdAt ?? 0).toISOString() }));
 }
 
 async function open(queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {

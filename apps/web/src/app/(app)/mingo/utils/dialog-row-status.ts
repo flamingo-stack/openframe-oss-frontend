@@ -1,8 +1,11 @@
-import type {
-  Message,
-  MessageSegment,
-  MingoDialogStatus,
-} from '@flamingo-stack/openframe-frontend-core/components/chat';
+import {
+  approvalBatchIdOf,
+  approvalStatusOf,
+  type ChatMessage,
+  type ChatToolPart,
+  isToolPart,
+} from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import type { MingoDialogStatus } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import type { InfiniteData } from '@tanstack/react-query';
 import type { DialogNode } from '../types';
 
@@ -29,30 +32,31 @@ export function serverRowState(node: Pick<DialogNode, 'streamState' | 'pendingAp
   };
 }
 
-function approvalIdOf(segment: MessageSegment): string | undefined {
-  if (segment.type === 'approval_request') return segment.data.requestId ?? segment.data.approvalRequestId;
-  if (segment.type === 'approval_batch') return segment.data.approvalRequestId;
-  return undefined;
+/** The id the backend knows a card's request by: a batch's, or a card of one's own. */
+function approvalIdOf(part: ChatToolPart): string | undefined {
+  return approvalBatchIdOf(part) ?? ('approval' in part ? part.approval?.id : undefined);
 }
 
 /**
  * The approval the chat waits on: a `pending` approval card (Mingo sends batches,
  * which stay in the thread) whose request no other copy has resolved.
  */
-function pendingApprovalIn(messages: readonly Message[]): { awaiting: boolean; id?: string } {
-  const segments = messages.flatMap(message => (Array.isArray(message.content) ? message.content : []));
-  const approvals = segments.filter(
-    segment => segment.type === 'approval_request' || segment.type === 'approval_batch',
-  );
+function pendingApprovalIn(messages: readonly ChatMessage[]): { awaiting: boolean; id?: string } {
+  const approvals = messages.flatMap(message => message.parts).filter(isToolPart);
   const resolved = new Set(
-    approvals.filter(segment => segment.status && segment.status !== 'pending').map(approvalIdOf),
+    approvals
+      .filter(part => {
+        const status = approvalStatusOf(part);
+        return status !== null && status !== 'pending';
+      })
+      .map(approvalIdOf),
   );
-  const pending = approvals.find(segment => segment.status === 'pending' && !resolved.has(approvalIdOf(segment)));
+  const pending = approvals.find(part => approvalStatusOf(part) === 'pending' && !resolved.has(approvalIdOf(part)));
   return pending ? { awaiting: true, id: approvalIdOf(pending) } : { awaiting: false };
 }
 
 /** The open chat's row, from its own stream: its phase and the approval cards in its thread. */
-export function liveRowState(phase: string, messages: readonly Message[]): DialogRowState {
+export function liveRowState(phase: string, messages: readonly ChatMessage[]): DialogRowState {
   const approval = pendingApprovalIn(messages);
   return { streaming: phase !== 'idle', awaitingApproval: approval.awaiting, approvalRequestId: approval.id };
 }

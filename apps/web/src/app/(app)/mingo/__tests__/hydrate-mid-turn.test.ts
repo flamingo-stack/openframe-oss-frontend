@@ -10,7 +10,6 @@
  * turns, and that "richer" copy later replaced the persisted row.
  */
 import { maxPersistedStreamSeq, mergeHistoryWithRealtime } from '@flamingo-stack/openframe-frontend-core';
-import { decodeNatsChunk } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { bindMingoDialog, useMingoMessagesStore } from '../stores/mingo-messages-store';
 import {
@@ -29,8 +28,7 @@ type Rows = ReturnType<typeof persistedRows>;
 
 const store = () => useMingoMessagesStore.getState();
 
-/** The full-merge branch `use-mingo-dialog-selection` runs on a history
- *  (re)fetch, without its pending-approvals fold (these turns have none). */
+/** The full-merge branch `use-mingo-dialog-selection` runs on a history (re)fetch. */
 function merge(rows: Rows, streamingId: string | null) {
   const merged = mergeHistoryWithRealtime({
     processedHistory: processMingoHistory(rows),
@@ -66,8 +64,7 @@ describe('history merge landing in the middle of a replayed turn', () => {
       while (chunks.length) {
         const chunk = chunks.shift();
         store().recordHighestStreamSeq(DIALOG, chunk.streamSeq);
-        const event = decodeNatsChunk(chunk);
-        if (event) bound.apply(event);
+        bound.apply(bound.decode(chunk));
         if (chunk.type === type) return;
       }
     };

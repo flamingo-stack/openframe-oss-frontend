@@ -1,12 +1,7 @@
-import type { Message as ChatMessage } from '@flamingo-stack/openframe-frontend-core';
+import type { ChatMessage } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { type ChatStreamReducer, createChatDialogStore } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { create } from 'zustand';
-import {
-  createReducerMirror,
-  type NatsMirrorHandlers,
-  natsMirrorOptions,
-  toUnifiedMessage,
-} from '@/lib/chat-stream-thread';
+import { createReducerMirror, type NatsMirrorHandlers, natsMirrorOptions } from '@/lib/chat-stream-thread';
 import { useAuthStore } from '@/stores';
 
 export type ChatSide = 'client' | 'admin';
@@ -18,7 +13,7 @@ export type ChatSide = 'client' | 'admin';
  * (approval resolution by requestId, tool-execution merge by execId)
  * replace the app's both-sides fan-out. This zustand store survives as
  * persistence/cache + identity: per-side seq bookkeeping, approval-status
- * map, and a converted READ MIRROR of each reducer snapshot so existing
+ * map, and a READ MIRROR of each reducer snapshot so existing
  * selectors keep working.
  *
  * Only one ticket dialog is open at a time (the view clears state on
@@ -26,11 +21,6 @@ export type ChatSide = 'client' | 'admin';
  * the two SIDES are the real keys.
  */
 const TICKET_THREAD_KEY = 'ticket-details';
-
-const SIDE_IDENTITY: Record<ChatSide, { assistantName: string; assistantType: 'fae' | 'mingo' }> = {
-  client: { assistantName: 'Fae', assistantType: 'fae' },
-  admin: { assistantName: 'Mingo', assistantType: 'mingo' },
-};
 
 const handlersBySide = new Map<ChatSide, NatsMirrorHandlers>();
 
@@ -44,7 +34,7 @@ const ticketReducerOptions = natsMirrorOptions<ChatSide>(
 );
 
 /** All reducer-mirror scaffolding (create-or-get, retention, snapshot change
- *  detection, conversion cache, thread RMW, delta batching, approval-status
+ *  detection, thread RMW, delta batching, the per-key decoder, approval-status
  *  merge, cross-side materialize + resync) lives in the shared
  *  `createReducerMirror` factory, and the NATS options block in
  *  `natsMirrorOptions` — this host supplies only the key mapping, the sibling
@@ -65,7 +55,7 @@ const mirror = createReducerMirror<ChatSide>({
       ...storeOptions,
       defaultCreateOptions: (_dialogId: string, side: string) => ticketReducerOptions(side as ChatSide),
     }),
-  identityFor: side => ({ dialogId: TICKET_THREAD_KEY, side, defaults: SIDE_IDENTITY[side] }),
+  identityFor: side => ({ dialogId: TICKET_THREAD_KEY, side }),
   // The dialog store's cross-side projections (approval resolution by
   // requestId, tool-execution merge by execId) land on the OTHER side's
   // reducer, so both sides must exist before an event lands and both must
@@ -111,7 +101,7 @@ export function mutateTicketSide<T>(side: ChatSide, fn: (reducer: ChatStreamRedu
   return mirror.mutate(side, fn);
 }
 
-/** Pre-curried `{ apply, mutate, mergeApprovalStatuses }` for one side.
+/** Pre-curried `{ decode, apply, mutate, mergeApprovalStatuses }` for one side.
  *  Identity is stable per side (memoized inside the mirror); `apply` needs no
  *  host wrapper — `siblingKeys` above tells the mirror to materialize and
  *  re-sync the other side itself. */
@@ -186,7 +176,7 @@ interface TicketDetailsStore {
   getMessages: (side: ChatSide) => ChatMessage[];
 
   // Approvals
-  /** Cross-message approval flip on one side (reducer accumulator + projection). */
+  /** Cross-message approval flip on one side (the reducer's projection). */
   updateApprovalStatusInMessages: (
     side: ChatSide,
     requestId: string,
@@ -203,8 +193,7 @@ interface TicketDetailsStore {
    */
   upsertApprovalStatuses: (entries: ApprovalStatusMap) => void;
 
-  /** Late-bound per-side handlers: approve/reject are stamped onto approval
-   *  segments; `onMetadata` rides the reducer's own metadata effect. */
+  /** Late-bound per-side handlers: `onMetadata` rides the reducer's own metadata effect. */
   setChatHandlers: (side: ChatSide, handlers: NatsMirrorHandlers) => void;
 
   // Typing (delegates to the reducer's phase machine)
@@ -251,7 +240,7 @@ export const useTicketDetailsStore = create<TicketDetailsStore>((set, get) => ({
   },
 
   prependMessages: (side, messages) => {
-    mutateTicketSide(side, r => r.prependMessages(messages.map(m => toUnifiedMessage(m))));
+    mutateTicketSide(side, r => r.prependMessages(messages));
   },
 
   prependWithBoundaryMerge: (side, newMessages, boundaryMessageId, boundaryUpdates) => {

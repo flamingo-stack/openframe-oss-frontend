@@ -29,16 +29,16 @@
  * second live tail applying every chunk again.
  */
 
+import type { ChatToolPart } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import type {
   ChatConnectionState,
+  ChatMessageActions,
   ChatRef,
   DialogItem,
   DialogTokenUsage,
-  MessageSegment,
   MingoDialogStatus,
   SlashCommandSummary,
   StreamingPhase,
-  UnifiedChatMessage,
   UnifiedChatState,
   UnifiedSendMessageOptions,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
@@ -50,13 +50,14 @@ import {
   useSlashCommandRegistry,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useChatRuntime } from '@flamingo-stack/openframe-frontend-core/contexts';
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useMingoSheetStore } from '@/app/components/mingo-shell/mingo-sheet-store';
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
 import { isMobileViewportNow } from '@/app/hooks/use-is-mobile-viewport';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
+import { DISPLAY_APPROVAL_TYPES } from '@/lib/chat-history';
 import { linkedInsightId } from '../../incidents/utils/fix-with-mingo-draft';
 import type { DialogIntent } from '../../tickets/constants';
 import { CONTEXT_ENTITY_KIND, CONTEXT_ITEMS_MAX, RECENT_VIEWS_MAX } from '../context/context-types';
@@ -64,7 +65,7 @@ import { pageContextHref, resolvePageContext } from '../context/page-context';
 import { useMingoContextStore } from '../stores/mingo-context-store';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
 import type { DialogNode } from '../types';
-import { type MingoSendContext, type ProcessedMessage, useMingoDialogChat } from './use-mingo-chat';
+import { type MingoSendContext, useMingoDialogChat } from './use-mingo-chat';
 import { useMingoDialogActions } from './use-mingo-dialog-actions';
 import { useMingoDialogRowStatus } from './use-mingo-dialog-row-status';
 import { useMingoDialogSelection } from './use-mingo-dialog-selection';
@@ -88,8 +89,6 @@ export interface MingoSubscriptionBindings {
   activeDialogId: string | null;
   /** True once the active dialog has been subscribed — gates rendering. */
   isSubscribed: boolean;
-  onApprove: (requestId?: string) => void | Promise<void>;
-  onReject: (requestId?: string) => void | Promise<void>;
   approvalStatuses: Record<string, string>;
   onConnectionChange: (dialogId: string, connected: boolean) => void;
   onMetadata: (metadata: MetadataFrame) => void;
@@ -108,7 +107,7 @@ export interface MingoUnifiedChat {
    * sticky-footer prop, which is why they travel beside `state` rather than
    * inside it.
    */
-  pendingApprovals: MessageSegment[];
+  pendingApprovals: ChatToolPart[];
   /** The v2 list's status at the end of a row: working, waiting for approval, or none. */
   dialogStatusOf: (dialog: DialogItem) => MingoDialogStatus | undefined;
   /**
@@ -214,44 +213,6 @@ export async function openNamedDialog(
 
 /** Slash-command action that dumps a row's body into the chat verbatim. */
 const DISPLAY_ACTION_ID = 'display';
-
-/**
- * ProcessedMessage → UnifiedChatMessage.
- *
- * Destructure-and-spread, NOT a field-by-field rebuild. Every field the lib
- * stamps on a row and later reads back off it — `streamSeq`, `scrollAnchor`,
- * `hidden`, and Guide Mode V3's per-answer source/card/video metadata — rides
- * through `metadata` without this seam having to name it. A rebuild silently
- * drops whatever it does not list, and the drop is invisible: the message still
- * renders, just without the part the new field carried. Only the fields whose
- * SHAPE differs between the two types are handled explicitly below.
- */
-export function mapMingoMessageToUnified(message: ProcessedMessage): UnifiedChatMessage {
-  const { content, role: sourceRole, name, avatar, authorType, assistantType, contextItems, ...metadata } = message;
-
-  // The lib folds 'error' into the assistant bubble and re-derives the assistant
-  // identity (brand icon + "Mingo") itself, which is why `assistantType` is
-  // destructured off rather than forwarded.
-  const role: 'user' | 'assistant' = sourceRole === 'user' ? 'user' : 'assistant';
-
-  // USER bubbles carry the real sender identity — the admin's name, avatar and
-  // `authorType` (accent name colour) — so the drawer reads like the standalone
-  // /mingo page instead of a hardcoded "You". A missing/Unknown name degrades to
-  // the lib's own fallback.
-  const identity =
-    role === 'user' ? { name: name && name !== 'Unknown' ? name : undefined, avatar: avatar ?? null, authorType } : {};
-
-  // Entity-context chips under a user bubble (Figma 1:6437). They ride the
-  // optimistic send and the realtime MESSAGE_REQUEST echo; the lib resolves each
-  // chip's icon from `contextPicker.entityTypes` by `type`.
-  const context = role === 'user' && contextItems?.length ? { contextItems } : {};
-
-  // Segment lists travel in `segments`; `content` must then be the empty string,
-  // which is what tells the lib to render the structured form.
-  const body = Array.isArray(content) ? { content: '', segments: content } : { content };
-
-  return { ...metadata, role, ...body, ...identity, ...context };
-}
 
 function supportsDisplay(command: SlashCommandSummary): boolean {
   return command.actions.some(action => action.id === DISPLAY_ACTION_ID);
@@ -389,7 +350,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
   } = useMingoDialogSelection();
 
   const {
-    messages: processedMessages,
+    messages,
     approvals: pendingApprovals,
     createDialog,
     sendMessage: sendMingoMessage,
@@ -477,28 +438,6 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     };
   }, [activeDialogId, tokenUsageByDialog, dialogData?.tokenUsage]);
 
-  // ─── Messages: ProcessedMessage[] → UnifiedChatMessage[] ──────────────────
-  // The row-level mapping is `mapMingoMessageToUnified` (above, and unit-tested);
-  // what lives here is only the CACHING around it.
-  // `processedMessages` hands back referentially-stable objects for unchanged
-  // messages (see useMingoDialogChat's reconciliation), so keying a WeakMap by the
-  // source object yields a stable UnifiedChatMessage too — the lib's reference-
-  // equality memo then re-renders only the streaming bubble, not the whole list
-  // (which would otherwise collapse open menus/cards on every chunk).
-  // `useState`, not `useRef`: the map is read while rendering, and a ref read during
-  // render is what the compiler bails out over. Same create-once identity.
-  const [unifiedCache] = useState(() => new WeakMap<object, UnifiedChatMessage>());
-  const messages = useMemo<UnifiedChatMessage[]>(() => {
-    const cache = unifiedCache;
-    return processedMessages.map(m => {
-      const cached = cache.get(m);
-      if (cached) return cached;
-      const unified = mapMingoMessageToUnified(m);
-      cache.set(m, unified);
-      return unified;
-    });
-  }, [processedMessages, unifiedCache]);
-
   // ─── Streaming phase: idle → thinking → streaming ─────────────────────────
   // The lib reducer's phase machine is the source of truth (mirrored per
   // dialog); a standalone compaction window still locks the composer.
@@ -559,10 +498,8 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       addMessage(newId, {
         id: `welcome-${newId}`,
         role: 'assistant',
-        name: 'Mingo',
-        timestamp: new Date(),
-        content: WELCOME_TEXT,
-        assistantType: 'mingo',
+        metadata: { createdAt: new Date().toISOString(), author: { name: 'Mingo', assistantType: 'mingo' } },
+        parts: [{ type: 'text', text: WELCOME_TEXT }],
       });
       setActiveDialogId(newId);
       resetUnread(newId);
@@ -666,18 +603,20 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     await fetchNextMessagePage();
   }, [fetchNextMessagePage]);
 
-  const approveRequest = useCallback(
-    async (requestId: string) => {
-      await handleApprove(requestId);
-    },
-    [handleApprove],
-  );
-
-  const rejectRequest = useCallback(
-    async (requestId: string) => {
-      await handleReject(requestId);
-    },
-    [handleReject],
+  // What a message's controls do: a stable object, because the lib's message memo compares it by reference. The handlers
+  // behind it change with their mutations' state, so it reads the latest ones when a control is used.
+  const latestActions = useRef({ handleApprove, handleReject, sendMessage });
+  useEffect(() => {
+    latestActions.current = { handleApprove, handleReject, sendMessage };
+  });
+  const actions = useMemo<ChatMessageActions>(
+    () => ({
+      approve: id => latestActions.current.handleApprove(id),
+      reject: id => latestActions.current.handleReject(id),
+      selectAsk: label => void latestActions.current.sendMessage(label),
+      pickSuggestion: prompt => void latestActions.current.sendMessage(prompt),
+    }),
+    [],
   );
 
   const noopDialogAction = useCallback(async () => {}, []);
@@ -726,6 +665,8 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
   const state = useMemo<UnifiedChatState>(
     () => ({
       messages,
+      actions,
+      displayApprovalTypes: DISPLAY_APPROVAL_TYPES,
       isLoading: isTyping || isCompacting,
       streamingPhase,
       sendMessage,
@@ -775,13 +716,12 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       setDialogScope,
       hasMoreMessages: hasMoreMessages ?? false,
       loadMoreMessages,
-      approveRequest,
-      rejectRequest,
       dialogTokenUsage: tokenUsage,
       connectionState: connectionState as ChatConnectionState,
     }),
     [
       messages,
+      actions,
       isTyping,
       isCompacting,
       streamingPhase,
@@ -811,8 +751,6 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       dialogScope,
       hasMoreMessages,
       loadMoreMessages,
-      approveRequest,
-      rejectRequest,
       connectionState,
     ],
   );
@@ -821,8 +759,6 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     () => ({
       activeDialogId,
       isSubscribed: !!activeDialogId && subscribedDialogs.has(activeDialogId),
-      onApprove: handleApprove,
-      onReject: handleReject,
       approvalStatuses,
       onConnectionChange,
       onMetadata,
@@ -832,8 +768,6 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     [
       activeDialogId,
       subscribedDialogs,
-      handleApprove,
-      handleReject,
       approvalStatuses,
       onConnectionChange,
       onMetadata,

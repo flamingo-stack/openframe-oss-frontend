@@ -7,12 +7,13 @@
 // tools can answer (no "offline since when", no "update software"), and that every chip
 // is drawn as Mingo's quick actions are: its icon in Mingo's accent.
 
-import { getAgentAccent, type SuggestionPrompt } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import type { ChatSuggestionPrompt } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import { getAgentAccent } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { describe, expect, it } from 'vitest';
 import { toGlobalId } from '@/lib/relay-id';
 import { buildMingoWhatToAsk, type WhatToAskDevice } from './what-to-ask';
 
-const prompts = (devices: WhatToAskDevice[]): SuggestionPrompt[] =>
+const prompts = (devices: WhatToAskDevice[]): ChatSuggestionPrompt[] =>
   buildMingoWhatToAsk(devices).groups.flatMap(group => group.prompts);
 
 const find = (devices: WhatToAskDevice[], start: string) =>

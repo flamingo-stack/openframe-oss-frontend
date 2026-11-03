@@ -178,8 +178,8 @@ export function useMingoTour({ state, createNamedDialog, dialogError, onStepOpen
     return {
       id: `tour-greeting-${greetedDialogId}`,
       role: 'assistant',
-      content: tourGreeting(firstName),
-      timestamp: startedAt,
+      metadata: { createdAt: startedAt },
+      parts: [{ type: 'text', text: tourGreeting(firstName) }],
     };
   }, [greeted, hasMoreMessages, startedAt, greetedDialogId, firstName]);
 

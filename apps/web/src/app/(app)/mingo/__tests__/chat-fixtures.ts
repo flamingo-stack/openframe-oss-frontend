@@ -6,11 +6,12 @@ import {
   CHAT_TYPE,
   MESSAGE_TYPE,
   OWNER_TYPE,
-  processHistoricalMessagesWithErrors,
+  processHistoricalMessages,
 } from '@flamingo-stack/openframe-frontend-core';
+import type { ChatMessage, ChatPart } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { ASSISTANT_CONFIG } from '../../tickets/constants';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
-import type { Message, MessagePage } from '../types';
+import type { MessagePage } from '../types';
 import type { FakeJetStream } from './fake-jetstream';
 
 export const DIALOG = 'dlg-1';
@@ -18,20 +19,18 @@ export const SUBJECT = `chat.${DIALOG}.admin-message`;
 export const USER_ID = 'admin-user-1';
 
 /** The dialog's thread as the Mingo store mirrors it. */
-export function thread(): Message[] {
+export function thread(): ChatMessage[] {
   return useMingoMessagesStore.getState().messagesByDialog.get(DIALOG) ?? [];
 }
 
 /** Persisted rows → thread rows, with the options `use-mingo-dialog-selection`
- *  passes (not its approve/reject handlers, `approvalStatuses` or
- *  pending-approvals fold). */
-export function processMingoHistory(rows: ReadonlyArray<Record<string, unknown>>): Message[] {
-  return processHistoricalMessagesWithErrors(rows as never, {
+ *  passes (not its `approvalStatuses`). */
+export function processMingoHistory(rows: ReadonlyArray<Record<string, unknown>>): ChatMessage[] {
+  return processHistoricalMessages(rows as never, {
     assistantName: ASSISTANT_CONFIG.MINGO.name,
     assistantType: ASSISTANT_CONFIG.MINGO.type,
     chatTypeFilter: CHAT_TYPE.ADMIN,
-    displayApprovalTypes: ['CLIENT', 'ADMIN'],
-  }).messages as Message[];
+  }).messages;
 }
 
 export interface PublishedTurn {
@@ -172,40 +171,21 @@ export function persistedRows(turn: PublishedTurn, i: number, stamp: boolean, at
   ];
 }
 
-interface RenderedSegment {
-  type: string;
-  text?: string;
-  status?: string;
-  data?: {
-    parameters?: { script?: string };
-    approvalRequestId?: string;
-    toolCalls?: Array<{ toolExecutionRequestId: string; toolCallArguments?: { script?: string } | null }>;
-    executions?: Record<string, { status: string; result?: string }>;
-  };
+/** What one part draws. A tool row draws its id, state, script and result. */
+function renderedPart(part: ChatPart): string {
+  if (part.type === 'text') return part.text;
+  if (part.type !== 'dynamic-tool') return `[${part.type}]`;
+  const { script } = (part.input ?? {}) as { script?: string };
+  const output = part.state === 'output-available' ? String(part.output) : '';
+  return `[tool ${part.toolCallId} ${part.state} ${script ?? ''} => ${output}]`;
 }
 
-/** Text of every segment / string content, for duplicate counting. An approval
- *  batch renders its id, status, scripts and every run's result. */
-export function renderedText(m: { content: unknown }): string {
-  if (typeof m.content === 'string') return m.content;
-  if (!Array.isArray(m.content)) return '';
-  return (m.content as RenderedSegment[])
-    .map(s => {
-      if (s.type === 'text') return s.text ?? '';
-      if (s.type === 'tool_execution') return `[tool ${s.data?.parameters?.script ?? ''}]`;
-      if (s.type === 'approval_batch') {
-        const runs = (s.data?.toolCalls ?? []).map(call => {
-          const run = s.data?.executions?.[call.toolExecutionRequestId];
-          return `${call.toolCallArguments?.script ?? ''} => ${run ? `${run.status}:${run.result ?? ''}` : 'queued'}`;
-        });
-        return `[batch ${s.data?.approvalRequestId ?? ''} ${s.status ?? ''} ${runs.join('; ')}]`;
-      }
-      return `[${s.type}]`;
-    })
-    .join('|');
+/** Text of every part, for duplicate counting. */
+export function renderedText(m: Pick<ChatMessage, 'parts'>): string {
+  return m.parts.map(renderedPart).join('|');
 }
 
-export function countOccurrences(messages: Array<{ content: unknown }>, needle: string): number {
+export function countOccurrences(messages: Array<Pick<ChatMessage, 'parts'>>, needle: string): number {
   return messages.filter(m => renderedText(m).includes(needle)).length;
 }
 

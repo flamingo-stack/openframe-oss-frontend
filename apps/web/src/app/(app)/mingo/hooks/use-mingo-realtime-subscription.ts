@@ -137,8 +137,6 @@ export function useMingoRealtimeSubscription(
 }
 
 interface UseDialogChunkProcessorOptions {
-  onApprove?: (requestId?: string) => void | Promise<void>;
-  onReject?: (requestId?: string) => void | Promise<void>;
   /** Persisted request-id → status seed the reducer consults on replay. */
   approvalStatuses?: Record<string, string>;
   onMetadata?: (metadata: ChatModelMetadata) => void;
@@ -146,9 +144,9 @@ interface UseDialogChunkProcessorOptions {
 
 /**
  * Phase 4: chunks feed the lib's master stream reducer directly
- * (`decodeNatsChunk` → `dialogStore.apply`). The reducer owns EVERY
+ * (`createMingoDecoder` → `dialogStore.apply`). The reducer owns EVERY
  * accumulation rule that used to live in the ~270-LOC callback glue here
- * (stream windows, segment routing, cross-message tool merges, approval
+ * (stream windows, part routing, cross-message tool merges, approval
  * flips, participant dedup, typing phase); the store mirrors its snapshot.
  * The residual side concerns (own-echo suppression, approval-status sync,
  * the keyed incomplete-turn seed) are shared with the tickets processor via
@@ -156,11 +154,11 @@ interface UseDialogChunkProcessorOptions {
  * `onMetadata` effect; only the handler binding is mingo-specific.
  */
 function useDialogChunkProcessor(dialogId: string, options: UseDialogChunkProcessorOptions = {}) {
-  const { onApprove, onReject, approvalStatuses, onMetadata } = options;
+  const { approvalStatuses, onMetadata } = options;
 
   useEffect(() => {
-    setMingoChatHandlers(dialogId, { onApprove, onReject, onMetadata });
-  }, [dialogId, onApprove, onReject, onMetadata]);
+    setMingoChatHandlers(dialogId, { onMetadata });
+  }, [dialogId, onMetadata]);
 
   const messages = useMingoMessagesStore(s => s.messagesByDialog.get(dialogId));
 
@@ -176,8 +174,6 @@ function useDialogChunkProcessor(dialogId: string, options: UseDialogChunkProces
 interface DialogSubscriptionProps {
   dialogId: string;
   isActive: boolean;
-  onApprove?: (requestId?: string) => void;
-  onReject?: (requestId?: string) => void;
   /** Persisted request-id → status seed the reducer consults on replay. */
   approvalStatuses?: Record<string, string>;
   onConnectionChange?: (dialogId: string, connected: boolean) => void;
@@ -195,8 +191,6 @@ interface DialogSubscriptionProps {
 
 export function DialogSubscription({
   dialogId,
-  onApprove,
-  onReject,
   approvalStatuses,
   onConnectionChange,
   onMetadata,
@@ -218,8 +212,6 @@ export function DialogSubscription({
     storedHighestSeq > 0 ? Math.max(initialOptStartSeq ?? 0, storedHighestSeq) : initialOptStartSeq;
 
   const { processChunk: processorProcessChunk } = useDialogChunkProcessor(dialogId, {
-    onApprove,
-    onReject,
     approvalStatuses,
     onMetadata,
   });
@@ -233,8 +225,8 @@ export function DialogSubscription({
 
   // Dispatch-level redelivery gate (mirrors the tickets subscription):
   // JetStream is at-least-once, so a chunk with an equal-or-older streamSeq
-  // has already been processed — letting it through duplicates accumulator
-  // text / participant rows.
+  // has already been processed — letting it through duplicates text /
+  // participant rows.
   const lastDispatchedStreamSeqRef = useRef<number>(-1);
   useEffect(() => {
     lastDispatchedStreamSeqRef.current = -1;

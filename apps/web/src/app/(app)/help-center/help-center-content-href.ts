@@ -57,6 +57,7 @@ const HC = HELP_CENTER_BASE.replace(/^\//, '');
  *  to it in place. The lib's one address rule is this composer, so the chat's doc
  *  chips land here too (they had a `baseRoute` of their own before). */
 const HOSTED_TYPES = new Set(['onboarding_guide', 'product_release', 'markdown']);
+const SLUG_IS_IDENTIFIER = new Set(['markdown']);
 
 /** List path the lib composes into → this app's detail-route builder for that
  *  type. Keyed on the composed href rather than the content type because the lib
@@ -102,6 +103,8 @@ const helpCenterTicketHref = (id: string): { href: string; targetPlatform: strin
  *  app's detail routes — nothing outside this module should read it. */
 const composeLibContentUrl = makeComposeContentUrl({
   hostedTypes: HOSTED_TYPES,
+  // A document's record id IS its tree path, and the last segment of its url would lose the tree.
+  slugIsIdentifier: SLUG_IS_IDENTIFIER,
   // Prefix the two hosted types' suffixes with the section base so their in-app
   // href is `/help-center/onboarding-guides/<slug>` etc.; keep the lib defaults
   // for every other type (used with `contentOrigin` for non-hosted fallback).
@@ -177,6 +180,8 @@ function isAbsoluteHref(href: string): boolean {
  * type. We host just the `/help-center/*` subset, so every OTHER type must be an
  * ABSOLUTE hub URL to open externally. Already-absolute hrefs (incl. cross-platform
  * ones like an openmsp podcast) pass through untouched.
+ *
+ * TODO(CU-17tkuw61kfy): only an old hub answers a relative url; the new one's are all absolute.
  */
 function toHubOriginHref(href: string): string {
   if (isAbsoluteHref(href)) return href;

@@ -1,4 +1,4 @@
-import type { Message, MessageSegment } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import type { ChatMessage, ChatPart } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import type { InfiniteData } from '@tanstack/react-query';
 import { describe, expect, it } from 'vitest';
 import type { DialogNode } from '../types';
@@ -30,16 +30,21 @@ function pages(...dialogPages: DialogNode[][]): InfiniteData<MingoDialogsPage> {
   };
 }
 
-function reply(...content: MessageSegment[]): Message {
-  return { id: `m-${content.length}`, role: 'assistant', content };
+function reply(...parts: ChatPart[]): ChatMessage {
+  return { id: `m-${parts.length}`, role: 'assistant', parts };
 }
 
-/** How Mingo asks: a batch card that stays in the thread. */
-function batch(approvalRequestId: string, status: 'pending' | 'approved' | 'rejected' = 'pending'): MessageSegment {
-  return { type: 'approval_batch', data: { approvalRequestId, approvalType: 'ADMIN', toolCalls: [] }, status };
+/** How Mingo asks: a batch card that stays in the thread, one part per call. */
+function batch(approvalRequestId: string, status: 'pending' | 'approved' | 'rejected' = 'pending'): ChatPart {
+  const toolCallId = `${approvalRequestId}-row`;
+  const base = { type: 'dynamic-tool', toolName: 'run_script', toolCallId, input: {} } as const;
+  const approval = { id: toolCallId, descriptor: { approvalType: 'ADMIN', batchId: approvalRequestId } };
+  if (status === 'pending') return { ...base, state: 'approval-requested', approval };
+  if (status === 'approved') return { ...base, state: 'approval-responded', approval: { ...approval, approved: true } };
+  return { ...base, state: 'output-denied', approval: { ...approval, approved: false } };
 }
 
-const TEXT: MessageSegment = { type: 'text', text: 'Creating the article.' };
+const TEXT: ChatPart = { type: 'text', text: 'Creating the article.' };
 
 describe('dialogRowStatus', () => {
   it('shows the working dots while Mingo answers, even with an approval pending', () => {
@@ -79,10 +84,14 @@ describe('liveRowState', () => {
   });
 
   it('waits on a pending single request too', () => {
-    const request: MessageSegment = {
-      type: 'approval_request',
-      data: { command: 'createKnowledgeBaseArticle', requestId: 'ar-3' },
-      status: 'pending',
+    const request: ChatPart = {
+      type: 'dynamic-tool',
+      toolName: 'command',
+      toolCallId: 'ar-3',
+      title: 'createKnowledgeBaseArticle',
+      state: 'approval-requested',
+      input: {},
+      approval: { id: 'ar-3' },
     };
     expect(liveRowState('idle', [reply(request)]).approvalRequestId).toBe('ar-3');
   });

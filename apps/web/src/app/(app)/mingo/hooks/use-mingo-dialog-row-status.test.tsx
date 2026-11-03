@@ -4,7 +4,8 @@
  * live state is written onto its list row so it holds after switching chats.
  */
 
-import type { DialogItem, Message, MessageSegment } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import type { ChatMessage, ChatPart } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import type { DialogItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { type InfiniteData, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -36,13 +37,25 @@ function row(id: string): DialogItem {
   return { id, title: id };
 }
 
-function batch(approvalRequestId: string, status: 'pending' | 'rejected'): MessageSegment {
-  return { type: 'approval_batch', data: { approvalRequestId, approvalType: 'ADMIN', toolCalls: [] }, status };
+function batch(approvalRequestId: string, status: 'pending' | 'rejected'): ChatPart {
+  const base = {
+    type: 'dynamic-tool',
+    toolName: 'run_script',
+    toolCallId: `${approvalRequestId}-row`,
+    input: {},
+  } as const;
+  const approval = {
+    id: `${approvalRequestId}-row`,
+    descriptor: { approvalType: 'ADMIN', batchId: approvalRequestId },
+  };
+  return status === 'pending'
+    ? { ...base, state: 'approval-requested', approval }
+    : { ...base, state: 'output-denied', approval: { ...approval, approved: false } };
 }
 
 /** The open chat as its stream left it in the store. */
-function openChat(dialogId: string, phase: 'idle' | 'streaming', content: MessageSegment[]) {
-  const thread: Message[] = [{ id: 'm-1', role: 'assistant', content }];
+function openChat(dialogId: string, phase: 'idle' | 'streaming', parts: ChatPart[]) {
+  const thread: ChatMessage[] = [{ id: 'm-1', role: 'assistant', parts }];
   useMingoMessagesStore.setState({
     phaseByDialog: new Map([[dialogId, phase]]),
     messagesByDialog: new Map([[dialogId, thread]]),

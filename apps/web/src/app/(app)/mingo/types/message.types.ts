@@ -1,4 +1,4 @@
-import type { Message as LibMessage, MessageData } from '@flamingo-stack/openframe-frontend-core';
+import type { MessageData } from '@flamingo-stack/openframe-frontend-core';
 import type { ChatType, OwnerType } from '../../tickets/constants';
 
 export interface GraphQlMessage {
@@ -20,18 +20,6 @@ export interface GraphQlMessage {
    */
   messageData: MessageData | MessageData[];
 }
-
-/**
- * THE lib `Message`, not a copy of it. This used to be a hand-rolled,
- * slightly-narrower re-declaration (no `chatRefs` / `scrollAnchor` /
- * `hidden`), which made every mirror seam — where the shared
- * `createReducerMirror` hands back lib-shaped rows — need a cast, plus a
- * wrapper whose only job was performing one. Aliasing keeps the mingo-facing
- * name while making the two shapes the SAME type by construction.
- */
-export type CoreMessage = LibMessage;
-
-export type Message = CoreMessage;
 
 export interface MessageConnection {
   edges: Array<{
@@ -61,12 +49,4 @@ export interface MessagePage {
     startCursor?: string;
     endCursor?: string;
   };
-}
-
-export function isGraphQlMessage(message: object): message is GraphQlMessage {
-  return 'messageData' in message;
-}
-
-export function isCoreMessage(message: object): message is CoreMessage {
-  return 'content' in message;
 }

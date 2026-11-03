@@ -1,9 +1,5 @@
-import { recordLinkMarkdown } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
-import {
-  getAgentAccent,
-  type SuggestionPrompt,
-  type WhatToAskContent,
-} from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { type ChatSuggestionPrompt, recordLinkMarkdown } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import { getAgentAccent, type WhatToAskContent } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { whatToAskDevicesRelayQuery$data } from '@/__generated__/whatToAskDevicesRelayQuery.graphql';
 import { decodeGlobalId } from '@/lib/relay-id';
@@ -17,7 +13,7 @@ const isServer = (device: WhatToAskDevice) => device.type === 'SERVER';
 const isWindows = (device: WhatToAskDevice) => device.osType === 'WINDOWS';
 
 /** A chip's glyph as Mingo's quick actions draw theirs (`useMingoQuickActionChips`): in Mingo's accent. */
-const mingoIcon = (name: string): SuggestionPrompt['icon'] => ({ name, accent: getAgentAccent('mingo') });
+const mingoIcon = (name: string): ChatSuggestionPrompt['icon'] => ({ name, accent: getAgentAccent('mingo') });
 
 /**
  * A prompt about one device: the chip shows the device's name, the message
@@ -29,8 +25,8 @@ const aboutDevice = (
   device: WhatToAskDevice | null,
   named: (name: string) => string,
   unnamed: string,
-  icon: SuggestionPrompt['icon'],
-): SuggestionPrompt => {
+  icon: ChatSuggestionPrompt['icon'],
+): ChatSuggestionPrompt => {
   if (!device) return { label: unnamed, icon };
   const id = decodeGlobalId(device.id)?.rawId ?? device.machineId;
   const name = getDeviceName(device);

@@ -1,5 +1,5 @@
 import { CHAT_TYPE, OWNER_TYPE } from '@flamingo-stack/openframe-frontend-core';
-import { decodeNatsChunk } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import { createMingoDecoder } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { ticketService } from '@/app/(app)/tickets/services';
 import type { AdminOwner, Message } from '@/app/(app)/tickets/types/dialog.types';
 import {
@@ -74,22 +74,26 @@ export function decodeRemoteSessionChatChunk(
   payload: unknown,
   technician?: RemoteSessionChatTechnician,
 ): RemoteSessionChatMessage | null {
-  const event = decodeNatsChunk(payload);
-  if (!event || event.type !== 'participant' || event.kind === 'system' || !event.text) return null;
-  // The decoder lifts the JetStream sequence into the event; a chunk without one gets a local id.
-  const seq = typeof event.seq === 'number' && event.seq > 0 ? event.seq : undefined;
+  // A decoder per chunk: this feed reads whole participant lines only, so nothing carries across chunks, and the hook
+  // keeps a redelivered line from showing twice.
+  const entry = createMingoDecoder().decode(payload);
+  const chunk = entry.chunks.find(decoded => decoded.type === 'data-chat-participant');
+  if (chunk?.type !== 'data-chat-participant' || chunk.data.kind === 'system' || !chunk.data.text) return null;
+  const { text: body, ownerType, displayName } = chunk.data;
+  // The decoder lifts the JetStream sequence onto the entry; a chunk without one gets a local id.
+  const seq = typeof entry.seq === 'number' && entry.seq > 0 ? entry.seq : undefined;
   const id = seq !== undefined ? `seq-${seq}` : `live-${++liveRowCounter}`;
   const sentAt = new Date().toISOString();
-  if (event.ownerType === OWNER_TYPE.CLIENT) {
-    return { id, author: 'user', authorName: REMOTE_SESSION_END_USER_NAME, sentAt, body: event.text, seq };
+  if (ownerType === OWNER_TYPE.CLIENT) {
+    return { id, author: 'user', authorName: REMOTE_SESSION_END_USER_NAME, sentAt, body, seq };
   }
-  if (event.ownerType === OWNER_TYPE.ADMIN) {
+  if (ownerType === OWNER_TYPE.ADMIN) {
     return {
       id,
       author: 'technician',
-      authorName: event.displayName || technician?.name || FALLBACK_TECHNICIAN_NAME,
+      authorName: displayName || technician?.name || FALLBACK_TECHNICIAN_NAME,
       sentAt,
-      body: event.text,
+      body,
       seq,
     };
   }
