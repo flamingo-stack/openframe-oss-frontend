@@ -5,12 +5,13 @@ import type {
   DirectoryConnectionOrderInput,
 } from '@/__generated__/tenantsTableQuery.graphql';
 import {
-  type DirectoryAccessState,
+  DirectoryAccessState,
   DirectoryConnectionSortField,
-  type DirectoryLicenseFilter,
-  type DirectoryProvider,
+  DirectoryLicenseFilter,
+  DirectoryProvider,
   SortDirection,
 } from '@/generated/schema-enums';
+import { knownValues } from '@/lib/exhaustive-map';
 
 /** The funnels' ticks, by column id; the Tenant funnel offers providers. */
 export type TenantSelections = Record<TenantsTableFilterColumn, string[]>;
@@ -22,11 +23,14 @@ export function toTenantFilter({
   licenses,
   access,
 }: TenantSelections): DirectoryConnectionFilterInput | null {
+  const providers = knownValues(DirectoryProvider, tenant);
+  const licenseFilters = knownValues(DirectoryLicenseFilter, licenses);
+  const accessStates = knownValues(DirectoryAccessState, access);
   const filter: DirectoryConnectionFilterInput = {
-    ...(tenant.length > 0 && { providers: tenant as DirectoryProvider[] }),
+    ...(providers.length > 0 && { providers }),
     ...(customer.length > 0 && { organizationIds: customer }),
-    ...(licenses.length > 0 && { licenses: licenses as DirectoryLicenseFilter[] }),
-    ...(access.length > 0 && { accessStates: access as DirectoryAccessState[] }),
+    ...(licenseFilters.length > 0 && { licenses: licenseFilters }),
+    ...(accessStates.length > 0 && { accessStates }),
   };
   return Object.keys(filter).length > 0 ? filter : null;
 }

@@ -15,9 +15,12 @@
  * "key not in the map" stays a runtime possibility — but it now means the
  * server is ahead of us, not that a branch was forgotten. Callers decide what
  * that renders as (usually the raw value, or a neutral tag).
+ *
+ * Own keys only: the key comes off the wire or the URL, and `in` would answer
+ * `toString` or `__proto__` with what the map inherits from `Object.prototype`.
  */
 export function presentationFor<K extends string, V>(map: Record<K, V>, key: string | null | undefined): V | undefined {
-  return key != null && key in map ? map[key as K] : undefined;
+  return key != null && Object.hasOwn(map, key) ? map[key as K] : undefined;
 }
 
 /**
@@ -27,4 +30,12 @@ export function presentationFor<K extends string, V>(map: Record<K, V>, key: str
  */
 export function knownValue<T extends string>(values: Record<string, T>, value: string | null | undefined): T | null {
   return value != null && (Object.values(values) as string[]).includes(value) ? (value as T) : null;
+}
+
+/**
+ * {@link knownValue} over a list, e.g. a funnel's ticks from the URL: the values this build knows, in their order, the
+ * rest dropped, so a hand-edited or stale URL cannot send the server an unknown enum.
+ */
+export function knownValues<T extends string>(values: Record<string, T>, selected: readonly string[]): T[] {
+  return selected.map(value => knownValue(values, value)).filter((value): value is T => value !== null);
 }

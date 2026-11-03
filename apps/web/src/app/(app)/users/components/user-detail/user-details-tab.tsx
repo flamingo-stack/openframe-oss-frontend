@@ -10,10 +10,12 @@ import type {
 } from '@/__generated__/userDetailsTab_person.graphql';
 import { CustomerInfoCell } from '@/app/components/shared';
 import { InfoCell } from '@/app/components/shared/info-cell';
+import { toCustomerOption } from '@/graphql/directory/customer-option';
 import { formatDate } from '@/lib/format-date';
 import { parseInstant } from '@/lib/graphql-scalars';
 import { getFullImageUrl } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
+import { readUserPhone } from '../../utils/user-phone';
 import {
   lastSignInLabel,
   secondFactorValue,
@@ -28,12 +30,7 @@ const userDetailsTabFragment = graphql`
   fragment userDetailsTab_person on DirectoryPerson {
     customers {
       organization {
-        organizationId
-        name
-        image {
-          imageUrl
-          hash
-        }
+        ...customerOption_organization
       }
     }
     accounts {
@@ -47,7 +44,7 @@ const userDetailsTabFragment = graphql`
       lastSignInAt
       signInData
       directoryCreatedAt
-      phone
+      ...userPhone_account
       details {
         aliases
         jobTitle
@@ -56,8 +53,6 @@ const userDetailsTabFragment = graphql`
           displayName
           email
         }
-        businessPhones
-        mobilePhone
         otherAdminRoles
       }
     }
@@ -105,35 +100,35 @@ function StatusValue({ account }: { account: Account | null }) {
  * linked name; several are all of them, in rule order; none is the empty mark.
  */
 function CustomerValue({ person }: { person: userDetailsTab_person$data | null }) {
-  const claims = person?.customers ?? [];
-  if (claims.length > 1) {
+  const customers = (person?.customers ?? []).map(claim => toCustomerOption(claim.organization));
+  if (customers.length > 1) {
     return (
       <InfoCell
         label="Customer"
-        value={claims.map(({ organization }, index) => (
-          <span key={organization.organizationId}>
+        value={customers.map(({ organizationId, name }, index) => (
+          <span key={organizationId}>
             {index > 0 && ', '}
             <Link
-              href={routes.customers.details(organization.organizationId)}
+              href={routes.customers.details(organizationId)}
               className="text-ods-accent underline hover:opacity-80"
             >
-              {organization.name}
+              {name}
             </Link>
           </span>
         ))}
       />
     );
   }
-  const [claim] = claims;
+  const [customer] = customers;
   return (
     <CustomerInfoCell
       label="Customer"
       customer={
-        claim
+        customer
           ? {
-              id: claim.organization.organizationId,
-              name: claim.organization.name,
-              logoUrl: getFullImageUrl(claim.organization.image?.imageUrl, claim.organization.image?.hash),
+              id: customer.organizationId,
+              name: customer.name,
+              logoUrl: getFullImageUrl(customer.image?.imageUrl, customer.image?.hash),
             }
           : null
       }
@@ -157,10 +152,7 @@ function UserDetailsCards({ person }: { person: userDetailsTab_person$data | nul
   const roles = account?.details?.otherAdminRoles;
   const created = account?.directoryCreatedAt ? parseInstant(account.directoryCreatedAt) : null;
   // The local phone is stored, so a failed live read still shows it (contract §2). Edit User clears it to `''`.
-  const phone =
-    account && !account.details
-      ? account.phone || NOT_AVAILABLE
-      : liveValue(account, details => details.mobilePhone ?? details.businessPhones[0] ?? account?.phone ?? null);
+  const phone = account ? readUserPhone(account).phone || (account.details ? NOT_SET : NOT_AVAILABLE) : null;
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">

@@ -48,6 +48,7 @@ import { InsightSeverity, InsightStatus, InsightType } from '@/generated/schema-
 import { archiveResolvedInsightsMutation } from '@/graphql/insights/archive-resolved-insights-mutation';
 import { incidentsTableRelayFragment, incidentsTableRelayQuery } from '@/graphql/insights/incidents-table-relay';
 import { insightFacetsFragment } from '@/graphql/insights/insight-facets';
+import { knownValues } from '@/lib/exhaustive-map';
 import { formatDateTime } from '@/lib/format-date';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { openInNewTab } from '@/lib/open-in-new-tab';
@@ -64,7 +65,6 @@ import { type MingoAction, mingoActionFor, useFixWithMingo } from '../hooks/use-
 import { useLatestIncidentDialogs } from '../hooks/use-incident-dialogs';
 import { useIncidentTransitions } from '../hooks/use-incident-transitions';
 import {
-  enumMembers,
   ALL_INCIDENT_STATUSES,
   INCIDENT_SEVERITY_LABELS,
   INCIDENT_STATUS_LABELS,
@@ -708,10 +708,10 @@ function IncidentsList({
   // The deps are the arrays, not `selections`, which the caller rebuilds every render.
   const { type, organizationId, severity, status, assigneeId } = selections;
   const { backendFilters, tableFilters } = useMemo(() => {
-    const types = enumMembers(type, InsightType);
-    const severities = enumMembers(severity, InsightSeverity);
+    const types = knownValues(InsightType, type);
+    const severities = knownValues(InsightSeverity, severity);
     const chosenStatuses =
-      statuses.length > 1 ? enumMembers(status, InsightStatus).filter(value => statuses.includes(value)) : [];
+      statuses.length > 1 ? knownValues(InsightStatus, status).filter(value => statuses.includes(value)) : [];
     const filter: InsightFilter = {
       statuses: chosenStatuses.length > 0 ? chosenStatuses : [...defaultStatuses],
       ...(types.length > 0 && { types }),

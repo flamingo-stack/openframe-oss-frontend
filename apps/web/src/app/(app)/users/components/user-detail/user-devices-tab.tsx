@@ -28,8 +28,10 @@ import { liveColumnMeta, oneLineEmptyState, useRetryKey } from '@/app/components
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
+import { toCustomer } from '@/graphql/directory/customer-claim-fields';
+import { toCustomerOption } from '@/graphql/directory/customer-option';
 import { type LinkMachine, toLinkMachine } from '@/graphql/directory/link-machine-fields';
-import { getFullImageUrl } from '@/lib/image-url';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { deviceOrigin, matchedKeysLabel, recordDetail } from '../../utils/device-presentation';
@@ -51,11 +53,7 @@ const userDevicesTabRecordFragment = graphql`
       provider
     }
     customers {
-      name
-      image {
-        imageUrl
-        hash
-      }
+      ...customerOption_organization
     }
     suggestions {
       matchedKeys
@@ -148,11 +146,7 @@ function readRecord(ref: userDevicesTab_record$key) {
     os: record.operatingSystem,
     customer: {
       id: record.id,
-      customers: record.customers.map(customer => ({
-        name: customer.name,
-        imageUrl: getFullImageUrl(customer.image?.imageUrl, customer.image?.hash),
-        claim: null,
-      })),
+      customers: record.customers.map(customer => toCustomer(toCustomerOption(customer))),
       tenant: record.connection,
     } satisfies UserRow,
     suggestions,
@@ -257,7 +251,7 @@ function OsCell({ row }: { row: DeviceRow }) {
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
       <OSTypeBadge osType={row.os ?? undefined} iconOnly iconSize="w-4 h-4 content-md:w-6 content-md:h-6" />
-      <TruncateText loading={row.os === undefined}>{row.os ?? '—'}</TruncateText>
+      <TruncateText loading={row.os === undefined}>{row.os ?? EMPTY_VALUE}</TruncateText>
     </div>
   );
 }
@@ -300,7 +294,7 @@ const getRowId = (row: { id: string }) => row.id;
 const DEVICES_SKELETON_ROWS = 2;
 const SUGGESTED_SKELETON_ROWS = 1;
 
-function useDeviceColumns(onLink: (record: LinkRecord) => void): ColumnDef<DeviceRow>[] {
+function deviceColumns(onLink: (record: LinkRecord) => void): ColumnDef<DeviceRow>[] {
   return [
     {
       id: DEVICE_COLUMNS.device.id,
@@ -371,7 +365,7 @@ function PossibleMatchCell({ row }: { row: SuggestedRow }) {
   );
 }
 
-function useSuggestedColumns(onLink: (record: LinkRecord) => void): ColumnDef<SuggestedRow>[] {
+function suggestedColumns(onLink: (record: LinkRecord) => void): ColumnDef<SuggestedRow>[] {
   return [
     {
       id: SUGGESTED_COLUMNS.device.id,
@@ -414,7 +408,7 @@ function DevicesTable({ rows, onLink }: { rows: readonly DeviceRow[] | null; onL
   );
   const table = useDataTable<DeviceRow>({
     data: placeholderRows ?? ((rows ?? []) as DeviceRow[]),
-    columns: useDeviceColumns(onLink),
+    columns: deviceColumns(onLink),
     getRowId,
     enableSorting: false,
   });
@@ -433,7 +427,7 @@ function DevicesTable({ rows, onLink }: { rows: readonly DeviceRow[] | null; onL
 function SuggestedDevices({ rows, onLink }: { rows: readonly SuggestedRow[]; onLink: (record: LinkRecord) => void }) {
   const table = useDataTable<SuggestedRow>({
     data: rows as SuggestedRow[],
-    columns: useSuggestedColumns(onLink),
+    columns: suggestedColumns(onLink),
     getRowId,
     enableSorting: false,
   });

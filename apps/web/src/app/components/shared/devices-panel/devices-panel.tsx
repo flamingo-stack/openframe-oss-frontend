@@ -49,24 +49,19 @@ const PENDING_ACTIONS_COLUMN = getDeviceActionsColumn<Device>();
 interface DirectoryPanelState {
   /** USER and SOURCES are drawn (Figma 865:55733, 187:61663), and those filters in the address apply. */
   columns: boolean;
-  /** The rows are not drawn yet: the answer that would add two columns under them is on its way. */
-  holdRows: boolean;
+  /** The count is out: the answer that would add two columns is on its way. */
+  countOut: boolean;
 }
 
 /**
- * The panel's one read of the directory gate. Only the drawing of the rows waits for it: the list is asked for at once,
- * so the count costs a list that fails no extra time.
- *
- * Only a count that started with the page holds the rows. A flag that answers later (its query failed, then a reconnect)
- * adds the columns under drawn rows instead of pulling the rows, a typed search and an open modal away, and a flag that
- * never answers (the session is failing) holds nothing.
+ * The panel's one read of the directory gate. Only the drawing of the rows waits for it (`DevicesPanelContent`): the
+ * list is asked for at once, so the count costs a list that fails no extra time.
  */
 function useDirectoryPanelState(panel: DevicesPanelProps): DirectoryPanelState {
   const gate = useDirectoryGate();
   const flag = useTenantManagementGate();
-  const [countStartedWithPage] = useState(flag === 'on');
-  if (panel.withoutDirectory) return { columns: false, holdRows: false };
-  return { columns: gate === 'on', holdRows: countStartedWithPage && gate === 'loading' };
+  if (panel.withoutDirectory) return { columns: false, countOut: false };
+  return { columns: gate === 'on', countOut: flag === 'on' && gate === 'loading' };
 }
 
 /** The per-row overflow menu. Post-action list refresh is handled centrally, so it takes no callback. */
@@ -161,8 +156,16 @@ function DevicesPanelContent(body: DevicesPanelBodyProps) {
   const list = useDevices(deferredFilters, deferredSearch);
   const epoch = useDeviceEpoch();
 
+  // Only a count that is out when the list first answers holds the rows: on a cold load the flag answers while the list
+  // is out, and the count goes after it. Read on the render that commits, as the ones that suspended on the list are
+  // thrown away. A flag that answers after the rows are drawn (its query failed, then a reconnect) adds the columns under
+  // them instead of pulling the rows, a typed search and an open modal away, and a flag that never answers (the session
+  // is failing) holds nothing.
+  const [countOutAtFirstDraw] = useState(directory.countOut);
+  const holdRows = countOutAtFirstDraw && directory.countOut;
+
   const renderPanel = (fleetFacets: DeviceFilters | null) =>
-    directory.holdRows ? (
+    holdRows ? (
       <DevicesPanelPending {...body} />
     ) : (
       <DevicesPanelLoaded
@@ -250,13 +253,14 @@ function DevicesPanelLoaded({
   // The grid where its switch is drawn, the table on a narrower page (`devicesViewMode`).
   const viewMode = devicesViewMode(params.viewMode, useContentMdUp());
 
-  const hasActiveDeviceFilters =
-    params.statuses.length > 0 ||
-    params.osTypes.length > 0 ||
-    params.organizationIds.length > 0 ||
-    params.userLinks.length > 0 ||
-    params.directorySources.length > 0 ||
-    params.tags.length > 0;
+  // The status column reflects only the user's explicit selection — the default
+  // statuses are a query-side fallback and must not render as checked filters.
+  const columnFilters = useMemo<ColumnFiltersState>(
+    () => Object.entries(tableFilters).flatMap(([id, value]) => (value.length > 0 ? [{ id, value }] : [])),
+    [tableFilters],
+  );
+
+  const hasActiveDeviceFilters = columnFilters.length > 0 || params.tags.length > 0;
 
   // Pristine, genuinely-empty view (no search, no filters, no devices): show the
   // empty state instead of the toolbar + list, when one is provided.
@@ -278,19 +282,6 @@ function DevicesPanelLoaded({
   // the device query roots, so no per-row refetch callback is needed.
   // The row menus disable Remote Control on DENY_ACCESS; only the table has them.
   useRowRemoteAccessPolicies(readOnlyRows || viewMode !== 'table' ? [] : devices);
-
-  // The status column reflects only the user's explicit selection — the default
-  // statuses are a query-side fallback and must not render as checked filters.
-  const columnFilters = useMemo<ColumnFiltersState>(
-    () => [
-      ...(params.statuses.length > 0 ? [{ id: 'status', value: params.statuses }] : []),
-      ...(params.osTypes.length > 0 ? [{ id: 'os', value: params.osTypes }] : []),
-      ...(params.organizationIds.length > 0 ? [{ id: 'organization', value: params.organizationIds }] : []),
-      ...(params.userLinks.length > 0 ? [{ id: 'user', value: params.userLinks }] : []),
-      ...(params.directorySources.length > 0 ? [{ id: 'sources', value: params.directorySources }] : []),
-    ],
-    [params.statuses, params.osTypes, params.organizationIds, params.userLinks, params.directorySources],
-  );
 
   const onColumnFiltersChange = useCallback<OnChangeFn<ColumnFiltersState>>(
     updater => {

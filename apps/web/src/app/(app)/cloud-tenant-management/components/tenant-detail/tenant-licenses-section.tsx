@@ -25,6 +25,7 @@ import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { DirectoryLicenseSortField, DirectoryProvider, SortDirection } from '@/generated/schema-enums';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { TenantNotice } from './tenant-notice';
 
 // Its own query: search and sort ask the server again, and the page's record should not wait for them. The snapshot of
@@ -71,6 +72,9 @@ const SORT_FIELDS = {
 };
 
 type LicenseSort = { id: string; desc: boolean };
+
+/** The phone's sort window carries the sorted column as its one filter (see its `onFilterChange`). */
+const SORT_FILTER = 'sort';
 
 function toOrderBy(sort: LicenseSort | null): DirectoryLicenseOrderInput | null {
   if (!sort) return null;
@@ -120,7 +124,7 @@ function licenseColumns(showUnused: boolean): ColumnDef<LicenseRow>[] {
             header: LICENSE_COLUMNS.unused.header,
             cell: ({ row }: { row: Row<LicenseRow> }) => (
               <TruncateText loading={row.original.assigned === undefined}>
-                {row.original.unused == null ? '—' : String(row.original.unused)}
+                {row.original.unused == null ? EMPTY_VALUE : String(row.original.unused)}
               </TruncateText>
             ),
             enableSorting: false,
@@ -294,7 +298,12 @@ export function TenantLicensesSection({ id, provider }: { id: string; provider: 
         onClose={() => setSortOpen(false)}
         title="Sort"
         filterGroups={[]}
-        onFilterChange={() => setSort(null)}
+        // FilterModal's Reset reaches only `onFilterChange`, which Apply calls too: Reset with no filters, Apply with the
+        // window's current ones. The sort rides as the window's one filter, so Reset clears it and Apply keeps it.
+        currentFilters={sort ? { [SORT_FILTER]: [sort.id] } : {}}
+        onFilterChange={filters => {
+          if (!filters[SORT_FILTER]) setSort(null);
+        }}
         sortConfig={{
           columns: noTotals
             ? [{ key: LICENSE_COLUMNS.assigned.id, label: LICENSE_COLUMNS.assigned.header }]
@@ -305,7 +314,7 @@ export function TenantLicensesSection({ id, provider }: { id: string; provider: 
           sortBy: sort?.id,
           sortDirection: sort?.desc ? 'desc' : 'asc',
         }}
-        onSort={(id_, direction) => setSort({ id: id_, desc: direction === 'desc' })}
+        onSort={(columnId, direction) => setSort({ id: columnId, desc: direction === 'desc' })}
         onSortClear={() => setSort(null)}
       />
     </section>

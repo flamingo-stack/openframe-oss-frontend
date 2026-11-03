@@ -24,8 +24,10 @@ const RECORD_LOADING: EditUserRecordState = { status: 'loading' };
 export function EditUserView({ id }: { id: string }) {
   const router = useRouter();
   const [state, setState] = useState<EditUserRecordState>(RECORD_LOADING);
-  const record = state.status === 'ready' ? state.record : null;
-  const { form, isSubmitting, handleSave } = useEditUserForm(record);
+  const ready = state.status === 'ready';
+  // `record` is the one the form was seeded from, not the latest read: the fields lock by what Save diffs against. It
+  // is never cleared, so Save also waits on a read that still finds the user.
+  const { form, record, isSubmitting, handleSave } = useEditUserForm(ready ? state.record : null);
   const handleBack = useSafeBack(routes.users.details(id));
 
   const actions: PageActionButton[] = [
@@ -34,7 +36,7 @@ export function EditUserView({ id }: { id: string }) {
       label: 'Save User',
       variant: 'accent',
       onClick: handleSave,
-      disabled: !record || record.customers.length === 0 || isSubmitting,
+      disabled: !ready || !record || record.customers.length === 0 || isSubmitting,
       loading: isSubmitting,
     },
   ];

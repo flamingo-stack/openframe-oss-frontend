@@ -35,26 +35,26 @@ export function useEditTenantForm(id: string, stored: TenantFormRecord | null) {
     defaultValues: TENANT_FORM_DEFAULT_VALUES,
     mode: 'onChange',
   });
-  useSeedForm(form, stored?.values ?? null);
+  // Each form diffs against the record it was seeded from: a refetch landing on a dirty form does not reseed it, and
+  // the two forms take or skip one independently.
+  const seeded = useSeedForm(form, stored, record => record.values);
   const attribution = useAttributionForm(ATTRIBUTION_DEFAULT_VALUES, stored?.attribution.values ?? null);
 
   const handleSave = () => {
-    if (!stored) return;
+    const seededAttribution = attribution.seeded;
+    if (!stored || !seeded || !seededAttribution) return;
     // Untouched customers are neither checked nor sent: a rename does not wait on a customer nobody picked.
-    const changedAttribution = attributionChanged(attribution.form.getValues(), stored.attribution.values)
+    const changedAttribution = attributionChanged(attribution.form.getValues(), seededAttribution)
       ? attribution.form
       : null;
     submit(form, changedAttribution, 'Cannot save yet', (values, attributionValues) => {
-      save(
-        integrationInput(changedFields(values, stored.values, ['name']), attributionValues, stored.attribution.values),
-        {
-          placeUserErrors: attribution.placeUserErrors,
-          onSaved: () => {
-            toast({ title: 'Integration saved', description: `${values.name} was updated.`, variant: 'success' });
-            safeBackOrReplace(router, routes.cloudTenantManagement.details(id));
-          },
+      save(integrationInput(changedFields(values, seeded.values, ['name']), attributionValues, seededAttribution), {
+        placeUserErrors: attribution.placeUserErrors,
+        onSaved: () => {
+          toast({ title: 'Integration saved', description: `${values.name} was updated.`, variant: 'success' });
+          safeBackOrReplace(router, routes.cloudTenantManagement.details(id));
         },
-      );
+      });
     });
   };
 

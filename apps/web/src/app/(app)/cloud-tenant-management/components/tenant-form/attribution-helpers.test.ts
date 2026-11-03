@@ -9,10 +9,8 @@ import {
   attributionChanged,
   attributionFieldPath,
   attributionToInput,
-  CONNECTION_MODIFIED_CONCURRENTLY,
   readAttribution,
   type StoredCustomer,
-  userErrorsDescription,
   valuesClaimedElsewhere,
 } from './attribution-helpers';
 import { ATTRIBUTION_MODE, type AttributionFormData } from './attribution.types';
@@ -204,23 +202,5 @@ describe('attributionFieldPath', () => {
     expect(attributionFieldPath('customers[0].rules[0].values', ATTRIBUTION_MODE.SOLE)).toBeNull();
     expect(attributionFieldPath('name', ATTRIBUTION_MODE.SHARED)).toBeNull();
     expect(attributionFieldPath(null, ATTRIBUTION_MODE.SHARED)).toBeNull();
-  });
-});
-
-describe('userErrorsDescription', () => {
-  it('says what to do about a save that crossed another one', () => {
-    expect(userErrorsDescription([{ code: CONNECTION_MODIFIED_CONCURRENTLY, message: 'Connection modified' }])).toMatch(
-      /Reload the page/,
-    );
-  });
-
-  it("lists the API's messages once each", () => {
-    expect(
-      userErrorsDescription([
-        { code: 'RULE_VALUE_UNKNOWN', message: 'Unknown GROUP id: g-gone' },
-        { code: 'RULE_VALUE_UNKNOWN', message: 'Unknown GROUP id: g-gone' },
-        { code: 'CUSTOMER_NOT_FOUND', message: 'Organization not found or not active: old' },
-      ]),
-    ).toBe('Unknown GROUP id: g-gone, Organization not found or not active: old');
   });
 });

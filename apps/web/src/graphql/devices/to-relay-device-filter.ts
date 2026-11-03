@@ -1,5 +1,6 @@
 import type { DeviceFilterInput } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { DeviceStatus, DeviceType, DirectorySource, DirectoryUserLink } from '@/generated/schema-enums';
+import { knownValues } from '@/lib/exhaustive-map';
 
 /** The enum-typed shape the generated Relay operations expect for `DeviceFilterInput`. */
 export interface RelayDeviceFilter {
@@ -13,10 +14,9 @@ export interface RelayDeviceFilter {
   userLinks?: DirectoryUserLink[] | null;
 }
 
-function keepKnown<T extends string>(values: string[] | undefined, allowed: Record<string, T>): T[] | undefined {
-  if (!values) return undefined;
-  const known = new Set<string>(Object.values(allowed));
-  return values.filter((value): value is T => known.has(value));
+/** An unset filter stays null; a set one keeps its known values, and stays set (`[]`) when none of them is. */
+function knownOrNull<T extends string>(values: Record<string, T>, selected: readonly string[] | undefined): T[] | null {
+  return selected == null ? null : knownValues(values, selected);
 }
 
 /**
@@ -32,13 +32,13 @@ function keepKnown<T extends string>(values: string[] | undefined, allowed: Reco
 export function toRelayDeviceFilter(filter: DeviceFilterInput | undefined | null): RelayDeviceFilter | null {
   if (!filter) return null;
   return {
-    statuses: keepKnown(filter.statuses, DeviceStatus) ?? null,
-    deviceTypes: keepKnown(filter.deviceTypes, DeviceType) ?? null,
+    statuses: knownOrNull(DeviceStatus, filter.statuses),
+    deviceTypes: knownOrNull(DeviceType, filter.deviceTypes),
     osTypes: filter.osTypes ?? null,
     organizationIds: filter.organizationIds ?? null,
     tagKeys: filter.tagKeys ?? null,
     tagValues: filter.tagValues ?? null,
-    directorySources: keepKnown(filter.directorySources, DirectorySource) ?? null,
-    userLinks: keepKnown(filter.userLinks, DirectoryUserLink) ?? null,
+    directorySources: knownOrNull(DirectorySource, filter.directorySources),
+    userLinks: knownOrNull(DirectoryUserLink, filter.userLinks),
   };
 }

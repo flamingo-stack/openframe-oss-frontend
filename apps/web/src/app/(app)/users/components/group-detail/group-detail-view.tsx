@@ -6,9 +6,8 @@ import { useRouter } from 'next/navigation';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { groupDetailViewQuery as GroupDetailViewQueryType } from '@/__generated__/groupDetailViewQuery.graphql';
 import { useRetryKey } from '@/app/components/shared';
-import { routes } from '@/lib/routes';
 import { GroupCards } from './group-cards';
-import { GroupDetailTitle, GroupTitle } from './group-detail-title';
+import { GroupDetailTitle, groupPageBackRoute, GroupTitle } from './group-detail-title';
 import { GroupMembersSection } from './group-members-table';
 
 /**
@@ -52,14 +51,7 @@ function TitleQuery(props: IslandProps) {
   return (
     <>
       <GroupTitle customerId={props.customerId} />
-      <NotFoundError
-        message="Group not found"
-        onHome={() =>
-          router.replace(
-            props.customerId ? routes.customers.details(props.customerId, { tab: 'user-groups' }) : routes.users.list,
-          )
-        }
-      />
+      <NotFoundError message="Group not found" onHome={() => router.replace(groupPageBackRoute(props.customerId))} />
     </>
   );
 }

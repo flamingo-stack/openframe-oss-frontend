@@ -33,6 +33,8 @@ function shownErrorPaths(form: UseFormReturn<AttributionFormData>): FieldPath<At
 /**
  * The "Customers and attribution" form of Connect, Edit and Reconnect. `initial` fills it on mount (Connect and
  * Reconnect have their record by then); `seed` fills it once the record arrives (Edit renders before it does).
+ * `seeded` is the seed the form was filled from, null until one was: a later one that lands on a dirty form is not
+ * taken, so it is what Edit diffs the customers against.
  */
 export function useAttributionForm(initial: AttributionFormData, seed: AttributionFormData | null = null) {
   const form = useForm<AttributionFormData>({
@@ -40,7 +42,7 @@ export function useAttributionForm(initial: AttributionFormData, seed: Attributi
     defaultValues: initial,
     mode: 'onChange',
   });
-  useSeedForm(form, seed);
+  const seeded = useSeedForm(form, seed);
 
   // Two rules (All accounts beside another customer, a value in two rules) put their error on a field other than the
   // one that fixes them, and react-hook-form re-checks only the field that changed: a change in the customers re-checks
@@ -67,5 +69,5 @@ export function useAttributionForm(initial: AttributionFormData, seed: Attributi
     }
   };
 
-  return { form, placeUserErrors };
+  return { form, seeded, placeUserErrors };
 }

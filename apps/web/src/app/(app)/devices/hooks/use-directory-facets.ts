@@ -6,6 +6,7 @@ import { graphql } from 'react-relay';
 import type { useDirectoryFacetsQuery } from '@/__generated__/useDirectoryFacetsQuery.graphql';
 import { useNonSuspendingQuery } from '@/app/hooks/use-non-suspending-query';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
+import { withSelected } from '@/lib/facet-options';
 
 const directoryFacetsQuery = graphql`
   query useDirectoryFacetsQuery($filter: DeviceFilterInput, $list: Boolean!) {
@@ -43,29 +44,25 @@ export function useDirectoryFacets(
     enabled,
   );
   const facets = enabled ? data.deviceFilters : undefined;
-  // A string, not arrays: `toRelayDeviceFilter` builds new ones each render, which would defeat the memo below.
-  const selectedKey = enabled ? JSON.stringify([filter?.directorySources ?? [], filter?.userLinks ?? []]) : '[[],[]]';
+  // The URL's values, not `filter`'s: the funnels tick those, and a value `toRelayDeviceFilter` drops must stay on offer
+  // to untick. A string, not arrays: compared by value, so a rebuilt array does not defeat the memo below.
+  const selectedKey = enabled ? JSON.stringify([filters.directorySources ?? [], filters.userLinks ?? []]) : '[[],[]]';
 
   // Memoized because a fresh copy per render rebuilds the table's column defs, as in `useDeviceFilters`.
   return useMemo(() => {
     const [selectedSources, selectedLinks]: string[][] = JSON.parse(selectedKey);
+    const atZero = (value: string) => ({ value, count: 0 });
     return {
       directorySources: withSelected(
         (facets?.directorySources ?? []).map(({ value, count }) => ({ value, count })),
         selectedSources,
+        atZero,
       ),
       userLinks: withSelected(
         (facets?.userLinks ?? []).map(({ value, count }) => ({ value, count })),
         selectedLinks,
+        atZero,
       ),
     };
   }, [facets, selectedKey]);
-}
-
-function withSelected(
-  options: { value: string; count: number }[],
-  selected: string[],
-): { value: string; count: number }[] {
-  const missing = selected.filter(value => !options.some(option => option.value === value));
-  return [...options, ...missing.map(value => ({ value, count: 0 }))];
 }

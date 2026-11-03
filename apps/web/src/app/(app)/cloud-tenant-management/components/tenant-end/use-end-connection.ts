@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation';
 import { graphql, useMutation } from 'react-relay';
 import type { useEndConnectionDeleteMutation } from '@/__generated__/useEndConnectionDeleteMutation.graphql';
 import type { useEndConnectionDisconnectMutation } from '@/__generated__/useEndConnectionDisconnectMutation.graphql';
+import { userErrorsDescription } from '@/lib/form-save';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
-import { userErrorsDescription } from '../tenant-form/attribution-helpers';
 import type { EndConnectionMode } from './end-connection-copy';
 
 const disconnectMutation = graphql`

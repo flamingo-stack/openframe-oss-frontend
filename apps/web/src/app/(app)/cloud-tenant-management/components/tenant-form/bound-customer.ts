@@ -1,7 +1,7 @@
 import { graphql, readInlineData } from 'react-relay';
 import type { boundCustomer_customer$key } from '@/__generated__/boundCustomer_customer.graphql';
-import { type BoundCustomer, storedOption } from './attribution-helpers';
-import { type PickerCustomer, toCustomerOption } from './customer-option';
+import { toCustomerOption } from '@/graphql/directory/customer-option';
+import { type BoundCustomer, type PickerCustomer, storedOption } from './attribution-helpers';
 
 // One selection for a customer bound to a directory, spread wherever one is shown, so every screen names it alike.
 const boundCustomerFragment = graphql`

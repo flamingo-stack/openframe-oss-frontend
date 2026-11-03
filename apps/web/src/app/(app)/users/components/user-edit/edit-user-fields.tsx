@@ -13,14 +13,13 @@ import {
 import { type Control, Controller, type UseFormReturn } from 'react-hook-form';
 import { TenantNotice } from '@/app/(app)/cloud-tenant-management/components/tenant-detail/tenant-notice';
 import { noop } from '@/app/components/shared';
-import { DirectoryUserField } from '@/generated/schema-enums';
 import {
   type EditUserCustomer,
   type EditUserFormData,
   type EditUserRecord,
   editUserNotice,
-  phoneLocked,
-  providerFieldLocked,
+  fieldLocked,
+  type LockableFormField,
   showsLocationFields,
 } from './edit-user-form';
 import { ManagerField } from './manager-field';
@@ -122,7 +121,7 @@ interface EditUserFieldsProps {
 /** The form's fields (Figma 1040:37391). A field the provider does not take stays visible, locked. */
 export function EditUserFields({ form: { control }, record, disabled }: EditUserFieldsProps) {
   const notice = record ? editUserNotice(record) : null;
-  const locked = (field: DirectoryUserField) => disabled || !record || providerFieldLocked(record, field);
+  const locked = (field: LockableFormField) => disabled || !record || fieldLocked(record, field);
   const customerId = record?.customers[0]?.id ?? null;
 
   return (
@@ -136,14 +135,14 @@ export function EditUserFields({ form: { control }, record, disabled }: EditUser
           name="firstName"
           label="First Name"
           placeholder="Enter First Name"
-          disabled={locked(DirectoryUserField.FIRST_NAME)}
+          disabled={locked('firstName')}
         />
         <TextField
           control={control}
           name="lastName"
           label="Last Name"
           placeholder="Enter Last Name"
-          disabled={locked(DirectoryUserField.LAST_NAME)}
+          disabled={locked('lastName')}
         />
         <div className="min-w-0 content-lg:order-first">
           <CustomerField customers={record?.customers ?? []} />
@@ -153,14 +152,14 @@ export function EditUserFields({ form: { control }, record, disabled }: EditUser
           name="department"
           label="Department"
           placeholder="Enter Department"
-          disabled={locked(DirectoryUserField.DEPARTMENT)}
+          disabled={locked('department')}
         />
         <TextField
           control={control}
           name="jobTitle"
           label="Job Title"
           placeholder="Enter Job Title"
-          disabled={locked(DirectoryUserField.JOB_TITLE)}
+          disabled={locked('jobTitle')}
         />
         <Controller
           name="manager"
@@ -174,7 +173,7 @@ export function EditUserFields({ form: { control }, record, disabled }: EditUser
               onChange={field.onChange}
               selected={record?.managerOption ?? null}
               error={error?.message}
-              locked={!record || providerFieldLocked(record, DirectoryUserField.MANAGER)}
+              locked={!record || fieldLocked(record, 'manager')}
               disabled={disabled}
             />
           )}
@@ -188,13 +187,7 @@ export function EditUserFields({ form: { control }, record, disabled }: EditUser
           placeholder="No email"
           disabled
         />
-        <TextField
-          control={control}
-          name="phone"
-          label="Phone"
-          placeholder="Enter Phone"
-          disabled={disabled || !record || phoneLocked(record)}
-        />
+        <TextField control={control} name="phone" label="Phone" placeholder="Enter Phone" disabled={locked('phone')} />
         {showsLocationFields(record) && (
           <>
             <div className="min-w-0 content-lg:col-start-1">
@@ -203,7 +196,7 @@ export function EditUserFields({ form: { control }, record, disabled }: EditUser
                 name="officeLocation"
                 label="Office Location"
                 placeholder="Enter Office Location"
-                disabled={locked(DirectoryUserField.OFFICE_LOCATION)}
+                disabled={locked('officeLocation')}
               />
             </div>
             <TextField
@@ -212,7 +205,7 @@ export function EditUserFields({ form: { control }, record, disabled }: EditUser
               label="Usage Location"
               placeholder="Enter Usage Location"
               maxLength={2}
-              disabled={locked(DirectoryUserField.USAGE_LOCATION)}
+              disabled={locked('usageLocation')}
             />
           </>
         )}

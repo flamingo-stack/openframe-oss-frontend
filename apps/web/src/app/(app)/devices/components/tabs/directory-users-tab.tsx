@@ -23,22 +23,26 @@ import { multiColumnFilter } from '@/app/(app)/software/components/shared/column
 import { UserTabHeading } from '@/app/(app)/users/components/user-detail/user-tab-heading';
 import {
   CustomerCell,
-  DevicesCell,
+  FirstPlusCountCell,
   StatusCell,
   UserCell,
   type UserRow,
 } from '@/app/(app)/users/components/users-list/user-row-cells';
-import { lastSignInLabel, userStatusTag, userStatusTooltip } from '@/app/(app)/users/utils/user-presentation';
+import {
+  DELETED_GROUP_NAME,
+  lastSignInLabel,
+  userStatusTag,
+  userStatusTooltip,
+} from '@/app/(app)/users/utils/user-presentation';
 import { liveColumnMeta, oneLineEmptyState, useRetryKey } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { SearchToolbar } from '@/app/components/shared/search-toolbar';
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
-import { DirectoryDeviceUserLink, OrgUserSource } from '@/generated/schema-enums';
-import { toClaimingCustomer } from '@/graphql/directory/customer-claim-fields';
+import { DirectoryDeviceUserLink } from '@/generated/schema-enums';
+import { toAccountRow } from '@/graphql/directory/account-row-fields';
 import { openInNewTab } from '@/lib/open-in-new-tab';
-import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import type { Device } from '../../types/device.types';
 import { TabEmptyState } from './tab-empty-state';
@@ -54,10 +58,7 @@ const directoryUsersTabQuery = graphql`
           name
         }
         account {
-          id
-          displayName
-          email
-          source
+          ...accountRowFields_account
           status
           statusReason
           statusDetail
@@ -66,9 +67,6 @@ const directoryUsersTabQuery = graphql`
           connection {
             name
             provider
-          }
-          customers {
-            ...customerClaimFields_claim
           }
         }
       }
@@ -82,7 +80,7 @@ const COLUMNS_LAYOUT = {
   user: { id: 'user', header: 'User', width: 'flex-[2] min-w-0' },
   status: { id: 'status', header: 'Status', width: 'flex-none content-md:w-44 content-md:shrink-0' },
   customer: { id: 'customer', header: 'Customer', width: 'flex-[2] min-w-0', hideAt: 'md' },
-  // A row's groups, in the Devices cell's "first +N" form (Figma 1374:241).
+  // A row's groups, "first +N" (Figma 1374:241).
   group: { id: 'group', header: 'Group', width: 'w-40 shrink-0', hideAt: 'lg' },
   open: { id: 'open', width: 'w-12 shrink-0 flex-none', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;
@@ -97,19 +95,13 @@ const NO_SELECTIONS: Selections = { status: [], customer: [], group: [] };
 
 function toRow({ account, link, groups }: DirectoryUser): UserRow {
   return {
-    id: account.id,
-    href: routes.users.details(account.id),
-    name: account.displayName,
-    email: account.email,
-    providers: account.source === OrgUserSource.OPENFRAME ? [] : [account.source],
+    ...toAccountRow(account),
     roleTag: link === DirectoryDeviceUserLink.DECLARED ? 'Primary user' : null,
-    customers: account.customers.map(toClaimingCustomer),
     tenant: account.connection,
     status: userStatusTag(account.status),
     statusTooltip: userStatusTooltip(account.statusReason, account.statusDetail),
     lastSignIn: lastSignInLabel(account.lastSignInAt, account.signInData, 'relative'),
-    // The group names ride the row's Devices slot: the cell that reads "first +N".
-    devices: groups.map(group => group.name ?? 'A deleted group'),
+    groups: groups.map(group => group.name ?? DELETED_GROUP_NAME),
   };
 }
 
@@ -117,7 +109,7 @@ function toRow({ account, link, groups }: DirectoryUser): UserRow {
 const FACETS: Record<keyof Selections, (row: UserRow) => readonly string[]> = {
   status: row => (row.status ? [row.status.label] : []),
   customer: row => (row.customers ?? []).map(customer => customer.name),
-  group: row => row.devices ?? [],
+  group: row => row.groups ?? [],
 };
 
 /** The list is read whole (the field takes no filter), so its funnels narrow here. Values in one block are OR'ed. */
@@ -176,7 +168,7 @@ function buildColumns(options: Record<keyof Selections, DataTableFilterOption[]>
     {
       id: COLUMNS_LAYOUT.group.id,
       header: COLUMNS_LAYOUT.group.header,
-      cell: ({ row }: { row: Row<UserRow> }) => <DevicesCell row={row.original} />,
+      cell: ({ row }: { row: Row<UserRow> }) => <FirstPlusCountCell names={row.original.groups} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,
       meta: liveColumnMeta(COLUMNS_LAYOUT.group, { filter: { options: options.group } }),
@@ -241,7 +233,7 @@ function DirectoryUsersRows({ users }: { users: readonly DirectoryUser[] | null 
   ).map(([column, groupOptions]) => ({
     id: column.id,
     title: column.header,
-    options: groupOptions.map(({ id, label, count }) => ({ id, label, count })),
+    options: groupOptions,
   }));
 
   return (

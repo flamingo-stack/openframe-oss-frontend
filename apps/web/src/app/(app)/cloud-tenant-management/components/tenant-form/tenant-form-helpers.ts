@@ -1,24 +1,17 @@
 // What the New, Connect, Edit and Reconnect forms share: the record as they read it (one selection,
 // spread by every query and mutation that hands a connection to a form), the record → form
-// mapping, the changed-fields diff, the customer picker's options and the invalid-submit feedback
-// (toast, then scroll — Controllers pass no `ref`).
+// mapping, the changed-fields diff and the customer picker's options.
 
-import type { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import type { FieldErrors, FieldValues } from 'react-hook-form';
 import { graphql, readInlineData } from 'react-relay';
 import type {
   tenantFormHelpers_connection$data,
   tenantFormHelpers_connection$key,
 } from '@/__generated__/tenantFormHelpers_connection.graphql';
 import { DirectoryProvider } from '@/generated/schema-enums';
-import { collectFormErrorMessages } from '@/lib/collect-form-error-messages';
 import { knownValue } from '@/lib/exhaustive-map';
-import { scrollToFirstInvalidField } from '@/lib/scroll-to-first-invalid-field';
 import { readAttribution, type StoredAttribution } from './attribution-helpers';
 import { readBoundCustomer } from './bound-customer';
 import type { TenantFormData } from './tenant-form.types';
-
-type Toast = ReturnType<typeof useToast>['toast'];
 
 // The connection as a form sees it. `@inline` so the create mutation can select it too: its
 // response then holds everything the connect step renders, and that step reads the store instead
@@ -114,18 +107,4 @@ export function withBoundOrganization<T extends { readonly organizationId: strin
     return organizations;
   }
   return [bound, ...organizations];
-}
-
-/** The `handleSubmit` error branch: one destructive toast, then the page scrolls to the culprit. */
-export function invalidSubmitHandler<T extends FieldValues>(toast: Toast, title: string) {
-  return (errors: FieldErrors<T>) => {
-    // Every rule of every customer can miss the same kind: each message once.
-    const messages = [...new Set(collectFormErrorMessages(errors))];
-    toast({
-      title,
-      description: messages.length > 0 ? messages.join(', ') : 'Please fill in all required fields.',
-      variant: 'destructive',
-    });
-    scrollToFirstInvalidField();
-  };
 }

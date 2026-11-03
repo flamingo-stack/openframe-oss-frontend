@@ -12,6 +12,11 @@ describe('toFilter', () => {
     expect(toFilter({ ...none, status: ['SUSPENDED'] })).toEqual({ statuses: ['SUSPENDED'] });
   });
 
+  it('drops a status this build does not know, so a stale URL cannot fail the whole query', () => {
+    expect(toFilter({ ...none, status: ['SUSPENDED', 'ARCHIVED'] })).toEqual({ statuses: ['SUSPENDED'] });
+    expect(toFilter({ ...none, status: ['ARCHIVED'] })).toBeNull();
+  });
+
   it('sends the ticked customers (D33)', () => {
     expect(toFilter({ ...none, customer: ['o-1', 'o-2'] })).toEqual({ organizationIds: ['o-1', 'o-2'] });
   });

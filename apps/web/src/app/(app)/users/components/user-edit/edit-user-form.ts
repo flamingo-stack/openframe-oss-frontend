@@ -3,9 +3,12 @@ import { z } from 'zod';
 import type { editUserForm_person$data, editUserForm_person$key } from '@/__generated__/editUserForm_person.graphql';
 import type { UpdateDirectoryUserInput } from '@/__generated__/useEditUserFormMutation.graphql';
 import { DirectoryUserField, OrgUserSource } from '@/generated/schema-enums';
+import { toCustomerOption } from '@/graphql/directory/customer-option';
+import { presentationFor } from '@/lib/exhaustive-map';
 import { parseLocalDate, toLocalDate } from '@/lib/graphql-scalars';
 import { getFullImageUrl } from '@/lib/image-url';
 import { readOnlyTooltip } from '../../utils/group-presentation';
+import { type PhoneTarget, readUserPhone } from '../../utils/user-phone';
 
 const editUserFormFragment = graphql`
   fragment editUserForm_person on DirectoryPerson @inline {
@@ -16,7 +19,6 @@ const editUserFormFragment = graphql`
       displayName
       firstName
       lastName
-      phone
       leavingDate
       readOnlyReasons
       editableFields
@@ -25,21 +27,15 @@ const editUserFormFragment = graphql`
       }
       customers {
         organization {
-          organizationId
-          name
-          image {
-            imageUrl
-            hash
-          }
+          ...customerOption_organization
         }
       }
+      ...userPhone_account
       details {
         jobTitle
         department
         officeLocation
         usageLocation
-        businessPhones
-        mobilePhone
         manager {
           accountId
           displayName
@@ -98,9 +94,6 @@ export const EDIT_USER_DEFAULT_VALUES: EditUserFormData = {
   leavingDate: null,
 };
 
-/** Where the Phone field saves: one field in Figma, three on the wire. It goes back where it was read from. */
-export type PhoneTarget = 'mobile' | 'business' | 'local';
-
 export interface EditUserCustomer {
   id: string;
   name: string;
@@ -127,16 +120,6 @@ export interface EditUserRecord {
 }
 
 type Person = Omit<editUserForm_person$data, ' $fragmentType'>;
-type Account = Person['accounts'][number];
-
-function readPhone(account: Account): Pick<EditUserRecord, 'phoneTarget' | 'otherBusinessPhones'> & { phone: string } {
-  const details = account.details;
-  if (details?.mobilePhone) return { phone: details.mobilePhone, phoneTarget: 'mobile', otherBusinessPhones: [] };
-  const [business, ...others] = details?.businessPhones ?? [];
-  if (business) return { phone: business, phoneTarget: 'business', otherBusinessPhones: others };
-  if (account.phone || !details) return { phone: account.phone ?? '', phoneTarget: 'local', otherBusinessPhones: [] };
-  return { phone: '', phoneTarget: 'business', otherBusinessPhones: [] };
-}
 
 /** The selected account: `directoryUser` puts the requested one first (contract §1). Null when there is none. */
 export function toEditUserRecord(person: Person): EditUserRecord | null {
@@ -145,7 +128,7 @@ export function toEditUserRecord(person: Person): EditUserRecord | null {
   const details = account.details;
   const manager = details?.manager;
   const managerLabel = manager?.displayName ?? manager?.email ?? null;
-  const { phone, phoneTarget, otherBusinessPhones } = readPhone(account);
+  const { phone, target: phoneTarget, otherBusinessPhones } = readUserPhone(account);
   const managerValue = managerLabel ? (manager?.accountId ?? MANAGER_NOT_SYNCED) : null;
   return {
     accountId: account.id,
@@ -153,11 +136,10 @@ export function toEditUserRecord(person: Person): EditUserRecord | null {
     displayName: account.displayName,
     email: account.email ?? null,
     connectionId: account.connection?.id ?? null,
-    customers: account.customers.map(({ organization }) => ({
-      id: organization.organizationId,
-      name: organization.name,
-      imageUrl: getFullImageUrl(organization.image?.imageUrl, organization.image?.hash),
-    })),
+    customers: account.customers.map(claim => {
+      const { organizationId, name, image } = toCustomerOption(claim.organization);
+      return { id: organizationId, name, imageUrl: getFullImageUrl(image?.imageUrl, image?.hash) };
+    }),
     readOnlyReasons: account.readOnlyReasons,
     editableFields: account.editableFields,
     liveRead: details != null,
@@ -190,7 +172,7 @@ export function providerFieldLocked(record: EditUserRecord, field: DirectoryUser
   return record.customers.length === 0 || !record.liveRead || !record.editableFields.includes(field);
 }
 
-export function phoneLocked(record: EditUserRecord): boolean {
+function phoneLocked(record: EditUserRecord): boolean {
   if (record.phoneTarget === 'mobile') return providerFieldLocked(record, DirectoryUserField.MOBILE_PHONE);
   if (record.phoneTarget === 'business') return providerFieldLocked(record, DirectoryUserField.BUSINESS_PHONES);
   // A failed read of a provider account: a local number started now would sit under the provider's unread one.
@@ -227,43 +209,82 @@ const fullName = (first: string, last: string) => [first, last].filter(Boolean).
 
 /**
  * Microsoft's display name does not follow its name parts (Google derives its own), and the app's title reads it. It
- * follows them only when it was exactly first + last; one written by hand stays.
+ * follows the ones Save sends only when it was exactly first + last; one written by hand stays.
  */
-function followingDisplayName(record: EditUserRecord, values: EditUserFormData): string | undefined {
-  if (!record.editableFields.includes(DirectoryUserField.DISPLAY_NAME)) return undefined;
-  const stored = fullName(record.values.firstName, record.values.lastName);
-  const next = fullName(values.firstName, values.lastName);
-  return record.displayName === stored && next !== '' && next !== stored ? next : undefined;
+function followingDisplayName(
+  record: EditUserRecord,
+  stored: EditUserFormData,
+  changes: Partial<UpdateDirectoryUserInput>,
+): string | undefined {
+  if (providerFieldLocked(record, DirectoryUserField.DISPLAY_NAME)) return undefined;
+  const was = fullName(stored.firstName, stored.lastName);
+  const next = fullName(changes.firstName ?? stored.firstName, changes.lastName ?? stored.lastName);
+  return record.displayName === was && next !== '' && next !== was ? next : undefined;
 }
 
 const TEXT_FIELDS = ['firstName', 'lastName', 'department', 'jobTitle', 'officeLocation', 'usageLocation'] as const;
 
+/** The provider field each form field writes; Phone's follows the number it shows (`phoneLocked`). */
+const PROVIDER_FIELD = {
+  firstName: DirectoryUserField.FIRST_NAME,
+  lastName: DirectoryUserField.LAST_NAME,
+  department: DirectoryUserField.DEPARTMENT,
+  jobTitle: DirectoryUserField.JOB_TITLE,
+  officeLocation: DirectoryUserField.OFFICE_LOCATION,
+  usageLocation: DirectoryUserField.USAGE_LOCATION,
+  manager: DirectoryUserField.MANAGER,
+} as const satisfies Record<(typeof TEXT_FIELDS)[number] | 'manager', DirectoryUserField>;
+
+/** A form field the provider can lock: one that writes one provider field, or Phone. */
+export type LockableFormField = keyof typeof PROVIDER_FIELD | 'phone';
+
+/** What the form shows as locked and what Save leaves out: one rule for both. */
+export function fieldLocked(record: EditUserRecord, field: LockableFormField): boolean {
+  return field === 'phone' ? phoneLocked(record) : providerFieldLocked(record, PROVIDER_FIELD[field]);
+}
+
+/**
+ * The stored values as the schema hands them back on submit (trimmed, the usage location upper-cased), so a value
+ * the form returns untouched is no change. One the schema refuses stays as stored: the submit fails on it anyway.
+ */
+function submittedValues(record: EditUserRecord): EditUserFormData {
+  const { shape } = editUserSchema(record.values.usageLocation);
+  const values = { ...record.values };
+  for (const field of [...TEXT_FIELDS, 'phone'] as const) {
+    values[field] = shape[field].safeParse(values[field]).data ?? values[field];
+  }
+  return values;
+}
+
 const leavingDay = (date: Date | null) => (date ? toLocalDate(date) : null);
 
 /**
- * What Save sends, or null when there is nothing to send. Only what changed goes out: an absent field is unchanged
- * (contract §11.5), so nothing the form did not touch can overwrite the provider. `''` clears a provider text field;
- * only `managerId` and `leavingDate` clear on null.
+ * What Save sends, or null when there is nothing to send. Only what changed goes out, and only where the provider
+ * takes it: an absent field is unchanged (contract §11.5), so nothing the form did not touch, and nothing a locked
+ * field holds, can overwrite the provider. `''` clears a provider text field; only `managerId` and `leavingDate`
+ * clear on null.
  */
 export function toUpdateInput(record: EditUserRecord, values: EditUserFormData): UpdateDirectoryUserInput | null {
   const [customer] = record.customers;
   if (!customer) return null;
-  const stored = record.values;
+  const stored = submittedValues(record);
   const changes: Partial<UpdateDirectoryUserInput> = {};
   for (const field of TEXT_FIELDS) {
-    if (values[field] !== stored[field]) changes[field] = values[field];
+    if (!fieldLocked(record, field) && values[field] !== stored[field]) changes[field] = values[field];
   }
-  const displayName = followingDisplayName(record, values);
+  const displayName = followingDisplayName(record, stored, changes);
   if (displayName) changes.displayName = displayName;
-  if (values.manager !== stored.manager) changes.managerId = values.manager;
-  if (values.phone !== stored.phone) Object.assign(changes, phoneInput(record, values.phone));
+  if (!fieldLocked(record, 'manager') && values.manager !== stored.manager) changes.managerId = values.manager;
+  if (!fieldLocked(record, 'phone') && values.phone !== stored.phone) {
+    Object.assign(changes, phoneInput(record, values.phone));
+  }
   const day = leavingDay(values.leavingDate);
   if (day !== leavingDay(stored.leavingDate)) changes.leavingDate = day;
   if (Object.keys(changes).length === 0) return null;
   return { id: record.accountId, organizationId: customer.id, ...changes };
 }
 
-const FORM_FIELD_OF_INPUT: Record<string, keyof EditUserFormData> = {
+const FORM_FIELD_OF_INPUT = {
   firstName: 'firstName',
   lastName: 'lastName',
   department: 'department',
@@ -275,9 +296,9 @@ const FORM_FIELD_OF_INPUT: Record<string, keyof EditUserFormData> = {
   officeLocation: 'officeLocation',
   usageLocation: 'usageLocation',
   leavingDate: 'leavingDate',
-};
+} as const satisfies Partial<Record<keyof UpdateDirectoryUserInput, keyof EditUserFormData>>;
 
 /** The form field a `userErrors[].field` names; `displayName` has none, and neither does an unknown one. */
 export function formFieldOfInput(field: string | null | undefined): keyof EditUserFormData | null {
-  return (field && FORM_FIELD_OF_INPUT[field]) || null;
+  return presentationFor(FORM_FIELD_OF_INPUT, field) ?? null;
 }

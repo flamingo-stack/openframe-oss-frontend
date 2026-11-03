@@ -9,55 +9,29 @@ import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { type UseFormReturn, useForm } from 'react-hook-form';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DirectoryUserField, OrgUserSource } from '@/generated/schema-enums';
 
 // The form module's fragment and the shared barrel's tags need the Babel transform vitest does not run.
+// `readInlineData` hands the node back: the fixture's record carries the nested fragments' fields flat.
 vi.mock('react-relay', async importOriginal => ({
   ...(await importOriginal<Record<string, unknown>>()),
   graphql: () => ({}),
+  readInlineData: (_fragment: unknown, ref: unknown) => ref,
 }));
 // The manager picker reads the directory; nothing here is about it.
 vi.mock('./manager-field', () => ({ ManagerField: () => null }));
 
+import { userRecord } from './__tests__/edit-user-fixtures';
 import { EditUserFields } from './edit-user-fields';
-import { type EditUserFormData, toEditUserRecord } from './edit-user-form';
+import type { EditUserFormData } from './edit-user-form';
 
-type Person = Parameters<typeof toEditUserRecord>[0];
-
-const RECORD = toEditUserRecord({
-  accounts: [
-    {
-      id: 'acc-1',
-      source: OrgUserSource.MICROSOFT_365,
-      email: 'olivia@contoso.com',
-      displayName: 'Olivia Grant',
-      firstName: 'Olivia',
-      lastName: 'Grant',
-      phone: null,
-      leavingDate: null,
-      readOnlyReasons: [],
-      editableFields: Object.values(DirectoryUserField),
-      connection: { id: 'conn-1' },
-      customers: [{ organization: { organizationId: 'org-1', name: 'Northbridge', image: null } }],
-      details: {
-        jobTitle: 'Designer',
-        department: 'Design',
-        officeLocation: null,
-        usageLocation: 'GB',
-        businessPhones: [],
-        mobilePhone: null,
-        manager: null,
-      },
-    },
-  ],
-} as unknown as Person);
+const RECORD = userRecord();
 
 let container: HTMLDivElement;
 let root: Root;
 let form: UseFormReturn<EditUserFormData> | null;
 
 function Harness() {
-  const edit = useForm<EditUserFormData>({ defaultValues: RECORD?.values });
+  const edit = useForm<EditUserFormData>({ defaultValues: RECORD.values });
   useEffect(() => {
     form = edit;
   });

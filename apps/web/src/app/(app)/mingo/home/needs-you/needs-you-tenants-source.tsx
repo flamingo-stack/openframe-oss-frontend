@@ -3,6 +3,7 @@
 import { useLayoutEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { needsYouTenantsSourceQuery as NeedsYouTenantsSourceQueryType } from '@/__generated__/needsYouTenantsSourceQuery.graphql';
+import { boundCustomerOptions } from '@/app/(app)/cloud-tenant-management/components/tenant-form/bound-customer';
 import { useRetryKey } from '@/app/components/shared/content-error-boundary';
 import { failedSyncTenantRow, type ReportSource } from './needs-you-rows';
 
@@ -23,9 +24,7 @@ const needsYouTenantsSourceQuery = graphql`
           name
           provider
           customers {
-            organization {
-              name
-            }
+            ...boundCustomer_customer
           }
         }
       }
@@ -50,7 +49,9 @@ export function NeedsYouTenantsSource({ onReport }: { onReport: ReportSource }) 
           id: node.id,
           name: node.name,
           provider: node.provider,
-          customerName: node.customers.flatMap(customer => customer.organization?.name ?? []).join(', '),
+          customerName: boundCustomerOptions(node.customers)
+            .map(customer => customer.name)
+            .join(', '),
         }),
       ),
     [data.directoryConnections.edges],

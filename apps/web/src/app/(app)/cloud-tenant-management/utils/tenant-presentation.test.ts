@@ -14,11 +14,13 @@ import {
   DirectoryCapability,
   DirectoryConsentIssueKind,
   DirectoryConsentOutcome,
+  DirectoryLicenseFilter,
   DirectoryProvider,
   DirectoryRuleKind,
 } from '@/generated/schema-enums';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDate } from '@/lib/format-date';
+import { asInstant } from '@/lib/graphql-scalars';
 import {
   accessStateHint,
   attributionSummary,
@@ -33,6 +35,7 @@ import {
   formatConnectedAt,
   inactiveCustomerBadge,
   isReadable,
+  licenseFilterLabel,
   missingValuesBadge,
   PROVIDER_ORDER,
   providerErrorLookupUrl,
@@ -143,6 +146,17 @@ describe('capabilityLabels', () => {
       'Admin roles',
     ]);
     expect(capabilityLabels(['MAILBOXES'])).toEqual(['MAILBOXES']);
+  });
+});
+
+describe('licenseFilterLabel', () => {
+  it('labels every Licences funnel option and keeps unknown ones verbatim', () => {
+    expect(Object.values(DirectoryLicenseFilter).map(licenseFilterLabel)).toEqual([
+      'Has unused seats',
+      'No purchased total',
+      'Not read yet',
+    ]);
+    expect(licenseFilterLabel('OVER_ASSIGNED')).toBe('OVER_ASSIGNED');
   });
 });
 
@@ -434,8 +448,9 @@ describe('isSyncPaused', () => {
 
 describe('syncPausedDescription', () => {
   it('names who and when, as far as it is known', () => {
-    expect(syncPausedDescription('Roman Smith', '2026-05-01T10:00:00Z')).toMatch(/^Paused by Roman Smith on .+\.$/);
-    expect(syncPausedDescription(null, '2026-05-01T10:00:00Z')).toMatch(/^Paused on .+\.$/);
+    const at = asInstant('2026-05-01T10:00:00Z');
+    expect(syncPausedDescription('Roman Smith', at)).toMatch(/^Paused by Roman Smith on .+\.$/);
+    expect(syncPausedDescription(null, at)).toMatch(/^Paused on .+\.$/);
     expect(syncPausedDescription('Roman Smith', null)).toBe('Paused by Roman Smith.');
   });
 

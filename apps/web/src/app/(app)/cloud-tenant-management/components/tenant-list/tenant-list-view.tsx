@@ -80,7 +80,7 @@ export function TenantListView({ loading = false }: TenantListViewProps) {
     [selections, params.sortBy, params.sortDirection],
   );
   const { deferredFilters, deferredSearch, isPending } = useDeferredQuery(query, debouncedSearch);
-  const { options, pending } = useTenantFilters(debouncedSearch, query.filter, !loading);
+  const { options, pending } = useTenantFilters(debouncedSearch, query.filter, selections, !loading);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [isEmpty, setIsEmpty] = useState(false);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();

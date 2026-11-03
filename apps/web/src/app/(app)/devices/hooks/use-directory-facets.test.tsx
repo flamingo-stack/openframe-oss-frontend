@@ -114,4 +114,11 @@ describe('useDirectoryFacets', () => {
     await render(true, ['ONLINE'], ['SHARED']);
     expect(latest).toEqual(OPTIONS);
   });
+
+  it('offers a selected value the query no longer sends, so its funnel can untick it', async () => {
+    fetchFn.mockResolvedValue({ data: { deviceFilters: OPTIONS } });
+    await render(true, ['ONLINE'], ['RETIRED']);
+    expect(fetchFn.mock.calls[0][1]).toMatchObject({ filter: { userLinks: [] } });
+    expect(latest).toEqual({ ...OPTIONS, userLinks: [...OPTIONS.userLinks, { value: 'RETIRED', count: 0 }] });
+  });
 });

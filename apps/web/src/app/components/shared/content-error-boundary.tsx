@@ -23,10 +23,12 @@ import { isOfflineError, loadErrorProps } from '@/lib/query-state';
 const RetryKeyContext = createContext(0);
 
 /**
- * The newest key any boundary has committed. A boundary starts from it (or from its parent's, if that is newer) and
- * every retry moves past it, so no boundary reads a key a failed read is retained under. Counted per instance from
- * zero, a boundary nested under one that retried, or one remounted after its own retry (a tab shown again), went back
- * to the key that failed and rethrew it. Written only on commit and in event handlers, never during render.
+ * The newest key any boundary has committed. A boundary starts from it (or from its parent's, if that is newer), and
+ * every retry and every committed failure moves past it, so no boundary reads a key a failed read is retained under.
+ * Counted per instance from zero, a boundary nested under one that retried, or one remounted after its own retry (a tab
+ * shown again), went back to the key that failed and rethrew it; one remounted after a failure it never retried (a tab
+ * switched away and back) started on that key and tripped with no request. Written only on commit and in event
+ * handlers, never during render.
  */
 let latestRetryKey = 0;
 
@@ -50,6 +52,12 @@ interface ContentErrorBoundaryProps {
   message?: string;
   /** Ran alongside the internal retry, for surfaces with their own refetch. */
   onRetry?: () => void;
+  /**
+   * Called with what was caught, in the commit that shows the failed state; never for `notFound()`/`redirect()`. For a
+   * caller whose own state must follow the failure: an update made here renders before the browser paints the
+   * fallback, where one made from the fallback's effect can land a frame after it.
+   */
+  onError?: (error: unknown) => void;
   /** Console prefix identifying the surface. */
   label?: string;
   /**
@@ -246,8 +254,11 @@ export class ContentErrorBoundary extends Component<ContentErrorBoundaryProps, C
   }
 
   componentDidCatch(error: unknown) {
+    // Commit phase on mount and on update alike: the failed key is retained, so the next boundary to mount starts past it.
+    latestRetryKey = Math.max(latestRetryKey, this.state.retryKey + 1);
     if (isControlFlowError(error)) return;
     console.error(`[${this.props.label ?? 'ContentErrorBoundary'}]`, error);
+    this.props.onError?.(error);
   }
 
   private retry = () => {

@@ -7,7 +7,7 @@ import { Controller, type UseFormReturn, useFieldArray, useForm, useWatch } from
 import { knownValue } from '@/lib/exhaustive-map';
 import { ruleKindLabel, ruleKindPlural, ruleKindsFor } from '../../utils/tenant-presentation';
 import { AttributionCustomerCard } from './attribution-customer-card';
-import type { StoredAttribution } from './attribution-helpers';
+import type { PickerCustomer, StoredAttribution } from './attribution-helpers';
 import {
   ATTRIBUTION_DEFAULT_VALUES,
   ATTRIBUTION_MODE,
@@ -15,7 +15,6 @@ import {
   type AttributionMode,
   newRule,
 } from './attribution.types';
-import type { PickerCustomer } from './customer-option';
 import { CustomerSelect } from './customer-select';
 
 // "Customers and attribution" (Figma 3126-14295, 3562-27470 → 27507): one customer that owns the

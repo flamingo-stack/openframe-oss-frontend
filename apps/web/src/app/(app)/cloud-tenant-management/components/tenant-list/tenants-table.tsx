@@ -2,7 +2,6 @@
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
-  lastReadAt,
   type TenantRow,
   type TenantsTableFilters,
   TenantsTableView,
@@ -155,26 +154,22 @@ function TenantsTableQuery({
   const { edges, totalCount } = data.directoryConnections;
   const rows = useMemo<TenantRow[]>(
     () =>
-      edges.map(({ node }) => {
-        // `Instant` scalars are untyped (`any`); `unknown` keeps them out of the rest of the render.
-        const lastSyncAt: unknown = node.lastSyncAt;
-        return {
-          id: node.id,
-          name: node.name,
-          provider: node.provider,
-          domain: node.domain,
-          customers: boundCustomerOptions(node.customers).map(({ name, image }) => ({
-            name,
-            imageUrl: getFullImageUrl(image?.imageUrl, image?.hash),
-          })),
-          userCount: node.userCount,
-          unattributedUserCount: node.unattributedUserCount,
-          accessState: node.access.state,
-          lastReadAt: lastReadAt({ lastSyncAt }),
-          syncPaused: isSyncPaused(node),
-          licenses: node.licenseSummary,
-        };
-      }),
+      edges.map(({ node }) => ({
+        id: node.id,
+        name: node.name,
+        provider: node.provider,
+        domain: node.domain,
+        customers: boundCustomerOptions(node.customers).map(({ name, image }) => ({
+          name,
+          imageUrl: getFullImageUrl(image?.imageUrl, image?.hash),
+        })),
+        userCount: node.userCount,
+        unattributedUserCount: node.unattributedUserCount,
+        accessState: node.access.state,
+        lastReadAt: node.lastSyncAt,
+        syncPaused: isSyncPaused(node),
+        licenses: node.licenseSummary,
+      })),
     [edges],
   );
 

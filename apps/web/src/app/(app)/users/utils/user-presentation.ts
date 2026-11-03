@@ -109,6 +109,14 @@ export function secondFactorValue(state: string): string {
   return presentationFor(SECOND_FACTOR, state) ?? state;
 }
 
+/** The mark in front of an account's name says which console it lives in: none for a user added in OpenFrame (brief). */
+export function providerMarks(source: string): string[] {
+  return source === OrgUserSource.OPENFRAME ? [] : [source];
+}
+
+/** A group a stored membership still names after the provider deleted it. */
+export const DELETED_GROUP_NAME = 'A deleted group';
+
 /** "Name +2": the first of several, counted. The empty mark when there are none. */
 export function firstAndCount(names: readonly string[]): { first: string; more: number } {
   return names.length === 0 ? { first: EMPTY_VALUE, more: 0 } : { first: names[0], more: names.length - 1 };

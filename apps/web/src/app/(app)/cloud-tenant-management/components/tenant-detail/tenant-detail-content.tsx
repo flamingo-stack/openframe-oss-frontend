@@ -51,7 +51,7 @@ interface TenantDetailContentProps {
 const BODY_CLASS = 'flex flex-1 flex-col gap-[var(--spacing-system-l)]';
 
 /** The "…" of a tenant still being read: the trigger is drawn, inert. */
-const LOADING_MENU = (id: string) =>
+const loadingMenu = (id: string) =>
   tenantMenuGroups({ id, readable: true, paused: false, onPause: noop, onResume: noop, busy: true });
 
 /**
@@ -82,7 +82,7 @@ function TenantDetailContentReader(props: TenantDetailContentProps) {
           title={TENANT_DETAIL_TITLE}
           loading
           actions={[editAction(props.id)]}
-          menuActions={LOADING_MENU(props.id)}
+          menuActions={loadingMenu(props.id)}
           loadingActions
         />
         <LoadingScope className={BODY_CLASS}>

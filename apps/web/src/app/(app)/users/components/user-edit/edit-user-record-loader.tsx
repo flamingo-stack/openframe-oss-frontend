@@ -51,7 +51,7 @@ function EditUserRecordQuery({ id, onResolved }: EditUserRecordLoaderProps) {
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
-  // Identity matters: `useSeedForm` seeds once per values object, so it changes only with the record.
+  // Identity matters: `useSeedForm` seeds once per record object, so a new one is built only for a new answer.
   const state = useMemo<EditUserRecordState>(() => {
     if (!directoryUser) return { status: 'missing' };
     const record = readEditUserRecord(directoryUser);

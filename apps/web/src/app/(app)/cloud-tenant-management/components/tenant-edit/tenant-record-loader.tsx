@@ -56,7 +56,7 @@ function TenantRecordQuery({ id, onResolved }: TenantRecordLoaderProps) {
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
-  // Identity matters: `useSeedForm` seeds once per values object, so it changes only with the record.
+  // Identity matters: `useSeedForm` seeds once per record object, so a new one is built only for a new answer.
   const state = useMemo<TenantRecordState>(() => {
     if (!connection) return { status: 'missing' };
     return { status: 'ready', ...readTenantFormRecord(connection) };

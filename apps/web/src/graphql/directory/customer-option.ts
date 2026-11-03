@@ -4,7 +4,8 @@ import type {
   customerOption_organization$key,
 } from '@/__generated__/customerOption_organization.graphql';
 
-// One selection for every customer the picker shows: the listed ones and a connection's bound one.
+// A customer with its logo, one selection for every place that names one: the customer picker's options, a
+// connection's bound customers, the customers that claim a directory account, and a directory device's customers.
 const customerOptionFragment = graphql`
   fragment customerOption_organization on Organization @inline {
     organizationId
@@ -17,9 +18,6 @@ const customerOptionFragment = graphql`
 `;
 
 export type CustomerOption = Omit<customerOption_organization$data, ' $fragmentType'>;
-
-/** A picker's customer. A stored one that is no longer active carries why (`inactiveCustomerBadge`). */
-export type PickerCustomer = CustomerOption & { readonly badge?: string };
 
 export function toCustomerOption(ref: customerOption_organization$key): CustomerOption {
   const { organizationId, name, image } = readInlineData(customerOptionFragment, ref);

@@ -2,6 +2,7 @@ import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/component
 import { graphql, readInlineData } from 'react-relay';
 import type { linkMachineFields_machine$key } from '@/__generated__/linkMachineFields_machine.graphql';
 import { machineLinkFacts, machineSummary } from '@/app/(app)/users/utils/device-presentation';
+import type { Instant } from '@/lib/graphql-scalars';
 
 /** An agent machine as the user's Devices tab and the Link modal name it. */
 export const linkMachineFieldsFragment = graphql`
@@ -28,7 +29,7 @@ export interface LinkMachine {
   hostname: string | null;
   type: string | null;
   status: string | null;
-  lastSeen: string | null;
+  lastSeen: Instant | null;
   summary: string;
   facts: string;
 }

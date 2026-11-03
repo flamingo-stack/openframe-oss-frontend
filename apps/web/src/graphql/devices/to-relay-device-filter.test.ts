@@ -18,4 +18,11 @@ describe('toRelayDeviceFilter', () => {
     expect(filter?.directorySources).toBeNull();
     expect(filter?.userLinks).toBeNull();
   });
+
+  it('keeps a set filter set, as an empty list, when it is empty or none of its values is known', () => {
+    const filter = toRelayDeviceFilter({ statuses: [], deviceTypes: ['NOPE'] });
+
+    expect(filter?.statuses).toEqual([]);
+    expect(filter?.deviceTypes).toEqual([]);
+  });
 });

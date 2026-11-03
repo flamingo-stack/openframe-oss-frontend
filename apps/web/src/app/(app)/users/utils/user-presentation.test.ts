@@ -16,6 +16,7 @@ import {
   firstAndCount,
   groupFeedTag,
   lastSignInLabel,
+  providerMarks,
   secondFactorValue,
   topAdminRole,
   topAdminValue,
@@ -92,6 +93,12 @@ it('labels every second-factor state', () => {
   for (const state of Object.values(SecondFactorState)) {
     expect(secondFactorValue(state)).not.toBe(state);
   }
+});
+
+it('marks an account with its provider, and a user added in OpenFrame with none', () => {
+  expect(providerMarks(OrgUserSource.MICROSOFT_365)).toEqual([OrgUserSource.MICROSOFT_365]);
+  expect(providerMarks(OrgUserSource.GOOGLE_WORKSPACE)).toEqual([OrgUserSource.GOOGLE_WORKSPACE]);
+  expect(providerMarks(OrgUserSource.OPENFRAME)).toEqual([]);
 });
 
 it('names the first of several and counts the rest', () => {

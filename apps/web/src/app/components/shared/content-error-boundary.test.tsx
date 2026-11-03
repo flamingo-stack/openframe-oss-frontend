@@ -4,7 +4,7 @@
  * must not go back to that key. And the key a render derives must come out the same every time React runs that render.
  */
 
-import { act, Suspense, useDeferredValue, useEffect, useState } from 'react';
+import { act, Component, type ReactNode, Suspense, useDeferredValue, useEffect, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ContentErrorBoundary, useRetryKey } from './content-error-boundary';
@@ -15,6 +15,19 @@ function Probe({ name, fails }: { name: string; fails: keyof typeof reads }) {
   const key = useRetryKey();
   if (!reads[fails]) throw new Error(`${name} failed`);
   return <span data-probe={name}>{key}</span>;
+}
+
+/** The keys a read failed under: read again under one, it throws with no request, as Relay's retained rejection does. */
+const retained = new Set<number>();
+
+function RetainedProbe() {
+  const key = useRetryKey();
+  if (retained.has(key)) throw new Error('retained rejection');
+  if (!reads.details) {
+    retained.add(key);
+    throw new Error('details failed');
+  }
+  return <span data-probe="retained">{key}</span>;
 }
 
 let container: HTMLDivElement;
@@ -30,6 +43,7 @@ describe('ContentErrorBoundary retry keys', () => {
   beforeEach(() => {
     reads.header = true;
     reads.details = true;
+    retained.clear();
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -80,6 +94,22 @@ describe('ContentErrorBoundary retry keys', () => {
     expect(keyOf('details')).toBe(retried);
   });
 
+  it('starts a boundary mounted again after a failure, with no Retry, off the key it failed under', () => {
+    reads.details = false;
+    const tab = (
+      <ContentErrorBoundary label="Tab">
+        <RetainedProbe />
+      </ContentErrorBoundary>
+    );
+    act(() => root.render(tab));
+    expect(keyOf('retained')).toBeNull();
+
+    reads.details = true;
+    act(() => root.render(null));
+    act(() => root.render(tab));
+    expect(keyOf('retained')).not.toBeNull();
+  });
+
   it("gives a boundary nested under one its resetKey cleared the outer's new key", () => {
     reads.header = false;
     const page = (resetKey: string) => (
@@ -107,6 +137,120 @@ describe('ContentErrorBoundary retry keys', () => {
     const again = ContentErrorBoundary.getDerivedStateFromProps(props, failed);
     expect(first?.retryKey).toBeGreaterThan(3);
     expect(again?.retryKey).toBe(first?.retryKey);
+  });
+});
+
+/**
+ * A caller whose own state follows the failure (a pick the failed list no longer shows) hears of it in the commit that
+ * shows the fallback, so the fallback is never painted beside the stale state. Next's `notFound()` is not a failure.
+ */
+describe('ContentErrorBoundary onError', () => {
+  class Above extends Component<{ children: ReactNode }, { caught: boolean }> {
+    state = { caught: false };
+    static getDerivedStateFromError() {
+      return { caught: true };
+    }
+    render() {
+      return this.state.caught ? <span data-probe="above" /> : this.props.children;
+    }
+  }
+
+  function NotFound(): never {
+    throw Object.assign(new Error('NEXT_HTTP_ERROR_FALLBACK;404'), { digest: 'NEXT_HTTP_ERROR_FALLBACK;404' });
+  }
+
+  let host: HTMLDivElement;
+  let hostRoot: Root;
+
+  beforeEach(() => {
+    reads.details = true;
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    hostRoot = createRoot(host);
+  });
+
+  afterEach(() => {
+    act(() => hostRoot.unmount());
+    host.remove();
+    vi.restoreAllMocks();
+  });
+
+  it('reports what it caught, once', () => {
+    reads.details = false;
+    const onError = vi.fn();
+    act(() =>
+      hostRoot.render(
+        <ContentErrorBoundary onError={onError}>
+          <Probe name="details" fails="details" />
+        </ContentErrorBoundary>,
+      ),
+    );
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledWith(new Error('details failed'));
+  });
+
+  it('leaves notFound() to the boundary above without reporting it', () => {
+    const onError = vi.fn();
+    act(() =>
+      hostRoot.render(
+        <Above>
+          <ContentErrorBoundary onError={onError}>
+            <NotFound />
+          </ContentErrorBoundary>
+        </Above>,
+      ),
+    );
+    expect(host.querySelector('[data-probe="above"]')).not.toBeNull();
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("puts the caller's update on screen in the same task as the fallback", async () => {
+    const control = { fail: () => undefined as void };
+
+    function Rows({ fails }: { fails: boolean }) {
+      if (fails) throw new Error('rows failed');
+      return null;
+    }
+
+    function Panel() {
+      const [fails, setFails] = useState(false);
+      const [picked, setPicked] = useState(true);
+      useEffect(() => {
+        control.fail = () => setFails(true);
+      }, []);
+      const deferred = useDeferredValue(fails);
+      return (
+        <>
+          <button type="button" disabled={!picked}>
+            Link
+          </button>
+          <ContentErrorBoundary onError={() => setPicked(false)} fallback={() => <span data-failed />}>
+            <Rows fails={deferred} />
+          </ContentErrorBoundary>
+        </>
+      );
+    }
+
+    act(() => hostRoot.render(<Panel />));
+    // What a paint between two tasks would show. Real tasks and no act: act runs them all at once and hides the gap.
+    const painted: boolean[] = [];
+    const observer = new MutationObserver(() => {
+      if (host.querySelector('[data-failed]')) painted.push(host.querySelector('button')?.disabled ?? false);
+    });
+    observer.observe(host, { subtree: true, childList: true, attributes: true });
+    const actEnvironment = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+    const wasActEnvironment = actEnvironment.IS_REACT_ACT_ENVIRONMENT;
+    actEnvironment.IS_REACT_ACT_ENVIRONMENT = false;
+    try {
+      control.fail();
+      await new Promise(resolve => setTimeout(resolve, 50));
+    } finally {
+      observer.disconnect();
+      actEnvironment.IS_REACT_ACT_ENVIRONMENT = wasActEnvironment;
+    }
+    expect(painted).not.toEqual([]);
+    expect(painted).not.toContain(false);
   });
 });
 

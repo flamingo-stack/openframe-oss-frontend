@@ -17,11 +17,14 @@ const groupDetailTitleFragment = graphql`
 
 export const GROUP_DETAIL_TITLE = 'Group Details';
 
-/** The page's title with Back: to the customer's Groups tab it came from, else the Users list. */
+/** Where the group page goes back to, and falls back to: the customer's Groups tab it came from, else the Users list. */
+export function groupPageBackRoute(customerId?: string): string {
+  return customerId ? routes.customers.details(customerId, { tab: 'user-groups' }) : routes.users.list;
+}
+
+/** The page's title with Back (`groupPageBackRoute`). */
 export function GroupTitle({ customerId, adornment }: { customerId?: string; adornment?: ReactNode }) {
-  const handleBack = useSafeBack(
-    customerId ? routes.customers.details(customerId, { tab: 'user-groups' }) : routes.users.list,
-  );
+  const handleBack = useSafeBack(groupPageBackRoute(customerId));
   return (
     <TitleBlock
       title={GROUP_DETAIL_TITLE}

@@ -2,23 +2,18 @@
 'use no memo';
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useRef } from 'react';
-import type { FieldErrors, FieldValues, UseFormReturn } from 'react-hook-form';
+import type { FieldValues, UseFormReturn } from 'react-hook-form';
 import { graphql, useMutation } from 'react-relay';
 import type {
   useSaveIntegrationMutation as SaveIntegrationMutationType,
   UpdateDirectoryConnectionInput,
 } from '@/__generated__/useSaveIntegrationMutation.graphql';
+import { useGuardedSubmit, userErrorsDescription } from '@/lib/form-save';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { scrollToFirstInvalidField } from '@/lib/scroll-to-first-invalid-field';
-import {
-  attributionChanged,
-  attributionToInput,
-  type TenantUserError,
-  userErrorsDescription,
-} from './attribution-helpers';
+import { attributionChanged, attributionToInput, type TenantUserError } from './attribution-helpers';
 import type { AttributionFormData } from './attribution.types';
-import { type EditableField, invalidSubmitHandler } from './tenant-form-helpers';
+import type { EditableField } from './tenant-form-helpers';
 import type { TenantFormData } from './tenant-form.types';
 
 // The writes of Connect, Edit and Reconnect: the connection's changed fields and, when they changed,
@@ -60,15 +55,12 @@ export function integrationInput(
 }
 
 /**
- * One submit at a time: validates `form` and, when given, the attribution form beside it, then hands both values
- * on; an invalid one is toasted under `invalidTitle`. An invalid `form` still shows the customers' problems, so the
- * user sees them all at once. The guard is set on the click — `handleSubmit` awaits the resolver, so a second click
- * can land before the write's in-flight flag disables the button (canon `use-customer-form`) — and cleared once
- * validation has answered.
+ * One submit at a time (`useGuardedSubmit`): validates `form` and, when given, the attribution form beside it, then
+ * hands both values on; an invalid one is toasted under `invalidTitle`. An invalid `form` still shows the customers'
+ * problems, so the user sees them all at once.
  */
 export function useSubmitWithAttribution() {
-  const { toast } = useToast();
-  const inFlightRef = useRef(false);
+  const submit = useGuardedSubmit();
 
   return <T extends FieldValues>(
     form: UseFormReturn<T>,
@@ -76,30 +68,28 @@ export function useSubmitWithAttribution() {
     invalidTitle: string,
     onValid: (values: T, attribution: AttributionFormData | null) => void,
   ) => {
-    if (inFlightRef.current) return;
-    inFlightRef.current = true;
-    const onInvalid = invalidSubmitHandler(toast, invalidTitle);
-    const pass = (values: T, attributionValues: AttributionFormData | null) => {
-      inFlightRef.current = false;
-      onValid(values, attributionValues);
-    };
-    const fail = (errors: FieldErrors) => {
-      inFlightRef.current = false;
-      onInvalid(errors);
-    };
-    void form.handleSubmit(
-      values => {
-        if (!attribution) {
-          pass(values, null);
-          return;
-        }
-        void attribution.handleSubmit(attributionValues => pass(values, attributionValues), fail)();
+    submit<{ values: T; attribution: AttributionFormData | null }>(
+      invalidTitle,
+      (pass, fail) => {
+        void form.handleSubmit(
+          values => {
+            if (!attribution) {
+              pass({ values, attribution: null });
+              return;
+            }
+            void attribution.handleSubmit(
+              attributionValues => pass({ values, attribution: attributionValues }),
+              fail,
+            )();
+          },
+          errors => {
+            if (attribution) void attribution.trigger();
+            fail(errors);
+          },
+        )();
       },
-      errors => {
-        if (attribution) void attribution.trigger();
-        fail(errors);
-      },
-    )();
+      valid => onValid(valid.values, valid.attribution),
+    );
   };
 }
 

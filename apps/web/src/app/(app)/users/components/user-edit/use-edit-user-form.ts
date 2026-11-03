@@ -4,14 +4,12 @@
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
-import { useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { graphql, useMutation } from 'react-relay';
 import type { useEditUserFormMutation as EditUserMutationType } from '@/__generated__/useEditUserFormMutation.graphql';
-import { userErrorsDescription } from '@/app/(app)/cloud-tenant-management/components/tenant-form/attribution-helpers';
-import { invalidSubmitHandler } from '@/app/(app)/cloud-tenant-management/components/tenant-form/tenant-form-helpers';
 import { safeBackOrReplace } from '@/app/hooks/use-safe-back';
 import { useSeedForm } from '@/app/hooks/use-seed-form';
+import { useGuardedSubmit, userErrorsDescription } from '@/lib/form-save';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
 import { scrollToFirstInvalidField } from '@/lib/scroll-to-first-invalid-field';
@@ -24,7 +22,9 @@ import {
   toUpdateInput,
 } from './edit-user-form';
 
-// Selects what the user page reads, so it shows the saved values as soon as the form closes onto it.
+// Selects what the user page reads. The accounts have ids, so their fields update in place and the page shows them as
+// soon as the form closes onto it; the person has none, so its own fields (the title's name, the customers) are stored
+// under this mutation and wait for the page's `store-and-network` refetch.
 const editUserMutation = graphql`
   mutation useEditUserFormMutation($input: UpdateDirectoryUserInput!) {
     updateDirectoryUser(input: $input) {
@@ -48,23 +48,28 @@ const SAVE_FAILED = 'Could not save the user';
 const SYNC_PENDING = 'SYNC_PENDING';
 
 /**
- * The Edit User form (Figma 1040:37391): real from the first paint, seeded from `record` by its `useForm` owner. The
- * page is compiled and only passes `form` through; everything it reads per render comes back as a primitive.
+ * The Edit User form (Figma 1040:37391): real from the first paint, seeded from `loaded` by its `useForm` owner. The
+ * page is compiled and only passes `form` through.
+ *
+ * `record` is the one the form was seeded from: the page draws the fields, their locks and the notice from it, and Save
+ * validates and diffs against it. A refetch that lands on a dirty form does not reseed it, so it must not unlock a
+ * field Save would then drop, nor become Save's baseline, or every untouched field would read as changed.
  */
-export function useEditUserForm(record: EditUserRecord | null) {
+export function useEditUserForm(loaded: EditUserRecord | null) {
   const { toast } = useToast();
   const router = useRouter();
   const [commit, isSaving] = useMutation<EditUserMutationType>(editUserMutation);
-  // `handleSubmit` awaits the resolver, so a second click can land before `isSaving` disables the button.
-  const validatingRef = useRef(false);
+  const submit = useGuardedSubmit();
 
+  // Assigned below: validation runs after the render, by when this is the record the render seeded.
+  let record: EditUserRecord | null = null;
   const form = useForm<EditUserFormData>({
-    // Read on every validation (`control._options`), so it follows the stored value once the record lands.
-    resolver: zodResolver(editUserSchema(record?.values.usageLocation ?? '')),
+    resolver: (values, context, options) =>
+      zodResolver(editUserSchema(record?.values.usageLocation ?? ''))(values, context, options),
     defaultValues: EDIT_USER_DEFAULT_VALUES,
     mode: 'onChange',
   });
-  useSeedForm(form, record?.values ?? null);
+  record = useSeedForm(form, loaded, seeded => seeded.values);
 
   const save = (stored: EditUserRecord, values: EditUserFormData) => {
     const leave = () => safeBackOrReplace(router, routes.users.details(stored.accountId));
@@ -111,20 +116,15 @@ export function useEditUserForm(record: EditUserRecord | null) {
   };
 
   const handleSave = () => {
-    if (!record || validatingRef.current) return;
-    validatingRef.current = true;
-    const onInvalid = invalidSubmitHandler<EditUserFormData>(toast, 'Cannot save yet');
-    void form.handleSubmit(
-      values => {
-        validatingRef.current = false;
-        save(record, values);
-      },
-      errors => {
-        validatingRef.current = false;
-        onInvalid(errors);
-      },
-    )();
+    const stored = record;
+    // The seeded record outlives the read: once a refetch finds no user, there is nothing left to save against.
+    if (!loaded || !stored) return;
+    submit<EditUserFormData>(
+      'Cannot save yet',
+      (pass, fail) => void form.handleSubmit(pass, fail)(),
+      values => save(stored, values),
+    );
   };
 
-  return { form, isSubmitting: isSaving, handleSave };
+  return { form, record, isSubmitting: isSaving, handleSave };
 }

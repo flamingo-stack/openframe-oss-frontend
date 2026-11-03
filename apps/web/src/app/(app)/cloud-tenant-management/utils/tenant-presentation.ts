@@ -20,11 +20,13 @@ import {
   DirectoryCapability,
   DirectoryConsentIssueKind,
   DirectoryConsentOutcome,
+  DirectoryLicenseFilter,
   DirectoryProvider,
   DirectoryRuleKind,
 } from '@/generated/schema-enums';
 import { presentationFor } from '@/lib/exhaustive-map';
 import { formatDate, formatTimeWithSeconds, toValidDate } from '@/lib/format-date';
+import type { Instant } from '@/lib/graphql-scalars';
 
 // The list's own tables (access state tag, provider name and mark, "Last read", user count) live in
 // the core library beside the list view, over unions that restate these schema enums. This is where
@@ -74,7 +76,7 @@ export function isSyncPaused(connection: {
 }
 
 /** "Paused by Roman Smith on 05/01/26." (Figma 3051-7925); a connection paused before this was recorded has neither. */
-export function syncPausedDescription(by: string | null | undefined, at: string | null | undefined): string | null {
+export function syncPausedDescription(by: string | null | undefined, at: Instant | null | undefined): string | null {
   const date = toValidDate(at);
   const on = date ? ` on ${formatDate(date)}` : '';
   if (by) return `Paused by ${by}${on}.`;
@@ -330,6 +332,17 @@ const CAPABILITY_LABELS = {
 /** "Scopes held" — labels in declaration order; an unknown capability keeps its raw name. */
 export function capabilityLabels(capabilities: readonly string[]): string[] {
   return capabilities.map(capability => presentationFor(CAPABILITY_LABELS, capability) ?? capability);
+}
+
+const LICENSE_FILTER_LABELS = {
+  [DirectoryLicenseFilter.HAS_UNUSED_SEATS]: 'Has unused seats',
+  [DirectoryLicenseFilter.NO_PURCHASED_TOTAL]: 'No purchased total',
+  [DirectoryLicenseFilter.NOT_READ_YET]: 'Not read yet',
+} satisfies Record<DirectoryLicenseFilter, string>;
+
+/** An option of the list's Licences funnel; an unknown value keeps its raw name. */
+export function licenseFilterLabel(value: string): string {
+  return presentationFor(LICENSE_FILTER_LABELS, value) ?? value;
 }
 
 const RULE_KIND_LABELS = {

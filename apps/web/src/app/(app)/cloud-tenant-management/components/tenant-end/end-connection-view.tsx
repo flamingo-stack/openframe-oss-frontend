@@ -24,9 +24,9 @@ import {
   customerTenantStepsText,
   deleteSections,
   disconnectSections,
-  type EndConnectionImpact,
   endConnectionIntro,
   type EndConnectionMode,
+  type EndConnectionRecord,
 } from './end-connection-copy';
 import { useEndConnection } from './use-end-connection';
 
@@ -100,18 +100,15 @@ interface EndConnectionPageProps {
   mode: EndConnectionMode;
 }
 
-interface ConnectionRecord {
-  id: string;
-  name: string;
-  provider: string;
-  impact: EndConnectionImpact;
-}
-
 /**
  * The page's frame and everything on it, from the record it is handed (`null` while it is read): the title and the
  * counts are bars, the labels and the sentences that do not depend on the record are real. The button stays locked.
  */
-function EndConnectionPage({ id, mode, connection }: EndConnectionPageProps & { connection: ConnectionRecord | null }) {
+function EndConnectionPage({
+  id,
+  mode,
+  connection,
+}: EndConnectionPageProps & { connection: EndConnectionRecord | null }) {
   const details = routes.cloudTenantManagement.details(id);
   const handleBack = useSafeBack(details);
   const router = useRouter();

@@ -18,10 +18,7 @@ import type {
   groupMembersTable_query$key,
 } from '@/__generated__/groupMembersTable_query.graphql';
 import type { groupMembersTablePaginationQuery as GroupMembersTablePaginationQueryType } from '@/__generated__/groupMembersTablePaginationQuery.graphql';
-import type {
-  DirectoryMembershipScope as ScopeType,
-  groupMembersTableQuery as GroupMembersTableQueryType,
-} from '@/__generated__/groupMembersTableQuery.graphql';
+import type { groupMembersTableQuery as GroupMembersTableQueryType } from '@/__generated__/groupMembersTableQuery.graphql';
 import {
   type InfiniteScroll,
   liveColumnMeta,
@@ -34,10 +31,12 @@ import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-
 import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
-import { DirectoryMembershipScope, OrgUserSource } from '@/generated/schema-enums';
-import { toClaimingCustomer } from '@/graphql/directory/customer-claim-fields';
-import { getFullImageUrl } from '@/lib/image-url';
+import { DirectoryMembershipScope } from '@/generated/schema-enums';
+import { toAccountRow } from '@/graphql/directory/account-row-fields';
+import { toCustomer } from '@/graphql/directory/customer-claim-fields';
+import { toCustomerOption } from '@/graphql/directory/customer-option';
 import { openInNewTab } from '@/lib/open-in-new-tab';
+import { pluralize } from '@/lib/pluralize';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { singleColumnFilter } from '../../../software/components/shared/column-filters';
@@ -45,7 +44,7 @@ import { deviceOrigin } from '../../utils/device-presentation';
 import { nestedGroupLabel, pickMembershipScope } from '../../utils/group-presentation';
 import { topAdminRole } from '../../utils/user-presentation';
 import { UserTabHeading } from '../user-detail/user-tab-heading';
-import { LicensesCell } from '../users-list/user-row-cells';
+import { FirstPlusCountCell } from '../users-list/user-row-cells';
 import { MemberCell, MemberCustomerCell, type MemberRow, MemberTypeCell } from './group-member-row';
 
 const MEMBERS_PAGE_SIZE = 20;
@@ -88,14 +87,9 @@ const groupMembersTableFragment = graphql`
             member {
               __typename
               ... on DirectoryAccount {
-                id
-                displayName
-                email
+                ...accountRowFields_account
                 source
                 topAdmin
-                customers {
-                  ...customerClaimFields_claim
-                }
                 licenses {
                   name
                 }
@@ -112,11 +106,7 @@ const groupMembersTableFragment = graphql`
                 deviceSource: source
                 deviceSourceId: sourceId
                 deviceCustomers: customers {
-                  name
-                  image {
-                    imageUrl
-                    hash
-                  }
+                  ...customerOption_organization
                 }
                 machineLink {
                   machine {
@@ -142,20 +132,17 @@ type MemberNode = NonNullable<groupMembersTable_query$data['directoryGroup']>['m
 function toMemberRow({ member, viaGroup }: MemberNode, customerId: string | undefined): MemberRow | null {
   const via = viaGroup?.name ?? null;
   switch (member.__typename) {
-    case 'DirectoryAccount':
+    case 'DirectoryAccount': {
+      const account = toAccountRow(member);
       return {
-        id: `${member.id}:${via ?? ''}`,
+        ...account,
+        id: `${account.id}:${via ?? ''}`,
         kind: 'user',
-        href: routes.users.details(member.id),
-        name: member.displayName,
-        email: member.email,
-        // A mark says which console the account lives in: none for a user added in OpenFrame (brief).
-        providers: member.source === OrgUserSource.OPENFRAME ? [] : [member.source],
         roleTag: topAdminRole(member.topAdmin, member.source),
-        customers: member.customers.map(toClaimingCustomer),
         licenses: member.licenses.map(license => license.name),
         via,
       };
+    }
     case 'DirectoryGroup':
       return {
         id: `${member.id}:${via ?? ''}`,
@@ -174,11 +161,7 @@ function toMemberRow({ member, viaGroup }: MemberNode, customerId: string | unde
         href: member.machineLink ? routes.devices.details(member.machineLink.machine.machineId) : null,
         name: member.displayName,
         detail: deviceOrigin(member.deviceSource, member.deviceSourceId).member,
-        customers: member.deviceCustomers.map(customer => ({
-          name: customer.name,
-          imageUrl: getFullImageUrl(customer.image?.imageUrl, customer.image?.hash),
-          claim: null,
-        })),
+        customers: member.deviceCustomers.map(customer => toCustomer(toCustomerOption(customer))),
         via,
       };
     default:
@@ -227,7 +210,7 @@ const COLUMNS: ColumnDef<MemberRow>[] = [
   {
     id: MEMBER_COLUMNS.licences.id,
     header: MEMBER_COLUMNS.licences.header,
-    cell: ({ row }: { row: Row<MemberRow> }) => <LicensesCell row={row.original} />,
+    cell: ({ row }: { row: Row<MemberRow> }) => <FirstPlusCountCell names={row.original.licenses} />,
     enableSorting: false,
     meta: liveColumnMeta(MEMBER_COLUMNS.licences),
   },
@@ -250,7 +233,7 @@ interface MembersProps {
   id: string;
   customerId?: string;
   /** Deferred scope: feeds the query. */
-  scope: ScopeType;
+  scope: DirectoryMembershipScope;
   /** Live scope: what the funnel draws as ticked, so a tick lands instantly. */
   liveScope: string;
   onScopeChange: (scope: string) => void;
@@ -276,7 +259,7 @@ export function GroupMembersSection({
   });
   const [filtersOpen, setFiltersOpen] = useState(false);
   const liveScope = params.scope === DirectoryMembershipScope.NESTED ? params.scope : DirectoryMembershipScope.DIRECT;
-  const { deferredFilters: scope, isPending } = useDeferredQuery<ScopeType>(liveScope, '');
+  const { deferredFilters: scope, isPending } = useDeferredQuery<DirectoryMembershipScope>(liveScope, '');
   const onScopeChange = (next: string) => setParam('scope', next);
 
   return (
@@ -313,7 +296,7 @@ export function GroupMembersSection({
           {
             id: 'scope',
             title: 'Membership',
-            options: SCOPE_OPTIONS.map(({ id: value, label }) => ({ id: value, label })),
+            options: SCOPE_OPTIONS,
           },
         ]}
         currentFilters={{ scope: [liveScope] }}
@@ -430,7 +413,7 @@ function MembersRows({
       <div className="flex flex-col gap-[var(--spacing-system-xs)]">
         {hiddenCount > 0 && (
           <p className="text-ods-text-secondary text-h6">
-            {hiddenCount === 1 ? '1 member' : `${hiddenCount} members`} outside this customer
+            {`${pluralize(hiddenCount, 'member')} outside this customer`}
           </p>
         )}
         <LiveTable

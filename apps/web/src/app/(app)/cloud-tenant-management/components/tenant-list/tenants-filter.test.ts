@@ -19,6 +19,18 @@ describe('toTenantFilter', () => {
       accessStates: ['DISCONNECTED'],
     });
   });
+
+  it('drops a value this build does not know, so a stale URL cannot fail the whole query', () => {
+    expect(
+      toTenantFilter({
+        ...NONE,
+        tenant: ['MICROSOFT_365', 'ZOHO'],
+        licenses: ['HAS_UNUSED_SEATS', 'GONE'],
+        access: ['DISCONNECTED', 'PAUSED'],
+      }),
+    ).toEqual({ providers: ['MICROSOFT_365'], licenses: ['HAS_UNUSED_SEATS'], accessStates: ['DISCONNECTED'] });
+    expect(toTenantFilter({ tenant: ['ZOHO'], customer: [], licenses: ['GONE'], access: ['PAUSED'] })).toBeNull();
+  });
 });
 
 describe('toTenantOrderBy', () => {

@@ -4,8 +4,8 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { graphql, useMutation } from 'react-relay';
 import type { useTenantSyncPauseMutation } from '@/__generated__/useTenantSyncPauseMutation.graphql';
 import type { useTenantSyncResumeMutation } from '@/__generated__/useTenantSyncResumeMutation.graphql';
+import { userErrorsDescription } from '@/lib/form-save';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
-import { userErrorsDescription } from '../tenant-form/attribution-helpers';
 
 // By id, so the title's actions, the notice, the card's status and a list row already read update in place.
 const pauseMutation = graphql`

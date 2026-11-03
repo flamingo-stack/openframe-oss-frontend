@@ -2,12 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { DirectoryReadOnlyReason, DirectoryUserField, OrgUserSource } from '@/generated/schema-enums';
 
 // The fragment sits beside the pure mappers under test; the tag would throw at module scope on import. Nothing here
-// reads it.
+// reads it. `readInlineData` hands the node back: the fixtures carry the nested fragments' fields flat.
 vi.mock('react-relay', async importOriginal => ({
   ...(await importOriginal<Record<string, unknown>>()),
   graphql: () => ({}),
+  readInlineData: (_fragment: unknown, ref: unknown) => ref,
 }));
 
+import { type FixtureAccount, LIVE_DETAILS, userRecord as record } from './__tests__/edit-user-fixtures';
 import {
   EDIT_USER_DEFAULT_VALUES,
   type EditUserFormData,
@@ -16,8 +18,8 @@ import {
   NO_CUSTOMER_REASON,
   editUserNotice,
   editUserSchema,
+  fieldLocked,
   formFieldOfInput,
-  phoneLocked,
   providerFieldLocked,
   toEditUserRecord,
   showsLocationFields,
@@ -36,42 +38,6 @@ const GOOGLE_FIELDS = [
 ];
 
 type Person = Parameters<typeof toEditUserRecord>[0];
-type Account = Person['accounts'][number];
-
-const LIVE_DETAILS = {
-  jobTitle: 'Designer',
-  department: 'Design',
-  officeLocation: null,
-  usageLocation: 'GB',
-  businessPhones: [],
-  mobilePhone: null,
-  manager: { accountId: 'acc-9', displayName: 'Alan Johnson', email: 'alan@contoso.com' },
-} satisfies NonNullable<Account['details']>;
-
-function account(overrides: Partial<Account> = {}): Account {
-  return {
-    id: 'acc-1',
-    source: OrgUserSource.MICROSOFT_365,
-    email: 'olivia@contoso.com',
-    displayName: 'Olivia Grant',
-    firstName: 'Olivia',
-    lastName: 'Grant',
-    phone: null,
-    leavingDate: null,
-    readOnlyReasons: [],
-    editableFields: ALL_FIELDS,
-    connection: { id: 'conn-1' },
-    customers: [{ organization: { organizationId: 'org-1', name: 'Northbridge', image: null } }],
-    details: LIVE_DETAILS,
-    ...overrides,
-  } as Account;
-}
-
-function record(overrides: Partial<Account> = {}): EditUserRecord {
-  const read = toEditUserRecord({ accounts: [account(overrides)] } as Person);
-  if (!read) throw new Error('no record');
-  return read;
-}
 
 function saved(stored: EditUserRecord, changes: Partial<EditUserFormData>) {
   return toUpdateInput(stored, { ...stored.values, ...changes });
@@ -83,7 +49,7 @@ describe('toEditUserRecord', () => {
   });
 
   it('seeds the form from the live read and the stored fields', () => {
-    const { values, managerOption, liveRead } = record({ leavingDate: '2027-03-01' as Account['leavingDate'] });
+    const { values, managerOption, liveRead } = record({ leavingDate: '2027-03-01' as FixtureAccount['leavingDate'] });
     expect(values).toMatchObject({ firstName: 'Olivia', jobTitle: 'Designer', usageLocation: 'GB', manager: 'acc-9' });
     expect(values.leavingDate).toEqual(new Date(2027, 2, 1));
     expect(managerOption).toEqual({ value: 'acc-9', label: 'Alan Johnson' });
@@ -122,7 +88,7 @@ describe('toUpdateInput', () => {
   });
 
   it('clears the manager and the leaving date with null', () => {
-    const stored = record({ leavingDate: '2027-03-01' as Account['leavingDate'] });
+    const stored = record({ leavingDate: '2027-03-01' as FixtureAccount['leavingDate'] });
     expect(saved(stored, { manager: null, leavingDate: null })).toMatchObject({ managerId: null, leavingDate: null });
   });
 
@@ -131,8 +97,26 @@ describe('toUpdateInput', () => {
   });
 
   it('does not send a re-picked same day', () => {
-    const stored = record({ leavingDate: '2027-03-01' as Account['leavingDate'] });
+    const stored = record({ leavingDate: '2027-03-01' as FixtureAccount['leavingDate'] });
     expect(saved(stored, { leavingDate: new Date(2027, 2, 1) })).toBeNull();
+  });
+
+  it('reads the stored values as the schema hands them back, so an untouched one with spaces is no change', () => {
+    const stored = record({
+      firstName: ' Olivia ',
+      details: { ...LIVE_DETAILS, department: ' Design ', usageLocation: 'gb', mobilePhone: ' +1 555 ' },
+    });
+    expect(toUpdateInput(stored, editUserSchema(stored.values.usageLocation).parse(stored.values))).toBeNull();
+  });
+
+  it('never sends a field the provider does not take, whatever the form holds', () => {
+    const stored = record({ source: OrgUserSource.GOOGLE_WORKSPACE, editableFields: GOOGLE_FIELDS });
+    expect(saved(stored, { officeLocation: 'Leeds', jobTitle: 'Lead' })).toEqual({
+      id: 'acc-1',
+      organizationId: 'org-1',
+      jobTitle: 'Lead',
+    });
+    expect(saved(record({ details: null }), { jobTitle: 'Lead' })).toBeNull();
   });
 
   describe('Phone', () => {
@@ -210,22 +194,30 @@ describe('locks', () => {
     expect(providerFieldLocked(record({ editableFields: [] }), DirectoryUserField.JOB_TITLE)).toBe(true);
   });
 
+  it('locks a form field by the provider field it writes, as Save leaves it out', () => {
+    const stored = record({ editableFields: ALL_FIELDS.filter(field => field !== DirectoryUserField.MANAGER) });
+    expect(fieldLocked(stored, 'manager')).toBe(true);
+    expect(fieldLocked(stored, 'jobTitle')).toBe(false);
+    expect(saved(stored, { manager: 'acc-2', jobTitle: 'Lead' })).not.toHaveProperty('managerId');
+  });
+
   it('locks Phone with the provider field it saves to', () => {
     const mobile = { details: { ...LIVE_DETAILS, mobilePhone: '+1 555' } };
-    expect(phoneLocked(record(mobile))).toBe(false);
-    expect(phoneLocked(record({ ...mobile, editableFields: [] }))).toBe(true);
-    expect(phoneLocked(record({ editableFields: [] }))).toBe(true);
+    expect(fieldLocked(record(mobile), 'phone')).toBe(false);
+    expect(fieldLocked(record({ ...mobile, editableFields: [] }), 'phone')).toBe(true);
+    expect(fieldLocked(record({ editableFields: [] }), 'phone')).toBe(true);
+    expect(saved(record({ ...mobile, editableFields: [] }), { phone: '+1 556' })).toBeNull();
   });
 
   it('keeps a stored local phone open on a failed read, and does not start one', () => {
-    expect(phoneLocked(record({ details: null, phone: '+1 999' }))).toBe(false);
-    expect(phoneLocked(record({ details: null, phone: null }))).toBe(true);
+    expect(fieldLocked(record({ details: null, phone: '+1 999' }), 'phone')).toBe(false);
+    expect(fieldLocked(record({ details: null, phone: null }), 'phone')).toBe(true);
   });
 
   it('keeps the local phone of an OpenFrame account open', () => {
     const openFrame = { source: OrgUserSource.OPENFRAME, details: null, editableFields: [] };
-    expect(phoneLocked(record(openFrame))).toBe(false);
-    expect(phoneLocked(record({ ...openFrame, customers: [] }))).toBe(true);
+    expect(fieldLocked(record(openFrame), 'phone')).toBe(false);
+    expect(fieldLocked(record({ ...openFrame, customers: [] }), 'phone')).toBe(true);
   });
 
   it('shows the location fields on Microsoft only, also while they are locked', () => {

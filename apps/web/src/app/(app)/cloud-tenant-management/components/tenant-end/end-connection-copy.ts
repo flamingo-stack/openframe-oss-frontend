@@ -1,3 +1,4 @@
+import type { endConnectionViewQuery$data } from '@/__generated__/endConnectionViewQuery.graphql';
 import { DirectoryProvider } from '@/generated/schema-enums';
 import { presentationFor } from '@/lib/exhaustive-map';
 import { pluralize } from '@/lib/pluralize';
@@ -8,13 +9,10 @@ import { pluralize } from '@/lib/pluralize';
 
 export type EndConnectionMode = 'disconnect' | 'delete';
 
-export interface EndConnectionImpact {
-  readonly users: number;
-  readonly groups: number;
-  readonly licenseAssignments: number | null | undefined;
-  readonly cloudOnlyDevices: number;
-  readonly agentDeviceLinks: number;
-}
+/** The connection the page is about, as its query reads it. */
+export type EndConnectionRecord = NonNullable<endConnectionViewQuery$data['directoryConnection']>;
+
+type EndConnectionImpact = EndConnectionRecord['impact'];
 
 export interface EndConnectionRow {
   id: string;

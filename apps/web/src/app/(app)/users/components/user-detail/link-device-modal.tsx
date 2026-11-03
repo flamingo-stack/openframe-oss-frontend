@@ -17,7 +17,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useDeferredValue, useState } from 'react';
+import { useDeferredValue, useEffect, useState } from 'react';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 import type { linkDeviceModalMutation as LinkDeviceMutationType } from '@/__generated__/linkDeviceModalMutation.graphql';
 import type { linkDeviceModalQuery as LinkDeviceQueryType } from '@/__generated__/linkDeviceModalQuery.graphql';
@@ -130,7 +130,7 @@ function MachineList({
 interface MachineOptionsProps {
   suggestions: readonly LinkMachine[];
   value: string | null;
-  onChange: (machine: LinkMachine) => void;
+  onChange: (machine: LinkMachine | null) => void;
   search: string;
 }
 
@@ -149,6 +149,13 @@ function MachineOptions({ suggestions, value, onChange, search }: MachineOptions
     ...suggestions.filter(machine => !search || found.has(machine.machineId)),
     ...results.filter(machine => !suggestedIds.has(machine.machineId)),
   ];
+  // A search that hides the picked machine drops the pick: Link must not link a machine the list no longer shows. The
+  // prop indirection is deliberate: what the list shows is this island's answer and the pick is the modal's, and a
+  // child cannot set its parent's state while it renders, so the drop follows the commit.
+  const pickHidden = value !== null && !machines.some(machine => machine.machineId === value);
+  useEffect(() => {
+    if (pickHidden) onChange(null);
+  }, [pickHidden, onChange]);
   return (
     <MachineList
       machines={machines}
@@ -262,8 +269,9 @@ export function LinkDeviceModal({ record, onClose, onLinked }: LinkDeviceModalPr
     >
       <p className="text-ods-text-primary text-h4">{`Pick the OpenFrame device this ${record.origin} record belongs to.`}</p>
       <SearchInput value={input} onChange={setInput} placeholder="Search for Devices" />
-      {/* A failed read costs the list, not the suggestions the page already has. */}
+      {/* A failed read costs the whole list, suggestions too, so it drops the pick: Link links only what is shown. */}
       <ContentErrorBoundary
+        onError={() => setPicked(null)}
         fallback={retry => <SectionLoadError message="Couldn't read the devices." onRetry={retry} />}
       >
         <MachineOptionsIsland

@@ -11,6 +11,7 @@ import type {
   useSaveIntegrationMutation$data,
 } from '@/__generated__/useSaveIntegrationMutation.graphql';
 import { DirectoryRuleKind } from '@/generated/schema-enums';
+import type { CustomerOption } from '@/graphql/directory/customer-option';
 import { knownValue } from '@/lib/exhaustive-map';
 import { inactiveCustomerBadge, UNKNOWN_CUSTOMER } from '../../utils/tenant-presentation';
 import {
@@ -20,9 +21,11 @@ import {
   type AttributionMode,
   type AttributionRule,
 } from './attribution.types';
-import type { CustomerOption, PickerCustomer } from './customer-option';
 
 type RecordCustomer = tenantFormHelpers_connection$data['customers'][number];
+
+/** A picker's customer. A stored one that is no longer active carries why (`inactiveCustomerBadge`). */
+export type PickerCustomer = CustomerOption & { readonly badge?: string };
 
 /**
  * A customer bound to a directory, its organization read into the picker's option (`readBoundCustomer`). Plain data,
@@ -145,18 +148,6 @@ export function attributionChanged(values: AttributionFormData, stored: Attribut
 
 /** A refusal of `updateDirectoryConnection`. */
 export type TenantUserError = useSaveIntegrationMutation$data['updateDirectoryConnection']['userErrors'][number];
-
-/** The API's answer to a save that crossed another one (spec §16: no lock, the later write is refused). */
-export const CONNECTION_MODIFIED_CONCURRENTLY = 'CONNECTION_MODIFIED_CONCURRENTLY';
-
-/** The toast's description for a refused save: the API's messages once each, or what to do about a crossed save. */
-export function userErrorsDescription(errors: readonly Pick<TenantUserError, 'code' | 'message'>[]): string {
-  if (errors.some(error => error.code === CONNECTION_MODIFIED_CONCURRENTLY)) {
-    return 'Someone else saved this tenant while you were editing. Reload the page to see their changes, then try again.';
-  }
-  const messages = [...new Set(errors.map(error => error.message).filter(Boolean))];
-  return messages.length > 0 ? messages.join(', ') : 'Try again in a moment.';
-}
 
 /**
  * The attribution field a `userErrors[].field` names (`customers[1].rules[0].values[2]`), or `null` for one the form

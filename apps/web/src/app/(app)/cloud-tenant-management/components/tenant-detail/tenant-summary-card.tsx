@@ -1,10 +1,6 @@
 'use client';
 
-import {
-  accessStateTag,
-  formatLastRead,
-  lastReadAt,
-} from '@flamingo-stack/openframe-frontend-core/components/features';
+import { accessStateTag, formatLastRead } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,8 +23,8 @@ import { InfoCell } from '@/app/components/shared/info-cell';
 import { getFullImageUrl } from '@/lib/image-url';
 import { pluralNoun } from '@/lib/pluralize';
 import { attributionSummary, isSyncPaused, providerPresentation } from '../../utils/tenant-presentation';
+import type { PickerCustomer } from '../tenant-form/attribution-helpers';
 import { boundCustomerOptions } from '../tenant-form/bound-customer';
-import type { PickerCustomer } from '../tenant-form/customer-option';
 import { CustomerOptionLabel } from '../tenant-form/customer-select';
 
 // The two-row identity card of the details page (Figma 3065-17490 / 3051-7340) and its one-row cut
@@ -190,8 +186,6 @@ export function TenantSummaryCard({ connection }: { connection: tenantSummaryCar
   const scoped = useLoadingScope();
   const fragment = useFragment(tenantSummaryCardFragment, connection);
   const data = scoped ? null : fragment;
-  // `Instant` scalars are untyped (`any`); `unknown` keeps them out of the rest of the render.
-  const lastSyncAt: unknown = data?.lastSyncAt;
   return (
     <LoadingWhen loading={data == null}>
       <div className={CARD_CLASSES}>
@@ -217,7 +211,7 @@ export function TenantSummaryCard({ connection }: { connection: tenantSummaryCar
           />
           <InfoCell
             label={LABELS.lastRead}
-            value={data ? formatLastRead(lastReadAt({ lastSyncAt })) : null}
+            value={data ? formatLastRead(data.lastSyncAt) : null}
             skeletonWidth="w-28"
           />
         </div>

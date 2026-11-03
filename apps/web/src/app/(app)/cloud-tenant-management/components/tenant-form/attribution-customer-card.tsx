@@ -13,9 +13,8 @@ import {
 import { Controller, type UseFormReturn, useFieldArray, useWatch } from 'react-hook-form';
 import { DirectoryRuleKind } from '@/generated/schema-enums';
 import { ruleKindLabel, ruleKindsFor } from '../../utils/tenant-presentation';
-import { valuesClaimedElsewhere } from './attribution-helpers';
+import { type PickerCustomer, valuesClaimedElsewhere } from './attribution-helpers';
 import { type AttributionFormData, newRule } from './attribution.types';
-import type { PickerCustomer } from './customer-option';
 import { CustomerSelect } from './customer-select';
 import { RuleValuesField } from './rule-values-field';
 

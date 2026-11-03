@@ -33,15 +33,21 @@ import {
 } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { OpenRowButton } from '@/app/components/shared/open-row-button';
-import { DirectoryReadability, OrgUserSource, TopAdminState } from '@/generated/schema-enums';
+import { DirectoryReadability, TopAdminState } from '@/generated/schema-enums';
 import { toClaimingCustomer } from '@/graphql/directory/customer-claim-fields';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { multiColumnFilter } from '../../../software/components/shared/column-filters';
-import { lastSignInLabel, topAdminRole, userStatusTag, userStatusTooltip } from '../../utils/user-presentation';
+import {
+  lastSignInLabel,
+  providerMarks,
+  topAdminRole,
+  userStatusTag,
+  userStatusTooltip,
+} from '../../utils/user-presentation';
 import { type UserFilterOptions, useUserFilters } from './use-user-filters';
-import { CustomerCell, DevicesCell, LicensesCell, StatusCell, UserCell, type UserRow } from './user-row-cells';
+import { CustomerCell, FirstPlusCountCell, StatusCell, UserCell, type UserRow } from './user-row-cells';
 import { CUSTOMER_USER_COLUMNS, USER_COLUMNS, USERS_PAGE_SIZE } from './users-columns';
 import type { UserSelections } from './users-filter';
 
@@ -148,8 +154,7 @@ function toUserRow(node: PersonNode): UserRow {
     href: firstAccount ? routes.users.details(firstAccount.id) : null,
     name: node.displayName,
     email: node.email,
-    // A mark says which console the account lives in: none for a user added in OpenFrame (brief).
-    providers: node.providers.filter(source => source !== OrgUserSource.OPENFRAME),
+    providers: node.providers.flatMap(providerMarks),
     roleTag: adminAccount ? topAdminRole(node.topAdmin, adminAccount.source) : null,
     customers: node.customers.map(toClaimingCustomer),
     tenant: firstAccount?.connection
@@ -197,7 +202,7 @@ function buildColumns(options: UserFilterOptions, customerScoped: boolean): Colu
     {
       id: layout.devices.id,
       header: layout.devices.header,
-      cell: ({ row }: { row: Row<UserRow> }) => <DevicesCell row={row.original} />,
+      cell: ({ row }: { row: Row<UserRow> }) => <FirstPlusCountCell names={row.original.devices} />,
       enableSorting: false,
       meta: liveColumnMeta(layout.devices),
     },
@@ -214,7 +219,7 @@ function buildColumns(options: UserFilterOptions, customerScoped: boolean): Colu
           {
             id: CUSTOMER_USER_COLUMNS.license.id,
             header: CUSTOMER_USER_COLUMNS.license.header,
-            cell: ({ row }: { row: Row<UserRow> }) => <LicensesCell row={row.original} />,
+            cell: ({ row }: { row: Row<UserRow> }) => <FirstPlusCountCell names={row.original.licenses} />,
             enableSorting: false,
             filterFn: multiSelectFilterFn,
             meta: liveColumnMeta(CUSTOMER_USER_COLUMNS.license, { filter: { options: options.licenses } }),
@@ -239,7 +244,7 @@ function filterGroups(options: UserFilterOptions, customerScoped: boolean): Filt
   const group = (id: string, title: string, groupOptions: DataTableFilterOption[]): FilterGroup => ({
     id,
     title,
-    options: groupOptions.map(({ id: optionId, label, count }) => ({ id: optionId, label, count })),
+    options: groupOptions,
   });
   return customerScoped
     ? [
@@ -301,7 +306,7 @@ function DirectoryUsersTableReader(props: DirectoryUsersTableProps) {
 }
 
 function DirectoryUsersTableQuery(props: DirectoryUsersTableProps) {
-  const { organizationId, backendFilters, debouncedSearch } = props;
+  const { organizationId, backendFilters, debouncedSearch, selections } = props;
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<DirectoryUsersTableQueryType>(
     directoryUsersTableQuery,
@@ -321,7 +326,7 @@ function DirectoryUsersTableQuery(props: DirectoryUsersTableProps) {
 
   const { edges, totalCount } = data.directoryUsers;
   const rows = useMemo(() => edges.map(edge => toUserRow(edge.node)), [edges]);
-  const filterOptions = useUserFilters(organizationId, debouncedSearch, backendFilters);
+  const filterOptions = useUserFilters(organizationId, debouncedSearch, backendFilters, selections);
 
   const fetchNextPage = () => {
     if (hasNext && !isLoadingNext) loadNext(USERS_PAGE_SIZE);

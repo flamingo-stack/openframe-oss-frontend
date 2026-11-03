@@ -30,6 +30,8 @@ export interface UserRow {
   /** The tenant the first account is in; null for a user added in OpenFrame. */
   tenant?: { name: string; provider: string } | null;
   devices?: readonly string[];
+  /** The account's direct groups, on a device's Users tab. */
+  groups?: readonly string[];
   status?: { label: string; variant: TagProps['variant'] };
   statusTooltip?: string | null;
   lastSignIn?: string;
@@ -71,10 +73,24 @@ export function UserCell({ row }: { row: UserRow }) {
   );
 }
 
+/**
+ * "Microsoft 365 E3 +3" (Figma 733:98943): the first name, the rest counted. A row's customers, devices, licences or
+ * groups.
+ */
+export function FirstPlusCountCell({ names }: { names: readonly string[] | undefined }) {
+  const loading = useLoadingScope();
+  const { first, more } = firstAndCount(names ?? []);
+  return (
+    <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
+      <TruncateText loading={loading}>{first}</TruncateText>
+      {more > 0 && <span className="shrink-0 text-ods-text-secondary text-h4">+{more}</span>}
+    </div>
+  );
+}
+
 export function CustomerCell({ row, showTenant = true }: { row: UserRow; showTenant?: boolean }) {
   const loading = useLoadingScope();
   const customers = row.customers ?? [];
-  const { first, more } = firstAndCount(customers.map(customer => customer.name));
   const firstCustomer = customers[0];
   // The customer's logo beside both lines (Figma 733:99095), the customers table's cell.
   return (
@@ -90,10 +106,7 @@ export function CustomerCell({ row, showTenant = true }: { row: UserRow; showTen
             <p key={customer.name}>{customer.claim ? `${customer.name} — ${customer.claim}` : customer.name}</p>
           ))}
         >
-          <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-            <TruncateText loading={loading}>{first}</TruncateText>
-            {more > 0 && <span className="shrink-0 text-ods-text-secondary text-h4">+{more}</span>}
-          </div>
+          <FirstPlusCountCell names={customers.map(customer => customer.name)} />
         </FloatingTooltip>
         {showTenant && (
           <TruncateText variant="h6" tone="secondary" loading={loading}>
@@ -101,29 +114,6 @@ export function CustomerCell({ row, showTenant = true }: { row: UserRow; showTen
           </TruncateText>
         )}
       </div>
-    </div>
-  );
-}
-
-export function DevicesCell({ row }: { row: UserRow }) {
-  const loading = useLoadingScope();
-  const { first, more } = firstAndCount(row.devices ?? []);
-  return (
-    <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-      <TruncateText loading={loading}>{first}</TruncateText>
-      {more > 0 && <span className="shrink-0 text-ods-text-secondary text-h4">+{more}</span>}
-    </div>
-  );
-}
-
-/** "Microsoft 365 E3 +3" (Figma 733:98943): the first licence, the rest counted. */
-export function LicensesCell({ row }: { row: UserRow }) {
-  const loading = useLoadingScope();
-  const { first, more } = firstAndCount(row.licenses ?? []);
-  return (
-    <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-      <TruncateText loading={loading}>{first}</TruncateText>
-      {more > 0 && <span className="shrink-0 text-ods-text-secondary text-h4">+{more}</span>}
     </div>
   );
 }

@@ -17,6 +17,8 @@ const env = vi.hoisted(() => ({
   searchParams: new URLSearchParams(),
   router: { push: () => undefined, replace: () => undefined, back: () => undefined },
   listFilters: [] as Record<string, unknown>[],
+  /** Set while the list is out: the list suspends on it, as its Relay query does. */
+  listOut: null as Promise<void> | null,
   fleetFacets: {
     statuses: [{ value: 'ONLINE', label: 'Online', count: 1 }],
     deviceTypes: [],
@@ -57,6 +59,7 @@ vi.mock('react-relay', async importOriginal => {
 vi.mock('@/app/(app)/devices/hooks/use-devices', () => ({
   useDevices: (filters: Record<string, unknown>) => {
     env.listFilters.push(filters);
+    if (env.listOut) throw env.listOut;
     return {
       devices: [{ id: 'd1', machineId: 'm1', status: 'ONLINE', hostname: 'host-1' }],
       filteredCount: 1,
@@ -117,6 +120,7 @@ describe('DevicesPanel and the directory gate', () => {
   beforeEach(() => {
     setAddress('');
     env.listFilters = [];
+    env.listOut = null;
     const Observer = class {
       observe() {}
       unobserve() {}
@@ -176,6 +180,34 @@ describe('DevicesPanel and the directory gate', () => {
     expect(text()).toContain('USER');
     expect(text()).toContain('SOURCES');
     expect(countAsked()).toBe(1);
+  });
+
+  it('holds the rows for the count when the flag answers while the list is out, as on a cold load', async () => {
+    setAddress('?userLinks=SHARED');
+    let answerList = () => undefined as void;
+    env.listOut = new Promise<void>(resolve => {
+      answerList = () => {
+        env.listOut = null;
+        resolve();
+      };
+    });
+    let answerCount: (value: unknown) => void = () => undefined;
+    countAnswer = () => new Promise(resolve => (answerCount = resolve));
+    render();
+    await settle();
+    act(() => flagOn());
+    await settle();
+    await act(async () => answerList());
+    await settle();
+    expect(text()).not.toContain('host-1');
+
+    await act(async () => {
+      answerCount({ data: { directoryConnections: { totalCount: 1 } } });
+    });
+    await settle();
+    expect(text()).toContain('host-1');
+    expect(text()).toContain('USER');
+    expect(env.listFilters.at(-1)).toMatchObject({ userLinks: ['SHARED'] });
   });
 
   it('draws USER and SOURCES only where a connection has synced', async () => {

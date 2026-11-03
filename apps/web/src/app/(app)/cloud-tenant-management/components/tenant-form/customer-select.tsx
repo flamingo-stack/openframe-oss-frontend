@@ -18,8 +18,9 @@ import type { customerSelect_query$key } from '@/__generated__/customerSelect_qu
 import type { customerSelectPaginationQuery } from '@/__generated__/customerSelectPaginationQuery.graphql';
 import type { customerSelectQuery as CustomerSelectQueryType } from '@/__generated__/customerSelectQuery.graphql';
 import { ContentErrorBoundary, useRetryKey, NO_ITEMS } from '@/app/components/shared';
+import { toCustomerOption } from '@/graphql/directory/customer-option';
 import { getFullImageUrl } from '@/lib/image-url';
-import { type PickerCustomer, toCustomerOption } from './customer-option';
+import type { PickerCustomer } from './attribution-helpers';
 import { withBoundOrganization } from './tenant-form-helpers';
 
 // A customer field of "Customers and attribution": a core `Select` without a search box (Figma
