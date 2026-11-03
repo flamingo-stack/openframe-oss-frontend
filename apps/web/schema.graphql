@@ -5026,6 +5026,11 @@ type SoftwareActionRunEdge {
 enum SoftwareActionStatus {
   SCHEDULED
   IN_PROGRESS
+
+  """
+  A package update waits on the device: a user prompt or an open app. Any waiting device makes the action WAITING.
+  """
+  WAITING
   COMPLETED
   FAILED
 }
