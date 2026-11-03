@@ -217,7 +217,7 @@ const RECORD_CARDS_FRAGMENT = `... on RecordCardsData {
  * hero video, recognised by its `ref`, reads back as a `record://video/<id>` source part of its own, and the strip draws
  * no video part, so nothing shows.
  *
- * TODO(CU-17tkuw61kfy): goes with the `standardNames` flag.
+ * TODO(CU-17tkuw635xx): goes with the `standardNames` flag.
  */
 const OLD_ATTACHMENTS_FRAGMENT = `... on AttachmentsData {
               sources {

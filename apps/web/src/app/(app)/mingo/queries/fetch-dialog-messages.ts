@@ -17,9 +17,9 @@ interface MessagesVariables {
  *   - `AttachmentsData`: a backend from before saas-tenant#3633 has `GuideData` instead (the old fragment is used). Older
  *     than the new names too: `sourceId` sits inside that type, so it never rejects the field, and only this says so;
  *   - `RecordCardsData`: a backend from before saas-tenant#4330 stores no record cards (the fragment is left out);
- *   - `sourceId`: a backend from before CU-17tkuw61kfy has the old field names on both parts (the old fragments are used).
+ *   - `sourceId`: a backend from before CU-17tkuw635xx has the old field names on both parts (the old fragments are used).
  *
- * TODO(CU-17tkuw61kfy): all three go at the cleanup, with `LEGACY_GUIDE_FRAGMENT` and the old fragments, once every
+ * TODO(CU-17tkuw635xx): all three go at the cleanup, with `LEGACY_GUIDE_FRAGMENT` and the old fragments, once every
  * backend is past them (saas-tenant#3633, saas-tenant#4330, this change).
  */
 const NEWEST = { legacyGuide: false, recordCards: true, standardNames: true };
@@ -83,11 +83,11 @@ export async function fetchMingoDialogMessages(variables: MessagesVariables) {
 }
 
 /**
- * What to send a backend for what a person wrote: a backend from before CU-17tkuw61kfy reads a mention only as
+ * What to send a backend for what a person wrote: a backend from before CU-17tkuw635xx reads a mention only as
  * `@marker:id`, so it would anchor no attached record and put the raw link in the dialog's title. A send with a record
  * link waits for one read if none has answered yet, because a new chat's first prompt is the usual place for one.
  *
- * TODO(CU-17tkuw61kfy): goes with the `standardNames` flag.
+ * TODO(CU-17tkuw635xx): goes with the `standardNames` flag.
  */
 export async function textForMingoBackend(dialogId: string, text: string): Promise<string> {
   if (!text.includes('record://')) return text;

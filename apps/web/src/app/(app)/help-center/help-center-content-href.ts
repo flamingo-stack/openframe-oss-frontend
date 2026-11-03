@@ -181,7 +181,7 @@ function isAbsoluteHref(href: string): boolean {
  * ABSOLUTE hub URL to open externally. Already-absolute hrefs (incl. cross-platform
  * ones like an openmsp podcast) pass through untouched.
  *
- * TODO(CU-17tkuw61kfy): only an old hub answers a relative url; the new one's are all absolute.
+ * TODO(CU-17tkuw635xx): only an old hub answers a relative url; the new one's are all absolute.
  */
 function toHubOriginHref(href: string): string {
   if (isAbsoluteHref(href)) return href;
@@ -219,7 +219,7 @@ export const composeOpenframeInAppContentUrl: ComposeContentUrl = input => {
   // answer over the destination the content hub minted for its own surface
   // (`pickFetchedCardHref`). Rebuilding the object dropped it silently — the
   // whole `overrides` map below went dead for `hubspot_ticket*` / `faq` cards.
-  // TODO(CU-17tkuw61kfy): this reason goes with `hostOverride`, `toHubOriginHref` below with it.
+  // TODO(CU-17tkuw635xx): this reason goes with `hostOverride`, `toHubOriginHref` below with it.
   if (isInAppHelpCenterHref(resolved.href)) {
     return { ...resolved, targetPlatform: null };
   }

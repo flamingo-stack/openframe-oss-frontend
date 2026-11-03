@@ -228,7 +228,7 @@ export interface ReducerMirror<K extends string> {
    * MESSAGE_REQUEST echo itself (one-shot, text-matched) instead of the host
    * blanket-dropping every echo bearing its own user id. `sentText` is what went to the backend when it is not what the
    * bubble says, since the echo comes back as what was sent.
-   * TODO(CU-17tkuw61kfy): `sentText` goes with `textForMingoBackend`; the bubble is the send again.
+   * TODO(CU-17tkuw635xx): `sentText` goes with `textForMingoBackend`; the bubble is the send again.
    */
   pushOptimisticSend: (key: K, message: ChatMessage, sentText?: string) => void;
   /** Pre-curried, per-key-stable `{ apply, mutate, mergeApprovalStatuses }`.
@@ -533,7 +533,7 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
    *
    * Read before `mutate`: its flush moves the live bubble past the copy the host merged from.
    *
-   * TODO(CU-17tkuw61kfy): goes with the lib's old text writer (`old-wire.ts`) and `MingoDecoder.discardHeld`. Only a token
+   * TODO(CU-17tkuw635xx): goes with the lib's old text writer (`old-wire.ts`) and `MingoDecoder.discardHeld`. Only a token
    * is ever held; with no old tokens the decoder has no tail.
    */
   function discardHeldTextOfReplacedTurn(key: K, messages: readonly ChatMessage[]): void {
@@ -719,7 +719,7 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
    * What the decoder still holds of a turn that ended with no MESSAGE_END (a crash, a lost chunk) goes in that turn's bubble
    * first: the send moves the thread on, and the next chunk that closes it would write it below the new message.
    *
-   * TODO(CU-17tkuw61kfy): `sentText` goes with `textForMingoBackend`, `closeHeld` with the lib's old text writer.
+   * TODO(CU-17tkuw635xx): `sentText` goes with `textForMingoBackend`, `closeHeld` with the lib's old text writer.
    */
   function pushOptimisticSend(key: K, message: ChatMessage, sentText?: string): void {
     mutate(key, reducer => {

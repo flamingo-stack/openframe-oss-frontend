@@ -175,7 +175,7 @@ interface MingoMessagesStore {
   /** Optimistic local send. Routed through the reducer so IT owns own-echo
    *  suppression (text-matched, one-shot) — a blanket "drop every echo with
    *  my user id" would also hide this user's sends from other tabs.
-   *  TODO(CU-17tkuw61kfy): `sentText` goes with `textForMingoBackend`. */
+   *  TODO(CU-17tkuw635xx): `sentText` goes with `textForMingoBackend`. */
   pushOptimisticSend: (dialogId: string, message: ChatMessage, sentText?: string) => void;
   updateMessage: (dialogId: string, messageId: string, updates: Partial<ChatMessage>) => void;
   removeMessage: (dialogId: string, messageId: string) => void;
@@ -324,7 +324,7 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
         mirror.upsertMessage(dialogId, message);
       },
 
-      // TODO(CU-17tkuw61kfy): `sentText` goes with `textForMingoBackend`.
+      // TODO(CU-17tkuw635xx): `sentText` goes with `textForMingoBackend`.
       pushOptimisticSend: (dialogId, message, sentText) => {
         mirror.pushOptimisticSend(dialogId, message, sentText);
       },
