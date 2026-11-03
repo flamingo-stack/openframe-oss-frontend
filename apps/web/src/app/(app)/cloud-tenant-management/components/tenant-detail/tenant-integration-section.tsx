@@ -54,7 +54,7 @@ function WrappingValue({ lines }: { lines: readonly string[] }) {
   );
 }
 
-function wrapping(...lines: string[]): InfoSectionRow['value'] {
+export function wrapping(...lines: string[]): InfoSectionRow['value'] {
   return { type: 'custom', content: <WrappingValue lines={lines} /> };
 }
 

@@ -168,3 +168,10 @@ describe('auth.error', () => {
     expect(routes.auth.error({ ref: '7KQ2M9XD' })).toBe('/auth/error?ref=7KQ2M9XD');
   });
 });
+
+describe('ending a connection', () => {
+  it('has a page per level', () => {
+    expect(routes.cloudTenantManagement.disconnect('c-1')).toBe('/cloud-tenant-management/disconnect?id=c-1');
+    expect(routes.cloudTenantManagement.delete('c-1')).toBe('/cloud-tenant-management/delete?id=c-1');
+  });
+});

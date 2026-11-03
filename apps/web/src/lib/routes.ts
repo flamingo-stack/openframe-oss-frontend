@@ -512,6 +512,8 @@ export const routes = {
     details: (id: string | number) => withQuery('/cloud-tenant-management/details', { id }),
     edit: (id: string | number) => withQuery('/cloud-tenant-management/edit', { id }),
     reconnect: (id: string | number) => withQuery('/cloud-tenant-management/reconnect', { id }),
+    disconnect: (id: string | number) => withQuery('/cloud-tenant-management/disconnect', { id }),
+    delete: (id: string | number) => withQuery('/cloud-tenant-management/delete', { id }),
   },
 
   // Directory users of every connected tenant. `id` is an account id: the page shows that account's person.
