@@ -196,6 +196,10 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID_USERNAME }}
           APPLE_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Tauri skips the DMG's Finder layout (background, icon positions, window size)
+          # whenever CI=true; this re-enables that step alone. CI=false would also do it,
+          # and would break the updater signing.
+          TAURI_BUNDLER_DMG_IGNORE_CI: 'true'
         # Same bundle version as the image; tauri needs semver, so a push build is 0.0.0-dev.N.
         run: |
           OPENFRAME_BUNDLE_VERSION="${RELEASE_VERSION:-main-${GITHUB_SHA::7}}" \
