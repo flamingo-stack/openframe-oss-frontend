@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { formatWholeCurrency } from '@/lib/format-currency';
 import { tokensForUsd } from '../shared/ai-token-price';
+import { FALLBACK_MIN_TOP_UP_USD } from './auto-top-up-status';
 
 /**
  * The amounts offered as one click each, in whole dollars — the unit
@@ -17,18 +18,6 @@ export type TopUpPresetUsd = (typeof TOP_UP_PRESETS_USD)[number];
 export const CUSTOM_TOP_UP = 'custom';
 
 export type TopUpSelection = number | typeof CUSTOM_TOP_UP | null;
-
-/**
- * The smallest top-up that can be sent, in whole dollars.
- *
- * A product rule stated here because the schema does not state it: the
- * purchase, the arrangement and the checkout all speak of "a configured
- * minimum" and expose no field carrying it, so without this the form would
- * learn the floor from the server's refusal. Every preset clears it; only a
- * custom figure can fall under it. If the backend ever exposes its minimum,
- * read that instead of this.
- */
-export const MIN_TOP_UP_USD = 10;
 
 /** What the user has picked, before it means anything in tokens. */
 interface TopUpChoice {
@@ -77,6 +66,12 @@ interface UseAiTopUpOptions {
    * A preset lands on its tile, any other figure on Custom with the field filled.
    */
   initial?: number | null;
+  /**
+   * The smallest amount that can be sent, in whole dollars: the backend's
+   * figure where the surface has read it (`AutoTopUpStatus.minimumAmountUsd`),
+   * else the floor every surface shares today.
+   */
+  minimumUsd?: number;
 }
 
 function isPreset(usd: number): usd is TopUpPresetUsd {
@@ -96,13 +91,13 @@ function initialChoice(initial: number | null | undefined): TopUpChoice {
  * number of dollars"), and the field cannot produce them in the first place —
  * so the checks left are an empty field and the floor.
  */
-function resolveChoice(choice: TopUpChoice): { amountUsd: number | null; problem: string | null } {
+function resolveChoice(choice: TopUpChoice, minimumUsd: number): { amountUsd: number | null; problem: string | null } {
   if (choice.selection == null) return { amountUsd: null, problem: 'Choose a top-up amount.' };
 
   const usd = choice.selection === CUSTOM_TOP_UP ? Number.parseInt(choice.customUsd, 10) : choice.selection;
   if (!Number.isFinite(usd)) return { amountUsd: null, problem: 'Enter a top-up amount.' };
-  if (usd < MIN_TOP_UP_USD) {
-    return { amountUsd: null, problem: `The minimum top-up is ${formatWholeCurrency(MIN_TOP_UP_USD)}.` };
+  if (usd < minimumUsd) {
+    return { amountUsd: null, problem: `The minimum top-up is ${formatWholeCurrency(minimumUsd)}.` };
   }
   return { amountUsd: usd, problem: null };
 }
@@ -116,13 +111,17 @@ function resolveChoice(choice: TopUpChoice): { amountUsd: number | null; problem
  * the checkout. So the state and the dollar-to-token arithmetic live here, and
  * neither surface owns them.
  */
-export function useAiTopUp({ tokenPrice, initial = null }: UseAiTopUpOptions): AiTopUp {
+export function useAiTopUp({
+  tokenPrice,
+  initial = null,
+  minimumUsd = FALLBACK_MIN_TOP_UP_USD,
+}: UseAiTopUpOptions): AiTopUp {
   const [choice, setChoice] = useState<TopUpChoice>(() => initialChoice(initial));
   // Set by the first submit and kept: from then on the fields answer every edit
   // at once, which is the moment the user is looking at them.
   const [attempted, setAttempted] = useState(false);
 
-  const { amountUsd, problem } = resolveChoice(choice);
+  const { amountUsd, problem } = resolveChoice(choice, minimumUsd);
   const forUsd = (usd: number): number | null => tokensForUsd(usd, tokenPrice);
 
   return {
