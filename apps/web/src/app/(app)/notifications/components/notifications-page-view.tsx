@@ -148,6 +148,11 @@ export function NotificationsPageView() {
     toast({ title: 'All notifications marked as read', variant: 'success' });
   }, [toast]);
 
+  const scopeLabel = entity ? entityScopeLabel(entity.type, params.entityName) : '';
+  const onMarkEntityReadCompleted = useCallback(() => {
+    toast({ title: 'Notifications marked as read', description: scopeLabel, variant: 'success' });
+  }, [toast, scopeLabel]);
+
   const onDeleteAllReadCompleted = useCallback(() => {
     toast({ title: 'All read notifications deleted', variant: 'success' });
   }, [toast]);
@@ -164,6 +169,7 @@ export function NotificationsPageView() {
   } = useNotificationMutations({
     filterPairs,
     onMarkAllReadCompleted,
+    onMarkEntityReadCompleted,
     onDeleteAllReadCompleted,
   });
 
@@ -200,7 +206,7 @@ export function NotificationsPageView() {
         },
       ];
 
-  const scope = entity ? { label: entityScopeLabel(entity.type, params.entityName), onClear: clearEntity } : undefined;
+  const scope = entity ? { label: scopeLabel, onClear: clearEntity } : undefined;
 
   const activeTab = params.tab === 'history' ? 'history' : 'new';
 

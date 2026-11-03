@@ -30,12 +30,14 @@ import {
 } from './notifications-helpers';
 import { refreshUnreadCounts } from './unread-counts-relay';
 
-export type NotificationMutation = 'markRead' | 'markAllRead' | 'delete' | 'deleteAllRead';
+export type NotificationMutation = 'markRead' | 'markAllRead' | 'markEntityRead' | 'delete' | 'deleteAllRead';
 
 interface UseNotificationMutationsOptions {
   filterPairs: NotificationConnectionPair[];
   onError?: (operation: NotificationMutation, err: Error) => void;
   onMarkAllReadCompleted?: () => void;
+  /** Mark All Complete on a list scoped to one entity: only that entity's notifications were read. */
+  onMarkEntityReadCompleted?: () => void;
   onDeleteAllReadCompleted?: () => void;
 }
 
@@ -43,6 +45,7 @@ export function useNotificationMutations({
   filterPairs,
   onError,
   onMarkAllReadCompleted,
+  onMarkEntityReadCompleted,
   onDeleteAllReadCompleted,
 }: UseNotificationMutationsOptions) {
   const { toast } = useToast();
@@ -140,15 +143,15 @@ export function useNotificationMutations({
         onCompleted: () => {
           refreshUnreadCounts(environment);
           refreshEntityUnreadCounts(environment, entityRefsOfEntity(entity.type, entity.id));
-          onMarkAllReadCompleted?.();
+          onMarkEntityReadCompleted?.();
         },
         onError: err => {
-          toast({ title: 'Failed to mark all as read', description: err.message, variant: 'destructive' });
-          onError?.('markAllRead', err);
+          toast({ title: 'Failed to mark notifications as read', description: err.message, variant: 'destructive' });
+          onError?.('markEntityRead', err);
         },
       });
     },
-    [environment, markEntityReadCommit, onError, onMarkAllReadCompleted, toast],
+    [environment, markEntityReadCommit, onError, onMarkEntityReadCompleted, toast],
   );
 
   const removeNotification = useCallback(
