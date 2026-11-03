@@ -82,8 +82,6 @@ export function NeedHelpMenu() {
       <ContactSupportModal
         open={open === 'support'}
         onOpenChange={isOpen => setOpen(isOpen ? 'support' : null)}
-        title="Contact Support"
-        submitLabel="Send"
         cancelLabel="Cancel"
       />
     </>

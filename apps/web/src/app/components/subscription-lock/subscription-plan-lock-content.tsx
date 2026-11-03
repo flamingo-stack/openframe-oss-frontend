@@ -3,7 +3,6 @@
 import { SubscriptionSettingsView } from '@/app/(app)/settings/billing-usage/components/plan/subscription-settings-view';
 import { useBillingAccessGate } from '@/app/hooks/use-billing-access-gate';
 import { SubscriptionStatus } from '@/generated/schema-enums';
-import { noAccessCopy } from './no-access-copy';
 import { useSubscriptionLock } from './subscription-guard';
 import { UnpaidInvoicesScreen } from './unpaid-invoices-screen';
 import { WorkspaceInactiveScreen } from './workspace-inactive-screen';
@@ -36,7 +35,7 @@ export default function SubscriptionPlanLockContent() {
   const { status } = useSubscriptionLock();
 
   if (access === 'denied') {
-    return <WorkspaceInactiveScreen {...noAccessCopy(status)} />;
+    return <WorkspaceInactiveScreen />;
   }
 
   // Debt has a bill attached, so the remedy is that bill — not a plan. Decided

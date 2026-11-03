@@ -14,7 +14,7 @@ import {
 } from '@/app/(app)/settings/billing-usage/components/shared/invoice-row';
 import { SubscriptionStatus } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
-import { CheckAgainButton, LockScreenActions } from './lock-screen-actions';
+import { ContactSupportButton, LockScreenActions } from './lock-screen-actions';
 import { byOldestFirst, OutstandingInvoiceRow } from './outstanding-invoice-row';
 import { WorkspaceInactiveScreen } from './workspace-inactive-screen';
 
@@ -107,7 +107,11 @@ export function UnpaidInvoicesScreen({ status, loading = false }: UnpaidInvoices
     // carries the sign-out, the self-deletion and the support form.
     <ErrorBoundary
       fallback={
-        <WorkspaceInactiveScreen title={DEBT_COPY[status].title} description={INVOICES_UNAVAILABLE_DESCRIPTION} />
+        <WorkspaceInactiveScreen
+          title={DEBT_COPY[status].title}
+          description={INVOICES_UNAVAILABLE_DESCRIPTION}
+          action={<ContactSupportButton />}
+        />
       }
     >
       <UnpaidInvoicesShell>
@@ -129,9 +133,10 @@ function UnpaidInvoicesShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col gap-[var(--spacing-system-xl)] p-[var(--spacing-system-l)]">
       {children}
-      {/* "Check Again" leads: paying happens in the Stripe tab, and the lock
-          lifts here only once the status is read again. */}
-      <LockScreenActions leading={<CheckAgainButton />} />
+      {/* No "Check Again", as the design (1779:20170) has it. The guard reads the
+          status once per load, so an invoice paid in the Stripe tab lifts the
+          lock on the next load of the app. */}
+      <LockScreenActions />
     </div>
   );
 }
