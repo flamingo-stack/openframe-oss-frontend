@@ -1,12 +1,14 @@
 import { graphql, readInlineData } from 'react-relay';
 import type { autoTopUpStatus_settings$key } from '@/__generated__/autoTopUpStatus_settings.graphql';
-import { AutoTopUpDisabledReason } from '@/generated/schema-enums';
+import { AutoTopUpDisabledReason, AutoTopUpPausedReason } from '@/generated/schema-enums';
+import type { Instant } from '@/lib/graphql-scalars';
 
 /**
  * The standing arrangement to buy more tokens before the bank empties, as every
  * surface reads it: the Paid AI Tokens card and its rates popover, the notice
- * under the cards, the Manage AI Balance modal — and the mutation that sets it,
- * so a field added for a reader is returned by the write by construction.
+ * under the cards, the Auto Top-up section, the Manage AI Balance modal — and
+ * the mutation that sets it, so a field added for a reader is returned by the
+ * write by construction.
  *
  * `@inline` because the readers are fed through props and a mutation callback,
  * not through fragments of their own.
@@ -15,16 +17,48 @@ const autoTopUpStatusFragment = graphql`
   fragment autoTopUpStatus_settings on AutoTopUpSettings @inline {
     enabled
     amountUsd
+    thresholdUsd
+    spendLimitUsd
+    spentLast30DaysUsd
+    pausedReason
+    resumesAt
+    minimumAmountUsd
+    minimumThresholdUsd
     disabledReason
     paymentMethodSetupUrl
   }
 `;
 
+/**
+ * The smallest top-up that can be sent, in whole dollars, when the backend does
+ * not say: the purchase, the arrangement and the checkout share one configured
+ * floor, and only the arrangement's read (`minimumAmountUsd`) exposes it. The
+ * one-time purchase on the paywall has no such read and keeps this.
+ */
+export const FALLBACK_MIN_TOP_UP_USD = 10;
+
 export interface AutoTopUpStatus {
   /** The system may charge the card on file when the bank falls below the threshold. */
   enabled: boolean;
-  /** What one automatic top-up charges, in whole dollars. */
+  /** What one automatic top-up charges, in whole dollars. Kept while it is off. */
   amountUsd: number | null;
+  /** The balance, in whole dollars, that triggers a refill. Kept while it is off. */
+  thresholdUsd: number | null;
+  /** The most auto top-ups may charge over the last 30 days; `null` is no limit. Kept while it is off. */
+  spendLimitUsd: number | null;
+  /** What auto top-ups charged over the last 30 days, paid and in flight, failed ones excluded. */
+  spentUsd: number;
+  /**
+   * The spend limit holds refills back. Auto top-up stays enabled; the next
+   * refill is tried at `resumesAt`, and any save lifts the pause at once.
+   */
+  paused: boolean;
+  /** While paused: when the next refill is tried. `null` otherwise. */
+  resumesAt: Instant | null;
+  /** The floor of a top-up amount, in whole dollars. */
+  minimumAmountUsd: number;
+  /** The floor of the threshold, in whole dollars. */
+  minimumThresholdUsd: number;
   /**
    * The system switched it off: the card declined an automatic charge, which
    * is never retried. `false` when the customer switched it off, or it is on.
@@ -39,22 +73,35 @@ export interface AutoTopUpStatus {
 }
 
 export function toAutoTopUpStatus(ref: autoTopUpStatus_settings$key): AutoTopUpStatus {
-  const { enabled, amountUsd, disabledReason, paymentMethodSetupUrl } = readInlineData(autoTopUpStatusFragment, ref);
+  const data = readInlineData(autoTopUpStatusFragment, ref);
+  const minimumAmountUsd = data.minimumAmountUsd ?? FALLBACK_MIN_TOP_UP_USD;
   return {
-    enabled,
-    amountUsd: amountUsd ?? null,
-    paymentFailed: disabledReason === AutoTopUpDisabledReason.PAYMENT_FAILED,
-    paymentMethodSetupUrl: paymentMethodSetupUrl ?? null,
+    enabled: data.enabled,
+    amountUsd: data.amountUsd ?? null,
+    thresholdUsd: data.thresholdUsd ?? null,
+    spendLimitUsd: data.spendLimitUsd ?? null,
+    spentUsd: data.spentLast30DaysUsd,
+    paused: data.enabled && data.pausedReason === AutoTopUpPausedReason.SPEND_LIMIT_REACHED,
+    resumesAt: data.resumesAt ?? null,
+    minimumAmountUsd,
+    // The backend's own rule when it does not say: a fifth of the amount floor, rounded up.
+    minimumThresholdUsd: data.minimumThresholdUsd ?? Math.ceil(minimumAmountUsd / 5),
+    paymentFailed: data.disabledReason === AutoTopUpDisabledReason.PAYMENT_FAILED,
+    paymentMethodSetupUrl: data.paymentMethodSetupUrl ?? null,
   };
 }
 
 /**
- * The level the bank may fall to before the next pack is bought, in whole
- * dollars: a fifth of the pack, which is the rule the checkout's own switch
- * applies. Fires on the threshold rather than on zero — a refill that begins at
- * zero arrives after the thing it was meant to prevent, with AI already stopped.
- * At least $1, because the backend requires the amount to exceed it.
+ * How far the last 30 days' auto top-ups have gone into the limit, 0–100, and
+ * whether they reached it — the bar under the limit on the billing page and in
+ * the modal. `null` without a limit: there is nothing to fill.
  */
-export function autoTopUpThresholdUsd(amountUsd: number): number {
-  return Math.max(1, Math.floor(amountUsd / 5));
+export function spendLimitUsage(
+  spentUsd: number,
+  limitUsd: number | null,
+): { percent: number; reached: boolean } | null {
+  if (limitUsd == null || limitUsd <= 0) return null;
+  const reached = spentUsd >= limitUsd;
+  // A limit lowered under what was already spent still draws a full bar, never past it.
+  return { percent: reached ? 100 : (spentUsd / limitUsd) * 100, reached };
 }

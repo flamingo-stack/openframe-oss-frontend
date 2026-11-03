@@ -23,6 +23,7 @@ import { CancelSubscriptionFlow } from '../cancel/cancel-subscription-flow';
 import { ActivateSubscriptionModal } from '../plan/activate-subscription-modal';
 import { UpgradePlanModal } from '../plan/upgrade-plan-modal';
 import { AiBalanceAlert } from './ai-balance-alert';
+import { AutoTopUpSection } from './auto-top-up-section';
 import { BillingPageFrame } from './billing-page-frame';
 import { BillingSections } from './billing-sections';
 import { DeviceOverageBlock } from './device-overage-block';
@@ -211,9 +212,10 @@ export function BillingUsageScreen({ data, onRefetch: refetch }: BillingUsageScr
               </div>
             )}
 
-            {/* The system switched the refill off over a declined card: said here,
-                after the page it stopped refilling. Nothing while it loads, and
-                nothing if it cannot be loaded — a notice is not worth an error. */}
+            {/* The refill stopped — the system switched it off over a declined card,
+                or the spend limit holds it back: said here, under the balance it
+                stopped refilling. Nothing while it loads, and nothing if it cannot
+                be loaded — a notice is not worth an error. */}
             {autoTopUpOffered && (
               <div data-loading-optional className="contents">
                 <AutoTopUpIsland label="AutoTopUpNotice" fallback={null}>
@@ -236,6 +238,17 @@ export function BillingUsageScreen({ data, onRefetch: refetch }: BillingUsageScr
               </div>
             )}
           </>
+        }
+        // Figures only: drawn on the read-only build too. Only accounts that switched it on have it, so the wait
+        // draws nothing in its place.
+        autoTopUpSection={
+          autoTopUpOffered && (
+            <div data-loading-optional className="contents">
+              <AutoTopUpIsland label="AutoTopUpSection" fallback={null}>
+                {autoTopUp => <AutoTopUpSection status={autoTopUp} />}
+              </AutoTopUpIsland>
+            </div>
+          )
         }
       />
 

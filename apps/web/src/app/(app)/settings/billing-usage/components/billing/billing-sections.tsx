@@ -42,10 +42,12 @@ interface BillingSectionsProps {
   paidAiCard?: ReactNode;
   /** What sits under the counters (the AI balance alert, the auto top-up notice, the device overage), each optional. */
   notices?: ReactNode;
+  /** The standing auto top-up arrangement, between the notices and the plan; only some accounts have it. */
+  autoTopUpSection?: ReactNode;
 }
 
 /**
- * The billing page's body, in order: the test-mode banner, the counters, the notices, the plan and the invoices. One module for the page
+ * The billing page's body, in order: the test-mode banner, the counters, the notices, auto top-up, the plan and the invoices. One module for the page
  * (`BillingUsageScreen`) and the wait for its code (`billing-usage-view.tsx`'s dynamic fallback), which renders it with no data in a
  * loading scope, so the two can never draw different pages.
  */
@@ -57,6 +59,7 @@ export function BillingSections({
   onClockChanged,
   paidAiCard,
   notices,
+  autoTopUpSection,
 }: BillingSectionsProps) {
   const subscription = useFragment(billingSectionsSubscriptionFragment, subscriptionRef) ?? null;
   const billingPlan = useFragment(billingSectionsBillingPlanFragment, billingPlanRef) ?? null;
@@ -92,6 +95,8 @@ export function BillingSections({
           (`data-loading-optional`), so the wait draws none, and one that appears with the answer moves the plan and
           the invoices down once. */}
       {notices}
+
+      {autoTopUpSection}
 
       <PlanSections subscription={subscription} billingPlan={billingPlan} />
 
