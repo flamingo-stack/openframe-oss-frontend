@@ -21,6 +21,7 @@ export const incidentsTableRelayQuery = graphql`
   }
 `;
 
+// \`unreadNotificationCount\` beside the shared row fragment, not in it: only this table draws a row's unread count.
 export const incidentsTableRelayFragment = graphql`
   fragment incidentsTableRelay_query on Query
   @refetchable(queryName: "incidentsTableRelayPaginationQuery")
@@ -36,6 +37,7 @@ export const incidentsTableRelayFragment = graphql`
       edges {
         node {
           ...insightRowFields_insight
+          unreadNotificationCount
         }
       }
       pageInfo {

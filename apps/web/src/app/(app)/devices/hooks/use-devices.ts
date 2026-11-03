@@ -11,7 +11,7 @@ import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
 import { DEVICES_PAGE_SIZE } from '../queries/devices-api';
 import type { Device } from '../types/device.types';
 import { useDeviceEpoch } from '../utils/device-refresh';
-import { readMachineEdges } from '../utils/read-machine';
+import { readListedMachineEdges } from '../utils/read-machine';
 
 export interface UseDevicesResult {
   devices: Device[];
@@ -50,7 +50,7 @@ export function useDevices(filters?: DeviceFilterInput, search = ''): UseDevices
     devicesListRelay_query$key
   >(devicesListRelayFragment, root);
 
-  const devices = useMemo(() => readMachineEdges(data.devices?.edges), [data.devices?.edges]);
+  const devices = useMemo(() => readListedMachineEdges(data.devices?.edges), [data.devices?.edges]);
 
   // KNOWN LIMITATION: this refetches from the head (`after: null`), and
   // `ConnectionHandler` REPLACES rather than merges on a head fetch, so a user

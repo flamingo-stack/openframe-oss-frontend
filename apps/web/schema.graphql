@@ -1221,6 +1221,13 @@ type Insight {
   id: ID!
 
   """
+  The raw stored id — NOT `id`, which is an opaque node handle. It is what
+  `NotificationFilterInput.entity.id` and `markNotificationsReadForEntity` take for an INSIGHT entity, and what a
+  notification's `attributes.insightId` carries, so a row can list and clear its own notifications.
+  """
+  insightId: String!
+
+  """
   Same value as `Organization.organizationId` — NOT `Organization.id`, which is an opaque node
   handle. Kept flat so a list can filter by organization without resolving the whole object.
   """
@@ -1290,6 +1297,12 @@ type Insight {
 
   """When the detector decided, not when the underlying event happened."""
   detectedAt: Instant!
+
+  """
+  The current user's unread notifications about this incident (entity INSIGHT, insightId). Counts the same read
+  states as `unreadCountsByCategory`, so a row and the sidebar badge agree. 0 when none.
+  """
+  unreadNotificationCount: Int!
 }
 
 type InsightConnection {
@@ -1831,6 +1844,12 @@ type Machine implements Node & AssignableTarget {
   Package managers as last reported by the device agent. Null until the first report.
   """
   packageManagers: MachinePackageManagers
+
+  """
+  The current user's unread notifications about this device (entity DEVICE, machineId). Counts the same
+  read states as unreadCountsByCategory, so a row and the sidebar badge agree. 0 when none.
+  """
+  unreadNotificationCount: Int!
 }
 
 type Mutation {
@@ -2544,9 +2563,20 @@ type NotificationEdge {
   cursor: String!
 }
 
+"""
+One entity's notifications. id is the raw stored id: Machine.machineId for DEVICE, the ticket, dialog or
+insight id otherwise — the same value markNotificationsReadForEntity takes.
+"""
+input NotificationEntityFilterInput {
+  type: NotificationEntityType!
+  id: ID!
+}
+
 enum NotificationEntityType {
   TICKET
   DIALOG
+  INSIGHT
+  DEVICE
 }
 
 input NotificationFilterInput {
@@ -2562,6 +2592,11 @@ input NotificationFilterInput {
 
   """Only these severities; omitted or empty does not narrow."""
   severities: [NotificationSeverity!]
+
+  """
+  Only the caller's notifications about this entity; combines (AND) with the other filters. Omitted does not narrow.
+  """
+  entity: NotificationEntityFilterInput
 }
 
 enum NotificationReadStatus {

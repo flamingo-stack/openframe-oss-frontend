@@ -7,6 +7,7 @@ import {
   Filter02Icon,
   SearchIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { UnreadNotificationsIndicator } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import {
   ActionsMenuDropdown,
   Button,
@@ -44,7 +45,7 @@ import { LiveTable } from '@/app/components/shared/live-table';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
-import { InsightSeverity, InsightStatus, InsightType } from '@/generated/schema-enums';
+import { InsightSeverity, InsightStatus, InsightType, NotificationEntityType } from '@/generated/schema-enums';
 import { archiveResolvedInsightsMutation } from '@/graphql/insights/archive-resolved-insights-mutation';
 import { incidentsTableRelayFragment, incidentsTableRelayQuery } from '@/graphql/insights/incidents-table-relay';
 import { insightFacetsFragment } from '@/graphql/insights/insight-facets';
@@ -98,6 +99,8 @@ type ColumnFilterState = { id: string; value: unknown }[];
  */
 interface IncidentTableRow extends IncidentRow {
   mingoAction: MingoAction;
+  /** The viewer's unread notifications about the incident: only this table's query selects it. */
+  unreadNotificationCount?: number;
 }
 
 /**
@@ -166,7 +169,13 @@ function incidentColumns({
       header: INCIDENT_COLUMNS.incident.header,
       cell: ({ row }: { row: Row<IncidentTableRow> }) => (
         <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
-          <TruncateText>{row.original.title ?? ''}</TruncateText>
+          {/* The unread count beside the title, not in the open column: that one is dropped on a narrow page. */}
+          <div className="flex min-w-0 items-center gap-[var(--spacing-system-xs)]">
+            <div className="min-w-0 flex-1">
+              <TruncateText>{row.original.title ?? ''}</TruncateText>
+            </div>
+            <IncidentUnreadIndicator row={row.original} />
+          </div>
           {/* The Status column is hidden below lg; its time line moves under the title. */}
           <div className="hidden min-w-0 content-lg:block">
             <TruncateText variant="h6" tone="secondary">
@@ -258,6 +267,23 @@ function incidentColumns({
       meta: liveColumnMeta(INCIDENT_COLUMNS.open),
     },
   ];
+}
+
+/** The viewer's unread notifications about the incident, opening them on the notifications page. Nothing at 0. */
+function IncidentUnreadIndicator({ row }: { row: IncidentTableRow }) {
+  const count = row.unreadNotificationCount ?? 0;
+  return (
+    <UnreadNotificationsIndicator
+      count={count}
+      href={
+        count > 0
+          ? routes.notifications({
+              entity: { type: NotificationEntityType.INSIGHT, id: row.insightId, name: row.title },
+            })
+          : undefined
+      }
+    />
+  );
 }
 
 /** The device (its type icon and name) over its customer; each part its own loading form while the row is read. */
@@ -435,8 +461,11 @@ function IncidentsTableContentLive({
 
   // Manual memos on purpose: TanStack compares `data` by identity, so `rows`
   // must only change when an input does — and `incidents` is its stable input.
-  const incidents = useMemo<IncidentRow[]>(
-    () => (data.insights?.edges ?? []).flatMap(edge => (edge?.node ? [toIncidentRow(edge.node)] : [])),
+  const incidents = useMemo<(IncidentRow & { unreadNotificationCount: number })[]>(
+    () =>
+      (data.insights?.edges ?? []).flatMap(edge =>
+        edge?.node ? [{ ...toIncidentRow(edge.node), unreadNotificationCount: edge.node.unreadNotificationCount }] : [],
+      ),
     [data.insights?.edges],
   );
   // Which rows already have a chat: their button reopens it instead of starting one.

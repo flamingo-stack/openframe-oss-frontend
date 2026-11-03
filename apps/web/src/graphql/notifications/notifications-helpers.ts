@@ -4,7 +4,12 @@ import type {
   notificationFields_notification$data as NotificationFieldsData,
   notificationFields_notification$key as NotificationFieldsKey,
 } from '@/__generated__/notificationFields_notification.graphql';
-import { InsightSeverity, NotificationReadStatus, type NotificationSeverity } from '@/generated/schema-enums';
+import {
+  InsightSeverity,
+  NotificationEntityType,
+  NotificationReadStatus,
+  type NotificationSeverity,
+} from '@/generated/schema-enums';
 import {
   isIncidentDetectedType,
   isIncidentNotificationType,
@@ -30,8 +35,24 @@ export {
 export const NOTIFICATIONS_CONNECTION_KEY = 'NotificationsList_notifications';
 const NOTIFICATION_EDGE_TYPENAME = 'NotificationEdge';
 
+/**
+ * One entity's notifications (a device, an incident). `id` is the RAW stored id the backend keys the read states
+ * on (`Machine.machineId`, `Insight.insightId`), never a Relay global id: the same value
+ * `markNotificationsReadForEntity` takes.
+ */
+export interface NotificationEntityScope {
+  type: NotificationEntityType;
+  id: string;
+}
+
+/** The scope a page's URL asks for, or `null` when it names no entity this build knows. */
+export function parseNotificationEntityScope(type: string, id: string): NotificationEntityScope | null {
+  const known = Object.values(NotificationEntityType).find(value => value === type);
+  return known && id ? { type: known, id } : null;
+}
+
 export interface NotificationsConnectionFilters {
-  filter: { read: boolean };
+  filter: { read: boolean; entity?: NotificationEntityScope };
   search: string | null;
 }
 
@@ -40,9 +61,16 @@ export interface NotificationConnectionPair {
   read: NotificationsConnectionFilters;
 }
 
-export function notificationsConnectionFilters(read: boolean, search: string): NotificationsConnectionFilters {
+export function notificationsConnectionFilters(
+  read: boolean,
+  search: string,
+  entity?: NotificationEntityScope | null,
+): NotificationsConnectionFilters {
   const trimmed = search.trim();
-  return { filter: { read }, search: trimmed || null };
+  // Without a scope the key is left out, not set to undefined: the drawer's and the page's connections keep the
+  // identity they always had.
+  const filter = entity ? { read, entity: { type: entity.type, id: entity.id } } : { read };
+  return { filter, search: trimmed || null };
 }
 
 export const UNFILTERED_NOTIFICATION_PAIR: NotificationConnectionPair = {
@@ -206,6 +234,35 @@ export function makeMarkAllReadUpdater(pairs: NotificationConnectionPair[]) {
     }
     // Backend marks every notification read (not just the loaded ones), so clear all buckets.
     clearUnreadCounts(store);
+  };
+}
+
+/**
+ * Mark All Complete on a page scoped to one entity: the server reads every notification of that entity, loaded or
+ * not. The loaded ones are the scoped unread list's rows; each moves through the single-read updater, so its copy in
+ * every other list (the drawer's included) moves with it, and nothing about another entity does. The scoped list is
+ * then complete: any page of it not loaded yet was read too.
+ */
+export function makeMarkEntityReadUpdater(entity: NotificationEntityScope, pairs: NotificationConnectionPair[]) {
+  return (store: RecordSourceSelectorProxy) => {
+    const root = store.getRoot();
+    const scoped = pairs.filter(
+      pair => pair.unread.filter.entity?.type === entity.type && pair.unread.filter.entity.id === entity.id,
+    );
+    const ids = new Set<string>();
+    for (const pair of scoped) {
+      const unreadConn = ConnectionHandler.getConnection(root, NOTIFICATIONS_CONNECTION_KEY, pair.unread);
+      for (const edge of unreadConn?.getLinkedRecords('edges') ?? []) {
+        const node = edge?.getLinkedRecord('node');
+        if (node) ids.add(node.getDataID());
+      }
+      const pageInfo = unreadConn?.getLinkedRecord('pageInfo');
+      if (pageInfo) {
+        pageInfo.setValue(false, 'hasNextPage');
+        pageInfo.setValue(null, 'endCursor');
+      }
+    }
+    for (const id of ids) makeMarkReadUpdater(id, pairs)(store);
   };
 }
 
