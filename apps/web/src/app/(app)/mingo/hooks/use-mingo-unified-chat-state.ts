@@ -29,7 +29,6 @@
  * second live tail applying every chunk again.
  */
 
-import { extractRecordLinks } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import type {
   ChatConnectionState,
   ChatRef,
@@ -58,13 +57,9 @@ import { useMingoSheetStore } from '@/app/components/mingo-shell/mingo-sheet-sto
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
 import { isMobileViewportNow } from '@/app/hooks/use-is-mobile-viewport';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
+import { linkedInsightId } from '../../incidents/utils/fix-with-mingo-draft';
 import type { DialogIntent } from '../../tickets/constants';
-import {
-  CONTEXT_ENTITY_KIND,
-  CONTEXT_ENTITY_MARKER,
-  CONTEXT_ITEMS_MAX,
-  RECENT_VIEWS_MAX,
-} from '../context/context-types';
+import { CONTEXT_ENTITY_KIND, CONTEXT_ITEMS_MAX, RECENT_VIEWS_MAX } from '../context/context-types';
 import { pageContextHref, resolvePageContext } from '../context/page-context';
 import { useMingoContextStore } from '../stores/mingo-context-store';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
@@ -78,10 +73,6 @@ import { useMingoRealtimeSubscription } from './use-mingo-realtime-subscription'
 
 const ADMIN_CHAT_TYPE = 'ADMIN_AI_CHAT' as const;
 
-/** The incident a message links: the first record link of type insight in it (`[…](record://insight/<id>)`). */
-function linkedInsightId(text: string): string | undefined {
-  return extractRecordLinks(text).find(record => record.type === CONTEXT_ENTITY_MARKER.INSIGHT)?.id;
-}
 const WELCOME_TEXT = "Hi! I'm Mingo AI, ready to help with your technical tasks. What can I do for you?";
 
 /** Metadata frame shape emitted by `<DialogSubscription onMetadata>`. */
