@@ -269,8 +269,11 @@ function DevicesPanelLoaded({
 
   const filterColumns = useMemo(() => {
     const hidden = new Set(hideFilters ?? []);
-    return getDeviceFilterColumns(deviceFilters, { directoryColumns }).filter(c => !hidden.has(c.key));
-  }, [deviceFilters, hideFilters, directoryColumns]);
+    // Off, `roomyDirectory` puts SOURCES in the filter window on a desktop, where the table header has no funnel for it
+    // beside the customer column (`DevicesTableBody`'s rule). The grid draws a SOURCES dropdown of its own.
+    const roomyDirectory = viewMode === 'grid' || (hideColumns?.includes('organization') ?? false);
+    return getDeviceFilterColumns(deviceFilters, { directoryColumns, roomyDirectory }).filter(c => !hidden.has(c.key));
+  }, [deviceFilters, hideFilters, hideColumns, directoryColumns, viewMode]);
   // Post-action list refresh is handled centrally: useDeviceActions invalidates
   // the device query roots, so no per-row refetch callback is needed.
   // The row menus disable Remote Control on DENY_ACCESS; only the table has them.
@@ -308,7 +311,6 @@ function DevicesPanelLoaded({
     isOpen: filterModalOpen,
     open: openFilterModal,
     close: closeFilterModal,
-    isMdUp,
     filterGroups,
     tagFilterKeys,
     handleFilterChange: handleModalFilterChange,
@@ -375,7 +377,8 @@ function DevicesPanelLoaded({
         onCloseFilterModal: closeFilterModal,
         filterGroups,
         onFilterChange: handleModalFilterChange,
-        currentFilters: isMdUp === false ? tableFilters : undefined,
+        // At every width: Apply sends what the window was seeded with, so an empty seed cleared the header's filters.
+        currentFilters: tableFilters,
         tagFilterKeys,
         selectedTags,
         onTagsChange: handleModalTagsChange,

@@ -268,6 +268,66 @@ describe('DevicesPanel and the directory gate', () => {
     }
   });
 
+  describe('the filter window on a desktop', () => {
+    const openWindow = () =>
+      act(() => {
+        [...container.querySelectorAll('button')].find(button => button.textContent === 'Device Tags')?.click();
+      });
+    const dialog = () => document.querySelector('[role="dialog"]');
+
+    it('keeps the header filters when Device Tags are applied', async () => {
+      setAddress('?statuses=ONLINE');
+      flagOn();
+      render();
+      await settle();
+      openWindow();
+      const apply = [...(dialog()?.querySelectorAll('button') ?? [])].find(b => b.textContent === 'Apply Filters');
+      expect(apply).toBeDefined();
+      // The list params go through the History API (no Next router is registered with the lib here).
+      const replace = vi.spyOn(window.history, 'replaceState');
+      const push = vi.spyOn(window.history, 'pushState');
+      await act(async () => {
+        apply?.click();
+      });
+      await settle();
+      const written = [...replace.mock.calls, ...push.mock.calls].map(call => String(call[2]));
+      replace.mockRestore();
+      push.mockRestore();
+      // Apply ran (it closes the window); the params it sent equal the address's, so nothing need be written.
+      expect(dialog()?.getAttribute('data-state')).toBe('closed');
+      expect(written.every(url => url.includes('statuses=ONLINE'))).toBe(true);
+      expect(window.location.search).toContain('statuses=ONLINE');
+    });
+
+    it('carries SOURCES on a desktop, beside the customer column', async () => {
+      flagOn();
+      render();
+      await settle();
+      openWindow();
+      expect(dialog()?.textContent).toContain('SOURCES');
+      expect(dialog()?.textContent).not.toContain('STATUS');
+    });
+
+    it("leaves SOURCES to the header on one customer's list", async () => {
+      flagOn();
+      render({ hideColumns: ['organization'] });
+      await settle();
+      openWindow();
+      expect(dialog()).not.toBeNull();
+      expect(dialog()?.textContent).not.toContain('SOURCES');
+    });
+
+    it('leaves SOURCES to the grid, which draws a dropdown of its own', async () => {
+      setAddress('?viewMode=grid');
+      flagOn();
+      render();
+      await settle();
+      openWindow();
+      expect(dialog()).not.toBeNull();
+      expect(dialog()?.textContent).not.toContain('SOURCES');
+    });
+  });
+
   it('holds nothing and ignores those filters on the archive, whatever the tenant has', async () => {
     setAddress('?userLinks=SHARED');
     countAnswer = () => new Promise(() => undefined);

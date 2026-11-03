@@ -85,4 +85,10 @@ describe('EditUserFields, Leaving date', () => {
     expect(container.textContent).toContain('Leaving date must be in the future');
     expect(container.querySelector('[data-invalid]')).not.toBeNull();
   });
+
+  it('is named by its label, so a click on it opens the picker', () => {
+    act(() => root.render(<Harness />));
+    const label = [...container.querySelectorAll('label')].find(node => node.textContent === 'Leaving date');
+    expect(label?.control?.tagName).toBe('BUTTON');
+  });
 });

@@ -30,6 +30,8 @@ import { ManagerField } from './manager-field';
 // leads the first row and Office Location starts a new one (1040:37391).
 const FIELD_GRID = 'grid grid-cols-1 gap-[var(--spacing-system-lf)] content-md:grid-cols-2 content-lg:grid-cols-3';
 
+const LEAVING_DATE_ID = 'edit-user-leaving-date';
+
 type TextFieldName =
   'firstName' | 'lastName' | 'department' | 'jobTitle' | 'phone' | 'officeLocation' | 'usageLocation';
 
@@ -219,8 +221,9 @@ export function EditUserFields({ form: { control }, record, disabled }: EditUser
           control={control}
           render={({ field, fieldState: { error } }) => (
             // A local field: it saves on a read-only account too (contract §11.5), never reaching the provider.
-            <FieldWrapper label="Leaving date" labelVariant="large" error={error?.message}>
+            <FieldWrapper label="Leaving date" labelVariant="large" htmlFor={LEAVING_DATE_ID} error={error?.message}>
               <DatePicker
+                id={LEAVING_DATE_ID}
                 mode="single"
                 placeholder="MM/DD/YYYY"
                 value={field.value ?? undefined}
