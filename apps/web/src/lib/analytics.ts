@@ -34,6 +34,7 @@ export const EVENT_SUBTYPE = {
   ADD_SSO_IDP: 'add_sso_idp_main_dashboard',
   SKIP_ONBOARDING: 'skip_onboarding_main_dashboard',
   // /mingo — chat
+  SKIP_ONBOARDING_MINGO: 'skip_onboarding_mingo',
   SEND_MINGO_MESSAGE: 'send_mingo_message_mingo',
   APPROVE_MINGO_COMMAND: 'approve_mingo_command_mingo',
   REJECT_MINGO_COMMAND: 'reject_mingo_command_mingo',
@@ -53,6 +54,7 @@ export type EventSubtype = (typeof EVENT_SUBTYPE)[keyof typeof EVENT_SUBTYPE];
  */
 const SINGULAR_SUBTYPES: ReadonlySet<EventSubtype> = new Set([
   EVENT_SUBTYPE.SKIP_ONBOARDING,
+  EVENT_SUBTYPE.SKIP_ONBOARDING_MINGO,
   EVENT_SUBTYPE.ADD_SSO_IDP,
 ]);
 

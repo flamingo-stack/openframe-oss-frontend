@@ -4217,12 +4217,20 @@ type MachinePackageManagers {
 }
 
 """
-The arrangement to set. The amount must exceed the threshold, and both are whole dollars.
+The arrangement to set. The amount must exceed the threshold and the spend limit, when given, must be at
+least the amount. All figures are whole dollars.
 """
 input AutoTopUpSettingsInput {
   enabled: Boolean!
   amountUsd: Float
   thresholdUsd: Float
+
+  """
+  The most auto top-ups may charge over the last 30 days, in USD. Omitted or null removes the limit, so a
+  client saving the arrangement sends the current one back. Ignored when enabled is false: switching off
+  keeps the limit.
+  """
+  spendLimitUsd: Float
 }
 
 """
@@ -4261,6 +4269,32 @@ type AutoTopUpSettings {
   returns from this page, not what is armed now.
   """
   paymentMethodSetupUrl: String
+
+  """
+  The most auto top-ups may charge over the last 30 days, in USD. Null means no limit.
+  """
+  spendLimitUsd: Float
+
+  """
+  What auto top-ups charged over the last 30 days, in USD: paid and in flight, failed ones excluded.
+  """
+  spentLast30DaysUsd: Float!
+
+  """
+  Set while the spend limit holds refills back. Auto top-up itself stays enabled.
+  """
+  pausedReason: AutoTopUpPausedReason
+
+  """
+  When the next top-up is tried while paused. Not a promise that it will fit the limit.
+  """
+  resumesAt: Instant
+
+  """The smallest top-up amount on sale, in USD."""
+  minimumAmountUsd: Float
+
+  """The lowest threshold that can be set, in USD."""
+  minimumThresholdUsd: Float
 }
 
 """
@@ -4271,6 +4305,27 @@ enum AutoTopUpDisabledReason {
   The card declined an automatic charge. One charge, one outcome — it is never retried.
   """
   PAYMENT_FAILED
+
+  """The subscription it belonged to was cancelled."""
+  SUBSCRIPTION_CANCELED
+
+  """
+  The card asked for 3-D Secure and nobody completed it. An automatic charge has no one present to answer, so it is not tried again.
+  """
+  AUTHENTICATION_ABANDONED
+
+  """
+  There is no card on file that can be charged with nobody present. The customer adds a card and turns automatic top-up back on.
+  """
+  NO_PAYMENT_METHOD
+}
+
+"""Why automatic top-up is on but holding refills back for now."""
+enum AutoTopUpPausedReason {
+  """
+  The next top-up would take the last 30 days of auto top-ups over the spend limit. Tried again a day later.
+  """
+  SPEND_LIMIT_REACHED
 }
 
 """
@@ -5026,6 +5081,11 @@ type SoftwareActionRunEdge {
 enum SoftwareActionStatus {
   SCHEDULED
   IN_PROGRESS
+
+  """
+  A package update waits on the device: a user prompt or an open app. Any waiting device makes the action WAITING.
+  """
+  WAITING
   COMPLETED
   FAILED
 }

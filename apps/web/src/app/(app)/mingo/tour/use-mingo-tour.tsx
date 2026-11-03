@@ -8,8 +8,10 @@ import { useRelayEnvironment } from 'react-relay';
 import { fetchFirstDevice } from '@/app/(app)/setup/hooks/use-first-device-enrollment';
 import { useTourState } from '@/app/(app)/setup/lib/tour-state';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
+import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
+import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { canOpenFaeApp, openFaeApp } from '@/lib/fae-app';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { MINGO_DIALOG_NOT_FOUND } from '../hooks/use-mingo-dialog-selection';
@@ -51,8 +53,8 @@ export interface MingoTour {
  * on every page while that conversation is the open one. A chip sends its
  * prompt there through the state it was given, opens its section beside the
  * chat and marks its step done on the server. "Finish tour" completes the
- * user's onboarding, which takes the block
- * away.
+ * user's onboarding and "Skip Onboarding" (once confirmed) skips it, either of
+ * which takes the block away.
  */
 export function useMingoTour({ state, createNamedDialog, dialogError, onStepOpened }: MingoTourInput): MingoTour {
   const router = useRouter();
@@ -62,8 +64,14 @@ export function useMingoTour({ state, createNamedDialog, dialogError, onStepOpen
   const firstName = useAuthStore(s => s.user?.firstName);
   const userId = useAuthStore(s => s.user?.id);
   const user = useOnboardingStore(s => s.user);
-  const { completeUserStepInBackground, completeUserInBackground, setTourDialogInBackground, skipUserInBackground } =
-    useOnboardingMutations();
+  const {
+    completeUserStepInBackground,
+    completeUserInBackground,
+    setTourDialogInBackground,
+    skipUser,
+    skipUserInBackground,
+    isMutating,
+  } = useOnboardingMutations();
 
   // The tour is on while the user's onboarding is neither finished nor skipped
   // (the progress record is what "Reset Onboarding" and "Finish tour" both
@@ -156,6 +164,15 @@ export function useMingoTour({ state, createNamedDialog, dialogError, onStepOpen
 
   const handleFinish = useCallback(() => completeUserInBackground(), [completeUserInBackground]);
 
+  // "Skip Onboarding" asks first. The skip landing ends the tour, which takes the
+  // block and this dialog with it; a failed one toasts and leaves the dialog open.
+  const [skipConfirmOpen, setSkipConfirmOpen] = useState(false);
+  const confirmSkip = () =>
+    skipUser(() => {
+      setSkipConfirmOpen(false);
+      trackDashboardActivity(EVENT_SUBTYPE.SKIP_ONBOARDING_MINGO);
+    });
+
   const showing = dialogId !== null && activeDialogId === dialogId;
 
   // The conversation Mingo greeted in keeps the greeting after the tour, finished
@@ -202,14 +219,28 @@ export function useMingoTour({ state, createNamedDialog, dialogError, onStepOpen
   return {
     state: decoratedState,
     aboveComposer: showing ? (
-      <GettingStartedBlock
-        steps={steps}
-        doneStepIds={doneStepIds}
-        onAction={handleAction}
-        onFinish={handleFinish}
-        onOpenFae={canOpenFaeApp() ? openFaeApp : undefined}
-        busy={isLoading}
-      />
+      <>
+        <GettingStartedBlock
+          steps={steps}
+          doneStepIds={doneStepIds}
+          onAction={handleAction}
+          onFinish={handleFinish}
+          onSkip={() => setSkipConfirmOpen(true)}
+          onOpenFae={canOpenFaeApp() ? openFaeApp : undefined}
+          busy={isLoading}
+        />
+        <ConfirmDialog
+          open={skipConfirmOpen}
+          onOpenChange={setSkipConfirmOpen}
+          title="Skip onboarding?"
+          description="The Getting Started steps go away. You can replay the tour any time with Reset Onboarding in the chat's ⋯ menu."
+          confirmLabel="Skip Onboarding"
+          cancelLabel="Cancel"
+          variant="warning"
+          isPending={isMutating}
+          onConfirm={confirmSkip}
+        />
+      </>
     ) : null,
   };
 }
