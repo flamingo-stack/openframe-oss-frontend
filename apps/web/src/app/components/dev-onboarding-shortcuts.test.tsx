@@ -31,6 +31,7 @@ const OPEN_USER: UserOnboardingProgress = {
   skipped: false,
   skippedAt: null,
   tourDialogId: 'd-1',
+  setupSeen: false,
 };
 
 let container: HTMLDivElement;
