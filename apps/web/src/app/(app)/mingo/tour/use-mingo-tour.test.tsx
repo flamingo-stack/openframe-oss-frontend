@@ -47,6 +47,7 @@ function progress(overrides: Partial<UserOnboardingProgress> = {}): UserOnboardi
     skipped: false,
     skippedAt: null,
     tourDialogId: TOUR_DIALOG,
+    setupSeen: false,
     ...overrides,
   };
 }
