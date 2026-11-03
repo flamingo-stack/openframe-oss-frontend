@@ -157,6 +157,7 @@ describe('users', () => {
     expect(routes.users.list).toBe('/users');
     expect(routes.users.details('acc-1')).toBe('/users/details?id=acc-1');
     expect(routes.users.details('acc-1', { tab: 'details' })).toBe('/users/details?id=acc-1&tab=details');
+    expect(routes.users.edit('acc-1')).toBe('/users/edit?id=acc-1');
   });
 });
 

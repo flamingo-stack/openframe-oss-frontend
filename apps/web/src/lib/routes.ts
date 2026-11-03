@@ -520,6 +520,7 @@ export const routes = {
   users: {
     list: '/users',
     details: (id: string | number, o?: { tab?: UserDetailTab }) => withQuery('/users/details', { id, tab: o?.tab }),
+    edit: (id: string | number) => withQuery('/users/edit', { id }),
   },
 
   notifications: (o?: { tab?: NotificationsTab }) => withQuery('/notifications', { tab: o?.tab }),

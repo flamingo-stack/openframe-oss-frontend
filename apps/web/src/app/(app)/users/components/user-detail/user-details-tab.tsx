@@ -156,10 +156,10 @@ function UserDetailsCards({ person }: { person: userDetailsTab_person$data | nul
   const account = person?.accounts[0] ?? null;
   const roles = account?.details?.otherAdminRoles;
   const created = account?.directoryCreatedAt ? parseInstant(account.directoryCreatedAt) : null;
-  // The local phone is stored, so a failed live read still shows it (contract §2).
+  // The local phone is stored, so a failed live read still shows it (contract §2). Edit User clears it to `''`.
   const phone =
     account && !account.details
-      ? (account.phone ?? NOT_AVAILABLE)
+      ? account.phone || NOT_AVAILABLE
       : liveValue(account, details => details.mobilePhone ?? details.businessPhones[0] ?? account?.phone ?? null);
 
   return (
