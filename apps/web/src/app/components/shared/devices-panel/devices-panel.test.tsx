@@ -299,13 +299,25 @@ describe('DevicesPanel and the directory gate', () => {
       expect(window.location.search).toContain('statuses=ONLINE');
     });
 
-    it('carries SOURCES on a desktop, beside the customer column', async () => {
+    it('carries SOURCES from lg until xl, where beside the customer column its header has no funnel', async () => {
+      const everyStep = window.matchMedia;
+      // A 1280-1439px window: every step up to lg, not xl (1440px).
+      window.matchMedia = ((query: string) => ({ ...everyStep(query), matches: !query.includes('1440px') })) as never;
       flagOn();
       render();
       await settle();
       openWindow();
       expect(dialog()?.textContent).toContain('SOURCES');
       expect(dialog()?.textContent).not.toContain('STATUS');
+    });
+
+    it('leaves SOURCES to the header from xl, where its funnel is back', async () => {
+      flagOn();
+      render();
+      await settle();
+      openWindow();
+      expect(dialog()).not.toBeNull();
+      expect(dialog()?.textContent).not.toContain('SOURCES');
     });
 
     it("leaves SOURCES to the header on one customer's list", async () => {
