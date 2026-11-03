@@ -161,6 +161,11 @@ export interface MingoUnifiedChat {
    * renders as an ordinary empty thread and says nothing.
    */
   dialogError: string | null;
+  /**
+   * When the SELECTED dialog was created (the server's record), or null until it has
+   * loaded. `UnifiedChatState.activeDialog.timestamp` is its last activity instead.
+   */
+  dialogCreatedAt: string | null;
 }
 
 /**
@@ -866,5 +871,6 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     fetchArchivedDialogs,
     unarchiveDialog,
     dialogError,
+    dialogCreatedAt: dialogData?.createdAt ?? null,
   };
 }
