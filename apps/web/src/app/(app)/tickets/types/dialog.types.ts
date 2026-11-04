@@ -197,6 +197,8 @@ export interface ExecutingToolData extends MessageData {
   toolFunction: string;
   title?: string;
   toolExplanation?: string;
+  /** Wire shape of the guardrail review; the core lib normalizes it. */
+  policyReview?: unknown;
   parameters?: Record<string, unknown>;
   requiresApproval?: boolean;
   approvalStatus?: string;

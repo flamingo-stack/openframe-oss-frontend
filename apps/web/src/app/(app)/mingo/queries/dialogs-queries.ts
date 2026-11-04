@@ -1,3 +1,5 @@
+import { POLICY_REVIEW_SELECTION } from './policy-review-selection';
+
 /**
  * Response name the ASK card's intro sentence is fetched under.
  *
@@ -307,18 +309,7 @@ export function getMingoDialogMessagesQuery({ legacyGuide = false }: { legacyGui
               toolFunction
               title
               toolExplanation
-              policyReview {
-                source
-                decision
-                approvalLevel
-                policyLevel
-                operationCodes
-                matchedRules {
-                  code
-                  label
-                }
-                reason
-              }
+              ${POLICY_REVIEW_SELECTION}
               parameters
               requiresApproval
               approvalStatus
@@ -351,18 +342,7 @@ export function getMingoDialogMessagesQuery({ legacyGuide = false }: { legacyGui
                 requiresApproval
                 approvalType
                 toolCallArguments
-                policyReview {
-                  source
-                  decision
-                  approvalLevel
-                  policyLevel
-                  operationCodes
-                  matchedRules {
-                    code
-                    label
-                  }
-                  reason
-                }
+                ${POLICY_REVIEW_SELECTION}
               }
             }
 

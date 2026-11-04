@@ -1,3 +1,5 @@
+import { POLICY_REVIEW_SELECTION } from '../../mingo/queries/policy-review-selection';
+
 /**
  * Response names the escalation bodies are fetched under.
  *
@@ -97,18 +99,7 @@ export const GET_DIALOG_MESSAGES_QUERY = `
               toolFunction
               title
               toolExplanation
-              policyReview {
-                source
-                decision
-                approvalLevel
-                policyLevel
-                operationCodes
-                matchedRules {
-                  code
-                  label
-                }
-                reason
-              }
+              ${POLICY_REVIEW_SELECTION}
               parameters
               requiresApproval
               approvalStatus
@@ -141,18 +132,7 @@ export const GET_DIALOG_MESSAGES_QUERY = `
                 requiresApproval
                 approvalType
                 toolCallArguments
-                policyReview {
-                  source
-                  decision
-                  approvalLevel
-                  policyLevel
-                  operationCodes
-                  matchedRules {
-                    code
-                    label
-                  }
-                  reason
-                }
+                ${POLICY_REVIEW_SELECTION}
               }
             }
 

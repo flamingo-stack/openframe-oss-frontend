@@ -1,3 +1,4 @@
+import { POLICY_REVIEW_SELECTION } from '@/app/(app)/mingo/queries/policy-review-selection';
 import { API_ENDPOINTS } from '@/app/(app)/tickets/constants';
 import { extractGraphQlData, type GraphQlResponse } from '@/app/(app)/tickets/utils/graphql';
 import { apiClient } from '@/lib/api-client';
@@ -36,6 +37,7 @@ export const APPROVAL_DIALOGS_QUERY = `
               requiresApproval
               approvalType
               toolCallArguments
+              ${POLICY_REVIEW_SELECTION}
             }
           }
         }

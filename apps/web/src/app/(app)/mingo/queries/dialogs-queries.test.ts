@@ -10,7 +10,10 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { APPROVAL_DIALOGS_QUERY } from '@/app/components/approvals/approval-dialogs-query';
+
 import { GET_DIALOG_MESSAGES_QUERY } from '../../tickets/queries/dialogs-queries';
+import { GET_PENDING_APPROVAL_TICKETS_QUERY } from '../../tickets/queries/ticket-queries';
 import {
   ASK_INTRO_ALIAS,
   GET_MINGO_DIALOGS_QUERY,
@@ -18,6 +21,7 @@ import {
   getMingoDialogMessagesQuery,
   normalizeAskMessageData,
 } from './dialogs-queries';
+import { POLICY_REVIEW_SELECTION } from './policy-review-selection';
 
 /** The body of `... on <TypeName> { … }` in the messages query, nested selections included. */
 function fragmentBody(query: string, typeName: string): string {
@@ -70,15 +74,19 @@ describe('getMingoDialogMessagesQuery', () => {
     expect(approval).toContain('toolCallArguments');
   });
 
-  it('fetches the guardrail review on approvals and on running tools, without the rule type', () => {
-    // The ai-agent is dropping `PolicyReviewRule.type`; selecting it would fail the whole messages query.
+  it('fetches the guardrail review wherever a tool call is selected', () => {
     for (const typeName of ['ApprovalRequestData', 'ExecutingToolData']) {
-      expect(fragmentBody(query, typeName), typeName).toContain('policyReview {');
+      expect(fragmentBody(query, typeName), typeName).toContain(POLICY_REVIEW_SELECTION);
+      expect(fragmentBody(legacyQuery, typeName), typeName).toContain(POLICY_REVIEW_SELECTION);
     }
-    for (const selection of [query, GET_DIALOG_MESSAGES_QUERY]) {
-      expect(selection.match(/policyReview \{/g)).toHaveLength(2);
-      expect(selection).not.toMatch(/matchedRules \{[^}]*\btype\b/);
-    }
+    expect(GET_DIALOG_MESSAGES_QUERY.split(POLICY_REVIEW_SELECTION)).toHaveLength(3);
+    expect(APPROVAL_DIALOGS_QUERY).toContain(POLICY_REVIEW_SELECTION);
+    expect(GET_PENDING_APPROVAL_TICKETS_QUERY).toContain(POLICY_REVIEW_SELECTION);
+  });
+
+  it('leaves the rule type out of the review', () => {
+    // The ai-agent is dropping `PolicyReviewRule.type`; selecting it would fail the whole query.
+    expect(POLICY_REVIEW_SELECTION).not.toMatch(/\btype\b/);
   });
 });
 
