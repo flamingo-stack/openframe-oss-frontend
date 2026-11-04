@@ -1,11 +1,7 @@
 /**
- * `record://chat/<dialogId>` reaches the chat-reference chip with the chats glyph
- * (two overlapping bubbles) as its lead icon — the marker is not an entity, so
- * it has no picker entry to take an icon from, and the icon is pinned here
- * instead of in `MINGO_CONTEXT_ENTITY_TYPES`.
+ * `record://chat/<dialogId>` reaches the chat-reference chip, and an inline chip draws no icon.
  */
 
-import { ChatsIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { isValidElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { ChatReferenceChip } from './chat-reference-chip';
@@ -21,16 +17,14 @@ vi.mock('./rest-mention-chips', () => ({ RestMentionChip: vi.fn() }));
 vi.mock('../context-sources', () => ({ MINGO_CONTEXT_ENTITY_TYPES: [] }));
 
 describe('renderMingoRecordChip', () => {
-  it('renders a chat record as the chat-reference chip led by the chats icon', () => {
+  it('renders a chat record as the chat-reference chip, with no icon', () => {
     const element = renderMingoRecordChip({ type: 'chat', id: 'd-1' });
 
     expect(isValidElement(element)).toBe(true);
-    if (!isValidElement<{ id: string; icon: unknown }>(element)) return;
+    if (!isValidElement<{ id: string; icon?: unknown }>(element)) return;
     expect(element.type).toBe(ChatReferenceChip);
     expect(element.props.id).toBe('d-1');
-    expect(isValidElement(element.props.icon)).toBe(true);
-    if (!isValidElement(element.props.icon)) return;
-    expect(element.props.icon.type).toBe(ChatsIcon);
+    expect(element.props.icon).toBeUndefined();
   });
 
   it("leaves an unknown type to the lib's own chip", () => {

@@ -24,28 +24,13 @@
  */
 
 import type { ChatContextItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { ChatsIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { ReactNode } from 'react';
-import { KB_ITEM_ICON } from '@/app/(app)/knowledge-base/components/shared/knowledge-base-item-icon';
-import { KnowledgeBaseItemType } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
-import { MINGO_CONTEXT_ENTITY_TYPES } from '../context-sources';
 import { CONTEXT_ENTITY_KIND, type ContextEntityKind, CONTEXT_ENTITY_MARKER as M } from '../context-types';
 import { CHAT_REFERENCE_MARKER, ChatReferenceChip } from './chat-reference-chip';
 import { MentionTag } from './mention-tag';
 import { GraphqlMentionChip } from './relay-mention-chips';
 import { RestMentionChip } from './rest-mention-chips';
-
-const KbFolderIcon = KB_ITEM_ICON[KnowledgeBaseItemType.FOLDER];
-const KB_FOLDER_ICON = <KbFolderIcon size={24} />;
-const CHAT_REFERENCE_ICON = <ChatsIcon size={24} />;
-
-/** marker → lead icon, taken from the picker's entity-type config, plus the
- *  mention-only kinds the picker doesn't offer. */
-const ICON_BY_MARKER = new Map<string, ReactNode>([
-  ...MINGO_CONTEXT_ENTITY_TYPES.flatMap(t => (t.marker ? [[t.marker, t.icon] as const] : [])),
-  [M.KB_FOLDER, KB_FOLDER_ICON],
-]);
 
 /**
  * New OpenFrame scripts carry a 24-char Mongo ObjectId raw db id; legacy Tactical
@@ -68,49 +53,46 @@ export function renderMingoRecordChip({
   // TODO(CU-17tkuw61kfy): goes with the old mention token. The lib writes `@device:m1` as a link labelled with itself, which
   // names nothing: with no name, a chip reads its id.
   const label = linkLabel === `@${type}:${id}` ? undefined : linkLabel;
-  const icon = ICON_BY_MARKER.get(type);
   switch (type) {
     case CHAT_REFERENCE_MARKER:
       // Not an entity: an earlier conversation Mingo cites from chat memory.
       // Opens IN the drawer (see the chip), never on a page.
-      return <ChatReferenceChip id={id} icon={CHAT_REFERENCE_ICON} />;
+      return <ChatReferenceChip id={id} />;
     case M.DEVICE:
-      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.DEVICE} id={id} icon={icon} fallbackLabel={label} />;
+      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.DEVICE} id={id} fallbackLabel={label} />;
     case M.ORGANIZATION:
-      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.ORGANIZATION} id={id} icon={icon} fallbackLabel={label} />;
+      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.ORGANIZATION} id={id} fallbackLabel={label} />;
     case M.KB_ARTICLE:
-      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.KB_ARTICLE} id={id} icon={icon} fallbackLabel={label} />;
+      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.KB_ARTICLE} id={id} fallbackLabel={label} />;
     case M.KB_FOLDER:
-      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.KB_FOLDER} id={id} icon={icon} fallbackLabel={label} />;
+      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.KB_FOLDER} id={id} fallbackLabel={label} />;
     case M.SCHEDULED_SCRIPT:
       // Native-only (schedules never existed in Tactical), so — unlike SCRIPT
       // below — there is no id-shape dispatch: every id resolves through Relay.
-      return (
-        <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT} id={id} icon={icon} fallbackLabel={label} />
-      );
+      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT} id={id} fallbackLabel={label} />;
     case M.INSIGHT:
-      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.INSIGHT} id={id} icon={icon} fallbackLabel={label} />;
+      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.INSIGHT} id={id} fallbackLabel={label} />;
     case M.SOFTWARE:
-      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.SOFTWARE} id={id} icon={icon} fallbackLabel={label} />;
+      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.SOFTWARE} id={id} fallbackLabel={label} />;
     case M.VULNERABILITY:
       // A CVE id is its own name: nothing to resolve, so no fetch and no
       // skeleton — a linked chip straight away.
-      return <MentionTag icon={icon} label={label || id} href={routes.software.vulnerability(id)} />;
+      return <MentionTag label={label || id} href={routes.software.vulnerability(id)} />;
     case M.SCRIPT:
       // Dual-sourced: a 24-char ObjectId is a NATIVE script (Relay `script(id:)`);
       // anything else (numeric) is a LEGACY Tactical id, still reachable in old
       // chat history even though nothing writes those ids any more.
       return OBJECT_ID_RE.test(id) ? (
-        <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.SCRIPT} id={id} icon={icon} fallbackLabel={label} />
+        <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.SCRIPT} id={id} fallbackLabel={label} />
       ) : (
-        <RestMentionChip marker={type} id={id} icon={icon} fallbackLabel={label} />
+        <RestMentionChip marker={type} id={id} fallbackLabel={label} />
       );
     case M.USER:
-      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.USER} id={id} icon={icon} fallbackLabel={label} />;
+      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.USER} id={id} fallbackLabel={label} />;
     case M.POLICY:
     case M.QUERY:
     case M.TICKET:
-      return <RestMentionChip marker={type} id={id} icon={icon} fallbackLabel={label} />;
+      return <RestMentionChip marker={type} id={id} fallbackLabel={label} />;
     default:
       // Unknown type → the lib draws its own chip with the link's name.
       return null;

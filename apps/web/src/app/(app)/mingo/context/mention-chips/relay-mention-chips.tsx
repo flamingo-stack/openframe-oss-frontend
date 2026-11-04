@@ -54,7 +54,6 @@ interface GraphqlMentionChipProps {
   /** RAW db id (machineId / organizationId / kb id / script id / schedule id /
    *  software id). */
   id: string;
-  icon?: ReactNode;
   /** Known display name (e.g. a context item's picked label). Shown instead of
    *  the bare `id` when the live fetch can't resolve a name. */
   fallbackLabel?: string;
@@ -162,7 +161,7 @@ function hrefFor(kind: ContextEntityKind, rawId: string, globalId: string): stri
 
 type InnerProps = GraphqlMentionChipProps & { globalId: string };
 
-function NodeInner({ kind, id, icon, globalId, fallbackLabel }: InnerProps) {
+function NodeInner({ kind, id, globalId, fallbackLabel }: InnerProps) {
   const data = useLazyLoadQuery<relayMentionChipsNodeQuery>(
     NODE_QUERY,
     { id: globalId },
@@ -185,68 +184,52 @@ function NodeInner({ kind, id, icon, globalId, fallbackLabel }: InnerProps) {
         break;
     }
   }
-  return <MentionTag icon={icon} label={label} href={hrefFor(kind, id, globalId)} />;
+  return <MentionTag label={label} href={hrefFor(kind, id, globalId)} />;
 }
 
-function KbInner({ kind, id, icon, globalId, fallbackLabel }: InnerProps) {
+function KbInner({ kind, id, globalId, fallbackLabel }: InnerProps) {
   const data = useLazyLoadQuery<relayMentionChipsKbQuery>(
     KB_QUERY,
     { id: globalId },
     { fetchPolicy: 'store-or-network' },
   );
-  return (
-    <MentionTag
-      icon={icon}
-      label={data.knowledgeBaseItem?.name || fallbackLabel || id}
-      href={hrefFor(kind, id, globalId)}
-    />
-  );
+  return <MentionTag label={data.knowledgeBaseItem?.name || fallbackLabel || id} href={hrefFor(kind, id, globalId)} />;
 }
 
-function ScriptInner({ kind, id, icon, globalId, fallbackLabel }: InnerProps) {
+function ScriptInner({ kind, id, globalId, fallbackLabel }: InnerProps) {
   const data = useLazyLoadQuery<relayMentionChipsScriptQuery>(
     SCRIPT_QUERY,
     { id: globalId },
     { fetchPolicy: 'store-or-network' },
   );
-  return <MentionTag icon={icon} label={data.script?.name || fallbackLabel || id} href={hrefFor(kind, id, globalId)} />;
+  return <MentionTag label={data.script?.name || fallbackLabel || id} href={hrefFor(kind, id, globalId)} />;
 }
 
-function ScheduleInner({ kind, id, icon, globalId, fallbackLabel }: InnerProps) {
+function ScheduleInner({ kind, id, globalId, fallbackLabel }: InnerProps) {
   const data = useLazyLoadQuery<relayMentionChipsScheduleQuery>(
     SCHEDULE_QUERY,
     { id: globalId },
     { fetchPolicy: 'store-or-network' },
   );
-  return (
-    <MentionTag
-      icon={icon}
-      label={data.scriptSchedule?.name || fallbackLabel || id}
-      href={hrefFor(kind, id, globalId)}
-    />
-  );
+  return <MentionTag label={data.scriptSchedule?.name || fallbackLabel || id} href={hrefFor(kind, id, globalId)} />;
 }
 
-function InsightInner({ kind, id, icon, globalId, fallbackLabel }: InnerProps) {
+function InsightInner({ kind, id, globalId, fallbackLabel }: InnerProps) {
   const data = useLazyLoadQuery<relayMentionChipsInsightQuery>(
     INSIGHT_QUERY,
     { id: globalId },
     { fetchPolicy: 'store-or-network' },
   );
-  return (
-    <MentionTag icon={icon} label={data.insight.title || fallbackLabel || id} href={hrefFor(kind, id, globalId)} />
-  );
+  return <MentionTag label={data.insight.title || fallbackLabel || id} href={hrefFor(kind, id, globalId)} />;
 }
 
-function SoftwareInner({ kind, id, icon, globalId, fallbackLabel }: InnerProps) {
+function SoftwareInner({ kind, id, globalId, fallbackLabel }: InnerProps) {
   const data = useLazyLoadQuery<relayMentionChipsSoftwareQuery>(
     SOFTWARE_QUERY,
     { id: globalId },
     { fetchPolicy: 'store-or-network' },
   );
-  return (
-    <MentionTag icon={icon} label={data.software?.name || fallbackLabel || id} href={hrefFor(kind, id, globalId)} />
-  );
+  return <MentionTag label={data.software?.name || fallbackLabel || id} href={hrefFor(kind, id, globalId)} />;
 }
 
 function innerFor(kind: ContextEntityKind): (p: InnerProps) => ReactNode {
@@ -267,7 +250,7 @@ function innerFor(kind: ContextEntityKind): (p: InnerProps) => ReactNode {
   }
 }
 
-export function GraphqlMentionChip({ kind, id, icon, fallbackLabel }: GraphqlMentionChipProps) {
+export function GraphqlMentionChip({ kind, id, fallbackLabel }: GraphqlMentionChipProps) {
   const typename = CONTEXT_RELAY_TYPENAME[kind];
   // `id` may be a RAW db id (context item) OR an already-global id (an inline
   // `record://kb/<globalId>` link, since KB's idHint == the node id). `ensure…`
@@ -278,10 +261,8 @@ export function GraphqlMentionChip({ kind, id, icon, fallbackLabel }: GraphqlMen
   // takes, so it goes through as is.
   const globalId = typename ? ensureGlobalIdForType(typename, id) : id;
   return (
-    <MentionErrorBoundary
-      fallback={<MentionTag icon={icon} label={fallbackLabel || id} href={hrefFor(kind, id, globalId)} />}
-    >
-      <GraphqlMentionLoader kind={kind} id={id} icon={icon} globalId={globalId} fallbackLabel={fallbackLabel} />
+    <MentionErrorBoundary fallback={<MentionTag label={fallbackLabel || id} href={hrefFor(kind, id, globalId)} />}>
+      <GraphqlMentionLoader kind={kind} id={id} globalId={globalId} fallbackLabel={fallbackLabel} />
     </MentionErrorBoundary>
   );
 }
@@ -302,7 +283,7 @@ function GraphqlMentionLoader(props: InnerProps) {
 
 function GraphqlMentionReader(props: InnerProps) {
   // In a loading scope it draws the chip with no label and runs no read.
-  if (useLoadingScope()) return <MentionTag icon={props.icon} label="" />;
+  if (useLoadingScope()) return <MentionTag label="" />;
   const Inner = innerFor(props.kind);
   return <Inner {...props} />;
 }

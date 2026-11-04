@@ -19,7 +19,6 @@
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useSuspenseQuery } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
 import { formatTicketRef } from '@/app/(app)/tickets/utils/ticket-ref';
 import { apiClient } from '@/lib/api-client';
 import { fleetApiClient } from '@/lib/fleet-api-client';
@@ -78,7 +77,6 @@ const RESOLVERS: Record<string, (id: string) => Promise<Resolved>> = {
 interface RestMentionChipProps {
   marker: string;
   id: string;
-  icon?: ReactNode;
   /** Known display name (e.g. a context item's picked label). Shown instead of
    *  the bare `id` when the live resolve can't find the entity. */
   fallbackLabel?: string;
@@ -100,11 +98,11 @@ function RestLoader(props: RestMentionChipProps) {
 
 function RestReader(props: RestMentionChipProps) {
   // In a loading scope it draws the chip with no label and runs no read.
-  if (useLoadingScope()) return <MentionTag icon={props.icon} label="" />;
+  if (useLoadingScope()) return <MentionTag label="" />;
   return <RestInner {...props} />;
 }
 
-function RestInner({ marker, id, icon, fallbackLabel }: RestMentionChipProps) {
+function RestInner({ marker, id, fallbackLabel }: RestMentionChipProps) {
   const { data } = useSuspenseQuery({
     queryKey: ['mingo-mention', marker, id],
     queryFn: () => RESOLVERS[marker](id),
@@ -113,13 +111,13 @@ function RestInner({ marker, id, icon, fallbackLabel }: RestMentionChipProps) {
   // Resolvers degrade to `{ label: id }` when the lookup misses; in that case
   // prefer the caller's known label over showing the raw id.
   const label = data.label === id && fallbackLabel ? fallbackLabel : data.label;
-  return <MentionTag icon={icon} label={label} href={data.href} />;
+  return <MentionTag label={label} href={data.href} />;
 }
 
-export function RestMentionChip({ marker, id, icon, fallbackLabel }: RestMentionChipProps) {
+export function RestMentionChip({ marker, id, fallbackLabel }: RestMentionChipProps) {
   return (
-    <MentionErrorBoundary fallback={<MentionTag icon={icon} label={fallbackLabel || id} />}>
-      <RestLoader marker={marker} id={id} icon={icon} fallbackLabel={fallbackLabel} />
+    <MentionErrorBoundary fallback={<MentionTag label={fallbackLabel || id} />}>
+      <RestLoader marker={marker} id={id} fallbackLabel={fallbackLabel} />
     </MentionErrorBoundary>
   );
 }

@@ -2,8 +2,9 @@
 
 /**
  * Presentational shell every per-type mention chip renders into: the lib's `InlineChip`, the box the chat also draws
- * for a link to a screen of the app. A chip in a sentence shows the record's whole name and wraps with the line like a
- * link (the lib's rule: no width cap, no ellipsis).
+ * for a link to a screen of the app. It draws no icon, as the lib's chip draws none: a sentence of chips with an icon
+ * before every name read too crowded. A chip in a sentence shows the record's whole name and wraps with the line like
+ * a link (the lib's rule: no width cap, no ellipsis).
  *
  * When `href` is set the chip's name is a link to the entity's page, followed by the chat's normal navigation
  * (`NavLinkAnchorViaRuntime`), exactly as every other chat link: the chat stays in the sidebar and the composer under
@@ -30,13 +31,12 @@ import { Component } from 'react';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
 
 interface MentionTagProps {
-  icon?: ReactNode;
   label: ReactNode;
   /** Entity detail-page URL — always one of OUR routes (`routes.*`). */
   href?: string;
 }
 
-export function MentionTag({ icon, label, href }: MentionTagProps) {
+export function MentionTag({ label, href }: MentionTagProps) {
   const sameWindow = useSameWindowLinks();
   // In a chat answer, the record's menu (the card's rows); none for an attached context item.
   const menuGroups = useRecordChipMenu({ href });
@@ -72,7 +72,7 @@ export function MentionTag({ icon, label, href }: MentionTagProps) {
       </NavLinkAnchorViaRuntime>
     </FloatingTooltip>
   ) : undefined;
-  return <InlineChip icon={icon} label={label} link={link} trailing={trailing} />;
+  return <InlineChip label={label} link={link} trailing={trailing} />;
 }
 
 /**

@@ -23,7 +23,6 @@
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useSuspenseQuery } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { mingoDialogLink } from '@/lib/routes';
 import { MentionErrorBoundary, MentionTag } from './mention-tag';
@@ -74,12 +73,11 @@ export async function resolveChatReference(id: string): Promise<ChatReference | 
 interface ChatReferenceChipProps {
   /** The dialog id the marker carries. */
   id: string;
-  icon?: ReactNode;
 }
 
 /** The linked form: the chat's page, whether the title resolved or not. */
-function LinkedChatTag({ id, label, icon }: { id: string; label: string; icon?: ReactNode }) {
-  return <MentionTag icon={icon} label={label} href={mingoDialogLink(id)} />;
+function LinkedChatTag({ id, label }: { id: string; label: string }) {
+  return <MentionTag label={label} href={mingoDialogLink(id)} />;
 }
 
 /**
@@ -98,11 +96,11 @@ function ChatReferenceLoader(props: ChatReferenceChipProps) {
 
 function ChatReferenceReader(props: ChatReferenceChipProps) {
   // In a loading scope it draws the chip with no label and runs no read.
-  if (useLoadingScope()) return <MentionTag icon={props.icon} label="" />;
+  if (useLoadingScope()) return <MentionTag label="" />;
   return <ChatReferenceInner {...props} />;
 }
 
-function ChatReferenceInner({ id, icon }: ChatReferenceChipProps) {
+function ChatReferenceInner({ id }: ChatReferenceChipProps) {
   const { data } = useSuspenseQuery({
     queryKey: ['mingo-mention', CHAT_REFERENCE_MARKER, id],
     queryFn: () => resolveChatReference(id),
@@ -112,14 +110,14 @@ function ChatReferenceInner({ id, icon }: ChatReferenceChipProps) {
     // not hold a skeleton in the prose for the whole backoff ladder.
     retry: 1,
   });
-  if (!data) return <MentionTag icon={icon} label={UNAVAILABLE_CHAT} />;
-  return <LinkedChatTag id={data.id} label={data.title} icon={icon} />;
+  if (!data) return <MentionTag label={UNAVAILABLE_CHAT} />;
+  return <LinkedChatTag id={data.id} label={data.title} />;
 }
 
-export function ChatReferenceChip({ id, icon }: ChatReferenceChipProps) {
+export function ChatReferenceChip({ id }: ChatReferenceChipProps) {
   return (
-    <MentionErrorBoundary fallback={<LinkedChatTag id={id} label={UNRESOLVED_CHAT} icon={icon} />}>
-      <ChatReferenceLoader id={id} icon={icon} />
+    <MentionErrorBoundary fallback={<LinkedChatTag id={id} label={UNRESOLVED_CHAT} />}>
+      <ChatReferenceLoader id={id} />
     </MentionErrorBoundary>
   );
 }
