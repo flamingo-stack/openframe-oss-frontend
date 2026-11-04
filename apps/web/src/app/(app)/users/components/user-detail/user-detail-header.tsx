@@ -1,7 +1,7 @@
 'use client';
 
 import { TitleBlock } from '@flamingo-stack/openframe-frontend-core';
-import { PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { LockIcon, LockOpenIcon, PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
   FloatingTooltip,
@@ -14,18 +14,25 @@ import type { ReactNode } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type { userDetailHeader_person$key } from '@/__generated__/userDetailHeader_person.graphql';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
+import { OrgUserSource, OrgUserStatus, OrgUserStatusReason } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
 import { readOnlyTooltip } from '../../utils/group-presentation';
 import { NO_CUSTOMER_REASON } from '../user-edit/edit-user-form';
+import { useSuspendUser } from './use-suspend-user';
 
 const userDetailHeaderFragment = graphql`
   fragment userDetailHeader_person on DirectoryPerson {
     displayName
     accounts {
       id
+      source
+      status
+      statusReason
       readOnlyReasons
       customers {
-        __typename
+        organization {
+          organizationId
+        }
       }
       details {
         jobTitle
@@ -40,29 +47,60 @@ const USER_TITLE_SKELETON_LINES = { phone: 2, md: 1, lg: 1 } as const;
 export const USER_DETAIL_TITLE = 'User';
 
 const EDIT_USER_LABEL = 'Edit User';
-const EDIT_USER_ICON = <PenEditIcon className="h-5 w-5 text-ods-text-secondary" />;
+// Untinted: the button tones its icon slot itself, and dims it when the button is off.
+const EDIT_USER_ICON = <PenEditIcon className="h-5 w-5" />;
 
 const EDIT_USER_ACTION: PageActionButton = { label: EDIT_USER_LABEL, variant: 'outline', icon: EDIT_USER_ICON };
 
+const SUSPEND_LABEL = 'Suspend';
+const UNSUSPEND_LABEL = 'Unsuspend';
+const SUSPEND_ICON = <LockIcon className="h-5 w-5" />;
+const UNSUSPEND_ICON = <LockOpenIcon className="h-5 w-5" />;
+
+// Drawn while the record is read, as Edit User is: most accounts come from a provider, so it rarely leaves again.
+const SUSPEND_ACTION: PageActionButton = { label: SUSPEND_LABEL, variant: 'outline', icon: SUSPEND_ICON };
+
+const NO_CUSTOMER_SUSPEND_REASON = "No customer claims this user yet, so its sign-in can't be changed.";
+
+// Google reports an Archived User licence as a suspension, and unsuspending does not lift it: only a licence change
+// in the Admin console does, so the button would report a success that changed nothing.
+const ARCHIVED_REASON = 'Archived in Google Workspace: restore it from the Admin console.';
+
+/** The steps PageActions sizes an action's glyph on (its ACTION_GLYPH_CLASSES, not exported), for a button beside it. */
+const ACTION_GLYPH_CLASSES = 'inline-flex [&&_svg]:h-4 [&&_svg]:w-4 content-md:[&&_svg]:h-6 content-md:[&&_svg]:w-6';
+
+/** What the button does at this account's provider: one word in OpenFrame, the provider's own verb here. */
+function suspendTooltip(source: string, suspended: boolean): string {
+  const microsoft = source === OrgUserSource.MICROSOFT_365;
+  if (suspended) {
+    return microsoft ? 'Allows sign-in at Microsoft 365 again.' : 'Restores the user at Google Workspace.';
+  }
+  return microsoft
+    ? 'Blocks sign-in at Microsoft 365. The account, its mail, files and licence stay, and the licence is still billed. ' +
+        'Reversible, and it does not start offboarding.'
+    : 'Suspends the user at Google Workspace. The account and its data stay, and it is billed as an active user. ' +
+        'Reversible, and it does not start offboarding.';
+}
+
 /**
- * Edit User, off, saying why. In the title's `selector` slot, not `actions`: a disabled button takes no pointer events,
- * so an action's own `tooltip` never opens, while this one hangs on the wrapper. The slot is desktop-only: a phone has
- * no hover to explain it with, so it draws no dead button.
+ * An action that is off, saying why. In the title's `selector` slot, not `actions`: a disabled button takes no pointer
+ * events, so an action's own `tooltip` never opens, while this one hangs on the wrapper. The slot is desktop-only: a
+ * phone has no hover to explain it with, so it draws no dead button.
  */
-function EditUserUnavailable() {
+function UnavailableAction({ label, icon, reason }: { label: string; icon: ReactNode; reason: string }) {
   return (
-    <FloatingTooltip content={NO_CUSTOMER_REASON} as="span">
-      <Button variant="outline" leftIcon={EDIT_USER_ICON} disabled>
-        {EDIT_USER_LABEL}
+    <FloatingTooltip content={reason} as="span">
+      <Button variant="outline" leftIcon={<span className={ACTION_GLYPH_CLASSES}>{icon}</span>} disabled>
+        {label}
       </Button>
     </FloatingTooltip>
   );
 }
 
 /**
- * The user page's title (Figma 1014:1222): the initials, the name over the job title, with Back and Edit User. The
- * initials are drawn while the record is read too, so the name does not move over when it lands; there is no photo
- * to show (contract F4).
+ * The user page's title (Figma 1014:1222): the initials, the name over the job title, with Back, Suspend and Edit
+ * User. The initials are drawn while the record is read too, so the name does not move over when it lands; there is no
+ * photo to show (contract F4).
  */
 export function UserTitle({
   title,
@@ -87,8 +125,8 @@ export function UserTitle({
       image={{ src: '', alt: loading ? '' : title }}
       titleAdornment={adornment}
       loading={loading}
-      // Edit User is known before the record is: drawn for real and inert until the record says what it does.
-      actions={loading ? [EDIT_USER_ACTION] : actions}
+      // The actions are known before the record is: drawn for real and inert until the record says what they do.
+      actions={loading ? [SUSPEND_ACTION, EDIT_USER_ACTION] : actions}
       loadingActions={loading}
       selector={selector}
       // The job title's line is held while the record is read, so the tabs do not drop when it lands.
@@ -103,6 +141,7 @@ export function UserTitle({
 export function UserDetailHeader({ person: personKey }: { person: userDetailHeader_person$key | null }) {
   const router = useRouter();
   const person = useFragment(userDetailHeaderFragment, personKey);
+  const { setSuspended, isSaving } = useSuspendUser();
   if (!person) {
     return (
       <>
@@ -120,22 +159,61 @@ export function UserDetailHeader({ person: personKey }: { person: userDetailHead
         <Tag label="Read only" variant="grey" />
       </FloatingTooltip>
     ) : undefined;
-  // A write needs a customer that claims this account (contract §6).
-  if (!account || account.customers.length === 0) {
-    return (
-      <UserTitle
-        title={person.displayName}
-        subtitle={subtitle}
-        adornment={adornment}
-        selector={<EditUserUnavailable />}
-      />
-    );
+  // A write is made for a customer that claims this account (contract §6).
+  const organizationId = account?.customers[0]?.organization.organizationId;
+
+  const selector: ReactNode[] = [];
+  const actions: PageActionButton[] = [];
+
+  // An OpenFrame account has no provider to block it at (contract W2-D12): deactivating one is another flow.
+  if (account && account.source !== OrgUserSource.OPENFRAME) {
+    const suspended = account.status === OrgUserStatus.SUSPENDED;
+    const label = suspended ? UNSUSPEND_LABEL : SUSPEND_LABEL;
+    const icon = suspended ? UNSUSPEND_ICON : SUSPEND_ICON;
+    if (!organizationId) {
+      selector.push(<UnavailableAction key="suspend" label={label} icon={icon} reason={NO_CUSTOMER_SUSPEND_REASON} />);
+    } else if (account.readOnlyReasons.length > 0) {
+      // The first read-only reason turns Suspend off as it does the provider fields (readOnlyReasons, contract §1),
+      // both ways.
+      selector.push(
+        <UnavailableAction key="suspend" label={label} icon={icon} reason={readOnlyTooltip(account.readOnlyReasons)} />,
+      );
+    } else if (suspended && account.statusReason === OrgUserStatusReason.ARCHIVED) {
+      selector.push(<UnavailableAction key="suspend" label={label} icon={icon} reason={ARCHIVED_REASON} />);
+    } else {
+      actions.push({
+        label,
+        icon,
+        variant: 'outline',
+        // Capped as FloatingTooltip is: PageActions' tooltip has none, and draws this as one line wider than a tablet.
+        tooltip: <span className="block max-w-xs">{suspendTooltip(account.source, suspended)}</span>,
+        loading: isSaving,
+        disabled: isSaving,
+        onClick: () => setSuspended({ accountId: account.id, organizationId, name: person.displayName }, !suspended),
+      });
+    }
   }
-  const editAction: PageActionButton = {
-    ...EDIT_USER_ACTION,
-    // A client-side push, not `href`: the save returns with `router.back()`, and only an in-document navigation
-    // keeps this page on the store the save has just updated (canon `customer-details-view`).
-    onClick: () => router.push(routes.users.edit(account.id)),
-  };
-  return <UserTitle title={person.displayName} subtitle={subtitle} adornment={adornment} actions={[editAction]} />;
+
+  if (!account || !organizationId) {
+    selector.push(
+      <UnavailableAction key="edit" label={EDIT_USER_LABEL} icon={EDIT_USER_ICON} reason={NO_CUSTOMER_REASON} />,
+    );
+  } else {
+    actions.push({
+      ...EDIT_USER_ACTION,
+      // A client-side push, not `href`: the save returns with `router.back()`, and only an in-document navigation
+      // keeps this page on the store the save has just updated (canon `customer-details-view`).
+      onClick: () => router.push(routes.users.edit(account.id)),
+    });
+  }
+
+  return (
+    <UserTitle
+      title={person.displayName}
+      subtitle={subtitle}
+      adornment={adornment}
+      actions={actions}
+      selector={selector.length > 0 ? selector : undefined}
+    />
+  );
 }
