@@ -78,6 +78,7 @@ export function makeFakeChat({
     fetchArchivedDialogs: async () => ({ dialogs: [], nextCursor: null }),
     unarchiveDialog: async () => {},
     dialogError,
+    dialogCreatedAt: null,
   };
 }
 

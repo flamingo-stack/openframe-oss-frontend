@@ -5,6 +5,7 @@ import {
   CheckCircleIcon,
   Chevron02DownIcon,
   ExternalLinkIcon,
+  XmarkIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -22,6 +23,12 @@ const DISABLED_CHIP =
 /** The motion of the sidebar's groups (the lib's grouped sidebar): quick off the mark, a long soft landing. */
 const EASE = '[transition-timing-function:cubic-bezier(0.2,0,0,1)]';
 const MOTION = cn('duration-300 motion-reduce:transition-none', EASE);
+
+/**
+ * The title row's glyph buttons, the chevron and the ×: the lib's bare glyph at the row's
+ * 24px (the button caps a glyph at 20px), taking the accent on hover.
+ */
+const TITLE_ROW_GLYPH = 'size-6 shrink-0 rounded-md hover:text-ods-accent [&_svg]:h-6 [&_svg]:w-6';
 
 /**
  * A part that opens and folds as a sidebar group does: its grid row eases between `0fr` and `1fr` while the
@@ -87,6 +94,12 @@ export interface GettingStartedBlockProps {
   /** "Skip Onboarding", offered in the title row whatever the shape and the step. */
   onSkip: () => void;
   /**
+   * The × at the end of the title row: the tour's conversation is set aside as any
+   * other chat is (the host closes it where it is open, and stops showing the block
+   * over the pages).
+   */
+  onClose: () => void;
+  /**
    * "Open Fae - your client assistant", offered on the steps that open it (`TourStep.opensFae`).
    * Absent where Fae cannot run (a phone): the chip is not shown.
    */
@@ -113,7 +126,8 @@ export interface GettingStartedBlockProps {
  *   chip unfolds it on that step.
  *
  * "Skip Onboarding" sits in the title row in either shape, so the tour can be
- * left at any step; "Finish tour" ends it on the last one.
+ * left at any step; "Finish tour" ends it on the last one. The × after the
+ * chevron closes the block without ending the tour.
  *
  * The shape is the user's, remembered across pages and tabs
  * (`getting-started-view.ts`): folding or unfolding it, and a chip folding it,
@@ -129,6 +143,7 @@ export function GettingStartedBlock({
   onAction,
   onFinish,
   onSkip,
+  onClose,
   onOpenFae,
   busy = false,
 }: GettingStartedBlockProps) {
@@ -184,19 +199,33 @@ export function GettingStartedBlock({
             Skip<span className="hidden @md:inline"> Onboarding</span>
           </span>
         </Button>
-        {/* Unfolds the grid into the list, and folds the list back into the grid. */}
-        <button
-          type="button"
-          aria-label={folded ? 'Show the steps' : 'Hide the steps'}
-          aria-expanded={!folded}
-          onClick={() => {
-            if (!folded) setPickedId(undefined);
-            setFolded(!folded);
-          }}
-          className="flex size-6 shrink-0 items-center justify-center rounded-md text-ods-text-primary hover:text-ods-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ods-accent"
-        >
-          <FoldChevron up={folded} />
-        </button>
+        {/* The two glyphs as a pair, closer together than the row's text. */}
+        <div className="flex shrink-0 items-center gap-[var(--spacing-system-xxs)]">
+          {/* Unfolds the grid into the list, and folds the list back into the grid. */}
+          <Button
+            variant="glyph"
+            size="wrap"
+            aria-label={folded ? 'Show the steps' : 'Hide the steps'}
+            aria-expanded={!folded}
+            onClick={() => {
+              if (!folded) setPickedId(undefined);
+              setFolded(!folded);
+            }}
+            className={TITLE_ROW_GLYPH}
+          >
+            <FoldChevron up={folded} />
+          </Button>
+          <Button
+            variant="glyph"
+            size="wrap"
+            aria-label="Close"
+            title="Close"
+            onClick={onClose}
+            className={TITLE_ROW_GLYPH}
+          >
+            <XmarkIcon size={24} />
+          </Button>
+        </div>
       </header>
 
       {/* The two shapes fold into each other: one eases shut while the other opens. */}

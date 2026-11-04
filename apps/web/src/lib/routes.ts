@@ -19,7 +19,7 @@
  * existing bookmarks stay valid.
  */
 import type { LegalDocumentType } from '@flamingo-stack/openframe-frontend-core/utils';
-import type { DeviceStatus, InsightSeverity, InsightStatus } from '@/generated/schema-enums';
+import type { DeviceStatus, InsightSeverity, InsightStatus, NotificationEntityType } from '@/generated/schema-enums';
 
 // --------------------------------------------------------------------------
 // Tab ids (single source of truth, shared with the tab-component arrays)
@@ -505,7 +505,21 @@ export const routes = {
     reconnect: (id: string | number) => withQuery('/cloud-tenant-management/reconnect', { id }),
   },
 
-  notifications: (o?: { tab?: NotificationsTab }) => withQuery('/notifications', { tab: o?.tab }),
+  /**
+   * `entity`: only the viewer's notifications about one device or incident, as a row's unread count opens them.
+   * `id` is the raw stored id (`Machine.machineId`, `Insight.insightId`), not a Relay id; `name` only labels the
+   * scope on the page.
+   */
+  notifications: (o?: {
+    tab?: NotificationsTab;
+    entity?: { type: NotificationEntityType; id: string; name?: string };
+  }) =>
+    withQuery('/notifications', {
+      tab: o?.tab,
+      entityType: o?.entity?.type,
+      entityId: o?.entity?.id,
+      entityName: o?.entity?.name || undefined,
+    }),
 
   checkout: {
     success: '/checkout/success',
