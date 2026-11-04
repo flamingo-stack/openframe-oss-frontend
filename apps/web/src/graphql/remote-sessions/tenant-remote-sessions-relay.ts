@@ -66,12 +66,14 @@ export const tenantRemoteSessionsRelayFragment = graphql`
 
 /**
  * The running sessions alone, polled to keep the list's LIVE rows current: the
- * list's filter with `recordingState: LIVE`, whose answer is the whole block
- * whatever `first` says, in the order the first page shows it.
+ * list's filter with `recordingState: LIVE`, in the order the first page shows
+ * them. Under LIVE the answer is the ACTIVE block only (at most 100, extra to
+ * `first`, never paged; see `remoteSessions` in the schema), so no `first` is
+ * passed: it would bound nothing.
  */
 export const tenantRemoteSessionsRelayLiveQuery = graphql`
   query tenantRemoteSessionsRelayLiveQuery($filter: RemoteSessionFilter!) {
-    remoteSessions(filter: $filter, first: 1) {
+    remoteSessions(filter: $filter) {
       edges {
         node {
           ...tenantRemoteSessionsRelay_row
