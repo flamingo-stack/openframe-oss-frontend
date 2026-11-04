@@ -209,7 +209,7 @@ describe('useMingoTour - the greeting', () => {
       { dialogCreatedAt: '2026-11-03T15:08:54.129Z' },
     );
 
-    expect(tour.state.messages[0]).toMatchObject({ timestamp: '2026-11-03T15:08:54.129Z' });
+    expect(tour.state.messages[0]).toMatchObject({ metadata: { createdAt: '2026-11-03T15:08:54.129Z' } });
   });
 
   it('is not added to any other conversation', () => {
