@@ -611,7 +611,7 @@ describe('MingoComposerDock', () => {
   });
 
   it('sends a quick action at once, in a new chat', () => {
-    render('/devices/');
+    render('/mingo/');
     act(() => chips.onSend?.('List every online machine'));
     expect(sendInNewDialog).toHaveBeenCalledWith('List every online machine');
     expect(panel.prefillDraft).not.toHaveBeenCalled();
@@ -644,10 +644,12 @@ describe('MingoComposerDock', () => {
       expect(container.firstElementChild?.className).toContain('max-w-[880px]');
     });
 
-    it('every page carries the quick actions, as home does', () => {
-      chips.onSend = null;
-      render('/devices/');
-      expect(chips.onSend).not.toBeNull();
+    it('no other page carries the quick actions, a full-width one included', () => {
+      for (const pathname of ['/devices/', '/devices/details/file-manager/']) {
+        chips.onSend = null;
+        render(pathname);
+        expect(chips.onSend).toBeNull();
+      }
     });
 
     it('the chat page carries none: its new chat draws them in its empty state', () => {
