@@ -26,7 +26,7 @@ const PREVIOUS_SUBSCRIPTION_FINALIZING = 'PREVIOUS_SUBSCRIPTION_FINALIZING';
  */
 const OVERDUE_INVOICES_EXIST = 'OVERDUE_INVOICES_EXIST';
 
-/** For a failure the backend never answered (gateway 5xx, WAF block, timeout): its own text is transport detail. */
+/** For a failure without a backend message (gateway 5xx, WAF block, timeout): its own text is transport detail. */
 const NOT_STARTED = "Checkout didn't start. Please try again; if it keeps failing, contact support.";
 
 const createCheckoutSessionMutation = graphql`
@@ -95,7 +95,7 @@ export function useCreateCheckoutSession() {
           }
           toast({
             title: 'Checkout Failed',
-            description: getRelayGraphqlErrors(err).length > 0 ? getRelayErrorMessage(err) : NOT_STARTED,
+            description: getRelayGraphqlErrors(err).some(e => e.message) ? getRelayErrorMessage(err) : NOT_STARTED,
             variant: 'destructive',
           });
         },

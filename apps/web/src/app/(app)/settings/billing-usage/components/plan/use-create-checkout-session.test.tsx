@@ -100,6 +100,16 @@ describe('useCreateCheckoutSession — failures', () => {
     });
   });
 
+  it('backend error with a code but no message: says checkout did not start', () => {
+    failCheckoutWith(relayError('', 'INTERNAL'));
+
+    expect(spies.toast).toHaveBeenCalledExactlyOnceWith({
+      title: 'Checkout Failed',
+      description: "Checkout didn't start. Please try again; if it keeps failing, contact support.",
+      variant: 'destructive',
+    });
+  });
+
   it('any other failure: shows the backend message as before', () => {
     failCheckoutWith(relayError('Billing plan not found: tenant-1', 'BILLING_PLAN_NOT_FOUND'));
 

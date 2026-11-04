@@ -37,7 +37,7 @@ const updateSubscriptionMutation = graphql`
   }
 `;
 
-/** For a failure the backend never answered (gateway 5xx, WAF block, timeout): its own text is transport detail. */
+/** For a failure without a backend message (gateway 5xx, WAF block, timeout): its own text is transport detail. */
 const NOT_SAVED = "Your plan change wasn't saved. Please try again; if it keeps failing, contact support.";
 
 /**
@@ -83,7 +83,7 @@ export function useUpdateSubscription() {
       onError: err => {
         toast({
           title: 'Update Failed',
-          description: getRelayGraphqlErrors(err).length > 0 ? getRelayErrorMessage(err) : NOT_SAVED,
+          description: getRelayGraphqlErrors(err).some(e => e.message) ? getRelayErrorMessage(err) : NOT_SAVED,
           variant: 'destructive',
         });
       },

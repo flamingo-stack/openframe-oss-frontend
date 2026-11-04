@@ -67,6 +67,19 @@ describe('useUpdateSubscription — failures', () => {
     });
   });
 
+  it('backend error with a code but no message: says the plan change was not saved', () => {
+    const error = Object.assign(new Error('No data returned for operation, got error(s):\n'), {
+      source: { errors: [{ extensions: { code: 'INTERNAL' } }] },
+    });
+    failUpdateWith(error);
+
+    expect(spies.toast).toHaveBeenCalledExactlyOnceWith({
+      title: 'Update Failed',
+      description: "Your plan change wasn't saved. Please try again; if it keeps failing, contact support.",
+      variant: 'destructive',
+    });
+  });
+
   it('backend refusal: shows the backend message', () => {
     failUpdateWith(relayError('Subscription not found'));
 
