@@ -93,9 +93,11 @@ import { withNotificationIcon } from './notification-category-icons';
 import {
   ADMIN_AI_MESSAGE_TYPE,
   ADMIN_AI_TICKET_MESSAGE_TYPE,
+  isNotificationLinkAction,
   type NotificationAction,
   notificationTargetsDialog,
   notificationTargetsLocation,
+  openNotificationLink,
   resolveNotificationAction,
 } from './notification-navigation';
 import { canOpenMingoDialogOverPage, openMingoDialog } from './open-mingo-dialog';
@@ -253,19 +255,28 @@ interface NavigationTileWrapperProps {
  * a desktop OS banner. A Mingo chat opens over the page when the composer dock can (the
  * sheet, as the classic drawer did): no URL changes then, so the location-based
  * `EntityViewAutoReader` never sees the user arrive and the notification is marked read
- * here. Anything else navigates to its route, where the auto-reader marks it.
+ * here. An announcement's link is the same case: outside the app it opens in a new tab or
+ * the shell's browser, and inside it the page is not one the auto-reader matches
+ * (`readOnOpen`), so this marks it read. Anything else navigates to its route, where the
+ * auto-reader marks it.
  */
 function openNotificationTarget(
   action: NotificationAction,
   notificationId: string,
   { markRead, navigate }: { markRead: (id: string) => void; navigate: (route: string) => void },
 ): void {
+  if (isNotificationLinkAction(action)) {
+    openNotificationLink(action.externalUrl);
+    markRead(notificationId);
+    return;
+  }
   if (action.mingoDialogId && canOpenMingoDialogOverPage()) {
     openMingoDialog(action.mingoDialogId);
     markRead(notificationId);
     return;
   }
   navigate(action.route);
+  if (action.readOnOpen) markRead(notificationId);
 }
 
 /** Wraps a tile so its body navigates to the notification's target entity; inner buttons keep their own clicks. */

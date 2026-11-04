@@ -15,9 +15,8 @@ import {
 } from '@/lib/native-shell';
 import { isAppShell, isDesktopShell, isMobileShell, shellKind } from '@/lib/platform';
 import { storeDownloadId } from '@/lib/registration-attribution';
-import { routes } from '@/lib/routes';
 import { initTokenStore } from '@/lib/token-store';
-import { resolveNatsNotificationRoute } from './notifications/notification-navigation';
+import { followNotificationTap, resolveNatsNotificationAction } from './notifications/notification-navigation';
 
 // The shell event transport outlives React lifecycles — register the listener
 // and drain the startup click exactly once per page, however many times the
@@ -76,7 +75,7 @@ export function NativeShellInitializer() {
     if (isDesktopShell() && !nativeClickHandlingInitialized) {
       nativeClickHandlingInitialized = true;
       const openNotification = (payload: unknown) => {
-        router.push(resolveNatsNotificationRoute(payload) ?? routes.notifications());
+        followNotificationTap(resolveNatsNotificationAction(payload), route => router.push(route));
       };
       void (async () => {
         let registered: boolean;

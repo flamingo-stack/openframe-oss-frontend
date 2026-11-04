@@ -1,19 +1,29 @@
 import type { Notification } from '@flamingo-stack/openframe-frontend-core';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { toGlobalId } from '@/lib/relay-id';
 import {
+  followNotificationTap,
   notificationTargetsLocation,
-  resolveNatsNotificationRoute,
+  resolveNatsNotificationAction,
   resolveNotificationAction,
-  resolvePushNotificationRoute,
+  resolvePushNotificationAction,
 } from './notification-navigation';
+
+// The tenant host is what tells a link into the app from one out of it. Unset, the page's own
+// origin stands in, and jsdom's is plain http, which no announcement link can match.
+const tenant = vi.hoisted(() => ({ host: '' }));
+vi.mock('@/lib/runtime-config', () => ({ runtimeEnv: { tenantHostUrl: () => tenant.host } }));
+
+/** The route each transport's tap would push; these tests pin the routes, not the action shape. */
+const resolvePushNotificationRoute = (data: unknown) => resolvePushNotificationAction(data)?.route ?? null;
+const resolveNatsNotificationRoute = (payload: unknown) => resolveNatsNotificationAction(payload)?.route ?? null;
 
 /**
  * The push payload is a FLAT map; the NATS envelope carries `type` + `attributes`. Both feed
  * one mapping, and the push half is the one the backend can truncate — these pin the shape
  * contract rather than the routes themselves.
  */
-describe('resolvePushNotificationRoute', () => {
+describe('resolvePushNotificationAction', () => {
   it('routes a ticket notification from the flat FCM data keys', () => {
     expect(resolvePushNotificationRoute({ type: 'TICKET_ASSIGNED', ticketId: 't-1' })).toBe('/tickets/dialog?id=t-1');
   });
@@ -66,7 +76,7 @@ describe('resolvePushNotificationRoute', () => {
   });
 });
 
-describe('resolveNatsNotificationRoute', () => {
+describe('resolveNatsNotificationAction', () => {
   it('reads the ids out of the envelope attributes', () => {
     expect(resolveNatsNotificationRoute({ type: 'TICKET_ASSIGNED', attributes: { ticketId: 't-1' } })).toBe(
       '/tickets/dialog?id=t-1',
@@ -325,5 +335,125 @@ describe('remote session recording cards', () => {
     expect(
       notificationTargetsLocation(notification, '/devices/details/remote-session', new URLSearchParams('id=rec-2')),
     ).toBe(false);
+  });
+});
+
+/**
+ * An announcement names no entity, so its link is the one destination a payload names.
+ * Inside the app it navigates; anywhere else it opens outside the app and is never routed.
+ */
+describe('announcement links', () => {
+  const LINK = 'https://www.flamingo.run/releases/v1-5-81?utm_source=openframe#notes';
+  const OUTSIDE = { label: 'Open Link', externalUrl: LINK };
+  const announcement = (meta: Record<string, unknown>) =>
+    ({
+      id: 'n-1',
+      title: 'x',
+      createdAt: 0,
+      read: false,
+      category: 'GENERIC',
+      meta: { notificationType: 'ANNOUNCEMENT', ...meta },
+    }) as Notification;
+
+  afterEach(() => {
+    tenant.host = '';
+  });
+
+  it('opens a link outside the app from every transport', () => {
+    expect(resolveNotificationAction(announcement({ link: LINK }))).toEqual(OUTSIDE);
+    expect(
+      resolveNatsNotificationAction({ type: 'ANNOUNCEMENT', attributes: { link: LINK }, category: 'GENERIC' }),
+    ).toEqual(OUTSIDE);
+    expect(resolvePushNotificationAction({ type: 'ANNOUNCEMENT', link: LINK })).toEqual(OUTSIDE);
+  });
+
+  it("navigates inside the app for a link on the tenant's own origin, and only its own", () => {
+    tenant.host = 'https://acme.openframe.ai';
+    expect(
+      resolveNotificationAction(announcement({ link: 'https://acme.openframe.ai/devices/details?id=m-1#hardware' })),
+    ).toEqual({ label: 'Open Link', route: '/devices/details?id=m-1#hardware', readOnOpen: true });
+    for (const elsewhere of ['https://other.openframe.ai/devices', 'https://acme.openframe.ai:8443/devices']) {
+      expect(resolvePushNotificationAction({ type: 'ANNOUNCEMENT', link: elsewhere }), elsewhere).toEqual({
+        label: 'Open Link',
+        externalUrl: elsewhere,
+      });
+    }
+  });
+
+  // The router reads a path starting `//` as protocol-relative: pushed, it would take the
+  // app's own window to another host. URL folds backslashes and dot segments into the path.
+  it('opens a path the router would read as another host outside the app instead', () => {
+    tenant.host = 'https://acme.openframe.ai';
+    for (const link of [
+      'https://acme.openframe.ai//evil.example/x',
+      'https://acme.openframe.ai/\\evil.example/x',
+      'https://acme.openframe.ai/./..//evil.example/x',
+    ]) {
+      const action = resolvePushNotificationAction({ type: 'ANNOUNCEMENT', link });
+      expect(action?.route, link).toBeUndefined();
+      expect(action?.externalUrl, link).toBe('https://acme.openframe.ai//evil.example/x');
+    }
+  });
+
+  it('opens nothing for a link that is not an absolute https URL, or for no link', () => {
+    for (const link of [
+      'http://www.flamingo.run/',
+      'javascript:alert(1)',
+      'data:text/html,hi',
+      '/devices',
+      'not a url',
+    ]) {
+      expect(resolvePushNotificationAction({ type: 'ANNOUNCEMENT', link }), link).toBeNull();
+      expect(resolveNotificationAction(announcement({ link })), link).toBeNull();
+    }
+    expect(resolveNotificationAction(announcement({}))).toBeNull();
+    expect(resolvePushNotificationAction({ type: 'ANNOUNCEMENT', link: '' })).toBeNull();
+  });
+
+  it('is followed on an announcement only', () => {
+    expect(resolvePushNotificationRoute({ type: 'TICKET_ASSIGNED', ticketId: 't-1', link: LINK })).toBe(
+      '/tickets/dialog?id=t-1',
+    );
+    expect(resolvePushNotificationAction({ type: 'SOMETHING_SHIPPED_LATER', link: LINK })).toBeNull();
+  });
+
+  // Its page is the backoffice's pick, not the announcement's entity: an admin already on
+  // the dashboard has not read an announcement that links the dashboard. Opening it reads it.
+  it('is never read by arriving at a page, even the one in the app it links', () => {
+    expect(notificationTargetsLocation(announcement({ link: LINK }), '/releases/v1-5-81', new URLSearchParams())).toBe(
+      false,
+    );
+    tenant.host = 'https://acme.openframe.ai';
+    expect(
+      notificationTargetsLocation(
+        announcement({ link: 'https://acme.openframe.ai/devices' }),
+        '/devices',
+        new URLSearchParams(),
+      ),
+    ).toBe(false);
+  });
+});
+
+/** What a push tap or an OS banner click does with the action it resolved. */
+describe('followNotificationTap', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('opens a link outside the app and pushes nothing', () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    const navigate = vi.fn();
+    followNotificationTap({ label: 'Open Link', externalUrl: 'https://www.flamingo.run/' }, navigate);
+    expect(open).toHaveBeenCalledWith('https://www.flamingo.run/', '_blank', 'noopener,noreferrer');
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('pushes a route, and the notifications page when there is nothing to open', () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    const navigate = vi.fn();
+    followNotificationTap({ label: 'Ticket Details', route: '/tickets/dialog?id=t-1' }, navigate);
+    followNotificationTap(null, navigate);
+    expect(navigate.mock.calls).toEqual([['/tickets/dialog?id=t-1'], ['/notifications']]);
+    expect(open).not.toHaveBeenCalled();
   });
 });

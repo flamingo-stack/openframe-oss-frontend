@@ -5,6 +5,7 @@ import { TextLineSkeleton, UnifiedSkeleton } from '@flamingo-stack/openframe-fro
 import {
   ArrowRightUpIcon,
   CheckCircleIcon,
+  ExternalLinkIcon,
   TrashIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
@@ -20,7 +21,10 @@ import {
 import { cn, formatTicketRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { getNotificationIcon } from '@/app/components/notifications/notification-category-icons';
-import { resolveNotificationAction } from '@/app/components/notifications/notification-navigation';
+import {
+  isNotificationLinkAction,
+  resolveNotificationAction,
+} from '@/app/components/notifications/notification-navigation';
 import { canOpenMingoDialogOverPage, openMingoDialog } from '@/app/components/notifications/open-mingo-dialog';
 
 export interface NotificationRow {
@@ -100,10 +104,41 @@ export function buildNotificationColumns({
         const action = resolveNotificationAction(row.original.notification);
         if (!action) return null;
         const { id, read, archived } = row.original;
+        if (isNotificationLinkAction(action)) {
+          // An announcement's page outside the app: no arrival there for the auto-reader to
+          // see, so opening it is what reads the row. One button, since it always opens a new tab.
+          const onOpenLink = !read || archived ? () => onMarkRead?.(id) : undefined;
+          return (
+            <div data-no-row-click className="flex w-full justify-end">
+              <Button
+                className="hidden content-md:inline-flex"
+                variant="outline"
+                href={action.externalUrl}
+                openInNewTab
+                onClick={onOpenLink}
+                rightIcon={<ExternalLinkIcon className="text-ods-text-secondary" />}
+              >
+                {action.label}
+              </Button>
+              <Button
+                className="content-md:hidden"
+                variant="outline"
+                size="icon"
+                href={action.externalUrl}
+                openInNewTab
+                onClick={onOpenLink}
+                aria-label={action.label}
+                leftIcon={<ExternalLinkIcon />}
+              />
+            </div>
+          );
+        }
         const dialogId = action.mingoDialogId ?? null;
         // Any open of an archived row clears its flag: only ticket and dialog pages
-        // auto-read on arrival, and the new-tab half leaves this row on screen.
-        const onOpen = archived ? () => onMarkRead?.(id) : undefined;
+        // auto-read on arrival, and the new-tab half leaves this row on screen. An
+        // announcement's page in the app is never read by arrival (`readOnOpen`), so any
+        // open of an unread one reads it too.
+        const onOpen = archived || (action.readOnOpen && !read) ? () => onMarkRead?.(id) : undefined;
         // A Mingo chat opens over this page when the composer dock can (the sheet, as the
         // classic drawer did), unless the click asks for a new tab or window. No URL
         // changes then, so opening clears the row's unread here.

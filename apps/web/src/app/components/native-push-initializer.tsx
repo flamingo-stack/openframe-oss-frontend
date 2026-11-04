@@ -4,8 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { initNativePush } from '@/lib/native-push';
 import { isMobileShell } from '@/lib/platform';
-import { routes } from '@/lib/routes';
-import { resolvePushNotificationRoute } from './notifications/notification-navigation';
+import { followNotificationTap, resolvePushNotificationAction } from './notifications/notification-navigation';
 import { useSubscriptionOpen } from './subscription-lock/subscription-guard';
 
 /**
@@ -17,8 +16,9 @@ import { useSubscriptionOpen } from './subscription-lock/subscription-guard';
  * same table the in-app drawer uses — the push payload carries no route, so the
  * backend stays ignorant of the frontend's URL structure (which it could not
  * know anyway: detail pages are query params on prerendered paths, and a Mingo
- * dialog may have no URL at all). A notification whose type this build does not
- * recognise still lands somewhere useful: the notifications page.
+ * dialog may have no URL at all). An announcement's link is the one destination the
+ * payload names, and it opens in the shell's in-app browser. A notification whose type
+ * this build does not recognise still lands somewhere useful: the notifications page.
  */
 export function NativePushInitializer() {
   const router = useRouter();
@@ -32,7 +32,7 @@ export function NativePushInitializer() {
   useEffect(() => {
     if (!isMobileShell() || !subscriptionOpen) return;
     initNativePush(data => {
-      router.push(resolvePushNotificationRoute(data) ?? routes.notifications());
+      followNotificationTap(resolvePushNotificationAction(data), route => router.push(route));
     }).catch(error => {
       // `initialized` latches before the awaits inside, so this is terminal for the
       // session: no token registration, possibly no tap handler. Surface it rather

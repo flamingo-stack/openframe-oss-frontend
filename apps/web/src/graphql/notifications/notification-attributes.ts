@@ -107,6 +107,8 @@ export const NOTIFICATION_ATTR = {
   recordingId: 'recordingId',
   /** The device (machine id) a recording card is about. */
   deviceId: 'deviceId',
+  /** The page an announcement opens on tap: an absolute https URL of at most 1,024 characters (management-api). */
+  link: 'link',
 } as const;
 
 /**
