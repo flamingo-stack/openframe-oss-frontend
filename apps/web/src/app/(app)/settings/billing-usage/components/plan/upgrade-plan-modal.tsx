@@ -66,7 +66,7 @@ export function UpgradePlanModal({ isOpen, onClose, onUpdated }: UpgradePlanModa
     <SimpleModal
       isOpen
       onClose={onClose}
-      title="Upgrade Plan"
+      title="Change Plan"
       className="md:max-w-[600px]"
       footer={
         <>
@@ -81,6 +81,7 @@ export function UpgradePlanModal({ isOpen, onClose, onUpdated }: UpgradePlanModa
             hasInvalidCustom={updates != null && !updates.valid}
             onUpdated={onUpdated}
             className="flex-1"
+            label="Confirm Change"
           />
         </>
       }
