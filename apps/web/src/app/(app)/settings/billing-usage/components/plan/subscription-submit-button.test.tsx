@@ -112,3 +112,19 @@ describe('SubscriptionSubmitButton under the billing-activation flag', () => {
     expect(spies.updateSubscription).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('SubscriptionSubmitButton label', () => {
+  it("says what the billing page's plan change does: nothing is paid on that click", () => {
+    const button = render(
+      <SubscriptionSubmitButton
+        needsCheckout={false}
+        packageUpdates={PACKAGE_UPDATES}
+        checkoutProducts={[]}
+        hasInvalidCustom={false}
+        label="Confirm Change"
+      />,
+    );
+    expect(button.textContent).toContain('Confirm Change');
+    expect(button.textContent).not.toContain('Proceed to Payment');
+  });
+});

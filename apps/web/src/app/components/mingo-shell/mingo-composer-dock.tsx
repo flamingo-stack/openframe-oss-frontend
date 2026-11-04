@@ -417,9 +417,9 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
 
   return (
     <>
-      {/* Mingo's quick actions over the composer on every route but the chat page, for the page's
-          topic. A click sends the action at once, in a new chat (the dock's own send, which then
-          opens it). Not under the sheet: the composer then replies to the chat in it. */}
+      {/* Mingo's quick actions over the composer on Mingo's home only. A click sends the action at
+          once, in a new chat (the dock's own send, which then opens it). Not under the sheet: the
+          composer then replies to the chat in it. */}
       {showsDockQuickActions(route) && !sheetOpen && (
         <MingoDockQuickActions onSend={text => void target.sendInNewDialog(text)} />
       )}

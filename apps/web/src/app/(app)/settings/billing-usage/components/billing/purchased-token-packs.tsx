@@ -3,7 +3,7 @@
 import { graphql, useFragment } from 'react-relay';
 import type { purchasedTokenPacks_subscription$key } from '@/__generated__/purchasedTokenPacks_subscription.graphql';
 import { EmptyValue } from '@/app/components/shared/empty-value';
-import { formatUtcDay } from '@/lib/format-date';
+import { formatDate, formatUtcDay } from '@/lib/format-date';
 import { formatCompactCount } from '@/lib/format-number';
 import { BillingRow, SectionBlock } from '../shared/billing-section';
 
@@ -42,7 +42,7 @@ export function PurchasedTokenPacks({ subscription }: { subscription: purchasedT
           <li key={pack.purchasedAt}>
             <BillingRow
               label={`${formatCompactCount(pack.tokensRemaining)} / ${formatCompactCount(pack.tokensPurchased)}`}
-              value={pack.validUntil ? `Valid until ${pack.validUntil}` : <EmptyValue />}
+              value={pack.validUntil ? `Valid until ${formatDate(pack.validUntil)}` : <EmptyValue />}
             />
             <p className="text-ods-text-secondary text-h6">Purchased {formatUtcDay(pack.purchasedAt)}</p>
           </li>

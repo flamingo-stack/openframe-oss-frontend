@@ -10,10 +10,9 @@ interface MingoDockQuickActionsProps {
 }
 
 /**
- * Mingo's quick actions above the docked composer on every route but the chat page
- * (`showsDockQuickActions`; FE_PROMPT §3.7, MISSING 1.6): the chat's own quick-action set
- * (`MingoQuickActionWall`, what the chat's empty state draws), read for the page's topic, with
- * no caption over it ("What to ask Mingo?" is the home's button and in the chat history's ⋯).
+ * Mingo's quick actions above the docked composer on Mingo's home (`showsDockQuickActions`):
+ * the chat's own quick-action set (`MingoQuickActionWall`, what the chat's empty state draws),
+ * with no caption over it ("What to ask Mingo?" is the home's button and in the chat history's ⋯).
  * A click sends the action's instructions at once (`onSend`).
  */
 export function MingoDockQuickActions({ onSend }: MingoDockQuickActionsProps) {
