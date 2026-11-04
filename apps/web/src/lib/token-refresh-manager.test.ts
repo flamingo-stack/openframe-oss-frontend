@@ -16,16 +16,18 @@ const adoptNativeTokens = vi.fn();
 let shellPlugin: { refreshTokens: (options?: { rejectedAccessToken?: string }) => Promise<unknown> } | null = null;
 let tokenEpoch = 0;
 let accessToken: string | null = 'access-1';
+let refreshToken: string | null = 'refresh-1';
 let bearerMode = true;
+let appShell = false;
 
 vi.mock('./force-logout', () => ({ clearStoredTokens: () => clearStoredTokens() }));
 vi.mock('./native-shell', () => ({ nativeAuthPlugin: () => shellPlugin }));
-vi.mock('./platform', () => ({ isAppShell: () => false }));
+vi.mock('./platform', () => ({ isAppShell: () => appShell }));
 vi.mock('./runtime-config', () => ({ runtimeEnv: { sharedHostUrl: () => 'https://auth.test' } }));
 vi.mock('./token-store', () => ({
   ACCESS_TOKEN_KEY: 'of_access_token',
   getAccessTokenSync: () => accessToken,
-  getRefreshToken: async () => 'refresh-1',
+  getRefreshToken: async () => refreshToken,
   getTokenEpoch: () => tokenEpoch,
   isBearerAuthMode: () => bearerMode,
   markTokenRotation: () => {
@@ -74,7 +76,9 @@ async function loadManager() {
 beforeEach(() => {
   tokenEpoch = 0;
   accessToken = 'access-1';
+  refreshToken = 'refresh-1';
   bearerMode = true;
+  appShell = false;
   clearStoredTokens.mockClear();
   setTokens.mockClear();
   markTokenRotation.mockClear();
@@ -85,6 +89,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe('refreshTokens outcome classification', () => {
@@ -273,5 +278,156 @@ describe('shell-owned refresh', () => {
     expect(await refreshTokens()).toBe('transient');
     expect(clearStoredTokens).not.toHaveBeenCalled();
     expect(adoptNativeTokens).not.toHaveBeenCalled();
+  });
+});
+
+describe('backoff between cycles', () => {
+  const BACKOFF_KEY = 'of_token_refresh_backoff';
+
+  /** Freeze the clock only: the in-cycle `sleep`s stay real, so these use failures that do not retry. */
+  function freezeClock() {
+    vi.useFakeTimers({ toFake: ['Date'] });
+  }
+
+  it('answers `transient` without a request while the backoff from a failed cycle is pending', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse(403));
+    vi.stubGlobal('fetch', fetchMock);
+    const { getRefreshBackoffRemainingMs, refreshTokens } = await loadManager();
+
+    expect(await refreshTokens()).toBe('transient');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(getRefreshBackoffRemainingMs()).toBeGreaterThan(0);
+    // Published for the other tabs: the whole origin waits for the same moment.
+    expect(localStorage.getItem(BACKOFF_KEY)).not.toBeNull();
+
+    // The next 401 is "refresh pending", not a trigger — this is what turned one
+    // failed refresh into hundreds of POSTs per page open.
+    expect(await refreshTokens()).toBe('transient');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('honours a deadline another tab wrote', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse(204, { 'access-token': 'access-2' }));
+    vi.stubGlobal('fetch', fetchMock);
+    localStorage.setItem(BACKOFF_KEY, `${Date.now() + 30_000}:2`);
+    const { refreshTokens } = await loadManager();
+
+    expect(await refreshTokens()).toBe('transient');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('runs a cycle at once for `ignoreBackoff` (the Retry button) and steps the delay up per failure', async () => {
+    freezeClock();
+    const fetchMock = vi.fn(async () => jsonResponse(403));
+    vi.stubGlobal('fetch', fetchMock);
+    const { getRefreshBackoffRemainingMs, refreshTokens } = await loadManager();
+
+    await refreshTokens();
+    expect(getRefreshBackoffRemainingMs()).toBe(5_000);
+
+    expect(await refreshTokens(undefined, { ignoreBackoff: true })).toBe('transient');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(getRefreshBackoffRemainingMs()).toBe(15_000);
+
+    await refreshTokens(undefined, { ignoreBackoff: true });
+    expect(getRefreshBackoffRemainingMs()).toBe(60_000);
+
+    // Capped at the last step.
+    await refreshTokens(undefined, { ignoreBackoff: true });
+    expect(getRefreshBackoffRemainingMs()).toBe(60_000);
+  });
+
+  it('runs again once the deadline passes, and starts the ladder over after a long quiet spell', async () => {
+    freezeClock();
+    const fetchMock = vi.fn(async () => jsonResponse(403));
+    vi.stubGlobal('fetch', fetchMock);
+    const { getRefreshBackoffRemainingMs, refreshTokens } = await loadManager();
+
+    await refreshTokens();
+    vi.setSystemTime(Date.now() + 6_000);
+    expect(getRefreshBackoffRemainingMs()).toBe(0);
+
+    // Shortly after the deadline: the same outage, so the next step.
+    await refreshTokens();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(getRefreshBackoffRemainingMs()).toBe(15_000);
+
+    // Long after it: a new outage, so the first step — a marker a sign-in never
+    // cleared must not start at the cap.
+    vi.setSystemTime(Date.now() + 15_000 + 61_000);
+    await refreshTokens();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(getRefreshBackoffRemainingMs()).toBe(5_000);
+  });
+
+  it('clears the backoff after a successful rotation', async () => {
+    let status = 403;
+    const fetchMock = vi.fn(async () => jsonResponse(status, { 'access-token': 'access-2' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { getRefreshBackoffRemainingMs, refreshTokens } = await loadManager();
+
+    await refreshTokens();
+    status = 204;
+    expect(await refreshTokens(undefined, { ignoreBackoff: true })).toBe('refreshed');
+    expect(getRefreshBackoffRemainingMs()).toBe(0);
+    expect(localStorage.getItem(BACKOFF_KEY)).toBeNull();
+
+    // The next 401 rotates straight away again.
+    await refreshTokens();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('clears the backoff when the refresh is rejected — the session is over, the next one starts clean', async () => {
+    let status = 403;
+    const fetchMock = vi.fn(async () => jsonResponse(status));
+    vi.stubGlobal('fetch', fetchMock);
+    const { getRefreshBackoffRemainingMs, refreshTokens } = await loadManager();
+
+    await refreshTokens();
+    status = 401;
+    expect(await refreshTokens(undefined, { ignoreBackoff: true })).toBe('terminal');
+    expect(getRefreshBackoffRemainingMs()).toBe(0);
+  });
+
+  it('arms nothing when no attempt was sent (no credential in the shell)', async () => {
+    appShell = true;
+    refreshToken = null;
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const { getRefreshBackoffRemainingMs, refreshTokens } = await loadManager();
+
+    expect(await refreshTokens()).toBe('transient');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(getRefreshBackoffRemainingMs()).toBe(0);
+  });
+
+  it('paces a shell-owned refresh that fails the same way', async () => {
+    shellPlugin = {
+      refreshTokens: vi.fn(async () => {
+        throw new Error('auth server unreachable');
+      }),
+    };
+    const { getRefreshBackoffRemainingMs, refreshTokens } = await loadManager();
+
+    expect(await refreshTokens()).toBe('transient');
+    expect(getRefreshBackoffRemainingMs()).toBeGreaterThan(0);
+    expect(await refreshTokens()).toBe('transient');
+    expect(shellPlugin.refreshTokens).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('cycle budget', () => {
+  it('stops retrying once the budget is spent — a gateway that hangs its full timeout gets one attempt', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const fetchMock = vi.fn(async () => {
+      // The gateway's own 30 s read timeout on the auth server, answered as 503.
+      vi.setSystemTime(Date.now() + 30_000);
+      return jsonResponse(503);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { refreshTokens } = await loadManager();
+
+    expect(await refreshTokens()).toBe('transient');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

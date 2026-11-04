@@ -4,11 +4,12 @@ import { QuickActionChipButton } from '@flamingo-stack/openframe-frontend-core/c
 import {
   CheckCircleIcon,
   Chevron02DownIcon,
-  Chevron02UpIcon,
   ExternalLinkIcon,
+  XmarkIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { useGettingStartedView } from './getting-started-view';
 import type { TourAction, TourStep, TourStepId } from './tour-steps';
 
@@ -18,6 +19,67 @@ import type { TourAction, TourStep, TourStepId } from './tour-steps';
  */
 const DISABLED_CHIP =
   'group-disabled:cursor-not-allowed group-disabled:[&>*]:border-transparent group-disabled:[&>*]:bg-ods-bg-surface group-disabled:[&>*]:text-ods-text-secondary group-disabled:[&_svg]:text-ods-text-secondary';
+
+/** The motion of the sidebar's groups (the lib's grouped sidebar): quick off the mark, a long soft landing. */
+const EASE = '[transition-timing-function:cubic-bezier(0.2,0,0,1)]';
+const MOTION = cn('duration-300 motion-reduce:transition-none', EASE);
+
+/**
+ * The title row's glyph buttons, the chevron and the ×: the lib's bare glyph at the row's
+ * 24px (the button caps a glyph at 20px), taking the accent on hover.
+ */
+const TITLE_ROW_GLYPH = 'size-6 shrink-0 rounded-md hover:text-ods-accent [&_svg]:h-6 [&_svg]:w-6';
+
+/**
+ * A part that opens and folds as a sidebar group does: its grid row eases between `0fr` and `1fr` while the
+ * content fades and settles. Folded, it stays mounted so it can move both ways, `inert` and, once folded,
+ * `invisible`: out of the tab order and the accessibility tree, as an unmounted part was. The content box is a
+ * shrinking column, so a list in it can scroll in a short panel.
+ */
+function Fold({
+  open,
+  id,
+  className,
+  contentClassName,
+  children,
+}: {
+  open: boolean;
+  id?: string;
+  className?: string;
+  contentClassName?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      id={id}
+      inert={!open}
+      className={cn(
+        'grid transition-[grid-template-rows,visibility]',
+        MOTION,
+        open ? 'visible grid-rows-[1fr]' : 'invisible grid-rows-[0fr]',
+        className,
+      )}
+    >
+      <div className="flex min-h-0 flex-col overflow-hidden">
+        <div
+          className={cn(
+            'flex min-h-0 flex-col transition-[opacity,transform]',
+            MOTION,
+            open ? 'translate-y-0 opacity-100' : '-translate-y-1 opacity-0',
+            contentClassName,
+          )}
+        >
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** A chevron that turns over as its part opens and folds, in the parts' motion. */
+function FoldChevron({ up, className }: { up: boolean; className?: string }) {
+  return <Chevron02DownIcon size={24} className={cn('transition-transform', MOTION, up && 'rotate-180', className)} />;
+}
 
 export interface GettingStartedBlockProps {
   steps: readonly TourStep[];
@@ -29,8 +91,16 @@ export interface GettingStartedBlockProps {
   onAction: (step: TourStep, action: TourAction) => boolean;
   /** "Finish tour", offered on the last step. */
   onFinish: () => void;
+  /** "Skip Onboarding", offered in the title row whatever the shape and the step. */
+  onSkip: () => void;
   /**
-   * "Open Fae", offered on the steps that open it (`TourStep.opensFae`).
+   * The × at the end of the title row: the tour's conversation is set aside as any
+   * other chat is (the host closes it where it is open, and stops showing the block
+   * over the pages).
+   */
+  onClose: () => void;
+  /**
+   * "Open Fae - your client assistant", offered on the steps that open it (`TourStep.opensFae`).
    * Absent where Fae cannot run (a phone): the chip is not shown.
    */
   onOpenFae?: () => void;
@@ -49,10 +119,15 @@ export interface GettingStartedBlockProps {
  *   chips (one open at a time). This is where the tour starts. Until the user
  *   opens or closes a row, the first step not done yet is the open one, so the
  *   list never shows as a wall of closed rows.
- * - the grid: two columns of step chips, whatever the width the composer has,
- *   what the block folds into once a chip has been used so the conversation gets
- *   the room. The chevron in the title row unfolds it and folds it back; a step
+ * - the grid: two columns of step chips, whatever the width the composer has (a
+ *   docked page composer is wide enough for four), what the block folds into once
+ *   a chip has been used so the conversation gets the room. The chevron in the
+ *   title row unfolds it and folds it back; a step
  *   chip unfolds it on that step.
+ *
+ * "Skip Onboarding" sits in the title row in either shape, so the tour can be
+ * left at any step; "Finish tour" ends it on the last one. The × after the
+ * chevron closes the block without ending the tour.
  *
  * The shape is the user's, remembered across pages and tabs
  * (`getting-started-view.ts`): folding or unfolding it, and a chip folding it,
@@ -67,6 +142,8 @@ export function GettingStartedBlock({
   doneStepIds,
   onAction,
   onFinish,
+  onSkip,
+  onClose,
   onOpenFae,
   busy = false,
 }: GettingStartedBlockProps) {
@@ -96,29 +173,63 @@ export function GettingStartedBlock({
   return (
     <section
       aria-label="Getting started"
-      className="flex max-h-[60vh] min-h-0 flex-col overflow-hidden rounded-md border border-ods-border bg-ods-card"
+      // The dock does not shrink, so this cap is what leaves the thread above it its room
+      // (the block scrolls inside): at most 45vh, with the composer and two banners under a
+      // laptop's height, the chat's header and a few lines stay on screen.
+      className="flex max-h-[45vh] min-h-0 flex-col overflow-hidden rounded-md border border-ods-border bg-ods-card"
     >
-      <header className="flex shrink-0 items-center gap-[var(--spacing-system-sf)] border-b border-ods-border p-[var(--spacing-system-xsf)]">
-        <h2 className="text-ods-text-secondary text-h5">Getting started</h2>
-        <p className="text-ods-text-secondary text-h6">
+      {/* A container, so the title row fits itself to the block's width rather than the window's. */}
+      <header className="flex shrink-0 items-center gap-[var(--spacing-system-sf)] border-b border-ods-border p-[var(--spacing-system-xsf)] @container">
+        <h2 className="shrink-0 text-ods-text-secondary text-h5">Getting started</h2>
+        <p className="min-w-0 truncate text-ods-text-secondary text-h6">
           <span className="font-bold text-ods-text-primary">{done}</span> of {total} steps
         </p>
-        {/* Unfolds the grid into the list, and folds the list back into the grid. */}
-        <button
-          type="button"
-          aria-label={folded ? 'Show the steps' : 'Hide the steps'}
-          aria-expanded={!folded}
-          onClick={() => {
-            if (!folded) setPickedId(undefined);
-            setFolded(!folded);
-          }}
-          className="ml-auto flex size-6 items-center justify-center rounded-md text-ods-text-primary hover:text-ods-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ods-accent"
+        {/* Ends the tour at any step; "Finish tour" ends it on the last one. Not a prompt, so it
+            stays live while Mingo answers. A phone's composer has room for "Skip" alone. */}
+        <Button
+          variant="link"
+          size="compact"
+          noPaddingX
+          aria-label="Skip Onboarding"
+          onClick={onSkip}
+          className="ml-auto shrink-0"
         >
-          {folded ? <Chevron02UpIcon size={24} /> : <Chevron02DownIcon size={24} />}
-        </button>
+          {/* One text run: the button spaces its children apart. */}
+          <span>
+            Skip<span className="hidden @md:inline"> Onboarding</span>
+          </span>
+        </Button>
+        {/* The two glyphs as a pair, closer together than the row's text. */}
+        <div className="flex shrink-0 items-center gap-[var(--spacing-system-xxs)]">
+          {/* Unfolds the grid into the list, and folds the list back into the grid. */}
+          <Button
+            variant="glyph"
+            size="wrap"
+            aria-label={folded ? 'Show the steps' : 'Hide the steps'}
+            aria-expanded={!folded}
+            onClick={() => {
+              if (!folded) setPickedId(undefined);
+              setFolded(!folded);
+            }}
+            className={TITLE_ROW_GLYPH}
+          >
+            <FoldChevron up={folded} />
+          </Button>
+          <Button
+            variant="glyph"
+            size="wrap"
+            aria-label="Close"
+            title="Close"
+            onClick={onClose}
+            className={TITLE_ROW_GLYPH}
+          >
+            <XmarkIcon size={24} />
+          </Button>
+        </div>
       </header>
 
-      {folded ? (
+      {/* The two shapes fold into each other: one eases shut while the other opens. */}
+      <Fold open={folded} className="min-h-0">
         <ul
           data-testid="getting-started-grid"
           // Scrolls in a short panel, where the block gives the thread its room.
@@ -141,15 +252,23 @@ export function GettingStartedBlock({
             );
           })}
         </ul>
-      ) : (
-        <ul className="min-h-0 flex-1 overflow-y-auto">
+      </Fold>
+      <Fold open={!folded} className="min-h-0">
+        <ul className="min-h-0 overflow-y-auto">
           {steps.map((step, index) => {
             const isOpen = openId === step.id;
             const isDone = doneStepIds.has(step.id);
             const isLast = index === total - 1;
             const panelId = `getting-started-${step.id}`;
             return (
-              <li key={step.id} className={cn('border-b border-ods-border last:border-b-0', isOpen && 'bg-ods-bg')}>
+              <li
+                key={step.id}
+                className={cn(
+                  'border-b border-ods-border transition-colors last:border-b-0',
+                  MOTION,
+                  isOpen && 'bg-ods-bg',
+                )}
+              >
                 <button
                   type="button"
                   aria-expanded={isOpen}
@@ -164,64 +283,59 @@ export function GettingStartedBlock({
                     <span className="truncate text-ods-text-primary text-h4">{step.title}</span>
                     <span className="truncate text-ods-text-secondary text-h6">{step.subtitle}</span>
                   </span>
-                  {isOpen ? (
-                    <Chevron02UpIcon size={24} className="shrink-0 text-ods-text-primary" />
-                  ) : (
-                    <Chevron02DownIcon size={24} className="shrink-0 text-ods-text-primary" />
-                  )}
+                  <FoldChevron up={isOpen} className="shrink-0 text-ods-text-primary" />
                 </button>
-                {isOpen && (
-                  <div
-                    id={panelId}
-                    className="flex flex-col gap-[var(--spacing-system-m)] px-[var(--spacing-system-sf)] pb-[var(--spacing-system-sf)]"
+                <Fold
+                  open={isOpen}
+                  id={panelId}
+                  contentClassName="gap-[var(--spacing-system-m)] px-[var(--spacing-system-sf)] pb-[var(--spacing-system-sf)]"
+                >
+                  <p className="text-ods-text-primary text-h4">{step.description}</p>
+                  {/* A disabled fieldset disables every chip button inside it. */}
+                  <fieldset
+                    disabled={busy}
+                    className="group m-0 flex min-w-0 flex-col gap-[var(--spacing-system-xxs)] border-0 p-0"
                   >
-                    <p className="text-ods-text-primary text-h4">{step.description}</p>
-                    {/* A disabled fieldset disables every chip button inside it. */}
-                    <fieldset
-                      disabled={busy}
-                      className="group m-0 flex min-w-0 flex-col gap-[var(--spacing-system-xxs)] border-0 p-0"
-                    >
-                      <p className="text-ods-text-secondary text-h5">Try asking:</p>
-                      {busy && (
-                        <p role="status" className="text-ods-text-secondary text-h6">
-                          Mingo is answering…
-                        </p>
-                      )}
-                      <ul className="flex flex-col items-start gap-[var(--spacing-system-xxs)]">
-                        {step.actions.map(action => (
-                          <li key={action.id} className="max-w-full">
-                            <QuickActionChipButton
-                              label={action.label}
-                              icon={<action.Icon size={16} className="text-ods-flamingo-cyan" />}
-                              onSelect={() => handleAction(step, action)}
-                              className={DISABLED_CHIP}
-                            />
-                          </li>
-                        ))}
-                      </ul>
-                    </fieldset>
-                    {/* Not a prompt, so it stays live while Mingo answers. */}
-                    {step.opensFae && onOpenFae && (
-                      <div className="flex">
-                        <QuickActionChipButton
-                          label="Open Fae"
-                          icon={<ExternalLinkIcon size={16} className="text-ods-flamingo-cyan" />}
-                          onSelect={onOpenFae}
-                        />
-                      </div>
+                    <p className="text-ods-text-secondary text-h5">Try asking:</p>
+                    {busy && (
+                      <p role="status" className="text-ods-text-secondary text-h6">
+                        Mingo is answering…
+                      </p>
                     )}
-                    {isLast && (
-                      <div className="flex">
-                        <QuickActionChipButton label="Finish tour" variant="primary" onSelect={onFinish} />
-                      </div>
-                    )}
-                  </div>
-                )}
+                    <ul className="flex flex-col items-start gap-[var(--spacing-system-xxs)]">
+                      {step.actions.map(action => (
+                        <li key={action.id} className="max-w-full">
+                          <QuickActionChipButton
+                            label={action.label}
+                            icon={<action.Icon size={16} className="text-ods-flamingo-cyan" />}
+                            onSelect={() => handleAction(step, action)}
+                            className={DISABLED_CHIP}
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  </fieldset>
+                  {/* Not a prompt, so it stays live while Mingo answers. */}
+                  {step.opensFae && onOpenFae && (
+                    <div className="flex">
+                      <QuickActionChipButton
+                        label="Open Fae - your client assistant"
+                        icon={<ExternalLinkIcon size={16} className="text-ods-flamingo-cyan" />}
+                        onSelect={onOpenFae}
+                      />
+                    </div>
+                  )}
+                  {isLast && (
+                    <div className="flex">
+                      <QuickActionChipButton label="Finish tour" variant="primary" onSelect={onFinish} />
+                    </div>
+                  )}
+                </Fold>
               </li>
             );
           })}
         </ul>
-      )}
+      </Fold>
     </section>
   );
 }

@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { withRouteStyles } from '@flamingo-stack/openframe-frontend-core/next-styles';
 import withBundleAnalyzer from '@next/bundle-analyzer';
 
 const projectRoot = dirname(fileURLToPath(import.meta.url));
@@ -54,6 +55,9 @@ const nextConfig = {
   productionBrowserSourceMaps: Boolean(process.env.SENTRY_AUTH_TOKEN),
   env: {
     OPENFRAME_BUNDLE_VERSION: resolveBundleVersion(),
+    // The hub's Supabase project host: every environment reaches the one hub, so it is one public
+    // value for the Docker image and both shell bundles. A build env var overrides it.
+    NEXT_PUBLIC_SUPABASE_HOST: process.env.NEXT_PUBLIC_SUPABASE_HOST || 'shdrojejslhgnojzkzak.supabase.co',
   },
   images: {
     unoptimized: true,
@@ -107,7 +111,9 @@ const configForPhase = phase => {
     phase === 'phase-development-server'
       ? { ...nextConfig, experimental: { turbopackMemoryLimit: 8 * 1024 * 1024 * 1024 } }
       : nextConfig;
+  // Every page's stylesheet goes inside its HTML, so it paints without a second request, and under
+  // `next-styles build` that sheet holds only the rules the page renders (the lib's next-styles).
   return withBundleAnalyzer({ enabled: process.env.ANALYZE === 'true' })(config);
 };
 
-export default configForPhase;
+export default withRouteStyles(configForPhase);

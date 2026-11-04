@@ -86,6 +86,7 @@ const NODE = {
   recordingExpiresAt: '2027-01-06T17:32:00Z',
   recordingHold: null,
   dialogId: null,
+  technicianId: 'tech-roman',
   technician: { name: 'Roman Smith', avatarUrl: null },
   organization: { organizationId: 'org-1', name: 'Acme', logoUrl: 'https://cdn.example/acme.png' },
   recordings: [
@@ -147,6 +148,7 @@ describe('tenantSessionColumns', () => {
     customerOptions: [{ id: 'org-1', value: 'org-1', label: 'Acme' }],
     optionsPending: false,
     now: Date.parse('2026-10-09T10:00:00Z'),
+    liveRows: null,
     onOpen: vi.fn(),
     onDelete: vi.fn(),
   });

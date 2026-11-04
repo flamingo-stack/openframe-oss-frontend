@@ -40,8 +40,7 @@ export const CONTENT_ORIGIN = isAppShell() ? runtimeEnv.tenantHostUrl() : '';
 /**
  * The `/content` proxy root (no `/api` suffix). Exported for the two callers
  * that need the base rather than a finished endpoint:
- *   - `<FaqSection apiBaseUrl>` and a page's `faq` prop (`pageFaq`), which
- *     self-build `/api/faqs?…` onto it;
+ *   - `<FaqSection apiBaseUrl>`, which self-builds `/api/faqs?…` onto it;
  *   - RELATIVE hub URLs that arrive INSIDE a payload and have to be routed back
  *     through the proxy — the walkthrough video's `captionsUrl` comes as
  *     `/api/captions/…` and would otherwise resolve against the app origin.
@@ -49,13 +48,13 @@ export const CONTENT_ORIGIN = isAppShell() ? runtimeEnv.tenantHostUrl() : '';
 export const CONTENT_BASE = `${CONTENT_ORIGIN}/content`;
 const CONTENT = `${CONTENT_BASE}/api`;
 
+const SUPABASE_HOST = process.env.NEXT_PUBLIC_SUPABASE_HOST;
+
 /**
- * A Help Center page's own FAQ block: the lib's shared pages take it as their
- * `faq` prop. The topic is what the page is about, written by the page (the
- * hub shows the FAQs its admin wrote for that topic); it is never read from
- * the route. A topic with no FAQ renders nothing.
+ * Our own Supabase storage loads directly, as on the hub: the WAF answers a proxied `?url=https://…`
+ * with a 502. The exact project host, never `supabase.co`: other projects stay on the proxy.
  */
-export const pageFaq = (topic: string) => ({ topic, apiBaseUrl: CONTENT_BASE });
+export const IMAGE_PROXY_SKIP_DOMAINS = SUPABASE_HOST ? [SUPABASE_HOST] : [];
 
 /**
  * The route prefix this whole section is mounted under.
@@ -74,8 +73,9 @@ export const HELP_CENTER_BASE = routes.helpCenter.root;
 
 /** Route the knowledge-base docs hub (`<DocsHubPage>`) is mounted under — base
  *  page + its `[...path]` deep-link route. Lives here (a dep-light module) so
- *  both the page and the chat's doc-chip `baseRoute` share one SSOT without
- *  pulling the client `DocsHubPage` module into the chat bundle. */
+ *  both the page and the content composer that addresses the chat's doc chips
+ *  (`help-center-content-href.ts`) share one SSOT without pulling the client
+ *  `DocsHubPage` module into the chat bundle. */
 export const KNOWLEDGE_BASE_ROUTE = routes.helpCenter.knowledgeBase;
 
 export const EP = {
@@ -106,7 +106,8 @@ export const EP = {
   // downloads (desktop installers + install commands), the same way: the lib owns
   // the hub path (`DOWNLOADS_API_PATH` = `/api/downloads`).
   downloads: `${CONTENT_BASE}${DOWNLOADS_API_PATH}`,
-  // FAQs — `<FaqSection apiBaseUrl=CONTENT_BASE>` self-builds `/api/faqs`.
+  // FAQs: the list every lib FAQ block reads (`CONTENT_ENDPOINTS.faqsUrl`), the shared pages' own blocks included.
+  faqs: `${CONTENT}/faqs`,
   // knowledge base (docs hub) — the lib `<DocsHubPage>` fetches the tree +
   // content from `…/docs/sources/<sourceId>/{structure,content}`, resolves
   // relative in-doc links via `…/docs/resolve-link`, and backs the in-source
@@ -153,4 +154,7 @@ export const CONTENT_ENDPOINTS: EndpointsRuntime = {
     consumeUrl: `${CONTENT}/consume-access-code`,
   },
   contactUrl: `${CONTENT}/contact`,
+  // Where the Help Center's FAQs are served: every shared page (roadmap, releases, legal, …) draws its own
+  // FAQ block from it, for the page's topic. No page passes anything.
+  faqsUrl: EP.faqs,
 };

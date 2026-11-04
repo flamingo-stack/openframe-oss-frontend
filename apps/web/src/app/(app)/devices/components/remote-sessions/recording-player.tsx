@@ -37,9 +37,9 @@ export function RecordingPlayer({ player, unavailableNote, className }: Recordin
         ref={terminalHostRef}
         className={cn('absolute inset-0 p-[var(--spacing-system-xsf)]', protocol === 1 ? 'visible' : 'invisible')}
       />
-      {state === 'seeking' && (
+      {(state === 'seeking' || state === 'waiting') && (
         <div className="absolute inset-0 flex items-center justify-center bg-ods-overlay">
-          {/* A busy mark while the player seeks: a live state, never a loading one. */}
+          {/* A busy mark while the player seeks or waits for a file: a live state, never a loading one. */}
           <Loading01Icon className={cn('h-8 w-8 text-ods-text-secondary', LIVE_PULSE_CLASS)} />
         </div>
       )}

@@ -25,7 +25,7 @@ Depending on which surface you intend to build, you will need a different subset
 | Tauri CLI | `^2.1.0` | `apps/desktop/package.json` devDependencies (`@tauri-apps/cli`) | Desktop shell only |
 | Capacitor CLI | `^8.4.3` | `apps/mobile/package.json` devDependencies (`@capacitor/cli`) | Mobile shell only |
 | Docker (BuildKit) | any recent version supporting `syntax=docker/dockerfile:1.7` | `apps/web/Dockerfile` | Containerized web build |
-| `node:24.21.0-alpine3.24` base image | pinned | `apps/web/Dockerfile` | Containerized web build |
+| `node:26.13.0-alpine3.24` base image | pinned | `apps/web/Dockerfile` | Containerized web build |
 
 > The root `.nvmrc` pins Node major version `24` for the whole repository — CI and local machines are expected to read this same file, and the Dockerfile's base image major version is kept in lockstep with it.
 

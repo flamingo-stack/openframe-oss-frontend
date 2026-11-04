@@ -93,3 +93,20 @@ describe('ticketService paging', () => {
     expect(sentVariables()).not.toHaveProperty('pagination');
   });
 });
+
+describe('ticketService escalated tickets', () => {
+  beforeEach(() => {
+    spies.post.mockReset();
+  });
+
+  it('asks the server for the escalated tickets of the given lanes', async () => {
+    spies.post.mockResolvedValue(page([TICKET_NODE]));
+
+    const tickets = await ticketService.fetchEscalatedTickets({ statusIds: ['st-1', 'st-2'], limit: 5 });
+
+    expect(sentVariables()).toEqual({ statusIds: ['st-1', 'st-2'], limit: 5 });
+    const { query } = spies.post.mock.calls.at(-1)?.[1] as { query: string };
+    expect(query).toContain('escalatedByUser: true');
+    expect(tickets[0]).toMatchObject({ id: RAW_TICKET_ID, dialogId: RAW_DIALOG_ID });
+  });
+});

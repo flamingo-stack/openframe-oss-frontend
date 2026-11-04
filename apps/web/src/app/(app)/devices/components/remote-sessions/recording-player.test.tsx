@@ -23,6 +23,7 @@ function player(state: UseRecordingPlayerResult['state']): UseRecordingPlayerRes
     loadSegments: vi.fn(),
     togglePlay: vi.fn(),
     seek: vi.fn(),
+    seekToTime: vi.fn(),
     stepBack: vi.fn(),
     stepForward: vi.fn(),
     setSpeed: vi.fn(),
@@ -63,5 +64,13 @@ describe('RecordingPlayer preview', () => {
     expect(playButton()).toBeNull();
     expect(container.textContent).toContain('Session recording unavailable');
     expect(container.textContent).toContain('This recording was deleted');
+  });
+
+  it('dims the frame with a busy mark while it seeks or waits for a file, and not otherwise', () => {
+    const busy = (state: UseRecordingPlayerResult['state']) => {
+      act(() => root.render(<RecordingPlayer player={player(state)} unavailableNote={null} />));
+      return container.querySelector('.bg-ods-overlay') !== null;
+    };
+    expect([busy('seeking'), busy('waiting'), busy('paused'), busy('playing')]).toEqual([true, true, false, false]);
   });
 });

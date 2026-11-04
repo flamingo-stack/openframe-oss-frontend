@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { graphql, useFragment, useLazyLoadQuery } from 'react-relay';
 import type { subscriptionSettingsView_query$key } from '@/__generated__/subscriptionSettingsView_query.graphql';
 import type { subscriptionSettingsViewQuery as SubscriptionSettingsViewQueryType } from '@/__generated__/subscriptionSettingsViewQuery.graphql';
+import { OutstandingInvoicesNotice } from '@/app/components/subscription-lock/outstanding-invoices-notice';
 import { PaywallSubtitle, PaywallTitle } from '@/app/components/subscription-lock/paywall-header';
 import { useSubscriptionLock } from '@/app/components/subscription-lock/subscription-guard';
 import {
@@ -29,8 +30,9 @@ const subscriptionSettingsViewQuery = graphql`
 `;
 
 /**
- * Billing data ONLY — the form's fragment and the cards' (see each). Nothing
- * here is app data a locked workspace would have refused.
+ * Billing data ONLY — the form's fragment, the cards' and the outstanding
+ * invoices' (see each). Nothing here is app data a locked workspace would have
+ * refused.
  *
  * On the root type rather than in the query, so the body below is typed by
  * what it reads and not by whichever query feeds it: the billing page's
@@ -40,6 +42,7 @@ const paywallBodyFragment = graphql`
   fragment subscriptionSettingsView_query on Query {
     ...usePlanCheckout_query
     ...planCheckoutCards_query
+    ...outstandingInvoicesNotice_query
   }
 `;
 
@@ -153,6 +156,9 @@ function PaywallBody({ copy, query }: PaywallBodyProps) {
   return (
     <>
       <PaywallSubtitle copy={copy} deviceCount={form.deviceCount} loading={form.loading} />
+
+      {/* What a cancelled subscription still owes: the paywall is the one screen the tenant can reach. */}
+      <OutstandingInvoicesNotice query={data} />
 
       <PlanCheckoutCards query={data} form={form} />
 

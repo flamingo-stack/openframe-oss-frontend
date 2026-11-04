@@ -38,8 +38,12 @@ export interface OnboardingMeetingLinkResult {
   isLoading: boolean;
 }
 
-export function useOnboardingMeetingLink(): OnboardingMeetingLinkResult {
-  const query = useQuery<SchedulingLinksPayload | null>({
+/**
+ * The hub's meeting directory, one cache entry for every link this app books
+ * (the onboarding call here, the billing call-back in Contact Support).
+ */
+export function useSchedulingLinks() {
+  return useQuery<SchedulingLinksPayload | null>({
     queryKey: ['scheduling-links', EP.meetings],
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
@@ -53,6 +57,9 @@ export function useOnboardingMeetingLink(): OnboardingMeetingLinkResult {
       return (await res.json()) as SchedulingLinksPayload;
     },
   });
+}
 
+export function useOnboardingMeetingLink(): OnboardingMeetingLinkResult {
+  const query = useSchedulingLinks();
   return { link: pickOnboardingLink(query.data), isLoading: query.isPending };
 }

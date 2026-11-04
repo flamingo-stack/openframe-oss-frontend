@@ -1,6 +1,7 @@
 import type { OSPlatformId } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useCallback, useMemo, useState, useSyncExternalStore } from 'react';
 import type { TagEntry } from '@/app/components/shared/tags';
+import type { AgentInstallRequest } from '@/lib/native-shell';
 import { isAppShell } from '@/lib/platform';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { selectUser, useAuthStore } from '@/stores';
@@ -12,6 +13,7 @@ import {
   buildRemoteAccessModeArgs,
   newDownloadMachineId,
 } from '../utils/device-command-utils';
+import { useAgentLogKey } from './use-agent-log-key';
 import { useRegistrationSecret } from './use-registration-secret';
 
 interface UseInstallCommandOptions {
@@ -110,6 +112,9 @@ export function useInstallCommand({
   remoteAccessMode = null,
 }: UseInstallCommandOptions) {
   const { initialKey } = useRegistrationSecret();
+  // Unlike the install key, nothing waits for it: a command copied before it
+  // arrives still enrolls the device (see useAgentLogKey).
+  const logKey = useAgentLogKey();
   // Installing user, so registration can associate the device with whoever ran
   // the command. Populated from /api/me by useAuthSession; optional in the
   // command because the store hydrates a beat after mount.
@@ -143,13 +148,25 @@ export function useInstallCommand({
         platform,
         serverUrl,
         initialKey,
+        logKey,
         orgId: organizationId,
         downloadBaseUrl,
         machineId: hydrated ? machineId : '',
         userId,
         additionalArgs,
       }),
-    [initialKey, additionalArgs, platform, organizationId, serverUrl, downloadBaseUrl, hydrated, machineId, userId],
+    [
+      initialKey,
+      logKey,
+      additionalArgs,
+      platform,
+      organizationId,
+      serverUrl,
+      downloadBaseUrl,
+      hydrated,
+      machineId,
+      userId,
+    ],
   );
 
   // Step 2 of the package-manager install flow (step 1 installs the binary, so
@@ -160,12 +177,23 @@ export function useInstallCommand({
         platform,
         serverUrl,
         initialKey,
+        logKey,
         orgId: organizationId,
         userId,
         additionalArgs,
       }),
-    [initialKey, additionalArgs, platform, organizationId, serverUrl, userId],
+    [initialKey, logKey, additionalArgs, platform, organizationId, serverUrl, userId],
   );
 
-  return { command, registerCommand, initialKey, rotateMachineId };
+  // What a local install needs of the same values: the desktop shell writes the
+  // command itself rather than running one from the page (see AgentInstallRequest).
+  // Empty stays absent: the copied command leaves the flag out, and the shell refuses it.
+  const installRequest: AgentInstallRequest = {
+    orgId: organizationId,
+    initialKey,
+    logKey: logKey || undefined,
+    userId: userId || undefined,
+  };
+
+  return { command, registerCommand, initialKey, installRequest, rotateMachineId };
 }

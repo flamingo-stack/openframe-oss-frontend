@@ -7,25 +7,37 @@ import type { deleteAllReadNotificationsMutation as DeleteAllReadNotificationsMu
 import type { deleteNotificationMutation as DeleteNotificationMutationType } from '@/__generated__/deleteNotificationMutation.graphql';
 import type { markAllNotificationsReadMutation as MarkAllReadMutationType } from '@/__generated__/markAllNotificationsReadMutation.graphql';
 import type { markNotificationReadMutation as MarkReadMutationType } from '@/__generated__/markNotificationReadMutation.graphql';
+import type { markNotificationsReadForEntityMutation as MarkEntityReadMutationType } from '@/__generated__/markNotificationsReadForEntityMutation.graphql';
 import { deleteAllReadNotificationsMutation } from './delete-all-read-notifications-mutation';
 import { deleteNotificationMutation } from './delete-notification-mutation';
+import {
+  clearEntityUnreadCounts,
+  entityRefsOfEntity,
+  entityRefsOfNotifications,
+  refreshEntityUnreadCounts,
+} from './entity-unread-counts';
 import { markAllNotificationsReadMutation } from './mark-all-notifications-read-mutation';
 import { markNotificationReadMutation } from './mark-notification-read-mutation';
+import { markNotificationsReadForEntityMutation } from './mark-notifications-read-for-entity-mutation';
 import {
   makeDeleteAllReadUpdater,
   makeDeleteNotificationUpdater,
   makeMarkAllReadUpdater,
+  makeMarkEntityReadUpdater,
   makeMarkReadUpdater,
   type NotificationConnectionPair,
+  type NotificationEntityScope,
 } from './notifications-helpers';
 import { refreshUnreadCounts } from './unread-counts-relay';
 
-export type NotificationMutation = 'markRead' | 'markAllRead' | 'delete' | 'deleteAllRead';
+export type NotificationMutation = 'markRead' | 'markAllRead' | 'markEntityRead' | 'delete' | 'deleteAllRead';
 
 interface UseNotificationMutationsOptions {
   filterPairs: NotificationConnectionPair[];
   onError?: (operation: NotificationMutation, err: Error) => void;
   onMarkAllReadCompleted?: () => void;
+  /** Mark All Complete on a list scoped to one entity: only that entity's notifications were read. */
+  onMarkEntityReadCompleted?: () => void;
   onDeleteAllReadCompleted?: () => void;
 }
 
@@ -33,6 +45,7 @@ export function useNotificationMutations({
   filterPairs,
   onError,
   onMarkAllReadCompleted,
+  onMarkEntityReadCompleted,
   onDeleteAllReadCompleted,
 }: UseNotificationMutationsOptions) {
   const { toast } = useToast();
@@ -43,6 +56,9 @@ export function useNotificationMutations({
   const [deleteAllReadCommit, isDeletingAllRead] = useMutation<DeleteAllReadNotificationsMutationType>(
     deleteAllReadNotificationsMutation,
   );
+  const [markEntityReadCommit, isMarkingEntityRead] = useMutation<MarkEntityReadMutationType>(
+    markNotificationsReadForEntityMutation,
+  );
 
   const filterPairsRef = useRef(filterPairs);
   // Latest-value refs, written after the commit rather than during render:
@@ -52,24 +68,48 @@ export function useNotificationMutations({
     filterPairsRef.current = filterPairs;
   });
 
-  const markRead = useCallback(
-    (id: string) => {
+  const commitMarkRead = useCallback(
+    (id: string, reportFailure: (err: Error) => void) => {
       const updater = (store: Parameters<ReturnType<typeof makeMarkReadUpdater>>[0]) =>
         makeMarkReadUpdater(id, filterPairsRef.current)(store);
+      const entityRefs = entityRefsOfNotifications(environment, [id]);
       markReadCommit({
         variables: { id },
         optimisticUpdater: updater,
         updater,
         onCompleted: () => {
           refreshUnreadCounts(environment);
+          refreshEntityUnreadCounts(environment, entityRefs);
         },
         onError: err => {
-          toast({ title: 'Failed to mark as read', description: err.message, variant: 'destructive' });
+          reportFailure(err);
           onError?.('markRead', err);
         },
       });
     },
-    [environment, markReadCommit, onError, toast],
+    [environment, markReadCommit, onError],
+  );
+
+  const markRead = useCallback(
+    (id: string) => {
+      commitMarkRead(id, err => {
+        toast({ title: 'Failed to mark as read', description: err.message, variant: 'destructive' });
+      });
+    },
+    [commitMarkRead, toast],
+  );
+
+  /**
+   * `markRead` for a read nobody asked for, so no toast: the user can do nothing about it, the row
+   * just stays unread, and a route matching many rows would stack one toast per row.
+   */
+  const autoMarkRead = useCallback(
+    (id: string) => {
+      commitMarkRead(id, err => {
+        console.warn('[Notifications] auto mark-read failed:', id, err);
+      });
+    },
+    [commitMarkRead],
   );
 
   const markAllRead = useCallback(() => {
@@ -81,6 +121,7 @@ export function useNotificationMutations({
       updater,
       onCompleted: () => {
         refreshUnreadCounts(environment);
+        clearEntityUnreadCounts(environment);
         onMarkAllReadCompleted?.();
       },
       onError: err => {
@@ -90,17 +131,42 @@ export function useNotificationMutations({
     });
   }, [environment, markAllReadCommit, onError, onMarkAllReadCompleted, toast]);
 
+  /** Mark All Complete where the list is one entity's: only that entity's notifications, loaded or not. */
+  const markEntityRead = useCallback(
+    (entity: NotificationEntityScope) => {
+      const updater = (store: Parameters<ReturnType<typeof makeMarkEntityReadUpdater>>[0]) =>
+        makeMarkEntityReadUpdater(entity, filterPairsRef.current)(store);
+      markEntityReadCommit({
+        variables: { entityType: entity.type, entityId: entity.id },
+        optimisticUpdater: updater,
+        updater,
+        onCompleted: () => {
+          refreshUnreadCounts(environment);
+          refreshEntityUnreadCounts(environment, entityRefsOfEntity(entity.type, entity.id));
+          onMarkEntityReadCompleted?.();
+        },
+        onError: err => {
+          toast({ title: 'Failed to mark notifications as read', description: err.message, variant: 'destructive' });
+          onError?.('markEntityRead', err);
+        },
+      });
+    },
+    [environment, markEntityReadCommit, onError, onMarkEntityReadCompleted, toast],
+  );
+
   const removeNotification = useCallback(
     (id: string) => {
       const updater = (store: Parameters<ReturnType<typeof makeDeleteNotificationUpdater>>[0]) =>
         makeDeleteNotificationUpdater(id, filterPairsRef.current)(store);
+      const entityRefs = entityRefsOfNotifications(environment, [id]);
       deleteCommit({
         variables: { id },
         optimisticUpdater: updater,
         updater,
         onCompleted: () => {
-          // Deleting an unread notification changes per-category counts.
+          // Deleting an unread notification changes per-category counts, and its entity's.
           refreshUnreadCounts(environment);
+          refreshEntityUnreadCounts(environment, entityRefs);
         },
         onError: err => {
           toast({ title: 'Failed to delete notification', description: err.message, variant: 'destructive' });
@@ -128,5 +194,15 @@ export function useNotificationMutations({
     });
   }, [deleteAllReadCommit, onError, onDeleteAllReadCompleted, toast]);
 
-  return { markRead, markAllRead, removeNotification, removeAllRead, isMarkingAllRead, isDeletingAllRead };
+  return {
+    markRead,
+    autoMarkRead,
+    markAllRead,
+    markEntityRead,
+    removeNotification,
+    removeAllRead,
+    isMarkingAllRead,
+    isMarkingEntityRead,
+    isDeletingAllRead,
+  };
 }

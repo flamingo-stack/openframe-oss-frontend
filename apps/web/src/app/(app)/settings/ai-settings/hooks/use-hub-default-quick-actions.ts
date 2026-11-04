@@ -12,7 +12,9 @@ import type { AiQuickAction } from '../types/ai-settings';
  * in local dev Next only rewrites `/content/*`, not `/chat/content/*`).
  * Shown/seeded while `quickActionsIsDefault` is on — the tenant BE stores
  * only the org's customized list, never the hub defaults.
- * `useEmptyStateConfig` caches per URL for the whole session (one request).
+ * `useEmptyStateConfig` caches per URL for the whole session (one request per
+ * page topic, which the lib reads from the address and sends: the hub offers
+ * that topic's actions first, then the ones written for no topic).
  *
  * Built on `CONTENT_BASE`, not a hand-written `/content/…` literal: in the
  * native shell that relative path resolves against `capacitor://localhost`,

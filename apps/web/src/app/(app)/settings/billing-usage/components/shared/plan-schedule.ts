@@ -4,12 +4,13 @@ import type {
   planSchedule_subscription$key,
 } from '@/__generated__/planSchedule_subscription.graphql';
 import { OpenframeProduct, SubscriptionProductStatus, SubscriptionStatus } from '@/generated/schema-enums';
+import { addLocalDays } from '@/lib/graphql-scalars';
 
 /**
  * The device package in force, the one scheduled to take over, and the dates
  * between them — what the Current Plan and Updated Plan blocks are built from.
- * One reader, because the two blocks sit side by side and the left column's
- * "ends on" has to be the right column's "starts on".
+ * One reader, because the two blocks sit side by side and the right column's
+ * "starts on" is the day after the left column's "ends on".
  */
 const planScheduleFragment = graphql`
   fragment planSchedule_subscription on SubscriptionDetail @inline {
@@ -69,6 +70,8 @@ export interface PlanSchedule {
    * twice.
    */
   currentPlanEndsOn: string | null;
+  /** The scheduled package's start, or the day after the current one ends (the backend ends it on `phaseStart - 1`). */
+  nextPlanStartsOn: string | null;
   hasScheduledPackage: boolean;
   /** Nothing takes over: the commitment lapses and billing reverts to metered. */
   revertsToPayg: boolean;
@@ -102,6 +105,8 @@ export function planSchedule(ref: planSchedule_subscription$key): PlanSchedule {
   const planEnds = active?.endsOn != null && !isPendingCancellation;
   const revertsToPayg = planEnds && !hasScheduledPackage;
 
+  const currentPlanEndsOn = planEnds && active ? active.endsOn : null;
+
   return {
     isTrial: status === SubscriptionStatus.TRIAL,
     isPendingCancellation,
@@ -109,7 +114,8 @@ export function planSchedule(ref: planSchedule_subscription$key): PlanSchedule {
     pending,
     paygPrice: devices?.payAsYouGoOption?.price ?? null,
     deviceIsPayg: devices?.payAsYouGoOption != null && active == null,
-    currentPlanEndsOn: planEnds && active ? active.endsOn : null,
+    currentPlanEndsOn,
+    nextPlanStartsOn: pending ? pending.startsOn : currentPlanEndsOn ? addLocalDays(currentPlanEndsOn, 1) : null,
     hasScheduledPackage,
     revertsToPayg,
     hasPendingPlan: hasScheduledPackage || revertsToPayg,

@@ -1,13 +1,14 @@
 'use client';
 
 import { CalendarBookmarkIcon, XmarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useState, useSyncExternalStore } from 'react';
 import { BookCallWalkthroughVideo } from '@/app/(app)/onboarding/components/book-call/book-call-walkthrough-video';
 import { useOnboardingMeetingLink } from '@/app/(app)/onboarding/components/book-call/use-onboarding-meeting-link';
 import { BookCallModal } from '@/app/(app)/setup/components/book-call-modal';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
+import { useRevealHeld, useRevealPart } from '@/app/components/shared/reveal-together';
 import { useWalkthroughVideoData } from '@/app/hooks/use-walkthrough-video-data';
 
 const DISMISSED_KEY_PREFIX = 'openframe:mingo-intro-dismissed:';
@@ -58,7 +59,10 @@ function useDismissed(key: string): [boolean, () => void] {
  * overview. Stacked while the content is narrow (Mingo docked beside it), the
  * clip beside the copy from `content-lg`. Closed for good with the X, per user
  * on this device. Nothing to offer - no clip and no bookable call - means no
- * banner.
+ * banner. Optional, so it has no loading form: nothing in the page's loading state
+ * or while the clip or the call is still read, and it appears once both answer
+ * (`data-loading-optional`), whole, the clip and the button with it - on a page that
+ * shows its sections together (`RevealTogether`), in the same step as they do.
  */
 export function MingoIntroBanner() {
   const userId = useAuthStore(state => state.user?.id);
@@ -66,11 +70,15 @@ export function MingoIntroBanner() {
   const { link, isLoading: linkLoading } = useOnboardingMeetingLink();
   const { video, isLoading: videoLoading } = useWalkthroughVideoData();
   const [booking, setBooking] = useState(false);
+  useRevealPart('intro-banner', dismissed || !(videoLoading || linkLoading));
+  const scoped = useLoadingScope();
+  const held = useRevealHeld();
+  const loading = scoped || held || videoLoading || linkLoading;
 
-  if (dismissed) return null;
-  const hasVideo = videoLoading || Boolean(video?.mainVideoUrl || video?.youtubeUrl);
-  const hasCall = linkLoading || Boolean(link);
-  if (!hasVideo && !hasCall) return null;
+  // loading-standard-ok(NOTHING_WHILE_LOADING): optional (closable, absent with no clip or call), it has no place to keep
+  if (loading || dismissed) return null;
+  const hasVideo = Boolean(video?.mainVideoUrl || video?.youtubeUrl);
+  if (!hasVideo && !link) return null;
 
   const title = (
     <div className="flex items-center gap-[var(--spacing-system-xxs)]">
@@ -90,6 +98,7 @@ export function MingoIntroBanner() {
   return (
     <section
       aria-label="OpenFrame isn't your typical RMM"
+      data-loading-optional
       className={cn(
         'flex w-full flex-col gap-[var(--spacing-system-sf)] rounded-md border border-ods-accent bg-ods-open-yellow-secondary p-[var(--spacing-system-sf)]',
         'content-lg:flex-row content-lg:items-start content-lg:gap-[var(--spacing-system-m)]',
@@ -107,12 +116,11 @@ export function MingoIntroBanner() {
           You describe the outcome, Mingo does the work, you approve it. Most new users only ask it questions.
           We&apos;ll show you how to hand it real jobs instead.
         </p>
-        {hasCall && (
+        {link && (
           <Button
             variant="accent"
             leftIcon={<CalendarBookmarkIcon className="size-5" />}
             onClick={() => setBooking(true)}
-            disabled={!link}
             className="mt-[var(--spacing-system-xs)] w-auto self-start"
           >
             Book a Call

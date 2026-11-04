@@ -39,7 +39,9 @@ const bundleDeviceFiltersQuery = graphql`
  * reason `useScheduleDeviceFilters` gives: a funnel answered through its own
  * selection offers one option after the first click.
  *
- * **Suspends** — render it inside the same boundary as the list it narrows.
+ * **Suspends**: render it inside the same Suspense boundary as the list it
+ * narrows, under an error boundary of its own so that a failed read costs the
+ * funnels and not the rows (see `BundleDeviceFacets`).
  */
 export function useBundleDeviceFilters(
   bundleId: string,

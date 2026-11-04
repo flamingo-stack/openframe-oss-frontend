@@ -10,6 +10,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { KNOWLEDGE_BASE_ROUTE } from './endpoints';
 import { composeOpenframeInAppContentUrl } from './help-center-content-href';
 
 const href = (input: Parameters<typeof composeOpenframeInAppContentUrl>[0]) =>
@@ -66,6 +67,27 @@ describe('composeOpenframeInAppContentUrl', () => {
       composeOpenframeInAppContentUrl({ type: 'onboarding_guide', identifier: 'guide-7' }).hostOverride,
     ).toBeUndefined();
     expect(composeOpenframeInAppContentUrl({ type: 'blog_post', identifier: 'my-post' }).hostOverride).toBeUndefined();
+  });
+
+  it("opens a cited document in this app's Knowledge Base, at its tree path, in the same tab", () => {
+    // A doc row (the lib's doc-table types) carries its tree path as the slug and no externalUrl.
+    const composed = composeOpenframeInAppContentUrl({
+      type: 'markdown',
+      identifier: 'doc-42',
+      slug: 'agents/install-on-windows',
+    });
+    expect(composed.href).toBe('/help-center/knowledge-base/agents/install-on-windows');
+    expect(composed.targetPlatform).toBeNull();
+    expect(href({ type: 'markdown', identifier: 'doc-7', slug: 'getting-started' })).toBe(
+      '/help-center/knowledge-base/getting-started',
+    );
+  });
+
+  // CU-17tkuw61kfy: a product doc in the chat opens this app's knowledge base, by the same composer as every card.
+  it('opens a product doc (its tree path as the slug) in the in-app knowledge base', () => {
+    expect(href({ type: 'markdown', identifier: 'd1', slug: 'openframe-cli/getting-started/quick-start.md' })).toBe(
+      `${KNOWLEDGE_BASE_ROUTE}/openframe-cli/getting-started/quick-start.md`,
+    );
   });
 
   it('keeps hub-only types on the absolute content-hub origin', () => {

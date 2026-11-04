@@ -5,14 +5,16 @@
 #
 # Usage:
 #   NEXT_PUBLIC_SHARED_HOST_URL=https://openframe.build \
-#   [BUILD_NUMBER=42] [SKIP_WEB=1] scripts/build-ios-dev.sh
+#   [BUILD_NUMBER=42] [VERSION_NAME=1.0.2] [SKIP_WEB=1] scripts/build-ios-dev.sh
 #
 # Required:  NEXT_PUBLIC_SHARED_HOST_URL — the DEV shared auth host. Baked
 #                            into the web bundle AND Info.plist (native token
 #                            refresher), so it is needed with SKIP_WEB=1 too.
 # Optional:  BUILD_NUMBER  — CURRENT_PROJECT_VERSION for this archive
-#            NEXT_PUBLIC_SENTRY_DSN — error reporting for the bundle and the app; with SENTRY_AUTH_TOKEN + SENTRY_ORG + SENTRY_PROJECT the lane also uploads source maps and dSYMs.
 #                            (TestFlight requires it to increase per upload).
+#            NEXT_PUBLIC_SENTRY_DSN — error reporting for the bundle and the app; with SENTRY_AUTH_TOKEN + SENTRY_ORG + SENTRY_PROJECT the lane also uploads source maps and dSYMs.
+#            VERSION_NAME=x — MARKETING_VERSION for this archive (the version
+#                            the app reports and the update nudge compares).
 #            SKIP_WEB=1    — reuse the already-staged www/ bundle (must have
 #                            been built by this lane, or the env baked into it
 #                            won't match the dev app).
@@ -78,7 +80,8 @@ xcodebuild archive \
   -allowProvisioningUpdates \
   OPENFRAME_SHARED_HOST_URL="$NEXT_PUBLIC_SHARED_HOST_URL" \
   OPENFRAME_SENTRY_DSN="${NEXT_PUBLIC_SENTRY_DSN:-}" \
-  ${BUILD_NUMBER:+CURRENT_PROJECT_VERSION=$BUILD_NUMBER}
+  ${BUILD_NUMBER:+CURRENT_PROJECT_VERSION=$BUILD_NUMBER} \
+  ${VERSION_NAME:+MARKETING_VERSION=$VERSION_NAME}
 
 "$HERE/scripts/upload-dsyms.sh" "$ARCHIVE"
 

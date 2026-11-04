@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { asInstant, isInstant, parseInstant, parseLocalDate, toInstant } from './graphql-scalars';
+import { addLocalDays, asInstant, isInstant, parseInstant, parseLocalDate, toInstant } from './graphql-scalars';
 
 describe('Instant', () => {
   it('reads the nanosecond fraction Java prints, which Date alone does not', () => {
@@ -30,5 +30,20 @@ describe('LocalDate', () => {
   it('rejects what is not a day', () => {
     expect(parseLocalDate('2026-02-30')).toBeNull();
     expect(parseLocalDate('2026-10-15T00:00:00Z')).toBeNull();
+  });
+});
+
+describe('addLocalDays', () => {
+  it('moves by calendar days across a month, a year and a leap day', () => {
+    expect(addLocalDays('2027-10-22', 1)).toBe('2027-10-23');
+    expect(addLocalDays('2026-10-31', 1)).toBe('2026-11-01');
+    expect(addLocalDays('2026-12-31', 1)).toBe('2027-01-01');
+    expect(addLocalDays('2028-02-28', 1)).toBe('2028-02-29');
+    expect(addLocalDays('2027-01-01', -1)).toBe('2026-12-31');
+  });
+
+  it('is null for anything that is not a day', () => {
+    expect(addLocalDays('2027-02-30', 1)).toBeNull();
+    expect(addLocalDays('2027-10-22T00:00:00Z', 1)).toBeNull();
   });
 });

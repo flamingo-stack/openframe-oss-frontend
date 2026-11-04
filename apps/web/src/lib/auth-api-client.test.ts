@@ -8,7 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { authApiClient, getAuthFailureMessage } from './auth-api-client';
 
 vi.mock('./force-logout', () => ({ forceLogout: vi.fn(), clearStoredTokens: vi.fn() }));
-vi.mock('./native-shell', () => ({ nativeAuthPlugin: () => null, nativeShellVersion: () => null }));
+const shell = vi.hoisted(() => ({ plugin: null as { revokeSession?: () => Promise<boolean> } | null }));
+vi.mock('./native-shell', () => ({ nativeAuthPlugin: () => shell.plugin, nativeShellVersion: () => null }));
 vi.mock('./platform', () => ({ isAppShell: () => false, mobilePlatform: () => null, shellKind: () => 'web' }));
 vi.mock('./runtime-config', () => ({
   runtimeEnv: { sharedHostUrl: () => 'https://auth.test', tenantHostUrl: () => '' },
@@ -44,6 +45,7 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 beforeEach(() => {
+  shell.plugin = null;
   fetchMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
 });
@@ -185,5 +187,32 @@ describe('getAuthFailureMessage', () => {
     fetchMock.mockResolvedValue(jsonResponse({ code: 'SOMETHING' }, 409));
 
     expect(getAuthFailureMessage(await accept(), 'Failed to accept invitation')).toBe('Failed to accept invitation');
+  });
+});
+
+describe('authApiClient.logoutAsync', () => {
+  it('leaves the revocation to a shell that keeps the refresh token, and sends nothing itself', async () => {
+    const revokeSession = vi.fn().mockResolvedValue(true);
+    shell.plugin = { revokeSession };
+
+    await expect(authApiClient.logoutAsync('tenant-1')).resolves.toBe(true);
+
+    expect(revokeSession).toHaveBeenCalledWith({ tenantId: 'tenant-1' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('reports a revocation the shell could not make', async () => {
+    shell.plugin = { revokeSession: vi.fn().mockRejectedValue(new Error('no bridge')) };
+
+    await expect(authApiClient.logoutAsync()).resolves.toBe(false);
+  });
+
+  it('asks the gateway itself everywhere else', async () => {
+    shell.plugin = {};
+    fetchMock.mockResolvedValue(jsonResponse({}));
+
+    await expect(authApiClient.logoutAsync('tenant-1')).resolves.toBe(true);
+
+    expect(fetchMock.mock.calls[0][0]).toBe('https://auth.test/oauth/logout?tenantId=tenant-1');
   });
 });

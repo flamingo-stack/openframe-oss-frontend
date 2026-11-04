@@ -14,11 +14,35 @@ Supported: macOS, Windows. Linux builds, but has neither an OS-notification
 backend nor any URL-scheme registration — so notifications never arrive and the
 OAuth callback has no way back into the app, leaving sign-in unable to complete.
 
+## Install
+
+| Platform | Download |
+|---|---|
+| macOS (Apple silicon and Intel) | https://openframe.ai/v0/api/assets/download?agent=desktop&platform=macos |
+| Windows x64 | https://openframe.ai/v0/api/assets/download?agent=desktop&platform=windows |
+| Windows ARM64 | https://openframe.ai/v0/api/assets/download?agent=desktop&platform=windows-arm64 |
+
+These links serve the version openframe.ai runs. Every version is also on this
+repository's [releases](https://github.com/flamingo-stack/openframe-oss-frontend/releases)
+as `OpenFrame-Console_<v>_*`. Sign in with your OpenFrame account; the app finds
+your workspace from your email, and updates itself from then on.
+
+- **macOS:** open the `.dmg` and drag **OpenFrame Console** to Applications. To
+  remove it, turn off **Start at Login** in the tray menu, quit, and delete the
+  app; settings and the session stay in the paths under
+  [Configuration](#configuration).
+- **Windows:** run the setup. It installs for the current user into
+  `%LOCALAPPDATA%\OpenFrame Console` and needs no administrator rights;
+  `/S` installs silently. Remove it from **Settings → Apps**, or silently with
+  `"%LOCALAPPDATA%\OpenFrame Console\uninstall.exe" /S`. Settings and the session
+  stay in `%APPDATA%\com.openframe.console` unless **Delete the application
+  data** is ticked in the uninstaller.
+
 ## Requirements
 
 - Rust (stable) and the [Tauri 2 system prerequisites](https://tauri.app/start/prerequisites/)
   for your platform
-- Node.js 24 — the repository's `.nvmrc`; the shell builds the web app's export, so it needs the
+- Node.js 26 — the repository's `.nvmrc`; the shell builds the web app's export, so it needs the
   web app's Node
 
 ## Quick start
@@ -56,6 +80,7 @@ make build OPENFRAME_SHARED_HOST_URL=https://auth.example.com
 | Variable | Purpose |
 |---|---|
 | `OPENFRAME_SHARED_HOST_URL` | **Required for `build`.** Baked into the binary; see [Configuration](#configuration). |
+| `OPENFRAME_GTM_CONTAINER_ID` | Optional. Baked into the binary; unset means no GTM and no analytics. |
 | `OPENFRAME_VERSION` | App version, applied via `tauri build --config`. Defaults to `tauri.conf.json`. |
 | `TARGET` | Rust target triple for cross-compilation. |
 | `BUNDLES` | Bundle subset, e.g. `BUNDLES=app` for an unsigned macOS `.app`. |
@@ -66,12 +91,36 @@ against the produced artifact, which is why `tauri.conf.json` sets
 
 ## Releasing
 
-The shell is built and released from `openframe-saas-desktop` for now; the
-updater reads that repository's releases (`DEFAULT_MANIFEST_URL` in
-`src-tauri/src/updater.rs`). The `build_desktop` job and the `updater.json` step
-in `.github/workflows/release.yml` are commented out until the release moves
-here, so neither a dispatch nor a push to `main` builds the shell from this
-repository.
+A dispatch of `.github/workflows/release.yml` builds the shell from that commit
+and attaches it to the `x.y.z` GitHub release, beside the web image of the same
+version:
+
+| File | What |
+|---|---|
+| `OpenFrame-Console_<v>_universal.dmg` | macOS install, signed and notarized |
+| `OpenFrame-Console_<v>_x64-setup.exe`, `_arm64-setup.exe` | Windows install, Authenticode-signed |
+| `OpenFrame-Console.app.tar.gz`, `*.sig` | the updater's macOS payload, and the updater signatures |
+| `updater.json` | the updater manifest |
+
+The `.dmg` window ("Drag to Applications") is laid out by Finder from
+`bundle.macOS.dmg` in `tauri.conf.json`. Its background,
+`src-tauri/installer/dmg-background.tiff`, is the 660×400 image and its 2× copy in
+one file (`tiffutil -cathidpicheck bg.png bg@2x.png -out dmg-background.tiff`;
+a 1× PNG alone is upscaled on Retina). The window is 428pt tall, not 400:
+Finder counts the title bar in that height (32pt, measured on macOS 27), and
+428 rather than 432 lets a shorter title bar show more of the image's empty
+bottom margin instead of bare window under it. Tauri skips this layout
+whenever `CI=true`, so the build step sets `TAURI_BUNDLER_DMG_IGNORE_CI`: without
+it the DMG ships with no background and the icons in Finder's name order.
+
+A push to `main` that touches `apps/desktop/` builds the same bundles as
+workflow artifacts (version `0.0.0-dev.<run>`), with no release.
+
+Installed apps update through the tenant gateway (`update_manifest_url` under
+[Configuration](#configuration)), which serves the `updater.json` of the release
+that environment runs: an install follows its environment's frontend version,
+not every release. `openframe-saas-desktop`, where the shell was released before
+(0.0.x), is legacy.
 
 ## Configuration
 
@@ -125,6 +174,9 @@ The shared host is baked in at build time and can be overridden per install by
 }
 ```
 
+An install whose `shared_host` differs from the baked one loads no GTM, and so no
+PostHog: test environments stay out of production analytics.
+
 `learned_host` is written by the shell after login; it is not meant to be edited.
 Tokens live next to it in `tokens.json` (owner-readable only, plaintext —
 keychain storage is a known gap).
@@ -150,8 +202,8 @@ Without it the UI renders and every data call fails.
 - **Login** — the OAuth flow runs in the user's default browser, so an SSO
   session they already have there is reused instead of asking for credentials
   again, and comes back on the `openframe-console://auth` scheme this app
-  registers with the OS. Tokens are then exchanged natively, because the response
-  headers carrying them are invisible to a cross-origin webview fetch.
+  registers with the OS. Tokens are then exchanged natively, so the refresh token
+  ends up in the shell and not in the page.
 - **Tokens** — refresh is scheduled from the JWT expiry and runs on a background
   poll, so a session survives the webview being idle in the tray. The shell is
   the *only* refresher: refresh tokens rotate, so two would invalidate each other.

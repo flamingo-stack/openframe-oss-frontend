@@ -8,6 +8,7 @@ import {
   type NoDataProps,
   type PageActionButton,
   PageLayout,
+  TagSearchInput,
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -17,7 +18,6 @@ import { type PreloadedQuery, usePaginationFragment, usePreloadedQuery } from 'r
 import type { notificationsSectionRelay_query$key as NotificationsSectionFragmentKey } from '@/__generated__/notificationsSectionRelay_query.graphql';
 import type { notificationsSectionRelayPaginationQuery as NotificationsSectionPaginationQueryType } from '@/__generated__/notificationsSectionRelayPaginationQuery.graphql';
 import type { notificationsSectionRelayQuery as NotificationsSectionRelayQueryType } from '@/__generated__/notificationsSectionRelayQuery.graphql';
-import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { EmptyState, type InfiniteScroll, NO_ITEMS } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
@@ -38,11 +38,20 @@ import { buildNotificationColumns, type NotificationRow } from './notifications-
 export const NOTIFICATIONS_SECTION_PAGE_SIZE = 50;
 const HISTORY_RETENTION_NOTE = 'Notification history is retained for 30 days, then permanently deleted.';
 
+/** The one entity the list is narrowed to: a chip in the search box, removed to list everything again. */
+export interface NotificationsScope {
+  label: string;
+  onClear: () => void;
+}
+
+const SCOPE_TAG = 'entity';
+
 interface NotificationsSectionProps {
   title: string;
   queryRef: PreloadedQuery<NotificationsSectionRelayQueryType> | null | undefined;
   searchValue: string;
   onSearchChange: (value: string) => void;
+  scope?: NotificationsScope;
   actions?: PageActionButton[];
   rowVariant: 'unread' | 'read';
   onMarkRead?: (id: string) => void;
@@ -54,6 +63,7 @@ export function NotificationsSection({
   queryRef,
   searchValue,
   onSearchChange,
+  scope,
   actions,
   rowVariant,
   onMarkRead,
@@ -74,20 +84,39 @@ export function NotificationsSection({
       <div className="flex flex-col" style={containerStyle}>
         {/* Genuinely no notifications (no active search) → the rich empty state stands alone;
             the search input is hidden per the empty-state convention. A search that matched
-            nothing keeps the input so the query can be adjusted. */}
-        {!(isEmpty === true && !searchValue.trim()) && (
+            nothing keeps the input so the query can be adjusted, and so does a scope: its chip
+            is the way back to every notification. */}
+        {!(isEmpty === true && !searchValue.trim() && !scope) && (
           <div
             ref={toolbarRef}
             className="sticky top-0 z-20 -mx-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)] flex items-center bg-ods-bg p-[var(--spacing-system-l)]"
           >
-            <Input
-              userValue
-              placeholder="Search for Notification"
-              value={searchValue}
-              onChange={e => onSearchChange(e.target.value)}
-              className="flex-1"
-              startAdornment={<SearchIcon />}
-            />
+            {scope ? (
+              // The box takes `className`, its wrapper does not: the wrapper is what has to fill the row.
+              <div className="min-w-0 flex-1">
+                <TagSearchInput
+                  tags={[{ label: scope.label, value: SCOPE_TAG }]}
+                  searchValue={searchValue}
+                  onSearchChange={onSearchChange}
+                  onTagRemove={scope.onClear}
+                  onClearAll={() => {
+                    scope.onClear();
+                    onSearchChange('');
+                  }}
+                  placeholder="Search for Notification"
+                  addMorePlaceholder="Search for Notification"
+                />
+              </div>
+            ) : (
+              <Input
+                userValue
+                placeholder="Search for Notification"
+                value={searchValue}
+                onChange={e => onSearchChange(e.target.value)}
+                className="flex-1"
+                startAdornment={<SearchIcon />}
+              />
+            )}
           </div>
         )}
 
@@ -244,14 +273,9 @@ export function SectionTableView({
 }: SectionTableViewProps) {
   const loading = useLoadingScope();
 
-  // Subscribed, not read imperatively: the action cell decides `href` vs `onClick` at
-  // RENDER time, so a snapshot would freeze whatever the shell had published when the
-  // first row rendered and never pick up the flags landing.
-  const canOpenMingoDrawer = useMingoLauncherStore(state => state.canOpen);
-
   const columns = useMemo(
-    () => buildNotificationColumns({ rowVariant, canOpenMingoDrawer, onMarkRead, onDelete }),
-    [rowVariant, canOpenMingoDrawer, onMarkRead, onDelete],
+    () => buildNotificationColumns({ rowVariant, onMarkRead, onDelete }),
+    [rowVariant, onMarkRead, onDelete],
   );
 
   const renderSubRow = useCallback(

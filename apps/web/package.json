@@ -11,10 +11,10 @@
   },
   "scripts": {
     "dev": "next dev -p ${PORT:-3000}",
-    "build": "npm run generate-enums && relay-compiler && next build && node scripts/sentry-sourcemaps.mjs",
+    "build": "npm run generate-enums && relay-compiler && next-styles build && node scripts/sentry-sourcemaps.mjs",
     "generate-enums": "node scripts/generate-schema-enums.mjs",
     "build:export": "OPENFRAME_BUILD_TARGET=export npm run build",
-    "build:local": "next build --webpack",
+    "build:local": "next-styles build -- --webpack",
     "start": "next start -p ${PORT:-3000}",
     "start:standalone": "cp -R public dist/standalone/ && mkdir -p dist/standalone/dist && cp -R dist/static dist/standalone/dist/ && cp scripts/server-entry.js dist/standalone/ && PORT=${PORT:-3000} HOSTNAME=0.0.0.0 NODE_ENV=production node dist/standalone/server-entry.js",
     "lint": "eslint . --cache --cache-location node_modules/.cache/eslint/ --max-warnings 0",
@@ -34,7 +34,8 @@
     "lint:types": "NODE_OPTIONS=--max-old-space-size=8192 eslint . --config eslint.types.mjs --no-cache --max-warnings 0",
     "lint:cycles": "eslint . --config eslint.cycles.mjs --no-cache --max-warnings 0",
     "lint:ci": "eslint . --no-cache --config eslint.ci.mjs --max-warnings 0",
-    "check:loading": "node scripts/check-page-skeletons.mjs"
+    "check:loading": "node scripts/check-page-skeletons.mjs",
+    "css:budget:check": "next-styles budget --budget 35000"
   },
   "dependencies": {
     "@codemirror/autocomplete": "6.20.3",
@@ -47,7 +48,7 @@
     "@codemirror/search": "6.7.1",
     "@codemirror/state": "6.7.1",
     "@codemirror/view": "6.43.9",
-    "@flamingo-stack/openframe-frontend-core": "0.0.809",
+    "@flamingo-stack/openframe-frontend-core": "0.0.847",
     "@hookform/resolvers": "5.2.2",
     "@lezer/highlight": "1.2.3",
     "@sentry/browser": "11.6.0",
@@ -64,14 +65,13 @@
     "react-hook-form": "7.71.1",
     "react-relay": "20.1.1",
     "relay-runtime": "20.1.1",
-    "tailwindcss-animate": "1.0.7",
     "zod": "4.6.6",
     "zustand": "5.0.11"
   },
   "devDependencies": {
     "@next/bundle-analyzer": "16.3.6",
     "@sentry/cli": "3.8.0",
-    "@types/node": "22.19.11",
+    "@types/node": "26.6.6",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@types/react-relay": "18.2.1",
@@ -86,7 +86,7 @@
     "relay-compiler": "20.1.1",
     "tailwindcss": "3.4.19",
     "typescript": "5.9.3",
-    "vitest": "4.1.11"
+    "vitest": "5.0.5"
   },
   "optionalDependencies": {
     "@next/swc-linux-x64-gnu": "16.3.6",

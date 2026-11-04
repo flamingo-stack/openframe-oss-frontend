@@ -22,8 +22,13 @@ A mismatch between the baked scheme and the native registration breaks login.
 ```sh
 NEXT_PUBLIC_SHARED_HOST_URL=https://<stage shared auth host> \
 BUILD_NUMBER=<increasing int> \
+[VERSION_NAME=<x.y.z>] \
 scripts/build-ios-stage.sh
 ```
+
+`VERSION_NAME` sets `MARKETING_VERSION` (default: the project's). It is the shell version the
+"Update available" nudge compares with the policy's `latestVersion`, so a nudge test needs builds
+that differ in it; the blocking "Update required" screen follows the bundle version.
 
 Produces `build/stage/*.ipa` (App Store Connect export, automatic signing).
 Upload with the Transporter app or `xcrun altool --upload-app` (API key). Then

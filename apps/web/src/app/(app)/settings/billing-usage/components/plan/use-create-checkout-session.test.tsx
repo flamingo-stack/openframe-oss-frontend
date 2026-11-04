@@ -78,6 +78,17 @@ describe('useCreateCheckoutSession — failures', () => {
     });
   });
 
+  it('overdue invoice: points at the invoice the paywall lists', () => {
+    failCheckoutWith(relayError('Tenant has overdue invoices', 'OVERDUE_INVOICES_EXIST'));
+
+    expect(spies.tab.cancel).toHaveBeenCalledOnce();
+    expect(spies.toast).toHaveBeenCalledExactlyOnceWith({
+      title: 'Unpaid invoice',
+      description: 'Pay the overdue invoice shown above, then choose your plan again.',
+      variant: 'destructive',
+    });
+  });
+
   it('any other failure: shows the backend message as before', () => {
     failCheckoutWith(relayError('Billing plan not found: tenant-1', 'BILLING_PLAN_NOT_FOUND'));
 

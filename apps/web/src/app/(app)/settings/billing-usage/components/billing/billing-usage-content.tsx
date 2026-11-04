@@ -23,10 +23,12 @@ import { CancelSubscriptionFlow } from '../cancel/cancel-subscription-flow';
 import { ActivateSubscriptionModal } from '../plan/activate-subscription-modal';
 import { UpgradePlanModal } from '../plan/upgrade-plan-modal';
 import { AiBalanceAlert } from './ai-balance-alert';
+import { AutoTopUpSection } from './auto-top-up-section';
 import { BillingPageFrame } from './billing-page-frame';
 import { BillingSections } from './billing-sections';
 import { DeviceOverageBlock } from './device-overage-block';
 import { PaidAiTokensCard } from './paid-ai-tokens-card';
+import { PurchasedTokenPacks } from './purchased-token-packs';
 import { useBillingPageActions } from './use-billing-page-actions';
 
 /**
@@ -53,6 +55,7 @@ const billingUsageContentQuery = graphql`
       ...billingSections_subscription
       ...paidAiTokensCard_subscription
       ...aiBalanceAlert_subscription
+      ...purchasedTokenPacks_subscription
       ...deviceOverageBlock_subscription
       ...cancelSubscriptionFlow_subscription
     }
@@ -150,6 +153,7 @@ export function BillingUsageScreen({ data, onRefetch: refetch }: BillingUsageScr
     onManageAiBalance: aiBalanceOffered ? openAiBalanceModal : null,
     onCancel: () => setCancelling(true),
     onRenewed: refetch,
+    onUndoDowngradeSettled: refetch,
   });
 
   // No subscription record at all. Every figure below would be a zero or a dash
@@ -209,9 +213,10 @@ export function BillingUsageScreen({ data, onRefetch: refetch }: BillingUsageScr
               </div>
             )}
 
-            {/* The system switched the refill off over a declined card: said here,
-                after the page it stopped refilling. Nothing while it loads, and
-                nothing if it cannot be loaded — a notice is not worth an error. */}
+            {/* The refill stopped — the system switched it off over a declined card,
+                or the spend limit holds it back: said here, under the balance it
+                stopped refilling. Nothing while it loads, and nothing if it cannot
+                be loaded — a notice is not worth an error. */}
             {autoTopUpOffered && (
               <div data-loading-optional className="contents">
                 <AutoTopUpIsland label="AutoTopUpNotice" fallback={null}>
@@ -222,12 +227,29 @@ export function BillingUsageScreen({ data, onRefetch: refetch }: BillingUsageScr
               </div>
             )}
 
+            {hasAi && subscription && (
+              <div data-loading-optional className="contents">
+                <PurchasedTokenPacks subscription={subscription} />
+              </div>
+            )}
+
             {subscription && (
               <div data-loading-optional className="contents">
                 <DeviceOverageBlock subscription={subscription} onUpgrade={readOnly ? null : openPlanModal} />
               </div>
             )}
           </>
+        }
+        // Figures only: drawn on the read-only build too. Only accounts that switched it on have it, so the wait
+        // draws nothing in its place.
+        autoTopUpSection={
+          autoTopUpOffered && (
+            <div data-loading-optional className="contents">
+              <AutoTopUpIsland label="AutoTopUpSection" fallback={null}>
+                {autoTopUp => <AutoTopUpSection status={autoTopUp} />}
+              </AutoTopUpIsland>
+            </div>
+          )
         }
       />
 

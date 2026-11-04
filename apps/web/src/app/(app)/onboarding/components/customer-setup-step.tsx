@@ -128,6 +128,7 @@ export function CustomerSetupStep({
         <div className="flex w-full min-w-0 flex-1 flex-col gap-[var(--spacing-system-l)]">
           <Input
             label="Customer Name"
+            labelVariant="large"
             placeholder="Customer Name"
             value={name}
             onChange={e => setName(e.target.value)}
@@ -135,6 +136,7 @@ export function CustomerSetupStep({
           />
           <Input
             label="Website URL"
+            labelVariant="large"
             placeholder="https://www.website.com"
             value={website}
             onChange={e => setWebsite(e.target.value)}
@@ -150,6 +152,7 @@ export function CustomerSetupStep({
             objectFit="contain"
             maxSize={5 * 1024 * 1024}
             fieldLabel="Customer Logo"
+            labelVariant="large"
             label="Upload customer logo"
             description="Click to upload or drag and drop"
             alt={name || 'Customer logo'}
