@@ -7,6 +7,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { purchasedTokenPacks_subscription$key } from '@/__generated__/purchasedTokenPacks_subscription.graphql';
 import { EMPTY_VALUE } from '@/lib/empty-value';
+import { formatDate } from '@/lib/format-date';
 import { PurchasedTokenPacks } from './purchased-token-packs';
 
 // The `graphql` tag needs the Relay transform, which vitest has no equivalent of;
@@ -60,14 +61,17 @@ describe('PurchasedTokenPacks', () => {
     const [row] = render(subscription([OLDER]));
 
     expect(row).toContain('1.2M / 5M');
-    expect(row).toContain('Purchased 2026-10-28');
-    expect(row).toContain('Valid until 2027-10-28');
+    expect(row).toContain(`Purchased ${formatDate('2026-10-28')}`);
+    expect(row).toContain(`Valid until ${formatDate('2027-10-28')}`);
   });
 
   it('keeps the order the API sent, the order tokens are spent in', () => {
     const rows = render(subscription([OLDER, NEWER]));
 
-    expect(rows.map(row => /Valid until (\S+?)Purchased/.exec(row)?.[1])).toEqual(['2027-10-28', '2027-10-30']);
+    expect(rows.map(row => /Valid until (\S+?)Purchased/.exec(row)?.[1])).toEqual([
+      formatDate('2027-10-28'),
+      formatDate('2027-10-30'),
+    ]);
   });
 
   it('prints no date for a pack that never expires', () => {

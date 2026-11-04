@@ -6,7 +6,7 @@ import { useId } from 'react';
 import { formatCurrency } from '@/lib/format-currency';
 import { formatCompactCount } from '@/lib/format-number';
 import { tokensForUsd } from '../shared/ai-token-price';
-import { type AutoTopUpSettingsField, type AutoTopUpSettingsValues, toWholeDollarsText } from './auto-top-up-settings';
+import { type AutoTopUpSettingsField, type AutoTopUpSettingsValues, toDollarsText } from './auto-top-up-settings';
 import { spendLimitUsage } from './auto-top-up-status';
 import { SpendLimitBar } from './spend-limit-bar';
 
@@ -70,7 +70,7 @@ export function AutoTopUpSettingsFields({
         aria-label={`${label}, USD`}
         aria-describedby={`${id}-${name}-note`}
         endAdornment={<span className="text-ods-text-secondary text-h6">USD</span>}
-        onChange={event => onChange(name, toWholeDollarsText(event.target.value))}
+        onChange={event => onChange(name, toDollarsText(event.target.value))}
       />
       <p
         id={`${id}-${name}-note`}

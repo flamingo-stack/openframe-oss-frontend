@@ -257,12 +257,16 @@ describe('the rules of the figures', () => {
     expect(spies.update).not.toHaveBeenCalled();
   });
 
-  it('keeps whole dollars of what is typed or pasted', () => {
+  it('keeps what is typed, and says cents are not taken instead of dropping them', () => {
     renderWith();
-    type(field('Top-up Amount'), '$75.99');
-    expect(field('Top-up Amount').value).toBe('75');
     type(field('Spend Limit'), '1,000');
     expect(field('Spend Limit').value).toBe('1000');
+    type(field('Threshold'), '2.5');
+    expect(field('Threshold').value).toBe('2.5');
+    click(button('Save'));
+    expect(notes()).toContain('Whole dollars only.');
+    expect(field('Threshold').getAttribute('aria-invalid')).toBe('true');
+    expect(spies.update).not.toHaveBeenCalled();
   });
 
   it('states what one top-up buys at the catalog rate, and nothing without one', () => {
