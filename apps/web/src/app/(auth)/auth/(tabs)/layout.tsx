@@ -8,7 +8,7 @@ import { DesktopSignInWaiting } from '@/app/(auth)/auth/components/desktop-sign-
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useDesktopSignInWait } from '@/app/hooks/use-desktop-sign-in-wait';
 import { useLoginOnlyMobileShell } from '@/app/hooks/use-login-only-mobile-shell';
-import { isAuthOnlyMode } from '@/lib/app-mode';
+import { getLandingPath, isAuthOnlyMode } from '@/lib/app-mode';
 import { routes } from '@/lib/routes';
 
 const TABS = [
@@ -44,7 +44,7 @@ export default function AuthTabsLayout({ children }: { children: React.ReactNode
     if (isAuthenticated && !isAuthOnlyMode()) {
       // replace, not push: an authenticated user landing here (e.g. via back) is redirected
       // without leaving an auth route in the back stack — no flash, no back-loop.
-      router.replace(routes.dashboard);
+      router.replace(getLandingPath());
     }
   }, [isAuthenticated, router]);
 

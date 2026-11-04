@@ -8,6 +8,7 @@ import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
+import { useOnboardingStore } from '@/stores/onboarding-store';
 import {
   type useOnboardingMutations as UseOnboardingMutations,
   useOnboardingMutations,
@@ -20,6 +21,7 @@ const PROGRESS = {
   skipped: false,
   skippedAt: null,
   tourDialogId: null,
+  setupSeen: false,
 };
 
 vi.mock('react-relay', () => ({
@@ -76,6 +78,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   useAuthStore.setState({ user: null } as never);
+  useOnboardingStore.getState().reset();
   vi.unstubAllGlobals();
 });
 
@@ -96,5 +99,17 @@ describe('useOnboardingMutations and the Getting Started view', () => {
     store.set(KEY, 'default');
     act(() => api.skipUser());
     expect(store.has(KEY)).toBe(false);
+  });
+});
+
+describe('useOnboardingMutations and the setup wizard', () => {
+  it('marking the last screen as seen mirrors the answer into the store', () => {
+    PROGRESS.setupSeen = true;
+    try {
+      act(() => api.markSetupSeenInBackground());
+      expect(useOnboardingStore.getState().user?.setupSeen).toBe(true);
+    } finally {
+      PROGRESS.setupSeen = false;
+    }
   });
 });

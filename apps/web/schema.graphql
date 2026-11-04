@@ -475,6 +475,14 @@ input CreateSoftwareScheduleInput {
 
   """SPECIFIC target device ids (Machine global ids)."""
   machineIds: [ID!]
+
+  """
+  UPDATE only, rejected for INSTALL. Null: wait & notify, a countdown 7 days after the first try, 5 minutes long.
+  """
+  updateSettings: PackageUpdateSettingsInput
+
+  """UPDATE only, rejected for INSTALL. Null: no auto-update."""
+  autoUpdate: SoftwareAutoUpdateInput
 }
 
 input CreateTimeEntryInput {
@@ -679,9 +687,16 @@ enum DirectoryCapability {
 }
 
 """
-Narrowing for directoryConnections. Free-text search is all the Tenants list needs today; further
-dimensions become optional fields here, so adding one never changes the query's signature.
+Narrowing for directoryConnections beside the free-text search. Every field is optional and an empty list
+narrows nothing; further dimensions become optional fields here, so adding one never changes the query's signature.
 """
+input DirectoryConnectionFilterInput {
+  """
+  Only connections whose last sync ended in one of these statuses, e.g. [ERROR] for the failed-sync row.
+  """
+  lastSyncStatuses: [DirectorySyncStatus!]
+}
+
 type DirectoryConnection {
   """
   Config document id — passed as connectionId to every per-connection query/mutation.
@@ -1206,6 +1221,13 @@ type Insight {
   id: ID!
 
   """
+  The raw stored id — NOT `id`, which is an opaque node handle. It is what
+  `NotificationFilterInput.entity.id` and `markNotificationsReadForEntity` take for an INSIGHT entity, and what a
+  notification's `attributes.insightId` carries, so a row can list and clear its own notifications.
+  """
+  insightId: String!
+
+  """
   Same value as `Organization.organizationId` — NOT `Organization.id`, which is an opaque node
   handle. Kept flat so a list can filter by organization without resolving the whole object.
   """
@@ -1275,6 +1297,12 @@ type Insight {
 
   """When the detector decided, not when the underlying event happened."""
   detectedAt: Instant!
+
+  """
+  The current user's unread notifications about this incident (entity INSIGHT, insightId). Counts the same read
+  states as `unreadCountsByCategory`, so a row and the sidebar badge agree. 0 when none.
+  """
+  unreadNotificationCount: Int!
 }
 
 type InsightConnection {
@@ -1294,6 +1322,11 @@ input InsightFilter {
   organizationIds: [String!]
   machineIds: [String!]
   types: [InsightType!]
+
+  """
+  Explicit kinds, e.g. DISK_SPACE_LOW. Combined with types, only the kinds of those types remain.
+  """
+  kinds: [InsightKind!]
   severities: [InsightSeverity!]
   statuses: [InsightStatus!]
 
@@ -1811,6 +1844,12 @@ type Machine implements Node & AssignableTarget {
   Package managers as last reported by the device agent. Null until the first report.
   """
   packageManagers: MachinePackageManagers
+
+  """
+  The current user's unread notifications about this device (entity DEVICE, machineId). Counts the same
+  read states as unreadCountsByCategory, so a row and the sidebar badge agree. 0 when none.
+  """
+  unreadNotificationCount: Int!
 }
 
 type Mutation {
@@ -2033,15 +2072,22 @@ type Mutation {
   skipUserOnboarding: UserOnboardingProgress!
 
   """
-  Reset personal onboarding to a clean state (no steps, not skipped, not completed).
+  Reset personal onboarding to a clean state (no steps, not skipped, not completed, setup wizard not seen).
   """
   resetUserOnboarding: UserOnboardingProgress!
 
-  """Remember the Mingo conversation the Get Started tour lives in; a repeat overwrites it."""
+  """
+  Remember the Mingo conversation the Get Started tour lives in; a repeat overwrites it. Also marks the setup wizard seen.
+  """
   setUserOnboardingTourDialog(dialogId: String!): UserOnboardingProgress!
 
   """
-  Dev/QA only. Marks the tenant Initial Setup completed (all steps) and the current user's Get Started skipped, so the user lands straight in the app. Idempotent. Not part of the schema on stage/prod.
+  The setup wizard showed its last screen to this user. Idempotent: the first call sets setupSeen = true and stamps setupSeenAt, later calls return the record unchanged. Independent of the tenant Initial Setup.
+  """
+  markUserOnboardingSetupSeen: UserOnboardingProgress!
+
+  """
+  Dev/QA only. Marks the tenant Initial Setup completed (all steps) and the current user's Get Started skipped with the setup wizard seen, so the user lands straight in the app. Idempotent. Not part of the schema on stage/prod.
   """
   skipOnboarding: OnboardingSkipResult!
 
@@ -2514,6 +2560,9 @@ enum NotificationCategory {
 type NotificationConnection {
   edges: [NotificationEdge!]!
   pageInfo: PageInfo!
+
+  """Number of notifications matching the filter and search, across all pages."""
+  filteredCount: Int!
 }
 
 type NotificationEdge {
@@ -2521,13 +2570,40 @@ type NotificationEdge {
   cursor: String!
 }
 
+"""
+One entity's notifications. id is the raw stored id: Machine.machineId for DEVICE, the ticket, dialog or
+insight id otherwise — the same value markNotificationsReadForEntity takes.
+"""
+input NotificationEntityFilterInput {
+  type: NotificationEntityType!
+  id: ID!
+}
+
 enum NotificationEntityType {
   TICKET
   DIALOG
+  INSIGHT
+  DEVICE
 }
 
 input NotificationFilterInput {
   read: Boolean
+
+  """Only notifications of these categories; omitted or empty does not narrow."""
+  categories: [NotificationCategory!]
+
+  """
+  Only these notification types, by their persisted name (e.g. TICKET_APPROVAL_REQUEST, MINGO_APPROVAL_REQUEST); omitted or empty does not narrow.
+  """
+  types: [String!]
+
+  """Only these severities; omitted or empty does not narrow."""
+  severities: [NotificationSeverity!]
+
+  """
+  Only the caller's notifications about this entity; combines (AND) with the other filters. Omitted does not narrow.
+  """
+  entity: NotificationEntityFilterInput
 }
 
 enum NotificationReadStatus {
@@ -3001,6 +3077,24 @@ type ProductOption {
   priceTiers: [PriceTier!]
   quantity: Int
   status: SubscriptionProductStatus
+}
+
+"""One purchase of prepaid AI tokens and what is left of it."""
+type PurchasedTokenPack {
+  """When the pack was credited."""
+  purchasedAt: Instant!
+  tokensPurchased: Long!
+  tokensRemaining: Long!
+
+  """
+  The first instant the pack can no longer be spent; null when it never expires.
+  """
+  expiresAt: Instant
+
+  """
+  The last day the pack can be spent, the date printed on the invoice; null when it never expires.
+  """
+  validUntil: Date
 }
 
 enum PushPlatform {
@@ -3514,6 +3608,7 @@ type Query {
     and is never widened by this.
     """
     search: String
+    filter: DirectoryConnectionFilterInput
     first: Int
     after: String
   ): DirectoryConnectionConnection!
@@ -4157,12 +4252,20 @@ type MachinePackageManagers {
 }
 
 """
-The arrangement to set. The amount must exceed the threshold, and both are whole dollars.
+The arrangement to set. The amount must exceed the threshold and the spend limit, when given, must be at
+least the amount. All figures are whole dollars.
 """
 input AutoTopUpSettingsInput {
   enabled: Boolean!
   amountUsd: Float
   thresholdUsd: Float
+
+  """
+  The most auto top-ups may charge over the last 30 days, in USD. Omitted or null removes the limit, so a
+  client saving the arrangement sends the current one back. Ignored when enabled is false: switching off
+  keeps the limit.
+  """
+  spendLimitUsd: Float
 }
 
 """
@@ -4201,6 +4304,32 @@ type AutoTopUpSettings {
   returns from this page, not what is armed now.
   """
   paymentMethodSetupUrl: String
+
+  """
+  The most auto top-ups may charge over the last 30 days, in USD. Null means no limit.
+  """
+  spendLimitUsd: Float
+
+  """
+  What auto top-ups charged over the last 30 days, in USD: paid and in flight, failed ones excluded.
+  """
+  spentLast30DaysUsd: Float!
+
+  """
+  Set while the spend limit holds refills back. Auto top-up itself stays enabled.
+  """
+  pausedReason: AutoTopUpPausedReason
+
+  """
+  When the next top-up is tried while paused. Not a promise that it will fit the limit.
+  """
+  resumesAt: Instant
+
+  """The smallest top-up amount on sale, in USD."""
+  minimumAmountUsd: Float
+
+  """The lowest threshold that can be set, in USD."""
+  minimumThresholdUsd: Float
 }
 
 """
@@ -4211,6 +4340,27 @@ enum AutoTopUpDisabledReason {
   The card declined an automatic charge. One charge, one outcome — it is never retried.
   """
   PAYMENT_FAILED
+
+  """The subscription it belonged to was cancelled."""
+  SUBSCRIPTION_CANCELED
+
+  """
+  The card asked for 3-D Secure and nobody completed it. An automatic charge has no one present to answer, so it is not tried again.
+  """
+  AUTHENTICATION_ABANDONED
+
+  """
+  There is no card on file that can be charged with nobody present. The customer adds a card and turns automatic top-up back on.
+  """
+  NO_PAYMENT_METHOD
+}
+
+"""Why automatic top-up is on but holding refills back for now."""
+enum AutoTopUpPausedReason {
+  """
+  The next top-up would take the last 30 days of auto top-ups over the spend limit. Tried again a day later.
+  """
+  SPEND_LIMIT_REACHED
 }
 
 """
@@ -4966,6 +5116,11 @@ type SoftwareActionRunEdge {
 enum SoftwareActionStatus {
   SCHEDULED
   IN_PROGRESS
+
+  """
+  A package update waits on the device: a user prompt or an open app. Any waiting device makes the action WAITING.
+  """
+  WAITING
   COMPLETED
   FAILED
 }
@@ -4989,6 +5144,14 @@ type SoftwareBundle implements Node {
 
   """Empty while PENDING; set by submit."""
   packages: [SoftwareBundlePackage!]!
+
+  """
+  How the update behaves on a device. Null for INSTALL and while PENDING.
+  """
+  updateSettings: PackageUpdateSettings
+
+  """Keep it auto-updated. Null for INSTALL and while PENDING."""
+  autoUpdate: SoftwareAutoUpdate
 
   """Number of assigned devices."""
   deviceCount: Int!
@@ -5180,6 +5343,12 @@ type SoftwareSchedule implements Node {
   """The packages this schedule installs/updates."""
   packages: [SoftwareSchedulePackage!]!
 
+  """How the update behaves on a device. Null for INSTALL."""
+  updateSettings: PackageUpdateSettings
+
+  """Keep it auto-updated. Null for INSTALL."""
+  autoUpdate: SoftwareAutoUpdate
+
   """
   How this schedule targets devices: SPECIFIC (an explicit machine set) or CRITERIA (a live rule;
   devices registered later that match are included automatically). Never null — legacy schedules read as SPECIFIC.
@@ -5352,6 +5521,14 @@ input SubmitSoftwareBundleInput {
 
   """Null: run now (Device-Online). Set: create a software schedule."""
   schedule: SoftwareBundleScheduleInput
+
+  """
+  UPDATE only, rejected for INSTALL. Null: wait & notify, a countdown 7 days after the first try, 5 minutes long.
+  """
+  updateSettings: PackageUpdateSettingsInput
+
+  """UPDATE only, rejected for INSTALL. Null: no auto-update."""
+  autoUpdate: SoftwareAutoUpdateInput
 }
 
 """ --- Subscription (full, standalone) ---"""
@@ -5529,6 +5706,12 @@ type SubscriptionUsage {
   is settled by the next purchase and is not reported here.
   """
   purchasedTokensRemaining: Long!
+
+  """
+  Every purchased pack that can still be spent, oldest first (the order tokens are used in), with when it
+  expires. Packs past their expiry are not listed. Remaining is per pack, before any debt is settled.
+  """
+  purchasedTokenPacks: [PurchasedTokenPack!]!
 }
 
 """ Tag key definition (shared across all entity types)"""
@@ -6000,6 +6183,16 @@ input UpdateSoftwareScheduleInput {
   Full replacement of the assigned device set (Machine global ids). Null leaves the assignment untouched.
   """
   machineIds: [ID!]
+
+  """
+  UPDATE only, rejected for INSTALL. Full replacement: null resets to the defaults (wait & notify, 7 days, 5 minutes).
+  """
+  updateSettings: PackageUpdateSettingsInput
+
+  """
+  UPDATE only, rejected for INSTALL. Full replacement: null turns auto-update off.
+  """
+  autoUpdate: SoftwareAutoUpdateInput
 }
 
 input UpdateSubscriptionInput {
@@ -6273,6 +6466,14 @@ type UserOnboardingProgress {
 
   """The Mingo conversation the Get Started tour lives in; null until "Start with Mingo"."""
   tourDialogId: String
+
+  """
+  True once the user has seen the setup wizard's last screen ("You are ready to go" / "Everything is set up"). Set by markUserOnboardingSetupSeen and by setUserOnboardingTourDialog; cleared by resetUserOnboarding.
+  """
+  setupSeen: Boolean!
+
+  """When setupSeen was set; null while not seen."""
+  setupSeenAt: Instant
 }
 
 enum UserOnboardingStep {
@@ -6437,4 +6638,67 @@ type DirectoryConsentIssue {
 
   """What happened and what to do, in plain words."""
   message: String!
+}
+
+"""What an update does on a device where the app is running."""
+enum PackageUpdateMode {
+  """
+  Wait & notify: the user gets Update now or Ask later; once they close the app, it updates.
+  """
+  WAIT
+
+  """
+  Force install: the user gets a short countdown, then the app closes and updates.
+  """
+  FORCE
+}
+
+"""
+How an update behaves on a device where the app is running. UPDATE only.
+"""
+type PackageUpdateSettings {
+  mode: PackageUpdateMode!
+
+  """
+  WAIT only: seconds after the first try before the countdown starts. Null = no deadline, the update waits.
+  """
+  deadlineSeconds: Long
+
+  """
+  Seconds of countdown before the app is closed: after the deadline (WAIT) or right away (FORCE).
+  """
+  countdownSeconds: Int!
+}
+
+input PackageUpdateSettingsInput {
+  mode: PackageUpdateMode!
+
+  """
+  WAIT only, up to 2592000 (30 days); ignored for FORCE. Null = no deadline ("Countdown after the deadline" off).
+  """
+  deadlineSeconds: Long
+
+  """Up to 3600 (1 hour)."""
+  countdownSeconds: Int!
+}
+
+"""
+Keep it auto-updated: after this update, every new version is installed on the same devices. UPDATE only.
+"""
+type SoftwareAutoUpdate {
+  enabled: Boolean!
+
+  """
+  The settings the auto-updates run with. Null = the update's own ("Same settings for auto-update").
+  """
+  settings: PackageUpdateSettings
+}
+
+input SoftwareAutoUpdateInput {
+  enabled: Boolean!
+
+  """
+  Null = the update's own settings ("Same settings for auto-update"). Ignored while enabled is false.
+  """
+  settings: PackageUpdateSettingsInput
 }

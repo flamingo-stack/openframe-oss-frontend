@@ -7,12 +7,12 @@ import type { ReactNode } from 'react';
 import { CustomerInfoCell } from '@/app/components/shared/customer-info-cell';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { formatDate, formatDateTime } from '@/lib/format-date';
-import type { RecordingDetail } from '../../types/session-recording';
+import type { LiveSessionDetail, RecordingDetail } from '../../types/session-recording';
 import { formatBytes, formatDurationMs } from './format';
 import { keepReasonText } from './recording-keep';
 
 /** One cell's frame: the row divider and padding of the card's grid. The cell inside is an `InfoCell`. */
-function MetaFrame({ className, children }: { className?: string; children: ReactNode }) {
+function MetaFrame({ className, children }: { className?: string; children?: ReactNode }) {
   return (
     <div
       className={cn(
@@ -87,6 +87,52 @@ export function RecordingMetaCard({ recording }: { recording: RecordingDetail | 
           ) : (
             <InfoCell label="Expires on" value={r?.expiresAt ? formatDate(r.expiresAt) : null} />
           )}
+        </MetaFrame>
+      </div>
+    </LoadingWhen>
+  );
+}
+
+/**
+ * The live session page's metadata card (Figma 1656-12080): Date / Resolution over Hostname / Customer / Employee, in
+ * the recording card's grid with the cells a running session has no value for left out. On desktop the two rows keep
+ * their four columns (the empty cells only carry the row divider); tablet and mobile collapse to two columns.
+ */
+export function LiveSessionMetaCard({
+  session,
+  resolution,
+}: {
+  session: LiveSessionDetail | null;
+  resolution?: string;
+}) {
+  const s = useLoadingScope() ? null : session;
+
+  return (
+    <LoadingWhen loading={!s}>
+      <div className={CARD_CLASS}>
+        <MetaFrame>
+          <InfoCell label="Date" value={s && formatDateTime(s.startedAt)} />
+        </MetaFrame>
+        <MetaFrame>
+          <InfoCell label="Resolution" value={resolution} />
+        </MetaFrame>
+        <MetaFrame className="hidden content-lg:flex" />
+        <MetaFrame className="hidden content-lg:flex" />
+        <MetaFrame className="content-lg:border-b-0">
+          <InfoCell label="Hostname" value={s?.hostname} />
+        </MetaFrame>
+        <MetaFrame className="content-lg:border-b-0">
+          <CustomerInfoCell customer={s?.organization ?? null} />
+        </MetaFrame>
+        <MetaFrame className="border-b-0">
+          <SquareAvatar
+            variant="round"
+            size={EMPLOYEE_AVATAR_SIZE}
+            src={s?.employee.avatarUrl}
+            alt={s?.employee.name ?? ''}
+            className="shrink-0"
+          />
+          <InfoCell label="Employee" value={s?.employee.name} />
         </MetaFrame>
       </div>
     </LoadingWhen>

@@ -7,11 +7,13 @@ import type { deviceOverageBlock_subscription$key } from '@/__generated__/device
 import { formatCurrency } from '@/lib/format-currency';
 import { formatDate } from '@/lib/format-date';
 import { formatCount } from '@/lib/format-number';
+import { BillingRow } from '../shared/billing-section';
 import { deviceAllocation } from '../shared/device-allocation';
 
 const deviceOverageBlockFragment = graphql`
   fragment deviceOverageBlock_subscription on SubscriptionDetail {
     currentPeriodEnd
+    cancellationEffectiveAt
     # What the metered surplus has cost so far this period, straight from
     # Stripe's own forecast, in cents. NOT overage times the device rate: that
     # multiplication assumes which rate the surplus is billed at, and the plan's
@@ -29,16 +31,6 @@ interface DeviceOverageBlockProps {
   onUpgrade: (() => void) | null;
 }
 
-/** One figure of an overage, stated above what it counts. */
-function OverageStat({ value, label }: { value: string; label: string }) {
-  return (
-    <div className="flex flex-col">
-      <p className="text-ods-text-primary text-h4">{value}</p>
-      <p className="text-ods-text-secondary text-h6">{label}</p>
-    </div>
-  );
-}
-
 /**
  * One block, one condition: the device count has passed what the plan covers.
  * It states the fact, what it costs, when it will be charged, and puts the fix
@@ -54,7 +46,15 @@ export function DeviceOverageBlock({ subscription, onUpgrade }: DeviceOverageBlo
 
   if (!device.overLimit) return null;
 
-  const estimatedOverage = data.currentInvoice != null ? data.currentInvoice.estimatedOverage / 100 : null;
+  // A cancellation expires pay-as-you-go: devices over the package are blocked
+  // from then on, not billed, and there is nothing to upgrade out of. What was
+  // metered before it is still on this period's invoice, so that figure stays
+  // whenever Stripe has one, with the date it is charged.
+  const billed = device.paygActive;
+  const invoicedOverage = data.currentInvoice?.estimatedOverage ?? 0;
+  const estimatedOverage =
+    data.currentInvoice != null && (billed || invoicedOverage > 0) ? invoicedOverage / 100 : null;
+  const nextBilling = billed || estimatedOverage != null ? data.currentPeriodEnd : null;
 
   return (
     <div className="flex flex-col overflow-hidden rounded-md border border-ods-warning bg-ods-card">
@@ -63,26 +63,26 @@ export function DeviceOverageBlock({ subscription, onUpgrade }: DeviceOverageBlo
         <div className="flex min-w-[16rem] flex-1 flex-col">
           <p className="font-bold text-ods-text-primary text-h3">You're over your device package limit</p>
           <p className="text-ods-text-secondary text-h4">
-            Extra devices will be billed at pay-as-you-go rates, charged separately from your plan.
+            {billed
+              ? 'Extra devices will be billed at pay-as-you-go rates, charged separately from your plan.'
+              : "Pay-as-you-go is off, so devices added over your package from now on aren't billed. Access is restricted while you're over the limit."}
+            {!billed &&
+              data.cancellationEffectiveAt &&
+              ` Your subscription ends on ${formatDate(data.cancellationEffectiveAt)}.`}
           </p>
         </div>
-        {onUpgrade && (
+        {billed && onUpgrade && (
           <Button variant="accent" onClick={onUpgrade}>
             Upgrade Plan
           </Button>
         )}
       </div>
-      {/* Figure over label, side by side — not the label-dash-value rows of the
-          plan blocks. These are read together as the size of one problem, and a
-          row layout buries each number at the end of its own line. */}
-      <div className="flex flex-wrap gap-[var(--spacing-system-xl)] p-[var(--spacing-system-m)]">
-        <OverageStat value={`${formatCount(device.overage)} Devices`} label="Device Overage" />
-        <OverageStat
-          value={`${formatCount(device.usedAgainstLimit)}/${formatCount(device.allocation)}`}
-          label="Used / Limit"
-        />
-        {estimatedOverage != null && <OverageStat value={formatCurrency(estimatedOverage)} label="Overage Payment" />}
-        {data.currentPeriodEnd && <OverageStat value={formatDate(data.currentPeriodEnd)} label="Next Billing" />}
+      {/* The plan blocks' rows, as the design has them. Used / Limit is the
+          Device Usage card's, right above. */}
+      <div className="flex flex-col gap-[var(--spacing-system-sf)] p-[var(--spacing-system-m)]">
+        <BillingRow label="Device Overage" value={formatCount(device.overage)} />
+        {estimatedOverage != null && <BillingRow label="Overage Payment" value={formatCurrency(estimatedOverage)} />}
+        {nextBilling && <BillingRow label="Next Billing" value={formatDate(nextBilling)} />}
       </div>
       {/* After an in-period upgrade the overage is two parts, and the page has to
           add up to the bill: what froze at the upgrade, and what is over the

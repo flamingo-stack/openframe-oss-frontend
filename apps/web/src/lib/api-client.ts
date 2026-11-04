@@ -56,6 +56,15 @@ interface ApiResponse<T = unknown> {
   ok: boolean;
 }
 
+/**
+ * What a request answers when its 401 could not be resolved because the refresh
+ * itself failed — an auth-server 5xx, a WAF 403, a dropped link, our timeout, or
+ * the between-cycle backoff (`token-refresh-manager.ts`). The session may be
+ * fine; the auth service is not. `use-auth-session.ts` keys its retry policy on
+ * it: the refresh has already made its attempts, so `/me` must not add its own.
+ */
+export const AUTH_UNAVAILABLE_MESSAGE = 'Authentication temporarily unavailable';
+
 import { clientIdentityHeaders } from './client-identity';
 import { isOnline } from './connectivity';
 import { forceLogout } from './force-logout';
@@ -280,7 +289,7 @@ class ApiClient {
         // both halves of the data layer have to agree.
         if (outcome === 'transient') {
           markSessionPaused('transient');
-          return { error: isOnline() ? 'Authentication temporarily unavailable' : 'Offline', status: 0, ok: false };
+          return { error: isOnline() ? AUTH_UNAVAILABLE_MESSAGE : 'Offline', status: 0, ok: false };
         }
 
         await this.forceLogout();

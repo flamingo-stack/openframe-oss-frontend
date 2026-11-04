@@ -125,6 +125,12 @@ describe('DesktopReturnPage', () => {
       data: { code: 'ORGANIZATION_SSO_REQUIRED', message: 'Your organization requires its own sign-in.' },
     });
     await render('/auth/desktop-return/#?error=ORGANIZATION_SSO_REQUIRED');
+    // The copy hook resets its state on a timer. Faked, the reset lands inside the test rather than
+    // after the file's environment is gone, where a state update finds no window.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
 
     const copyButton = [...container.querySelectorAll('button')].find(b => b.textContent === 'Copy details');
     await act(async () => copyButton?.click());
@@ -132,6 +138,8 @@ describe('DesktopReturnPage', () => {
     expect(writeText).toHaveBeenCalledTimes(1);
     expect(writeText.mock.calls[0][0]).toContain('Code: ORGANIZATION_SSO_REQUIRED');
     expect(writeText.mock.calls[0][0]).toContain('Reason: Your organization requires its own sign-in.');
+    act(() => vi.runOnlyPendingTimers());
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('offers no details to copy when there is no failure', async () => {

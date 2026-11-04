@@ -1,14 +1,5 @@
 import type ReactRelay from 'react-relay';
-import {
-  commitLocalUpdate,
-  ConnectionHandler,
-  Environment,
-  getRelayHandleKey,
-  Network,
-  RecordSource,
-  type RecordSourceSelectorProxy,
-  Store,
-} from 'relay-runtime';
+import { commitLocalUpdate, ConnectionHandler, type Environment, type RecordSourceSelectorProxy } from 'relay-runtime';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // `graphql` tags are compiled away by the relay babel transform, which vitest doesn't run;
@@ -19,6 +10,7 @@ vi.mock('react-relay', async importOriginal => ({
 }));
 
 import { NotificationReadStatus } from '@/generated/schema-enums';
+import { createConnection, makeOfflineEnvironment, nodeIds } from './__tests__/store-fixtures';
 import { getLiveConnectionPairs, registerLiveConnectionPairs } from './live-connection-pairs';
 import {
   makeDeleteNotificationUpdater,
@@ -47,28 +39,8 @@ const SEARCH_PAIR: NotificationConnectionPair = {
   read: notificationsConnectionFilters(true, 'dns'),
 };
 
-function makeEnvironment(): Environment {
-  return new Environment({
-    network: Network.create(() => Promise.reject(new Error('no network in this test'))),
-    store: new Store(new RecordSource()),
-  });
-}
-
 function update(environment: Environment, updater: (store: RecordSourceSelectorProxy) => void): void {
   commitLocalUpdate(environment, updater);
-}
-
-/** Materialise an empty connection under the root, the way a query response would. */
-function createConnection(store: RecordSourceSelectorProxy, filters: NotificationsConnectionFilters): void {
-  const handleKey = getRelayHandleKey('connection', NOTIFICATIONS_CONNECTION_KEY, null);
-  const connId = `client:root:${handleKey}:${JSON.stringify(filters)}`;
-  const conn = store.create(connId, 'NotificationConnection');
-  conn.setLinkedRecords([], 'edges');
-  const pageInfo = store.create(`${connId}:pageInfo`, 'PageInfo');
-  pageInfo.setValue(false, 'hasNextPage');
-  pageInfo.setValue(null, 'endCursor');
-  conn.setLinkedRecord(pageInfo, 'pageInfo');
-  store.getRoot().setLinkedRecord(conn, handleKey, filters);
 }
 
 function seedBuckets(store: RecordSourceSelectorProxy, count: number): void {
@@ -109,18 +81,6 @@ function seedArchived(store: RecordSourceSelectorProxy, id: string, createdAt: s
   seedNode(store, id, UNFILTERED_NOTIFICATION_PAIR.read, NotificationReadStatus.ARCHIVED, createdAt);
 }
 
-function nodeIds(environment: Environment, filters: NotificationsConnectionFilters): string[] {
-  let ids: string[] = [];
-  update(environment, store => {
-    const conn = ConnectionHandler.getConnection(store.getRoot(), NOTIFICATIONS_CONNECTION_KEY, filters);
-    ids = (conn?.getLinkedRecords('edges') ?? []).flatMap(edge => {
-      const id = edge?.getLinkedRecord('node')?.getDataID();
-      return id ? [id] : [];
-    });
-  });
-  return ids;
-}
-
 function unreadCount(environment: Environment): number {
   let count = -1;
   update(environment, store => {
@@ -151,7 +111,7 @@ describe('a READ event', () => {
   let environment: Environment;
 
   beforeEach(() => {
-    environment = makeEnvironment();
+    environment = makeOfflineEnvironment();
     update(environment, store => {
       createConnection(store, UNFILTERED_NOTIFICATION_PAIR.unread);
       createConnection(store, UNFILTERED_NOTIFICATION_PAIR.read);
@@ -214,7 +174,7 @@ describe('an ARCHIVED event', () => {
   let environment: Environment;
 
   beforeEach(() => {
-    environment = makeEnvironment();
+    environment = makeOfflineEnvironment();
     update(environment, store => {
       createConnection(store, UNFILTERED_NOTIFICATION_PAIR.unread);
       createConnection(store, UNFILTERED_NOTIFICATION_PAIR.read);
@@ -267,7 +227,7 @@ describe('a DELETED event', () => {
   let environment: Environment;
 
   beforeEach(() => {
-    environment = makeEnvironment();
+    environment = makeOfflineEnvironment();
     update(environment, store => {
       createConnection(store, UNFILTERED_NOTIFICATION_PAIR.unread);
       createConnection(store, UNFILTERED_NOTIFICATION_PAIR.read);
@@ -317,7 +277,7 @@ describe('an ARCHIVED notification in history', () => {
   let environment: Environment;
 
   beforeEach(() => {
-    environment = makeEnvironment();
+    environment = makeOfflineEnvironment();
     update(environment, store => {
       createConnection(store, UNFILTERED_NOTIFICATION_PAIR.unread);
       createConnection(store, UNFILTERED_NOTIFICATION_PAIR.read);
@@ -357,7 +317,7 @@ describe('a card moving into history', () => {
   }
 
   beforeEach(() => {
-    environment = makeEnvironment();
+    environment = makeOfflineEnvironment();
     update(environment, store => {
       createConnection(store, UNFILTERED_NOTIFICATION_PAIR.unread);
       createConnection(store, UNFILTERED_NOTIFICATION_PAIR.read);

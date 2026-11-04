@@ -54,6 +54,8 @@ interface SoftwareListFrameProps {
    * the list component draws its own loading state and does not fetch.
    */
   loading?: boolean;
+  /** Above the toolbar while the list has rows — a device tab's sync banner. */
+  banner?: ReactNode;
   className?: string;
   children: (list: SoftwareListFrameRenderProps) => ReactNode;
 }
@@ -95,6 +97,7 @@ export function SoftwareListFrame({
   sortableIds = NO_ITEMS,
   filterKeys = NO_ITEMS,
   loading = false,
+  banner,
   className,
   children,
 }: SoftwareListFrameProps) {
@@ -167,6 +170,9 @@ export function SoftwareListFrame({
 
   return (
     <div className={cn('flex flex-col', className)} style={containerStyle}>
+      {/* The banner keeps its own bottom margin: the pinned toolbar's negative top
+          margin eats exactly that, instead of the banner's last rows. */}
+      {!isEmpty && banner}
       {!isEmpty && (
         <SearchToolbar
           toolbarRef={toolbarRef}

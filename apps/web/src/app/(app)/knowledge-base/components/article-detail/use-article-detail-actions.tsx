@@ -57,6 +57,16 @@ const unpublishMutation = graphql`
 `;
 
 const ACTION_ICON_CLASS = 'text-ods-text-secondary';
+
+/** "Edit Article": the entry every status but "archived" carries, and what the loading header draws inert. */
+export function editArticleAction(href?: string): PageActionButton {
+  return {
+    label: 'Edit Article',
+    href,
+    icon: <PenEditIcon size={24} className={ACTION_ICON_CLASS} />,
+    variant: 'outline',
+  };
+}
 const MENU_ICON_CLASS = 'h-6 w-6 text-ods-text-secondary';
 
 type ArticleDialog = 'archive' | 'move' | 'unarchive';
@@ -138,14 +148,7 @@ export function useArticleDetailActions(article: useArticleDetailActions_article
     };
   }
 
-  const actions: PageActionButton[] = [
-    {
-      label: 'Edit Article',
-      href: routes.knowledgeBase.edit(data.id),
-      icon: <PenEditIcon size={24} className={ACTION_ICON_CLASS} />,
-      variant: 'outline',
-    },
-  ];
+  const actions: PageActionButton[] = [editArticleAction(routes.knowledgeBase.edit(data.id))];
   if (status === KnowledgeBaseArticleStatus.DRAFT) {
     actions.push({
       label: 'Publish Article',

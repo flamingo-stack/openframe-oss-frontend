@@ -43,6 +43,12 @@ interface SubscriptionSubmitButtonProps {
   onUpdated?: () => void;
   /** Extra classes for the button (e.g. `w-full` for the mobile action bar). */
   className?: string;
+  /**
+   * The paywall's label unless given. The billing page's plan change passes its own: there nothing is paid on
+   * the click (a downgrade is only scheduled, an upgrade invoices afterwards), so "Proceed to Payment" would
+   * promise a charge that does not happen.
+   */
+  label?: string;
 }
 
 /**
@@ -79,6 +85,7 @@ export function SubscriptionSubmitButton({
   validateTopUp,
   onUpdated,
   className,
+  label = SUBMIT_LABEL,
 }: SubscriptionSubmitButtonProps) {
   const updateSubscription = useUpdateSubscription();
   const createCheckout = useCreateCheckoutSession();
@@ -124,7 +131,7 @@ export function SubscriptionSubmitButton({
         loading={isPending}
         disabled={isPending || checkoutProducts.length === 0 || !activationEnabled}
       >
-        {SUBMIT_LABEL}
+        {label}
       </Button>
     );
   }
@@ -146,7 +153,7 @@ export function SubscriptionSubmitButton({
       loading={isPending}
       disabled={isPending || packageUpdates.length === 0}
     >
-      {SUBMIT_LABEL}
+      {label}
     </Button>
   );
 }

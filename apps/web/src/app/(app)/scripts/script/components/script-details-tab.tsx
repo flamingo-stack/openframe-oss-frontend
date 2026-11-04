@@ -97,7 +97,7 @@ function ScriptParamCardsView({ script }: { script?: ScriptRecord }) {
   }
 
   return (
-    // Only some scripts carry defaults, so the cards are left out while the script is read (they sit below the editor).
+    // Only some scripts carry defaults, so the cards are left out while the script is read (they sit above the editor).
     <div data-loading-optional className="grid grid-cols-1 gap-[var(--spacing-system-lf)] content-lg:grid-cols-2">
       {argRows.length > 0 ? <ScriptArgumentsCard title="Default Script Arguments" rows={argRows} /> : <div />}
       {envRows.length > 0 && <ScriptArgumentsCard title="Default Environment Vars" rows={envRows} />}
@@ -122,11 +122,11 @@ function ScriptParamCardsView({ script }: { script?: ScriptRecord }) {
  * It is dropped once the answer says the script has no body — that is the one
  * case where the block does not belong on the page at all.
  *
- * The cards draw nothing while loading, deliberately, and sit BELOW the editor.
+ * The cards draw nothing while loading, deliberately, and sit ABOVE the editor.
  * Both are optional and independent — plenty of scripts take neither arguments
  * nor environment variables — so a skeleton there promises rows that may never
- * come. Placed under the editor, their arrival pushes nothing that was already
- * drawn: an optional part never sits above what it would move.
+ * come. The cards and the script body land in the SAME answer, so they appear in
+ * the frame where the editor fills in.
  *
  * `memo` for the reason given in `script-detail-tabs.ts`.
  */
@@ -137,14 +137,14 @@ export const ScriptDetailsTab = memo(function ScriptDetailsTabImpl({ scriptId }:
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-lf)] pt-[var(--spacing-system-l)]">
+      <ScriptParamCards scriptId={scriptId} onResolved={setState} />
+
       {(isLoading || source) && (
         <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
           <div className="w-full text-ods-text-secondary text-h5">Syntax</div>
           <ScriptEditor value={source?.body ?? ''} shell={source?.shell} readOnly height="400px" loading={isLoading} />
         </div>
       )}
-
-      <ScriptParamCards scriptId={scriptId} onResolved={setState} />
     </div>
   );
 });

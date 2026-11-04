@@ -13,7 +13,7 @@ import { ArticleDetailBody } from './article-detail-body';
 import { ArticleDetailSummary } from './article-detail-summary';
 import { ArticleDetailTags } from './article-detail-tags';
 import { ArticleDetailTitle } from './article-detail-title';
-import { useArticleDetailActions } from './use-article-detail-actions';
+import { editArticleAction, useArticleDetailActions } from './use-article-detail-actions';
 
 const articleDetailFragment = graphql`
   fragment articleDetail_article on KnowledgeBaseItem {
@@ -27,8 +27,8 @@ const articleDetailFragment = graphql`
   }
 `;
 
-/** The entry every status but "archived" settles into — the placeholder is sized off it. */
-const LOADING_ACTIONS: PageActionButton[] = [{ label: 'Edit Article' }];
+/** The entry every status but "archived" settles into, drawn inert while the article loads. */
+const LOADING_ACTIONS: PageActionButton[] = [editArticleAction()];
 
 const BODY_CLASS = 'flex flex-1 flex-col gap-[var(--spacing-system-l)]';
 

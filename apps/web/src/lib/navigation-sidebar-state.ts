@@ -9,7 +9,35 @@
 
 const SIDEBAR_MINIMIZED_WIDTH = 56;
 export const SIDEBAR_EXPANDED_WIDTH = 224;
+/** The Mingo-first sidebar's expanded width — a SaaS tenant's (see `AppShell`). */
+export const GROUPED_SIDEBAR_EXPANDED_WIDTH = 264;
 const SIDEBAR_MINIMIZED_STORAGE_KEY = 'of.navigationSidebar.minimized';
+
+/**
+ * The expanded width's bounds when the user drags it (`NavigationSidebarConfig.resizable`,
+ * both shells). 200px keeps an icon and a dozen characters of label (the rows truncate
+ * below their full width anyway); 480px leaves the content 800px of a 1280px window,
+ * clear of the `content-md` breakpoint (720px) its layouts switch at.
+ */
+export const SIDEBAR_MIN_EXPANDED_WIDTH = 200;
+export const SIDEBAR_MAX_EXPANDED_WIDTH = 480;
+/**
+ * Where the core sidebar keeps the width the user chose: `{ size }` under this key
+ * plus `:chosen` (its `useResizablePanelSize`). Passed as `resizable.storageKey`, and
+ * read back by the seed below so the first frame is already that wide.
+ */
+export const SIDEBAR_WIDTH_STORAGE_KEY = 'of.navigationSidebar.width';
+const SIDEBAR_CHOSEN_WIDTH_STORAGE_KEY = `${SIDEBAR_WIDTH_STORAGE_KEY}:chosen`;
+
+/**
+ * `NavigationSidebarConfig.resizable` for both shells: the bounds above and the key
+ * the seed reads. One object, so the two shells and the seed cannot disagree.
+ */
+export const SIDEBAR_RESIZE = {
+  minWidth: SIDEBAR_MIN_EXPANDED_WIDTH,
+  maxWidth: SIDEBAR_MAX_EXPANDED_WIDTH,
+  storageKey: SIDEBAR_WIDTH_STORAGE_KEY,
+};
 
 /**
  * CSS variable seeded before first paint (by {@link sidebarWidthFoucScript}) so
@@ -64,6 +92,10 @@ const runtimeJoin = (parts: TemplateStringsArray, ...values: Array<string | numb
 /**
  * Inline FOUC-prevention script. Runs synchronously in `<head>` before first
  * paint: reads the persisted collapse state and seeds the sidebar width var.
+ * `grouped`: the Mingo-first sidebar (a SaaS tenant), which is wider. The root
+ * layout answers it from the app mode on the SERVER: in the browser the runtime env
+ * (`window.__ENV`) lands after this script — `PublicEnvScript` goes through Next's
+ * `beforeInteractive` queue — so the script cannot ask it.
  *
  * This is the whole mechanism by which a preference that only `localStorage`
  * knows reaches the first frame. It cannot travel through React: the server
@@ -75,10 +107,82 @@ const runtimeJoin = (parts: TemplateStringsArray, ...values: Array<string | numb
  * rendered width with a container query instead, so the property has no reader
  * left and seeding it is dead weight in a script that blocks first paint.
  *
+ * The expanded width is the one the user dragged the sidebar to, when there is
+ * one (`SIDEBAR_CHOSEN_WIDTH_STORAGE_KEY`), within the bounds the config gives the
+ * sidebar, else the shell's default. A malformed entry is ignored, not fatal: its
+ * parse has a try of its own, so the collapse still seeds.
+ *
  * Viewport-free on purpose. It used to force the minimized width between 800px
  * and 1280px, back when a placeholder applied this var at every breakpoint. The
  * sidebar now pins the tablet rail in CSS (`md:w-14`) and reads the var only from
  * `lg`, so a viewport check here would poison the DESKTOP value for anyone who
  * loaded at tablet width and then widened the window.
  */
-export const sidebarWidthFoucScript = runtimeJoin`(function(){try{var m=localStorage.getItem('${SIDEBAR_MINIMIZED_STORAGE_KEY}')==='true';document.documentElement.style.setProperty('${SIDEBAR_WIDTH_CSS_VAR}',m?'${SIDEBAR_MINIMIZED_WIDTH}px':'${SIDEBAR_EXPANDED_WIDTH}px');}catch(e){}})();`;
+export function sidebarWidthFoucScript(grouped: boolean): string {
+  const expanded = grouped ? GROUPED_SIDEBAR_EXPANDED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
+  return runtimeJoin`(function(){try{var m=localStorage.getItem('${SIDEBAR_MINIMIZED_STORAGE_KEY}')==='true';var w=${expanded};try{var c=JSON.parse(localStorage.getItem('${SIDEBAR_CHOSEN_WIDTH_STORAGE_KEY}'));if(c&&typeof c.size==='number'&&isFinite(c.size)){w=Math.min(${SIDEBAR_MAX_EXPANDED_WIDTH},Math.max(${SIDEBAR_MIN_EXPANDED_WIDTH},Math.round(c.size)));}}catch(e){}document.documentElement.style.setProperty('${SIDEBAR_WIDTH_CSS_VAR}',m?'${SIDEBAR_MINIMIZED_WIDTH}px':w+'px');}catch(e){}})();`;
+}
+
+// --------------------------------------------------------------------------
+// The persisted preference as a store — for a host that CONTROLS the collapse
+// --------------------------------------------------------------------------
+
+/**
+ * The core sidebar's in-page change event (`useLocalStorage` listens for it), so the
+ * sidebar's own copy of the preference follows a write made here.
+ */
+const LOCAL_STORAGE_UPDATE_EVENT = 'localStorageUpdate';
+
+/**
+ * The desktop collapse preference, for the Mingo-first shell: it controls the sidebar
+ * (`NavigationSidebarConfig.collapsed`) so ⌘K can reveal it, and a controlled sidebar
+ * persists nothing itself. Same key and encoding (JSON `true` / `false`) as the core
+ * sidebar's own persisted preference, so the seed script above stays right in both shells
+ * and the preference carries over when the user switches between them.
+ */
+export function readSidebarMinimized(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(SIDEBAR_MINIMIZED_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+/** Persist the preference and tell every reader on the page — the subscribers below and the core sidebar's copy. */
+export function writeSidebarMinimized(minimized: boolean): void {
+  const newValue = JSON.stringify(minimized);
+  try {
+    window.localStorage.setItem(SIDEBAR_MINIMIZED_STORAGE_KEY, newValue);
+  } catch {
+    // Storage refused (Safari private mode, blocked site data): the preference lasts
+    // for this page only. The event below still moves every reader.
+  }
+  window.dispatchEvent(
+    new CustomEvent(LOCAL_STORAGE_UPDATE_EVENT, { detail: { key: SIDEBAR_MINIMIZED_STORAGE_KEY, newValue } }),
+  );
+}
+
+/** `useSyncExternalStore` subscription: writes on this page (either sidebar's) and other tabs. */
+export function subscribeSidebarMinimized(listener: () => void): () => void {
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === null || event.key === SIDEBAR_MINIMIZED_STORAGE_KEY) listener();
+  };
+  const onUpdate = (event: Event) => {
+    const detail: unknown = (event as CustomEvent<unknown>).detail;
+    if (
+      typeof detail === 'object' &&
+      detail !== null &&
+      'key' in detail &&
+      detail.key === SIDEBAR_MINIMIZED_STORAGE_KEY
+    ) {
+      listener();
+    }
+  };
+  window.addEventListener('storage', onStorage);
+  window.addEventListener(LOCAL_STORAGE_UPDATE_EVENT, onUpdate);
+  return () => {
+    window.removeEventListener('storage', onStorage);
+    window.removeEventListener(LOCAL_STORAGE_UPDATE_EVENT, onUpdate);
+  };
+}

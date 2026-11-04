@@ -46,7 +46,7 @@ function isAllowed(pathname: string): boolean {
 function defaultRedirect(): string {
   const mode = getMode();
   if (mode === 'saas-shared') return '/auth';
-  if (mode === 'saas-tenant') return '/dashboard';
+  if (mode === 'saas-tenant') return '/mingo';
   return '/auth';
 }
 

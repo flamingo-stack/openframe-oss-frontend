@@ -3,12 +3,14 @@
 import { DashboardInfoCard, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
 import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { DEVICE_STATUS } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { SectionLoadError } from '@/app/components/shared';
+import { useRevealHeld, useRevealPart } from '@/app/components/shared/reveal-together';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { useDevicesOverview } from '../hooks/use-dashboard-stats';
+import { sectionListAction } from './section-list-action';
 
 type ProgressVariant = 'success' | 'error' | 'warning' | 'info';
 
@@ -72,9 +74,15 @@ type DeviceStatusCard = {
 
 type DevicesOverviewData = ReturnType<typeof useDevicesOverview>;
 
-/** The device counts, read. */
+/** The device counts, read; in its loading form until the page shows its sections (`RevealTogether`). */
 export function DevicesOverviewSection() {
-  return <DevicesOverview devices={useDevicesOverview()} />;
+  const devices = useDevicesOverview();
+  useRevealPart('devices', !devices.isLoading);
+  return (
+    <LoadingWhen loading={useRevealHeld()}>
+      <DevicesOverview devices={devices} />
+    </LoadingWhen>
+  );
 }
 
 /** The section over the counts it is handed; with none (or in a loading scope) the cards draw their figures as bars. */
@@ -108,7 +116,7 @@ export function DevicesOverview({ devices }: { devices?: DevicesOverviewData }) 
 
   return (
     <LoadingRegion label="Loading devices overview" announce={loading}>
-      <TitleBlock title="Devices Overview" />
+      <TitleBlock title="Devices Overview" actions={sectionListAction('Devices', routes.devices.list)} />
 
       {counts && (counts.error || counts.isOffline) && (
         <SectionLoadError
@@ -130,7 +138,9 @@ export function DevicesOverview({ devices }: { devices?: DevicesOverviewData }) 
             progressSize={{ base: 24, md: 56 }}
             href={
               // Archived devices live on their own page; /devices only lists the rest.
-              card.status === DEVICE_STATUS.ARCHIVED ? routes.devices.archive : `/devices?statuses=${card.status}`
+              card.status === DEVICE_STATUS.ARCHIVED
+                ? routes.devices.archive
+                : routes.devices.filtered({ statuses: [card.status] })
             }
           />
         ))}

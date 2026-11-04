@@ -8,6 +8,7 @@ import {
   InputTrigger,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import type { ComponentProps } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { folderPickerQuery as FolderPickerQueryType } from '@/__generated__/folderPickerQuery.graphql';
 import { useRetryKey } from '@/app/components/shared';
@@ -62,24 +63,13 @@ function FolderPickerBody(props: FolderPickerProps) {
   return <FolderPickerMenu {...props} />;
 }
 
-/** The picker's field, the same while the tree loads and once it is in. */
-function FolderPickerTrigger({
-  selectedLabel,
-  placeholder = 'Select Folder',
-  disabled,
-}: {
-  selectedLabel: string | undefined;
-  placeholder?: string;
-  disabled?: boolean;
-}) {
-  return (
-    <InputTrigger
-      selectedLabel={selectedLabel}
-      placeholder={placeholder}
-      endIcon={<Chevron02DownIcon className="size-6" />}
-      disabled={disabled}
-    />
-  );
+/**
+ * The picker's field, the same while the tree loads and once it is in. As the menu's
+ * trigger it is the `asChild` child Radix hands its open handlers, `aria-*` state and
+ * ref to: all of it goes on to the button, or the menu never opens.
+ */
+function FolderPickerTrigger({ placeholder = 'Select Folder', ...props }: ComponentProps<typeof InputTrigger>) {
+  return <InputTrigger {...props} placeholder={placeholder} endIcon={<Chevron02DownIcon className="size-6" />} />;
 }
 
 function FolderPickerMenu({

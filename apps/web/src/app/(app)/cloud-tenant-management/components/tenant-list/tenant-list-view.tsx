@@ -61,6 +61,8 @@ export function TenantListView({ loading = false }: TenantListViewProps) {
       contentClassName="flex flex-col"
     >
       <div className="flex flex-col" style={containerStyle}>
+        {/* Most workspaces have no notice; one that has it reads it before the list. */}
+        {!loading && <ConsentAnnouncementBanner data-loading-optional />}
         {!isEmpty && (
           <div
             ref={toolbarRef}
@@ -87,9 +89,6 @@ export function TenantListView({ loading = false }: TenantListViewProps) {
             stickyHeaderOffset={stickyHeaderOffset}
           />
         </LoadingWhen>
-        {/* Below the list, not above it: most workspaces have no notice, and one that lands after the list would
-            push the rows down in the first screen. */}
-        {!loading && <ConsentAnnouncementBanner data-loading-optional />}
       </div>
     </PageLayout>
   );

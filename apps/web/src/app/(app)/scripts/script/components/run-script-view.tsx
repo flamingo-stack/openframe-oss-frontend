@@ -248,7 +248,7 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
 
           <div className="grid grid-cols-1 items-end gap-[var(--spacing-system-lf)] content-lg:grid-cols-2">
             <div>
-              <Label className="text-ods-text-primary text-h3">Timeout</Label>
+              <Label className="text-ods-text-primary text-h4">Timeout</Label>
               <Controller
                 name="timeout"
                 control={control}
@@ -290,6 +290,7 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
                   valuePlaceholder="Enter Value (empty=flag)"
                   addButtonLabel="Add Script Argument"
                   titleLabel="Script Arguments"
+                  labelVariant="large"
                 />
               )}
             />
@@ -305,6 +306,7 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
                   addButtonLabel="Add Variable"
                   addSecretButtonLabel="Add Secret"
                   titleLabel="Environment Vars"
+                  labelVariant="large"
                 />
               )}
             />

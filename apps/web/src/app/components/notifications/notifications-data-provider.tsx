@@ -45,6 +45,11 @@ import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { HydratorBoundary } from '@/app/components/shared/hydrator-boundary';
 import { NotificationReadStatus, type NotificationSeverity } from '@/generated/schema-enums';
 import { cancelPendingPushMutation } from '@/graphql/notifications/cancel-pending-push-mutation';
+import {
+  entityRefsOfAttributes,
+  entityRefsOfNotifications,
+  refreshEntityUnreadCounts,
+} from '@/graphql/notifications/entity-unread-counts';
 import { getLiveConnectionPairs, requestReadStatusRefresh } from '@/graphql/notifications/live-connection-pairs';
 import { markNotificationReadMutation } from '@/graphql/notifications/mark-notification-read-mutation';
 import {
@@ -83,16 +88,17 @@ import {
 import { isSaasTenantMode } from '@/lib/app-mode';
 import { notificationGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
-import { ATTENTION_IDLE_MS, isSessionActive, subscribeAttention } from '@/lib/session-activity';
+import { ATTENTION_IDLE_MS, isSessionActive, PRESENCE_IDLE_MS, subscribeAttention } from '@/lib/session-activity';
 import { withNotificationIcon } from './notification-category-icons';
 import {
-  mingoDrawerDialogId,
+  ADMIN_AI_MESSAGE_TYPE,
+  ADMIN_AI_TICKET_MESSAGE_TYPE,
   type NotificationAction,
   notificationTargetsDialog,
   notificationTargetsLocation,
   resolveNotificationAction,
 } from './notification-navigation';
-import { openMingoDialogInDrawer } from './open-mingo-dialog';
+import { canOpenMingoDialogOverPage, openMingoDialog } from './open-mingo-dialog';
 import { useApproveRequest } from './use-approve-request';
 
 const SHOW_POPUPS_STORAGE_KEY = 'of.notifications:showPopups';
@@ -104,6 +110,7 @@ const POPUP_OFFSET_CLASS = 'top-16 md:top-[4.5rem]';
 const NOTIFICATIONS_HISTORY_HREF = routes.notifications({ tab: 'history' });
 
 const DRAWER_FILTER_PAIRS = [UNFILTERED_NOTIFICATION_PAIR];
+const MINGO_REPLY_TYPES = new Set<string>([ADMIN_AI_MESSAGE_TYPE, ADMIN_AI_TICKET_MESSAGE_TYPE]);
 /** Write a JSON custom-scalar field: RecordProxy.setValue rejects objects, so use the normalizer's unsafe setter. */
 function setJsonScalar(record: unknown, name: string, value: Record<string, unknown> | null) {
   (record as Record<string, (v: unknown, n: string) => void>).setValue__UNSAFE(value, name);
@@ -194,6 +201,7 @@ function applyReadStateEvent(
     (eventType === 'ARCHIVED' && ids.some(id => source.get(id) == null));
   commitLocalUpdate(environment, makeReadStateUpdater(eventType, ids, getLiveConnectionPairs()));
   refreshUnreadCounts(environment);
+  refreshEntityUnreadCounts(environment, entityRefsOfNotifications(environment, ids));
   if (needsStatusRefresh) requestReadStatusRefresh();
 }
 
@@ -234,37 +242,30 @@ interface TileHelpers {
   liveDurationMs?: number;
 }
 
+interface NavigationTileWrapperProps {
+  notification: Notification;
+  helpers: TileHelpers;
+  children: ReactNode;
+}
+
 /**
- * Open what a notification points at, from either imperative surface — a clicked tile
- * or a desktop OS banner.
- *
- * Shared because the drawer branch carries a compensating step that is easy to omit:
- * it changes no URL of its own here (the sync hook stamps one a commit later), so the
- * location-based `EntityViewAutoReader` never sees the user arrive and the caller has
- * to mark the notification read itself. Written out twice, one copy drifted from the
- * other within a single review pass.
- *
- * The table's action cell does NOT use this — it needs the same decision split across
- * an `href` and an `onClick` rather than run as one statement.
+ * Open what a notification points at, from either imperative surface — a clicked tile or
+ * a desktop OS banner. A Mingo chat opens over the page when the composer dock can (the
+ * sheet, as the classic drawer did): no URL changes then, so the location-based
+ * `EntityViewAutoReader` never sees the user arrive and the notification is marked read
+ * here. Anything else navigates to its route, where the auto-reader marks it.
  */
 function openNotificationTarget(
   action: NotificationAction,
   notificationId: string,
   { markRead, navigate }: { markRead: (id: string) => void; navigate: (route: string) => void },
 ): void {
-  const drawerDialogId = mingoDrawerDialogId(action);
-  if (!drawerDialogId) {
-    navigate(action.route);
+  if (action.mingoDialogId && canOpenMingoDialogOverPage()) {
+    openMingoDialog(action.mingoDialogId);
+    markRead(notificationId);
     return;
   }
-  openMingoDialogInDrawer(drawerDialogId);
-  markRead(notificationId);
-}
-
-interface NavigationTileWrapperProps {
-  notification: Notification;
-  helpers: TileHelpers;
-  children: ReactNode;
+  navigate(action.route);
 }
 
 /** Wraps a tile so its body navigates to the notification's target entity; inner buttons keep their own clicks. */
@@ -287,7 +288,7 @@ function NavigationTileWrapper({ notification, helpers, children }: NavigationTi
       helpers.onSettle(notification.id);
       openNotificationTarget(action, notification.id, { markRead, navigate: router.push });
     },
-    [action, close, markRead, helpers, notification, router],
+    [action, close, helpers, notification, router, markRead],
   );
 
   if (!action) return <>{children}</>;
@@ -366,7 +367,7 @@ function NotificationsDataInner({
   const [pagination, setPagination] = useState<PaginationState>(EMPTY_PAGINATION);
   const enabled = userId !== null;
 
-  const { markRead, markAllRead, removeNotification } = useNotificationMutations({
+  const { markRead, autoMarkRead, markAllRead, removeNotification } = useNotificationMutations({
     filterPairs: DRAWER_FILTER_PAIRS,
   });
 
@@ -438,7 +439,7 @@ function NotificationsDataInner({
             </HydratorBoundary>
           </ErrorBoundary>
           <NotificationsLiveBridge userId={userId} />
-          <EntityViewAutoReader />
+          <EntityViewAutoReader autoMarkRead={autoMarkRead} />
           <NotificationPopups className={POPUP_OFFSET_CLASS} />
         </>
       )}
@@ -450,21 +451,23 @@ function NotificationsDataInner({
 /**
  * Marks an unread notification read once the user opens the entity it points at (the mingo
  * dialog, the ticket, …). Works off the shared route mapping so it stays consistent across
- * every entity type a notification can carry, and routes through the context's `markRead` so
- * the drawer list, the unread connection and the sidebar bucket all update together. A Mingo
- * dialog's resting URL is `?mingoDialog=` on whatever route the drawer floats over, which the
- * notification's own target route never matches, so "viewing" is the union of the location
- * match and the active-dialog-views registry.
+ * every entity type a notification can carry. The read's updater moves the row in the store,
+ * and the drawer list, the unread connection and the sidebar bucket all follow from that. A
+ * chat in the sheet over a page changes no URL, so the notification's own target route never
+ * matches it, and "viewing" is the union of the location match and the active-dialog-views
+ * registry.
+ *
+ * Takes `autoMarkRead` rather than the context's `markRead`, which is the user's and toasts.
  */
-function EntityViewAutoReader() {
+function EntityViewAutoReader({ autoMarkRead }: { autoMarkRead: (id: string) => void }) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const search = useSearchParams().toString();
   const activeDialogs = useSyncExternalStore(
     subscribeActiveDialogViews,
     getActiveDialogViews,
     getServerActiveDialogViews,
   );
-  const { notifications, markRead } = useNotifications();
+  const { notifications } = useNotifications();
   // The gate below is time-varying, but none of the effect's other deps change when
   // the session becomes active again — so without this a notification that arrived
   // while the user was idle on its entity would stay unread until some unrelated dep
@@ -477,31 +480,43 @@ function EntityViewAutoReader() {
   const [activityEdge, setActivityEdge] = useState(0);
   useEffect(() => subscribeAttention(() => setActivityEdge(edge => edge + 1)), []);
 
+  // Rows already tried since the user last did something. A failed read reverts its optimistic
+  // update, which lists the row again and re-runs the effect below with the gate still open, and
+  // every new input keeps that gate open: 40 attempts in 4.4 s when measured. So only what the
+  // user does earns a retry, and `notifications`, the one dep a failure moves, is left out here.
+  // Runs before the effect below, so a trigger's own run already sees the set cleared.
+  const attemptedRef = useRef(new Set<string>());
+  useEffect(() => {
+    attemptedRef.current.clear();
+  }, [pathname, search, activeDialogs, activityEdge]);
+
   // activityEdge is the re-run trigger, not read in the body.
   useEffect(() => {
     // Called live rather than snapshotted into state: the idle timer lapsing fires no
     // event, so a captured boolean would go stale and re-open the very hole this closes.
     //
-    // Same cross-device consequence as the arrival-time path above, so the same gate:
-    // it stops a tab left sitting on an entity from reading — and retracting from the
-    // phone — notifications that arrive later.
+    // Same cross-device consequence as the arrival-time path, so the attention window, with
+    // no exception for Mingo replies: this runs over every loaded row, not one arrival. It
+    // stops a tab left sitting on an entity from reading — and retracting from the phone —
+    // notifications that arrive later.
     //
     // It does NOT help at the moment of navigation: navigating is itself input, so the
     // gate passes by construction, and this effect then reads EVERY loaded unread
     // notification matching the route, including ones weeks old that the user never
     // saw. Fixing that needs an item-level signal (viewport + dwell), not this one.
     if (!isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })) return;
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(search);
     for (const notification of notifications) {
-      if (notification.read) continue;
+      if (notification.read || attemptedRef.current.has(notification.id)) continue;
       if (
         notificationTargetsLocation(notification, pathname, params) ||
         notificationTargetsDialog(notification, activeDialogs)
       ) {
-        markRead(notification.id);
+        attemptedRef.current.add(notification.id);
+        autoMarkRead(notification.id);
       }
     }
-  }, [pathname, searchParams, activeDialogs, notifications, markRead, activityEdge]);
+  }, [pathname, search, activeDialogs, notifications, autoMarkRead, activityEdge]);
 
   return null;
 }
@@ -550,12 +565,12 @@ interface NotificationsLiveBridgeProps {
 }
 
 /**
- * True when the notification points at a dialog the user is watching live
- * (mingo page or chat drawer) in a visible tab — any notification carrying a
- * `dialogId`, i.e. Mingo messages, their ticket-linked variant, and approval
- * requests. Such notifications are redundant — the message or approval card is
+ * True when the notification points at a dialog the user is watching live (the Mingo chat
+ * page, the sheet over a page, or a ticket's client chat) in a visible tab — any notification
+ * carrying a `dialogId`. Such notifications are redundant — the message or approval card is
  * already rendering in the chat — so the popup is skipped and the notification
- * auto-marked read. Requires an actively-attended session, not merely a visible tab.
+ * auto-marked read. Requires an attended session, how recently depending on the type
+ * (below), not merely a visible tab.
  */
 function isWatchingNotificationDialog(payload: NatsNotificationPayload): boolean {
   const dialogId = payloadDialogId(payload);
@@ -564,22 +579,31 @@ function isWatchingNotificationDialog(payload: NatsNotificationPayload): boolean
   // read state is CROSS-DEVICE — it drives PushRetractionListener, which pulls the
   // banner off the user's phone. A visible tab on an unattended desk satisfied the
   // old gate, so a laptop left open silently cleared notifications nobody saw.
-  return isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS });
+  //
+  // A Mingo reply is measured against presence instead. The user asked for it and is
+  // waiting on it, which produces no input (the thread scrolls itself), and it lands when
+  // the run ends, usually past the attention window: a popup and a phone push for the
+  // reply they were reading. Presence is also where the server stops holding the push for
+  // its grace, so past it the reply alerts like anything else. The cost: input recency
+  // cannot tell a reader from someone who sent a prompt and walked off with the window
+  // focused, and that person's phone stays silent. Nobody is waiting on an approval or a
+  // client chat message, and missing one costs more, so they keep the tight window.
+  const idleAfterMs = payload.type && MINGO_REPLY_TYPES.has(payload.type) ? PRESENCE_IDLE_MS : ATTENTION_IDLE_MS;
+  return isSessionActive({ idleAfterMs });
 }
 
 /**
  * Mirror a live notification to the OS when the user opted in, permission is
  * granted, and the tab is hidden (visible tabs already show the in-app tile).
- * `tag` dedupes re-deliveries; clicking focuses the tab and navigates to the
- * notification's entity when it has one.
+ * `tag` dedupes re-deliveries; clicking focuses the tab and opens the
+ * notification's entity when it has one (`openNotificationTarget`).
  */
 function maybeShowDesktopNotification(
   payload: NatsNotificationPayload,
   relayId: string,
   title: string,
   description: string | null,
-  navigate: (route: string) => void,
-  markRead: (notificationId: string) => void,
+  openTarget: (action: NotificationAction) => void,
 ): void {
   // Deliberately still `visibilityState`, not `isSessionActive`: this decides whether
   // to MIRROR a notification to the OS, which is reversible and costs nothing when
@@ -614,7 +638,7 @@ function maybeShowDesktopNotification(
     });
     notification.onclick = () => {
       window.focus();
-      if (action) openNotificationTarget(action, relayId, { markRead, navigate });
+      if (action) openTarget(action);
       notification.close();
     };
   } catch {
@@ -636,15 +660,15 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
   });
   // Refs keep the NATS subscription callback dependency-free (no resubscribe on toggle/navigation).
   const showDesktopPopupsRef = useRef(showDesktopPopups);
-  const markReadRef = useRef(markRead);
   const routerRef = useRef(router);
+  const markReadRef = useRef(markRead);
   // Latest-value refs, written after the commit rather than during render:
   // a render-phase ref write is what `react-hooks/refs` forbids, and every
   // reader below runs in an effect, a timer or an event handler.
   useEffect(() => {
     showDesktopPopupsRef.current = showDesktopPopups;
-    markReadRef.current = markRead;
     routerRef.current = router;
+    markReadRef.current = markRead;
   });
 
   // Plain core NATS has no replay: anything published while the socket was down
@@ -680,6 +704,12 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
       const isUpdate = payload.eventType === 'UPDATED';
       const suppress = isWatchingNotificationDialog(payload);
       const resolution = payloadAttributes(payload)[NOTIFICATION_ATTR.resolution] ?? null;
+      // The sidebar's counts and the count on the row of the device or incident the push is about move together.
+      const entityRefs = entityRefsOfAttributes([payload.attributes]);
+      const refreshCounts = () => {
+        refreshUnreadCounts(environmentRef.current);
+        refreshEntityUnreadCounts(environmentRef.current, entityRefs);
+      };
 
       let resolutionAutoRead = false;
       let redeliveredAsRead = false;
@@ -755,8 +785,8 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
           commitMutation<MarkReadMutationType>(environmentRef.current, {
             mutation: markNotificationReadMutation,
             variables: { id: relayId },
-            onCompleted: () => refreshUnreadCounts(environmentRef.current),
-            onError: () => refreshUnreadCounts(environmentRef.current),
+            onCompleted: () => refreshCounts(),
+            onError: () => refreshCounts(),
           });
         }
         return;
@@ -793,30 +823,29 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
 
       if (suppress) {
         // Persist the auto-read server-side; refresh sidebar badges either way
-        // so they stay truthful even if the mutation fails.
+        // so they stay truthful even if the mutation fails. A failed read leaves the store
+        // saying read and the server unread until the next drawer refetch.
         commitMutation<MarkReadMutationType>(environmentRef.current, {
           mutation: markNotificationReadMutation,
           variables: { id: relayId },
-          onCompleted: () => refreshUnreadCounts(environmentRef.current),
-          onError: () => refreshUnreadCounts(environmentRef.current),
+          onCompleted: () => refreshCounts(),
+          onError: () => refreshCounts(),
         });
         return;
       }
 
       if (showDesktopPopupsRef.current) {
-        maybeShowDesktopNotification(
-          payload,
-          relayId,
-          title,
-          description,
-          route => routerRef.current.push(route),
-          id => markReadRef.current(id),
+        maybeShowDesktopNotification(payload, relayId, title, description, action =>
+          openNotificationTarget(action, relayId, {
+            markRead: id => markReadRef.current(id),
+            navigate: route => routerRef.current.push(route),
+          }),
         );
       }
 
       // The bucket was already bumped locally (above) so the sidebar is instantly consistent
       // with the drawer; reconcile against the authoritative server counts (cross-tab/drift).
-      refreshUnreadCounts(environmentRef.current);
+      refreshCounts();
     }, []),
   );
 

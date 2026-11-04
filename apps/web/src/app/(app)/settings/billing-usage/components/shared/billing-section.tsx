@@ -3,8 +3,7 @@ import { LeaderRow, useLoadingScope } from '@flamingo-stack/openframe-frontend-c
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 
 // The "Test mode" banner, until `billing-live-mode` is on. Nothing until the flag answers: a live account must never
-// flash "no real charges". Only test accounts have it, so it sits below the page's sections and is marked
-// `data-loading-optional`: appearing never moves them.
+// flash "no real charges". Only test accounts have it, so it is marked `data-loading-optional`: the wait leaves it out.
 export function TestModeBanner() {
   const gate = useFeatureFlagGate('billing-live-mode');
   if (gate !== 'off') return null;
