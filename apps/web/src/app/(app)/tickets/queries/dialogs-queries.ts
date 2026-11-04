@@ -97,6 +97,18 @@ export const GET_DIALOG_MESSAGES_QUERY = `
               toolFunction
               title
               toolExplanation
+              policyReview {
+                source
+                decision
+                approvalLevel
+                policyLevel
+                operationCodes
+                matchedRules {
+                  code
+                  label
+                }
+                reason
+              }
               parameters
               requiresApproval
               approvalStatus
@@ -129,6 +141,18 @@ export const GET_DIALOG_MESSAGES_QUERY = `
                 requiresApproval
                 approvalType
                 toolCallArguments
+                policyReview {
+                  source
+                  decision
+                  approvalLevel
+                  policyLevel
+                  operationCodes
+                  matchedRules {
+                    code
+                    label
+                  }
+                  reason
+                }
               }
             }
 

@@ -10,6 +10,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { GET_DIALOG_MESSAGES_QUERY } from '../../tickets/queries/dialogs-queries';
 import {
   ASK_INTRO_ALIAS,
   GET_MINGO_DIALOGS_QUERY,
@@ -67,6 +68,17 @@ describe('getMingoDialogMessagesQuery', () => {
     expect(approval).toContain('toolTitle');
     expect(approval).toContain('toolExplanation');
     expect(approval).toContain('toolCallArguments');
+  });
+
+  it('fetches the guardrail review on approvals and on running tools, without the rule type', () => {
+    // The ai-agent is dropping `PolicyReviewRule.type`; selecting it would fail the whole messages query.
+    for (const typeName of ['ApprovalRequestData', 'ExecutingToolData']) {
+      expect(fragmentBody(query, typeName), typeName).toContain('policyReview {');
+    }
+    for (const selection of [query, GET_DIALOG_MESSAGES_QUERY]) {
+      expect(selection.match(/policyReview \{/g)).toHaveLength(2);
+      expect(selection).not.toMatch(/matchedRules \{[^}]*\btype\b/);
+    }
   });
 });
 

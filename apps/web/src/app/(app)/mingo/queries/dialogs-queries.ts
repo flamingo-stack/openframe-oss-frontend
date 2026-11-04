@@ -307,6 +307,18 @@ export function getMingoDialogMessagesQuery({ legacyGuide = false }: { legacyGui
               toolFunction
               title
               toolExplanation
+              policyReview {
+                source
+                decision
+                approvalLevel
+                policyLevel
+                operationCodes
+                matchedRules {
+                  code
+                  label
+                }
+                reason
+              }
               parameters
               requiresApproval
               approvalStatus
@@ -339,6 +351,18 @@ export function getMingoDialogMessagesQuery({ legacyGuide = false }: { legacyGui
                 requiresApproval
                 approvalType
                 toolCallArguments
+                policyReview {
+                  source
+                  decision
+                  approvalLevel
+                  policyLevel
+                  operationCodes
+                  matchedRules {
+                    code
+                    label
+                  }
+                  reason
+                }
               }
             }
 
