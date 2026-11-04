@@ -7,7 +7,7 @@ import type {
   UpdateSubscriptionInput,
   useUpdateSubscriptionMutation as UseUpdateSubscriptionMutationType,
 } from '@/__generated__/useUpdateSubscriptionMutation.graphql';
-import { getRelayErrorMessage } from '@/lib/handle-api-error';
+import { getRelayErrorMessage, getRelayGraphqlErrors } from '@/lib/handle-api-error';
 
 export type { PackageUpdateInput, UpdateSubscriptionInput };
 
@@ -36,6 +36,9 @@ const updateSubscriptionMutation = graphql`
     }
   }
 `;
+
+/** For a failure without a backend message (gateway 5xx, WAF block, timeout): its own text is transport detail. */
+const NOT_SAVED = "Your plan change wasn't saved. Please try again; if it keeps failing, contact support.";
 
 /**
  * What to do once the change lands. The hook itself does NOT navigate: it used
@@ -80,7 +83,7 @@ export function useUpdateSubscription() {
       onError: err => {
         toast({
           title: 'Update Failed',
-          description: getRelayErrorMessage(err, 'Failed to update subscription'),
+          description: getRelayGraphqlErrors(err).some(e => e.message) ? getRelayErrorMessage(err) : NOT_SAVED,
           variant: 'destructive',
         });
       },

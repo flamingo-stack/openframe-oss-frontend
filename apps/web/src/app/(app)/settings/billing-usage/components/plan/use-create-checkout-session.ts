@@ -8,7 +8,7 @@ import type {
   ProductCheckoutInput,
   useCreateCheckoutSessionMutation as UseCreateCheckoutSessionMutationType,
 } from '@/__generated__/useCreateCheckoutSessionMutation.graphql';
-import { getRelayErrorCodes, getRelayErrorMessage } from '@/lib/handle-api-error';
+import { getRelayErrorCodes, getRelayErrorMessage, getRelayGraphqlErrors } from '@/lib/handle-api-error';
 import { openDeferredTab } from '../shared/stripe-window';
 
 export type { CheckoutInput, ProductCheckoutInput };
@@ -25,6 +25,9 @@ const PREVIOUS_SUBSCRIPTION_FINALIZING = 'PREVIOUS_SUBSCRIPTION_FINALIZING';
  * link (`OutstandingInvoicesNotice`), so the toast points there.
  */
 const OVERDUE_INVOICES_EXIST = 'OVERDUE_INVOICES_EXIST';
+
+/** For a failure without a backend message (gateway 5xx, WAF block, timeout): its own text is transport detail. */
+const NOT_STARTED = "Checkout didn't start. Please try again; if it keeps failing, contact support.";
 
 const createCheckoutSessionMutation = graphql`
   mutation useCreateCheckoutSessionMutation($input: CheckoutInput!) {
@@ -92,7 +95,7 @@ export function useCreateCheckoutSession() {
           }
           toast({
             title: 'Checkout Failed',
-            description: getRelayErrorMessage(err, 'Failed to start checkout'),
+            description: getRelayGraphqlErrors(err).some(e => e.message) ? getRelayErrorMessage(err) : NOT_STARTED,
             variant: 'destructive',
           });
         },
