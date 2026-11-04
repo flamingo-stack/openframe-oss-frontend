@@ -45,6 +45,11 @@ import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { HydratorBoundary } from '@/app/components/shared/hydrator-boundary';
 import { NotificationReadStatus, type NotificationSeverity } from '@/generated/schema-enums';
 import { cancelPendingPushMutation } from '@/graphql/notifications/cancel-pending-push-mutation';
+import {
+  entityRefsOfAttributes,
+  entityRefsOfNotifications,
+  refreshEntityUnreadCounts,
+} from '@/graphql/notifications/entity-unread-counts';
 import { getLiveConnectionPairs, requestReadStatusRefresh } from '@/graphql/notifications/live-connection-pairs';
 import { markNotificationReadMutation } from '@/graphql/notifications/mark-notification-read-mutation';
 import {
@@ -196,6 +201,7 @@ function applyReadStateEvent(
     (eventType === 'ARCHIVED' && ids.some(id => source.get(id) == null));
   commitLocalUpdate(environment, makeReadStateUpdater(eventType, ids, getLiveConnectionPairs()));
   refreshUnreadCounts(environment);
+  refreshEntityUnreadCounts(environment, entityRefsOfNotifications(environment, ids));
   if (needsStatusRefresh) requestReadStatusRefresh();
 }
 
@@ -698,6 +704,12 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
       const isUpdate = payload.eventType === 'UPDATED';
       const suppress = isWatchingNotificationDialog(payload);
       const resolution = payloadAttributes(payload)[NOTIFICATION_ATTR.resolution] ?? null;
+      // The sidebar's counts and the count on the row of the device or incident the push is about move together.
+      const entityRefs = entityRefsOfAttributes([payload.attributes]);
+      const refreshCounts = () => {
+        refreshUnreadCounts(environmentRef.current);
+        refreshEntityUnreadCounts(environmentRef.current, entityRefs);
+      };
 
       let resolutionAutoRead = false;
       let redeliveredAsRead = false;
@@ -773,8 +785,8 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
           commitMutation<MarkReadMutationType>(environmentRef.current, {
             mutation: markNotificationReadMutation,
             variables: { id: relayId },
-            onCompleted: () => refreshUnreadCounts(environmentRef.current),
-            onError: () => refreshUnreadCounts(environmentRef.current),
+            onCompleted: () => refreshCounts(),
+            onError: () => refreshCounts(),
           });
         }
         return;
@@ -816,8 +828,8 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
         commitMutation<MarkReadMutationType>(environmentRef.current, {
           mutation: markNotificationReadMutation,
           variables: { id: relayId },
-          onCompleted: () => refreshUnreadCounts(environmentRef.current),
-          onError: () => refreshUnreadCounts(environmentRef.current),
+          onCompleted: () => refreshCounts(),
+          onError: () => refreshCounts(),
         });
         return;
       }
@@ -833,7 +845,7 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
 
       // The bucket was already bumped locally (above) so the sidebar is instantly consistent
       // with the drawer; reconcile against the authoritative server counts (cross-tab/drift).
-      refreshUnreadCounts(environmentRef.current);
+      refreshCounts();
     }, []),
   );
 
