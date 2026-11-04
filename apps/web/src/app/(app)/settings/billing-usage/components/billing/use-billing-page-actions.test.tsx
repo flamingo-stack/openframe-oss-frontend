@@ -55,7 +55,7 @@ function render(ref: useBillingPageActions_subscription$key): BillingPageActions
       onManageAiBalance: null,
       onCancel: () => {},
       onRenewed: () => {},
-      onDowngradeUndone: () => {},
+      onUndoDowngradeSettled: () => {},
     });
     return null;
   }

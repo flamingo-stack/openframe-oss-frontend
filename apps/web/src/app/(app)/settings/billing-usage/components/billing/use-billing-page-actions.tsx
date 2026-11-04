@@ -57,8 +57,11 @@ interface BillingPageActionsArgs {
   onCancel: () => void;
   /** A renewal answers with a bare Boolean, so the page refetches for its new state. */
   onRenewed: () => void;
-  /** An undone downgrade does not return the packages it restored, so the page refetches. */
-  onDowngradeUndone: () => void;
+  /**
+   * After an undo either way: a success does not return the packages it restored, and a failure means the page
+   * was older than the subscription. Either way the page refetches.
+   */
+  onUndoDowngradeSettled: () => void;
 }
 
 /**
@@ -79,7 +82,7 @@ export function useBillingPageActions({
   onManageAiBalance,
   onCancel,
   onRenewed,
-  onDowngradeUndone,
+  onUndoDowngradeSettled,
 }: BillingPageActionsArgs): BillingPageActions {
   const data = useFragment(useBillingPageActionsFragment, subscription);
   const resumeSubscription = useResumeSubscription();
@@ -180,7 +183,7 @@ export function useBillingPageActions({
 
   /**
    * The state the workspace is in, when that state has its own thing to do. A
-   * live plan is changed in the Upgrade Plan modal, and a trial is turned into
+   * live plan is changed in the Change Plan modal, and a trial is turned into
    * a subscription in the Activate Subscription modal — the paywall's form,
    * which buys the whole plan (devices, the AI product and the first top-up)
    * on one checkout.
@@ -199,7 +202,7 @@ export function useBillingPageActions({
       ? {
           label: 'Undo Downgrade',
           // Keeps the current plan: the staged one is dropped, nothing is bought.
-          onClick: () => cancelPendingDowngrade.mutate({ onSuccess: onDowngradeUndone }),
+          onClick: () => cancelPendingDowngrade.mutate({ onSettled: onUndoDowngradeSettled }),
           variant: 'accent',
           loading: cancelPendingDowngrade.isPending,
           disabled: cancelPendingDowngrade.isPending,
