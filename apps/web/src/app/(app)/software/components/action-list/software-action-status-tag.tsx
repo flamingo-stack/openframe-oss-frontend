@@ -16,6 +16,8 @@ interface ActionStatusPresentation {
 const SOFTWARE_ACTION_STATUS: Record<SoftwareActionStatus, ActionStatusPresentation> = {
   [SoftwareActionStatus.SCHEDULED]: { label: 'Scheduled', variant: 'warning' },
   [SoftwareActionStatus.IN_PROGRESS]: { label: 'In Progress', variant: 'outline', inFlight: true },
+  // An update on hold on a device: the user's prompt or an app still open.
+  [SoftwareActionStatus.WAITING]: { label: 'Waiting', variant: 'warning' },
   [SoftwareActionStatus.COMPLETED]: { label: 'Success', variant: 'success' },
   [SoftwareActionStatus.FAILED]: { label: 'Failed', variant: 'error' },
 };

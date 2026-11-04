@@ -29,6 +29,8 @@ export const TICKET_ASSIGNED_TYPE = 'TICKET_ASSIGNED';
 export const TICKET_ESCALATED_BY_USER_TYPE = 'TICKET_ESCALATED_BY_USER';
 export const CUSTOMER_MESSAGE_PUBLISHED_TYPE = 'CUSTOMER_MESSAGE_PUBLISHED';
 export const ADMIN_MESSAGE_PUBLISHED_TYPE = 'ADMIN_MESSAGE_PUBLISHED';
+// The spend limit paused auto top-up; names no entity, only the owner's billing page.
+export const AUTO_TOP_UP_PAUSED_TYPE = 'AUTO_TOP_UP_PAUSED';
 // The incident family (the detection and its status transitions) is declared with the
 // attribute contract, Relay-free, because the mapper reads it too.
 export { INCIDENT_DETECTED_TYPE };
@@ -160,6 +162,11 @@ function resolveAction(
   if (type === DIRECTORY_CUSTOMER_DEACTIVATED_TYPE) {
     const [only, ...others] = readConnectionIds(connections);
     return only && others.length === 0 ? tenantAction(only) : TENANT_LIST_ACTION;
+  }
+
+  // The limit is raised (or the pause read) where the arrangement is shown.
+  if (type === AUTO_TOP_UP_PAUSED_TYPE) {
+    return { label: 'Billing & Usage', route: routes.settings.billingUsage() };
   }
 
   // A recording about to expire, about to be deleted, or released by someone else opens the

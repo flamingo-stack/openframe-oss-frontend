@@ -5,7 +5,9 @@ import {
   CheckCircleIcon,
   Chevron02DownIcon,
   ExternalLinkIcon,
+  XmarkIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useState } from 'react';
 import { useGettingStartedView } from './getting-started-view';
@@ -21,6 +23,12 @@ const DISABLED_CHIP =
 /** The motion of the sidebar's groups (the lib's grouped sidebar): quick off the mark, a long soft landing. */
 const EASE = '[transition-timing-function:cubic-bezier(0.2,0,0,1)]';
 const MOTION = cn('duration-300 motion-reduce:transition-none', EASE);
+
+/**
+ * The title row's glyph buttons, the chevron and the ×: the lib's bare glyph at the row's
+ * 24px (the button caps a glyph at 20px), taking the accent on hover.
+ */
+const TITLE_ROW_GLYPH = 'size-6 shrink-0 rounded-md hover:text-ods-accent [&_svg]:h-6 [&_svg]:w-6';
 
 /**
  * A part that opens and folds as a sidebar group does: its grid row eases between `0fr` and `1fr` while the
@@ -83,6 +91,14 @@ export interface GettingStartedBlockProps {
   onAction: (step: TourStep, action: TourAction) => boolean;
   /** "Finish tour", offered on the last step. */
   onFinish: () => void;
+  /** "Skip Onboarding", offered in the title row whatever the shape and the step. */
+  onSkip: () => void;
+  /**
+   * The × at the end of the title row: the tour's conversation is set aside as any
+   * other chat is (the host closes it where it is open, and stops showing the block
+   * over the pages).
+   */
+  onClose: () => void;
   /**
    * "Open Fae - your client assistant", offered on the steps that open it (`TourStep.opensFae`).
    * Absent where Fae cannot run (a phone): the chip is not shown.
@@ -109,6 +125,10 @@ export interface GettingStartedBlockProps {
  *   title row unfolds it and folds it back; a step
  *   chip unfolds it on that step.
  *
+ * "Skip Onboarding" sits in the title row in either shape, so the tour can be
+ * left at any step; "Finish tour" ends it on the last one. The × after the
+ * chevron closes the block without ending the tour.
+ *
  * The shape is the user's, remembered across pages and tabs
  * (`getting-started-view.ts`): folding or unfolding it, and a chip folding it,
  * write it there. With nothing remembered (a tour started on another device) it
@@ -122,6 +142,8 @@ export function GettingStartedBlock({
   doneStepIds,
   onAction,
   onFinish,
+  onSkip,
+  onClose,
   onOpenFae,
   busy = false,
 }: GettingStartedBlockProps) {
@@ -156,24 +178,54 @@ export function GettingStartedBlock({
       // laptop's height, the chat's header and a few lines stay on screen.
       className="flex max-h-[45vh] min-h-0 flex-col overflow-hidden rounded-md border border-ods-border bg-ods-card"
     >
-      <header className="flex shrink-0 items-center gap-[var(--spacing-system-sf)] border-b border-ods-border p-[var(--spacing-system-xsf)]">
-        <h2 className="text-ods-text-secondary text-h5">Getting started</h2>
-        <p className="text-ods-text-secondary text-h6">
+      {/* A container, so the title row fits itself to the block's width rather than the window's. */}
+      <header className="flex shrink-0 items-center gap-[var(--spacing-system-sf)] border-b border-ods-border p-[var(--spacing-system-xsf)] @container">
+        <h2 className="shrink-0 text-ods-text-secondary text-h5">Getting started</h2>
+        <p className="min-w-0 truncate text-ods-text-secondary text-h6">
           <span className="font-bold text-ods-text-primary">{done}</span> of {total} steps
         </p>
-        {/* Unfolds the grid into the list, and folds the list back into the grid. */}
-        <button
-          type="button"
-          aria-label={folded ? 'Show the steps' : 'Hide the steps'}
-          aria-expanded={!folded}
-          onClick={() => {
-            if (!folded) setPickedId(undefined);
-            setFolded(!folded);
-          }}
-          className="ml-auto flex size-6 items-center justify-center rounded-md text-ods-text-primary hover:text-ods-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ods-accent"
+        {/* Ends the tour at any step; "Finish tour" ends it on the last one. Not a prompt, so it
+            stays live while Mingo answers. A phone's composer has room for "Skip" alone. */}
+        <Button
+          variant="link"
+          size="compact"
+          noPaddingX
+          aria-label="Skip Onboarding"
+          onClick={onSkip}
+          className="ml-auto shrink-0"
         >
-          <FoldChevron up={folded} />
-        </button>
+          {/* One text run: the button spaces its children apart. */}
+          <span>
+            Skip<span className="hidden @md:inline"> Onboarding</span>
+          </span>
+        </Button>
+        {/* The two glyphs as a pair, closer together than the row's text. */}
+        <div className="flex shrink-0 items-center gap-[var(--spacing-system-xxs)]">
+          {/* Unfolds the grid into the list, and folds the list back into the grid. */}
+          <Button
+            variant="glyph"
+            size="wrap"
+            aria-label={folded ? 'Show the steps' : 'Hide the steps'}
+            aria-expanded={!folded}
+            onClick={() => {
+              if (!folded) setPickedId(undefined);
+              setFolded(!folded);
+            }}
+            className={TITLE_ROW_GLYPH}
+          >
+            <FoldChevron up={folded} />
+          </Button>
+          <Button
+            variant="glyph"
+            size="wrap"
+            aria-label="Close"
+            title="Close"
+            onClick={onClose}
+            className={TITLE_ROW_GLYPH}
+          >
+            <XmarkIcon size={24} />
+          </Button>
+        </div>
       </header>
 
       {/* The two shapes fold into each other: one eases shut while the other opens. */}

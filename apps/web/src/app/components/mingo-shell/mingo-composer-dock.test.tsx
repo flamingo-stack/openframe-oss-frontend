@@ -26,6 +26,7 @@ const {
   identity,
   chips,
   viewport,
+  tour,
   CONTEXT_MEMORY,
   CAPABILITIES,
   PENDING_APPROVALS,
@@ -51,6 +52,8 @@ const {
   chips: { onSend: null as ((text: string) => void) | null },
   /** `useMdUp()`: false on a phone. */
   viewport: { mdUp: true as boolean | undefined },
+  /** What the dock handed the tour: where its conversation is on screen, and the block's ×. */
+  tour: { input: null as { onScreen?: boolean; onClose?: () => void } | null },
   CONTEXT_MEMORY: { items: [{ type: 'DEVICE', id: 'm-1', label: 'web-01' }], onRemove: () => {} },
   CAPABILITIES: { canRename: true, canArchive: true, unarchiveDialog: () => Promise.resolve() },
   PENDING_APPROVALS: [{ type: 'approval_request', data: { requestId: 'r-1', status: 'pending' } }],
@@ -130,7 +133,10 @@ vi.mock('./mingo-dock-quick-actions', () => ({
 // The tour has tests of its own (and its Relay reads need the compiler): no tour here,
 // the state passes through.
 vi.mock('@/app/(app)/mingo/tour/use-mingo-tour', () => ({
-  useMingoTour: ({ state }: { state: unknown }) => ({ state, aboveComposer: null }),
+  useMingoTour: (input: { state: unknown; onScreen?: boolean; onClose?: () => void }) => {
+    tour.input = input;
+    return { state: input.state, aboveComposer: null };
+  },
 }));
 vi.mock('../reset-onboarding-dialog', () => ({
   ResetOnboardingDialog: () => null,
@@ -254,8 +260,15 @@ describe('MingoComposerDock', () => {
     useChatPageNodeStore.setState({ node: null, chatMounted: false, threadReady: true });
     useFeatureFlagsStore.getState().reset();
     useMingoLauncherStore.setState({ dockMounted: false, dockRequest: null });
-    useMingoSheetStore.setState({ open: false, openAfterNavigation: false, node: null, lastPage: null });
+    useMingoSheetStore.setState({
+      open: false,
+      openAfterNavigation: false,
+      node: null,
+      lastPage: null,
+      outsidePage: null,
+    });
     viewport.mdUp = true;
+    tour.input = null;
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -479,6 +492,52 @@ describe('MingoComposerDock', () => {
       // The composer replies to the chat in the sheet: no quick actions for a new one.
       expect(chips.onSend).toBeNull();
       expect(selectDialog).not.toHaveBeenCalledWith(null);
+    });
+  });
+
+  describe("the Getting Started block's ×", () => {
+    const closeBlock = () => act(() => tour.input?.onClose?.());
+
+    it('closes the sheet over a page, where the tour chat is on screen', () => {
+      setSurface({ activeDialogId: 'a' });
+      useMingoSheetStore.setState({ open: true, node: document.createElement('div') });
+      render('/devices/');
+      expect(tour.input?.onScreen).toBe(true);
+
+      closeBlock();
+      expect(useMingoSheetStore.getState().open).toBe(false);
+      expect(nav.push).not.toHaveBeenCalled();
+    });
+
+    it('leaves a page as it is behind the chat: only the block goes', () => {
+      setSurface({ activeDialogId: 'a' });
+      render('/devices/');
+      expect(tour.input?.onScreen).toBe(false);
+
+      closeBlock();
+      expect(useMingoSheetStore.getState().open).toBe(false);
+      expect(nav.push).not.toHaveBeenCalled();
+    });
+
+    it('closes the chat page to the last page, as "Close chat" does', () => {
+      setSurface({ activeDialogId: 'a' });
+      useMingoSheetStore.setState({ lastPage: '/devices/?statuses=ONLINE' });
+      render('/mingo/chat/');
+      expect(tour.input?.onScreen).toBe(true);
+
+      closeBlock();
+      expect(nav.push).toHaveBeenCalledWith('/devices/?statuses=ONLINE');
+      expect(useMingoSheetStore.getState()).toMatchObject({ open: false, openAfterNavigation: false });
+    });
+
+    it("closes a phone's chat page to the last page outside Mingo, as the top bar's × does", () => {
+      viewport.mdUp = false;
+      setSurface({ activeDialogId: 'a' });
+      useMingoSheetStore.setState({ lastPage: '/devices/', outsidePage: '/tickets/' });
+      render('/mingo/chat/');
+
+      closeBlock();
+      expect(nav.push).toHaveBeenCalledWith('/tickets/');
     });
   });
 

@@ -1310,6 +1310,13 @@ type Insight {
   id: ID!
 
   """
+  The raw stored id — NOT `id`, which is an opaque node handle. It is what
+  `NotificationFilterInput.entity.id` and `markNotificationsReadForEntity` take for an INSIGHT entity, and what a
+  notification's `attributes.insightId` carries, so a row can list and clear its own notifications.
+  """
+  insightId: String!
+
+  """
   Same value as `Organization.organizationId` — NOT `Organization.id`, which is an opaque node
   handle. Kept flat so a list can filter by organization without resolving the whole object.
   """
@@ -1379,6 +1386,12 @@ type Insight {
 
   """When the detector decided, not when the underlying event happened."""
   detectedAt: Instant!
+
+  """
+  The current user's unread notifications about this incident (entity INSIGHT, insightId). Counts the same read
+  states as `unreadCountsByCategory`, so a row and the sidebar badge agree. 0 when none.
+  """
+  unreadNotificationCount: Int!
 }
 
 type InsightConnection {
@@ -1929,6 +1942,11 @@ type Machine implements Node & AssignableTarget {
   directoryUserIds: [String!]!
   """Display name of the user for PRIMARY; null otherwise. devices(search) also matches it."""
   directoryUserName: String
+  """
+  The current user's unread notifications about this device (entity DEVICE, machineId). Counts the same
+  read states as unreadCountsByCategory, so a row and the sidebar badge agree. 0 when none.
+  """
+  unreadNotificationCount: Int!
 }
 
 type Mutation {
@@ -2151,15 +2169,22 @@ type Mutation {
   skipUserOnboarding: UserOnboardingProgress!
 
   """
-  Reset personal onboarding to a clean state (no steps, not skipped, not completed).
+  Reset personal onboarding to a clean state (no steps, not skipped, not completed, setup wizard not seen).
   """
   resetUserOnboarding: UserOnboardingProgress!
 
-  """Remember the Mingo conversation the Get Started tour lives in; a repeat overwrites it."""
+  """
+  Remember the Mingo conversation the Get Started tour lives in; a repeat overwrites it. Also marks the setup wizard seen.
+  """
   setUserOnboardingTourDialog(dialogId: String!): UserOnboardingProgress!
 
   """
-  Dev/QA only. Marks the tenant Initial Setup completed (all steps) and the current user's Get Started skipped, so the user lands straight in the app. Idempotent. Not part of the schema on stage/prod.
+  The setup wizard showed its last screen to this user. Idempotent: the first call sets setupSeen = true and stamps setupSeenAt, later calls return the record unchanged. Independent of the tenant Initial Setup.
+  """
+  markUserOnboardingSetupSeen: UserOnboardingProgress!
+
+  """
+  Dev/QA only. Marks the tenant Initial Setup completed (all steps) and the current user's Get Started skipped with the setup wizard seen, so the user lands straight in the app. Idempotent. Not part of the schema on stage/prod.
   """
   skipOnboarding: OnboardingSkipResult!
 
@@ -2661,9 +2686,20 @@ type NotificationEdge {
   cursor: String!
 }
 
+"""
+One entity's notifications. id is the raw stored id: Machine.machineId for DEVICE, the ticket, dialog or
+insight id otherwise — the same value markNotificationsReadForEntity takes.
+"""
+input NotificationEntityFilterInput {
+  type: NotificationEntityType!
+  id: ID!
+}
+
 enum NotificationEntityType {
   TICKET
   DIALOG
+  INSIGHT
+  DEVICE
 }
 
 input NotificationFilterInput {
@@ -2679,6 +2715,11 @@ input NotificationFilterInput {
 
   """Only these severities; omitted or empty does not narrow."""
   severities: [NotificationSeverity!]
+
+  """
+  Only the caller's notifications about this entity; combines (AND) with the other filters. Omitted does not narrow.
+  """
+  entity: NotificationEntityFilterInput
 }
 
 enum NotificationReadStatus {
@@ -4398,12 +4439,20 @@ type MachinePackageManagers {
 }
 
 """
-The arrangement to set. The amount must exceed the threshold, and both are whole dollars.
+The arrangement to set. The amount must exceed the threshold and the spend limit, when given, must be at
+least the amount. All figures are whole dollars.
 """
 input AutoTopUpSettingsInput {
   enabled: Boolean!
   amountUsd: Float
   thresholdUsd: Float
+
+  """
+  The most auto top-ups may charge over the last 30 days, in USD. Omitted or null removes the limit, so a
+  client saving the arrangement sends the current one back. Ignored when enabled is false: switching off
+  keeps the limit.
+  """
+  spendLimitUsd: Float
 }
 
 """
@@ -4442,6 +4491,32 @@ type AutoTopUpSettings {
   returns from this page, not what is armed now.
   """
   paymentMethodSetupUrl: String
+
+  """
+  The most auto top-ups may charge over the last 30 days, in USD. Null means no limit.
+  """
+  spendLimitUsd: Float
+
+  """
+  What auto top-ups charged over the last 30 days, in USD: paid and in flight, failed ones excluded.
+  """
+  spentLast30DaysUsd: Float!
+
+  """
+  Set while the spend limit holds refills back. Auto top-up itself stays enabled.
+  """
+  pausedReason: AutoTopUpPausedReason
+
+  """
+  When the next top-up is tried while paused. Not a promise that it will fit the limit.
+  """
+  resumesAt: Instant
+
+  """The smallest top-up amount on sale, in USD."""
+  minimumAmountUsd: Float
+
+  """The lowest threshold that can be set, in USD."""
+  minimumThresholdUsd: Float
 }
 
 """
@@ -4452,6 +4527,27 @@ enum AutoTopUpDisabledReason {
   The card declined an automatic charge. One charge, one outcome — it is never retried.
   """
   PAYMENT_FAILED
+
+  """The subscription it belonged to was cancelled."""
+  SUBSCRIPTION_CANCELED
+
+  """
+  The card asked for 3-D Secure and nobody completed it. An automatic charge has no one present to answer, so it is not tried again.
+  """
+  AUTHENTICATION_ABANDONED
+
+  """
+  There is no card on file that can be charged with nobody present. The customer adds a card and turns automatic top-up back on.
+  """
+  NO_PAYMENT_METHOD
+}
+
+"""Why automatic top-up is on but holding refills back for now."""
+enum AutoTopUpPausedReason {
+  """
+  The next top-up would take the last 30 days of auto top-ups over the spend limit. Tried again a day later.
+  """
+  SPEND_LIMIT_REACHED
 }
 
 """
@@ -5207,6 +5303,11 @@ type SoftwareActionRunEdge {
 enum SoftwareActionStatus {
   SCHEDULED
   IN_PROGRESS
+
+  """
+  A package update waits on the device: a user prompt or an open app. Any waiting device makes the action WAITING.
+  """
+  WAITING
   COMPLETED
   FAILED
 }
@@ -6561,6 +6662,14 @@ type UserOnboardingProgress {
 
   """The Mingo conversation the Get Started tour lives in; null until "Start with Mingo"."""
   tourDialogId: String
+
+  """
+  True once the user has seen the setup wizard's last screen ("You are ready to go" / "Everything is set up"). Set by markUserOnboardingSetupSeen and by setUserOnboardingTourDialog; cleared by resetUserOnboarding.
+  """
+  setupSeen: Boolean!
+
+  """When setupSeen was set; null while not seen."""
+  setupSeenAt: Instant
 }
 
 enum UserOnboardingStep {

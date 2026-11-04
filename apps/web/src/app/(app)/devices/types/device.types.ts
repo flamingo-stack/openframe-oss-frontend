@@ -268,6 +268,8 @@ export interface Device {
   geolocation?: DeviceGeolocation;
   /** End-user emails from Fleet `end_users` (Chrome profiles / IdP). */
   endUserEmails?: string[];
+  /** The viewer's unread notifications about the device. Set only on the scrolled list's rows, which select it. */
+  unreadNotificationCount?: number;
 
   // Reference IDs (NOT nested data)
   fleetId?: number;

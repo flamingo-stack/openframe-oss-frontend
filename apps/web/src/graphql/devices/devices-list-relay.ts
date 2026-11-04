@@ -15,6 +15,10 @@ import { graphql } from 'react-relay';
  *
  * Ordering is fixed to `status DESC` (online first) here rather than passed by
  * callers, so two screens showing the same fleet cannot disagree about its order.
+ *
+ * `unreadNotificationCount` is selected beside the shared fragment, not in it: only
+ * this list draws a row's unread count, and the pickers on the same fragment should
+ * not pay for it.
  */
 export const devicesListRelayQuery = graphql`
   query devicesListRelayQuery($filter: DeviceFilterInput, $search: String, $first: Int!, $after: String) {
@@ -37,6 +41,7 @@ export const devicesListRelayFragment = graphql`
       edges {
         node {
           ...deviceFields_machine
+          unreadNotificationCount
         }
       }
       pageInfo {

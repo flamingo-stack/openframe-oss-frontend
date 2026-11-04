@@ -39,6 +39,8 @@ afterEach(() => {
 
 const onAction = vi.fn(() => true);
 const onFinish = vi.fn();
+const onSkip = vi.fn();
+const onClose = vi.fn();
 const onOpenFae = vi.fn();
 
 /** `openFae: null` renders the block where Fae cannot run. */
@@ -50,6 +52,8 @@ function render(done: TourStepId[] = [], busy = false, openFae: (() => void) | n
         doneStepIds={new Set(done)}
         onAction={onAction}
         onFinish={onFinish}
+        onSkip={onSkip}
+        onClose={onClose}
         onOpenFae={openFae ?? undefined}
         busy={busy}
       />,
@@ -121,7 +125,7 @@ describe('GettingStartedBlock', () => {
 
   it('folds the list back into the grid from the same chevron', () => {
     render(['devices']);
-    const toggle = () => container.querySelector('header button') as Element;
+    const toggle = () => container.querySelector('header button[aria-expanded]') as Element;
     expect(toggle().getAttribute('aria-label')).toBe('Show the steps');
     click(toggle());
     expect(toggle().getAttribute('aria-label')).toBe('Hide the steps');
@@ -249,6 +253,38 @@ describe('GettingStartedBlock', () => {
     click(button('Finish tour'));
     expect(onFinish).toHaveBeenCalledTimes(1);
   });
+
+  it.each([
+    ['the list, before any step', [] as TourStepId[]],
+    ['the grid, once a step is done', ['devices'] as TourStepId[]],
+  ])('offers to skip in the title row in %s, while Mingo answers too', (_, done) => {
+    onSkip.mockClear();
+    onFinish.mockClear();
+    render(done, true);
+    expect(gridShown()).toBe(done.length > 0);
+
+    const skip = button('Skip Onboarding');
+    expect(skip.closest('header')).not.toBeNull();
+    expect(skip.matches(':disabled')).toBe(false);
+    click(skip);
+    expect(onSkip).toHaveBeenCalledTimes(1);
+    expect(onFinish).not.toHaveBeenCalled();
+  });
+
+  it('closes from the end of the title row, after the chevron, in either shape', () => {
+    for (const done of [[], ['devices']] as TourStepId[][]) {
+      onClose.mockClear();
+      onSkip.mockClear();
+      render(done);
+      const headerButtons = [...(container.querySelector('header')?.querySelectorAll('button') ?? [])];
+      const close = headerButtons.at(-1);
+      expect(close?.getAttribute('aria-label')).toBe('Close');
+      expect(headerButtons.at(-2)?.hasAttribute('aria-expanded')).toBe(true);
+      click(close as Element);
+      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(onSkip).not.toHaveBeenCalled();
+    }
+  });
 });
 
 describe('GettingStartedBlock motion', () => {
@@ -281,7 +317,7 @@ describe('GettingStartedBlock motion', () => {
     expect(isOpen(grid())).toBe(true);
     expect(isFolded(list())).toBe(true);
 
-    click(container.querySelector('header button') as Element);
+    click(container.querySelector('header button[aria-expanded]') as Element);
     expect(isOpen(list())).toBe(true);
     expect(isFolded(grid())).toBe(true);
   });
@@ -295,7 +331,7 @@ describe('GettingStartedBlock motion', () => {
       panel('devices')?.className,
       foldOf(row('devices'))?.className,
       chevron(row('devices')),
-      chevron(container.querySelector('header button')),
+      chevron(container.querySelector('header button[aria-expanded]')),
     ]) {
       expect(moving).toContain('duration-300');
       expect(moving).toContain('[transition-timing-function:cubic-bezier(0.2,0,0,1)]');
@@ -347,13 +383,13 @@ describe('GettingStartedBlock across pages and tabs', () => {
     click(button('Check my device'));
     expect(store.get(KEY)).toBe('collapsed');
 
-    click(container.querySelector('header button') as Element);
+    click(container.querySelector('header button[aria-expanded]') as Element);
     expect(store.get(KEY)).toBe('default');
   });
 
   it('a block mounted later (another page, a new tab) opens as it was left', () => {
     render();
-    click(container.querySelector('header button') as Element);
+    click(container.querySelector('header button[aria-expanded]') as Element);
     expect(store.get(KEY)).toBe('collapsed');
 
     act(() => root.unmount());

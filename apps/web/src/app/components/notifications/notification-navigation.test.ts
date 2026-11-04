@@ -243,6 +243,23 @@ describe('re-consent notice', () => {
     } as unknown as Notification);
     expect(action).toEqual({ label: 'Cloud Tenants', route: '/cloud-tenant-management' });
   });
+
+  it('routes AUTO_TOP_UP_PAUSED to the billing page', () => {
+    expect(resolvePushNotificationRoute({ type: 'AUTO_TOP_UP_PAUSED', resumesAt: '2026-11-04T10:00:00Z' })).toBe(
+      '/settings/billing-usage',
+    );
+    expect(
+      resolveNatsNotificationRoute({
+        type: 'AUTO_TOP_UP_PAUSED',
+        attributes: { resumesAt: '2026-11-04T10:00:00Z' },
+        category: 'GENERIC',
+      }),
+    ).toBe('/settings/billing-usage');
+    const action = resolveNotificationAction({
+      meta: { notificationType: 'AUTO_TOP_UP_PAUSED' },
+    } as unknown as Notification);
+    expect(action).toEqual({ label: 'Billing & Usage', route: '/settings/billing-usage' });
+  });
 });
 
 /**

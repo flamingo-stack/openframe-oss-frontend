@@ -2,6 +2,8 @@
  * The Getting Started block's shape, kept per user in localStorage: added when
  * the tour starts, put back to the list on a reset, removed when the tour ends,
  * and read by every tab (a change in another tab arrives as a `storage` event).
+ * Beside it, whether the user closed the block, which goes with the same reset
+ * and the same end.
  */
 
 import { act } from 'react';
@@ -12,12 +14,14 @@ import {
   clearGettingStartedView,
   ensureGettingStartedView,
   resetGettingStartedView,
+  setGettingStartedAside,
   setGettingStartedView,
   useGettingStartedView,
 } from './getting-started-view';
 
 const USER = 'u-1';
 const KEY = `openframe:getting-started-view:${USER}`;
+const ASIDE_KEY = `openframe:getting-started-aside:${USER}`;
 
 /** An in-memory Storage: the test runtime's own `localStorage` has no backing file. */
 function memoryStorage(): Storage {
@@ -77,6 +81,24 @@ describe('the Getting Started view key', () => {
     setGettingStartedView('u-2', 'default');
     expect(storage.getItem(KEY)).toBe('collapsed');
     expect(storage.getItem('openframe:getting-started-view:u-2')).toBe('default');
+  });
+});
+
+describe('the closed block', () => {
+  it('is kept per user once closed', () => {
+    setGettingStartedAside(USER);
+    expect(storage.getItem(ASIDE_KEY)).not.toBeNull();
+    expect(storage.getItem('openframe:getting-started-aside:u-2')).toBeNull();
+  });
+
+  it('is open again after a reset, and forgotten when the tour ends', () => {
+    setGettingStartedAside(USER);
+    resetGettingStartedView(USER);
+    expect(storage.getItem(ASIDE_KEY)).toBeNull();
+
+    setGettingStartedAside(USER);
+    clearGettingStartedView(USER);
+    expect(storage.getItem(ASIDE_KEY)).toBeNull();
   });
 });
 

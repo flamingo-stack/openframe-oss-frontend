@@ -58,6 +58,12 @@ export const FEATURE_FLAG_NAMES = [
   // module's tables over `deviceSoftware` / `deviceVulnerabilities` when on,
   // the Fleet host payload when off (`devices/components/tabs/software-tab.tsx`).
   'software-management',
+  // "Update Settings" on Update Software (what happens where the app is running,
+  // and Auto-update), sent as `updateSettings` + `autoUpdate`. Needs a backend
+  // with that input (openframe-oss-lib #2849): an older one rejects the unknown
+  // fields. Off = the form as before, the submit sends neither. On for dev / qa,
+  // absent elsewhere, which reads as off.
+  'software-update-settings',
   // "Compact chat memory" under the Mingo composer: summarizes a dialog's AI
   // context on demand. Off = the action is absent; auto-compaction is
   // unaffected either way.

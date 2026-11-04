@@ -19,10 +19,12 @@ import { registerLiveConnectionPairs, subscribeReadStatusRefresh } from '@/graph
 import {
   NOTIFICATIONS_CONNECTION_KEY,
   notificationsConnectionFilters,
+  parseNotificationEntityScope,
   UNFILTERED_NOTIFICATION_PAIR,
 } from '@/graphql/notifications/notifications-helpers';
 import { notificationsSectionRelayQuery } from '@/graphql/notifications/notifications-section-relay';
 import { useNotificationMutations } from '@/graphql/notifications/use-notification-mutations';
+import { entityScopeLabel } from './entity-scope-label';
 import { NOTIFICATIONS_SECTION_PAGE_SIZE, NotificationsSection } from './notifications-section';
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -40,7 +42,14 @@ export function NotificationsPageView() {
   const { params, setParam, setParams } = useApiParams({
     tab: { type: 'string', default: 'new' },
     search: { type: 'string', default: '' },
+    entityType: { type: 'string', default: '' },
+    entityId: { type: 'string', default: '' },
+    entityName: { type: 'string', default: '' },
   });
+
+  // A row's unread count opens the page scoped to its entity (`routes.notifications({ entity })`).
+  const entity = parseNotificationEntityScope(params.entityType, params.entityId);
+  const clearEntity = () => setParams({ entityType: '', entityId: '', entityName: '' });
 
   // One shared search across both tabs; the hook keeps typing responsive and
   // debounces the write to the URL param.
@@ -66,34 +75,35 @@ export function NotificationsPageView() {
   const [historyQueryRef, loadHistory, disposeHistory] =
     useQueryLoader<NotificationsSectionRelayQueryType>(notificationsSectionRelayQuery);
 
+  // One builder for the query variables and the connection keys the updaters look up: the two must match exactly.
+  // Keyed on the URL's strings: the parsed scope is a new object every render.
+  const filterPairs = useMemo(() => {
+    const scope = parseNotificationEntityScope(params.entityType, params.entityId);
+    return [
+      {
+        unread: notificationsConnectionFilters(false, debouncedSearch, scope),
+        read: notificationsConnectionFilters(true, debouncedSearch, scope),
+      },
+      UNFILTERED_NOTIFICATION_PAIR,
+    ];
+  }, [debouncedSearch, params.entityType, params.entityId]);
+  const [pagePair] = filterPairs;
+
   useEffect(() => {
-    const trimmed = debouncedSearch.trim();
     loadNew(
-      { first: NOTIFICATIONS_SECTION_PAGE_SIZE, after: null, filter: { read: false }, search: trimmed || null },
+      { first: NOTIFICATIONS_SECTION_PAGE_SIZE, after: null, ...pagePair.unread },
       { fetchPolicy: 'network-only' },
     );
     return () => disposeNew();
-  }, [loadNew, disposeNew, debouncedSearch]);
+  }, [loadNew, disposeNew, pagePair]);
 
   useEffect(() => {
-    const trimmed = debouncedSearch.trim();
     loadHistory(
-      { first: NOTIFICATIONS_SECTION_PAGE_SIZE, after: null, filter: { read: true }, search: trimmed || null },
+      { first: NOTIFICATIONS_SECTION_PAGE_SIZE, after: null, ...pagePair.read },
       { fetchPolicy: 'network-only' },
     );
     return () => disposeHistory();
-  }, [loadHistory, disposeHistory, debouncedSearch]);
-
-  const filterPairs = useMemo(
-    () => [
-      {
-        unread: notificationsConnectionFilters(false, debouncedSearch),
-        read: notificationsConnectionFilters(true, debouncedSearch),
-      },
-      UNFILTERED_NOTIFICATION_PAIR,
-    ],
-    [debouncedSearch],
-  );
+  }, [loadHistory, disposeHistory, pagePair]);
 
   // A live read-state event reaches the drawer's unfiltered pair by name; this page's
   // search-keyed pair it has to be told about, or a card read elsewhere stays in the table.
@@ -138,24 +148,39 @@ export function NotificationsPageView() {
     toast({ title: 'All notifications marked as read', variant: 'success' });
   }, [toast]);
 
+  const scopeLabel = entity ? entityScopeLabel(entity.type, params.entityName) : '';
+  const onMarkEntityReadCompleted = useCallback(() => {
+    toast({ title: 'Notifications marked as read', description: scopeLabel, variant: 'success' });
+  }, [toast, scopeLabel]);
+
   const onDeleteAllReadCompleted = useCallback(() => {
     toast({ title: 'All read notifications deleted', variant: 'success' });
   }, [toast]);
 
-  const { markRead, markAllRead, removeNotification, removeAllRead, isMarkingAllRead, isDeletingAllRead } =
-    useNotificationMutations({
-      filterPairs,
-      onMarkAllReadCompleted,
-      onDeleteAllReadCompleted,
-    });
+  const {
+    markRead,
+    markAllRead,
+    markEntityRead,
+    removeNotification,
+    removeAllRead,
+    isMarkingAllRead,
+    isMarkingEntityRead,
+    isDeletingAllRead,
+  } = useNotificationMutations({
+    filterPairs,
+    onMarkAllReadCompleted,
+    onMarkEntityReadCompleted,
+    onDeleteAllReadCompleted,
+  });
 
+  // Scoped to one entity, "all" is that entity's: the global mark-all would read every other notification too.
   const newActions: PageActionButton[] = [
     {
       label: 'Mark All Complete',
       icon: <CheckCircleIcon className="text-ods-text-secondary" />,
-      onClick: markAllRead,
+      onClick: entity ? () => markEntityRead(entity) : markAllRead,
       variant: 'outline',
-      disabled: isMarkingAllRead,
+      disabled: entity ? isMarkingEntityRead : isMarkingAllRead,
     },
   ];
 
@@ -168,15 +193,20 @@ export function NotificationsPageView() {
     removeAllRead();
   };
 
-  const historyActions: PageActionButton[] = [
-    {
-      label: 'Delete All',
-      icon: <TrashIcon className="text-ods-error" />,
-      onClick: () => setDeleteAllConfirmOpen(true),
-      variant: 'outline',
-      disabled: isDeletingAllRead,
-    },
-  ];
+  // Not while scoped to one entity: the backend deletes every read notification, and has no per-entity delete.
+  const historyActions: PageActionButton[] = entity
+    ? []
+    : [
+        {
+          label: 'Delete All',
+          icon: <TrashIcon className="text-ods-error" />,
+          onClick: () => setDeleteAllConfirmOpen(true),
+          variant: 'outline',
+          disabled: isDeletingAllRead,
+        },
+      ];
+
+  const scope = entity ? { label: scopeLabel, onClear: clearEntity } : undefined;
 
   const activeTab = params.tab === 'history' ? 'history' : 'new';
 
@@ -193,6 +223,7 @@ export function NotificationsPageView() {
           queryRef={historyQueryRef}
           searchValue={search}
           onSearchChange={setSearch}
+          scope={scope}
           rowVariant="read"
           onMarkRead={markRead}
           onDelete={removeNotification}
@@ -205,6 +236,7 @@ export function NotificationsPageView() {
           queryRef={newQueryRef}
           searchValue={search}
           onSearchChange={setSearch}
+          scope={scope}
           rowVariant="unread"
           onMarkRead={markRead}
           actions={newActions}

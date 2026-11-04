@@ -10,9 +10,11 @@ import { graphql, useFragment } from 'react-relay';
 import type { useBillingPageActions_subscription$key } from '@/__generated__/useBillingPageActions_subscription.graphql';
 import { resolveSubscriptionStatus, SubscriptionStatus } from '@/app/components/subscription-lock/subscription-status';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
+import { planSchedule } from '../shared/plan-schedule';
 import { openExternalTab } from '../shared/stripe-window';
 import { READ_ONLY_BILLING_ACTIONS } from './billing-page-frame';
 import { useBillingPortalSession } from './use-billing-portal-session';
+import { useCancelPendingDowngrade } from './use-cancel-pending-downgrade';
 import { useResumeSubscription } from './use-resume-subscription';
 
 /** What the header decides on: the state the workspace is in, and the invoice "Pay Overage" opens. */
@@ -25,6 +27,8 @@ const useBillingPageActionsFragment = graphql`
       createdAt
       hostedInvoiceUrl
     }
+    # Whether a downgrade is scheduled, which the header offers to undo.
+    ...planSchedule_subscription
   }
 `;
 
@@ -53,14 +57,16 @@ interface BillingPageActionsArgs {
   onCancel: () => void;
   /** A renewal answers with a bare Boolean, so the page refetches for its new state. */
   onRenewed: () => void;
+  /** An undone downgrade does not return the packages it restored, so the page refetches. */
+  onDowngradeUndone: () => void;
 }
 
 /**
  * The page header's actions, decided from the subscription's state.
  *
  * Two slots and a menu. The accent slot is the state's own thing to do, when
- * there is one: clear a scheduled cancellation, settle an overdue invoice, or
- * turn a trial into a subscription. The quieter slot is the balance — the one
+ * there is one: clear a scheduled cancellation, undo a scheduled downgrade,
+ * settle an overdue invoice, or turn a trial into a subscription. The quieter slot is the balance — the one
  * of the two a paused assistant depends on, and what the app-wide balance bar
  * deep-links to. The plan change lives in the menu whatever the plan, so that
  * the quieter slot stays the balance.
@@ -73,9 +79,11 @@ export function useBillingPageActions({
   onManageAiBalance,
   onCancel,
   onRenewed,
+  onDowngradeUndone,
 }: BillingPageActionsArgs): BillingPageActions {
   const data = useFragment(useBillingPageActionsFragment, subscription);
   const resumeSubscription = useResumeSubscription();
+  const cancelPendingDowngrade = useCancelPendingDowngrade();
   const billingPortal = useBillingPortalSession();
   const cancelSubscriptionEnabled = useFeatureFlag('cancel-subscription');
   const customerPortalEnabled = useFeatureFlag('customer-portal');
@@ -111,6 +119,15 @@ export function useBillingPageActions({
    * header's Activate Subscription is the whole offer.
    */
   const planOffered = !isPendingCancellation && !needsCheckout;
+
+  /**
+   * A downgrade is scheduled when the package in force has an end date: the
+   * backend's own test (`hasScheduledEnd`), which covers a smaller package and
+   * a lapse to pay-as-you-go alike. A staged package on its own is not one — a
+   * checkout's upgrade waiting on its invoice looks the same. Once the
+   * downgrade takes effect the end date is gone, and so is the action.
+   */
+  const downgradeScheduled = status === SubscriptionStatus.ACTIVE && planSchedule(data).currentPlanEndsOn != null;
 
   // Stripe hosts the invoice; the newest one with a payment link is the one to
   // settle. The list is null when the subscription answered without its
@@ -178,21 +195,30 @@ export function useBillingPageActions({
         loading: resumeSubscription.isPending,
         disabled: resumeSubscription.isPending,
       }
-    : isOverdue
+    : downgradeScheduled
       ? {
-          label: 'Pay Overage',
-          onClick: () => {
-            if (latestPendingInvoiceUrl) {
-              openExternalTab(latestPendingInvoiceUrl);
-            } else {
-              onChangePlan();
-            }
-          },
+          label: 'Undo Downgrade',
+          // Keeps the current plan: the staged one is dropped, nothing is bought.
+          onClick: () => cancelPendingDowngrade.mutate({ onSuccess: onDowngradeUndone }),
           variant: 'accent',
+          loading: cancelPendingDowngrade.isPending,
+          disabled: cancelPendingDowngrade.isPending,
         }
-      : isTrial
-        ? { label: 'Activate Subscription', onClick: onActivate, variant: 'accent' }
-        : null;
+      : isOverdue
+        ? {
+            label: 'Pay Overage',
+            onClick: () => {
+              if (latestPendingInvoiceUrl) {
+                openExternalTab(latestPendingInvoiceUrl);
+              } else {
+                onChangePlan();
+              }
+            },
+            variant: 'accent',
+          }
+        : isTrial
+          ? { label: 'Activate Subscription', onClick: onActivate, variant: 'accent' }
+          : null;
 
   const secondaryAction: PageActionButton | null = onManageAiBalance
     ? { label: 'Manage AI Balance', onClick: onManageAiBalance, variant: 'outline' }

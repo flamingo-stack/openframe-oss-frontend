@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import { useMutation, useRelayEnvironment } from 'react-relay';
 import type { markNotificationsReadForEntityMutation as MarkForEntityMutationType } from '@/__generated__/markNotificationsReadForEntityMutation.graphql';
 import type { NotificationEntityType } from '@/generated/schema-enums';
+import { entityRefsOfEntity, refreshEntityUnreadCounts } from './entity-unread-counts';
 import { markNotificationsReadForEntityMutation } from './mark-notifications-read-for-entity-mutation';
 import { refreshUnreadCounts } from './unread-counts-relay';
 
@@ -48,6 +49,7 @@ export function useMarkEntityNotificationsRead() {
         variables: { entityType, entityId },
         onCompleted: () => {
           refreshUnreadCounts(environment);
+          refreshEntityUnreadCounts(environment, entityRefsOfEntity(entityType, entityId));
           onCompleted?.();
         },
         onError: err =>
