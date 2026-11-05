@@ -92,6 +92,15 @@ exists.**
   frozen bundles never make. Sign-in is separate (ASWebAuthenticationSession /
   NativeAuth's own Custom Tab). iOS reports the app inactive while the browser is up and
   closes it on a notification tap (see the SFSafariViewController gotcha).
+  **A link from a notification tap** (an announcement's `link`, opened by the web's
+  `followNotificationTap` with `window.open`) reaches the plugin ~0.2 s before
+  `didBecomeActive` (`applicationState == .inactive`), and after `dismissBrowser()` has
+  started closing any browser that was up. So `open(_:)` holds an `.inactive` URL and opens
+  it on activation (dropped if the app goes to the background first), and `present(_:)`
+  waits for an in-flight dismissal through its transition coordinator. Before this both
+  dropped the link silently. Verified on the iOS 27 simulator (2026-11-04): background tap,
+  tap with a browser up, cold start. A `.background` navigation is still dropped, as
+  Capacitor does.
   SFSafariViewController does not share Safari's cookies, so a vendor portal asks to sign
   in again; Custom Tabs run in the default browser (Chrome on most devices) and do.
 - **`AppDelegate.swift`** — the three APNs forwarding methods

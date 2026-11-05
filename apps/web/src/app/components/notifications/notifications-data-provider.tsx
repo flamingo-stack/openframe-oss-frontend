@@ -95,6 +95,8 @@ import { withNotificationIcon } from './notification-category-icons';
 import {
   ADMIN_AI_MESSAGE_TYPE,
   ADMIN_AI_TICKET_MESSAGE_TYPE,
+  followNotificationTap,
+  natsNotificationRawId,
   type NotificationAction,
   notificationTargetsDialog,
   notificationTargetsLocation,
@@ -252,7 +254,8 @@ interface NavigationTileWrapperProps {
  * a desktop OS banner. A Mingo chat opens over the page when the composer dock can (the
  * sheet, as the classic drawer did): no URL changes then, so the location-based
  * `EntityViewAutoReader` never sees the user arrive and the notification is marked read
- * here. Anything else navigates to its route, where the auto-reader marks it.
+ * here. Anything else is followed as a shell's tap is (`followNotificationTap`): an
+ * announcement's link opens and is read on the spot, any other route is read where it lands.
  */
 function openNotificationTarget(
   action: NotificationAction,
@@ -264,7 +267,7 @@ function openNotificationTarget(
     markRead(notificationId);
     return;
   }
-  navigate(action.route);
+  followNotificationTap(action, { navigate, markRead: () => markRead(notificationId) });
 }
 
 /** Wraps a tile so its body navigates to the notification's target entity; inner buttons keep their own clicks. */
@@ -690,7 +693,7 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
         applyReadStateEvent(environmentRef.current, payload.eventType, payload.notificationIds);
         return;
       }
-      const rawId = payload.notificationId ?? payload.id;
+      const rawId = natsNotificationRawId(payload);
       if (!rawId) return;
       const relayId = notificationGlobalId(rawId);
       const severity = parseSeverity(payload.severity);
