@@ -81,8 +81,8 @@ describe('composeOpenframeInAppContentUrl', () => {
     );
   });
 
-  it('keeps hub-only types on the absolute content-hub origin', () => {
-    expect(href({ type: 'blog_post', identifier: 'my-post' })).toBe('https://www.flamingo.run/blog/my-post');
+  it('opens a hub-only record at the address the server answers, and the content hub when it answers none', () => {
+    expect(href({ type: 'blog_post', identifier: 'my-post' })).toBe('https://www.flamingo.run');
     expect(href({ type: 'webinar', identifier: 'x', externalUrl: 'https://www.flamingo.run/webinars/abc' })).toBe(
       'https://www.flamingo.run/webinars/abc',
     );
