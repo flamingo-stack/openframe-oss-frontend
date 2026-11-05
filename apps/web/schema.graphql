@@ -2528,8 +2528,6 @@ type Notification implements Node {
   title: String!
   description: String
   createdAt: Instant!
-  read: Boolean! @deprecated(reason: "Use status.")
-
   """
   The recipient's read state of this notification. DELETED rows are never listed.
   """
@@ -2849,11 +2847,6 @@ type OrganizationImage {
   presignedImageUrl: String
   hash: String
   sourceType: String!
-}
-
-""" Deprecated: Use OrganizationConnection instead"""
-type OrganizationList {
-  organizations: [Organization!]!
 }
 
 type OrganizationRemoteAccessPolicy {
@@ -3439,8 +3432,6 @@ type Query {
 
   " Agent logs, newest first, always scoped to the current tenant.\n Name devices with `machineIds`, or omit it to follow every device in the tenant.\n Paginate with first/after (older entries); re-query without `after` to pick up newer ones."
   deviceLogs(
-    machineId: String @deprecated(reason: "Use machineIds; a value given here is added to that list")
-
     """ 1-50 devices. Omit for every device in the tenant; an empty list is rejected"""
     machineIds: [String!]
 
