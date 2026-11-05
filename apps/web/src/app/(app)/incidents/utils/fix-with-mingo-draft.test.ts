@@ -50,25 +50,6 @@ describe('incidentMingoDraft', () => {
     expect(draft.text).toBe('Look at [this device](record://device/m-1) please.');
   });
 
-  // TODO(CU-17tkuw61kfy): what the server sends until the mobile gate is armed.
-  it('turns the leading tokens of the prompt the server sends today into the same labelled mentions', () => {
-    const draft = incidentMingoDraft(
-      '@insight:qa-insight-2 @device:m-1\n\nUsing the insight and device context, investigate this problem.',
-      incident,
-    );
-    expect(draft.mentions).toEqual([
-      { type: 'INSIGHT', id: 'qa-insight-2', label: 'macOS firewall is off' },
-      { type: 'DEVICE', id: 'm-1', label: 'MacBook-Pro-Kirill.local' },
-    ]);
-    expect(draft.text).toBe('Using the insight and device context, investigate this problem.');
-  });
-
-  it('keeps a token of an unknown type in the text and reads the one after it', () => {
-    const draft = incidentMingoDraft('@widget:w-1 @device:m-1 look', incident);
-    expect(draft.mentions).toEqual([{ type: 'DEVICE', id: 'm-1', label: 'MacBook-Pro-Kirill.local' }]);
-    expect(draft.text).toBe('@widget:w-1 look');
-  });
-
   it('labels an unexpected id with the id itself and keeps a link of an unknown type in the text', () => {
     const draft = incidentMingoDraft('[a](record://insight/other) [w](record://widget/w-1) look', incident);
     expect(draft.mentions).toEqual([{ type: 'INSIGHT', id: 'other', label: 'other' }]);
@@ -97,13 +78,6 @@ describe('linkedInsightId', () => {
     expect(linkedInsightId('[d](record://device/m-1) [this incident](record://insight/qa-insight-2) why?')).toBe(
       'qa-insight-2',
     );
-  });
-
-  // TODO(CU-17tkuw61kfy): what the server sends until the mobile gate is armed.
-  it('reads the incident a token names, as a whole token', () => {
-    expect(linkedInsightId('@insight:qa-insight-2 @device:m-1 why?')).toBe('qa-insight-2');
-    expect(linkedInsightId('why is @insight:qa-insight-2 open?')).toBe('qa-insight-2');
-    expect(linkedInsightId('mail me@insight:qa-insight-2')).toBeUndefined();
   });
 
   it('finds none in a message that names no incident', () => {

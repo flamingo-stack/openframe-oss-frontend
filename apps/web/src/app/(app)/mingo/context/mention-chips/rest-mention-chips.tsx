@@ -17,13 +17,14 @@
  * (24-char ObjectId → new, numeric → this Tactical resolver) so BOTH resolve.
  */
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { RecordChip } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { formatTicketRef } from '@/app/(app)/tickets/utils/ticket-ref';
 import { apiClient } from '@/lib/api-client';
 import { fleetApiClient } from '@/lib/fleet-api-client';
 import { routes } from '@/lib/routes';
-import { MentionErrorBoundary, MentionTag } from './mention-tag';
 
 interface Resolved {
   label: string;
@@ -98,7 +99,7 @@ function RestLoader(props: RestMentionChipProps) {
 
 function RestReader(props: RestMentionChipProps) {
   // In a loading scope it draws the chip with no label and runs no read.
-  if (useLoadingScope()) return <MentionTag label="" />;
+  if (useLoadingScope()) return <RecordChip type={props.marker} id={props.id} label="" loading />;
   return <RestInner {...props} />;
 }
 
@@ -111,13 +112,13 @@ function RestInner({ marker, id, fallbackLabel }: RestMentionChipProps) {
   // Resolvers degrade to `{ label: id }` when the lookup misses; in that case
   // prefer the caller's known label over showing the raw id.
   const label = data.label === id && fallbackLabel ? fallbackLabel : data.label;
-  return <MentionTag label={label} href={data.href} />;
+  return <RecordChip type={marker} id={id} label={label} href={data.href ?? null} />;
 }
 
 export function RestMentionChip({ marker, id, fallbackLabel }: RestMentionChipProps) {
   return (
-    <MentionErrorBoundary fallback={<MentionTag label={fallbackLabel || id} />}>
+    <ErrorBoundary fallback={<RecordChip type={marker} id={id} label={fallbackLabel || id} href={null} />}>
       <RestLoader marker={marker} id={id} fallbackLabel={fallbackLabel} />
-    </MentionErrorBoundary>
+    </ErrorBoundary>
   );
 }

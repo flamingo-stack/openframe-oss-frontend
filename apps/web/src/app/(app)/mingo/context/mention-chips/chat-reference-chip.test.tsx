@@ -24,8 +24,6 @@ const spies = vi.hoisted(() => ({
   post: vi.fn<(url: string, body?: { query?: string; variables?: unknown }) => Promise<ApiResponse>>(),
 }));
 
-// Where links stay in this window (no new-tab segment): the chip's own target is what is under test.
-vi.mock('@/app/hooks/use-same-window-links', () => ({ useSameWindowLinks: () => true }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: spies.push }), usePathname: () => '/dashboard' }));
 
 /** The chat runtime every chat link, this chip included, navigates through: an in-app link is a router push, as
@@ -39,6 +37,8 @@ const runtime = {
       return true;
     },
     decideNewTab: () => false,
+    // Where links stay in this window (no new-tab segment): the chip's own target is what is under test.
+    opensTabs: false,
   },
   source: 'openframe',
 } as unknown as ChatRuntime;

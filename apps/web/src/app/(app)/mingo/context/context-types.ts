@@ -1,3 +1,10 @@
+import {
+  OPENFRAME_RECORD_KIND,
+  OPENFRAME_RECORD_KINDS,
+  OPENFRAME_RECORD_TYPE,
+  type OpenFrameRecordKind,
+} from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+
 /**
  * Mingo entity-context types shared across the host's context layer (the
  * picker config, the recent-views store, and the send payload).
@@ -7,90 +14,23 @@
  * alongside for display (chips + the dev window); the label is stripped when
  * building the wire payload.
  *
- * `CONTEXT_ENTITY_KIND` mirrors the backend `ContextItemType` enum
- * (`com.openframe.data.document.chat.ContextItemType`) — DEVICE / SCRIPT /
- * TICKET / ORGANIZATION / USER / KB_ARTICLE / KB_FOLDER / POLICY / QUERY /
- * SCHEDULED_SCRIPT / INSIGHT / SOFTWARE / VULNERABILITY. All are resolved
- * server-side (the ai-agent ships a `*ContextResolver` for each, incl.
- * `PolicyContextResolver` + `ScheduledQueryContextResolver` +
- * `ScheduledScriptContextResolver`; `InsightContextResolver` is a placeholder
- * today — it answers "not available in this build" until the insight lookup
- * lands; SOFTWARE and VULNERABILITY are the two the backend enum still has to
- * grow — see their entries). KB_FOLDER is both picked and mentioned: the picker
- * lists every folder, and the agent links `record://kbFolder/<id>` on its own.
- *
- * `CONTEXT_ENTITY_MARKER` maps each kind to that enum's `marker()` — the SHORT
- * record type of its record link (note `KB_ARTICLE` → `kb`, not `kb_article`,
- * and `SCHEDULED_SCRIPT` → camelCase `scheduledScript`). The structured
- * `contextItems[].type` wire field keeps the UPPERCASE kind (the
- * `ContextItemType` GraphQL enum, matched by name); only the record link in the
- * message text uses the record type. The picker forwards it to the lib via
- * `ChatContextEntityType.marker`.
- *
- * SINGLE SOURCE OF TRUTH — to add a kind: add one entry here (+ its marker),
- * then wire its label/icon in `MINGO_CONTEXT_ENTITY_TYPES` and its fetcher in
- * `FETCHERS` (both in `context-sources.tsx`). The TS `Record<ContextEntityKind,
- * …>` on `FETCHERS` + `CONTEXT_ENTITY_MARKER` makes a missing entry a compile
- * error.
+ * The kinds and each kind's record type (the `<type>` of its record link) are
+ * the lib's ONE table of OpenFrame record types (`OPENFRAME_RECORD_KIND`,
+ * `OPENFRAME_RECORD_TYPE`), which the agent's `ContextItemType` matches by name.
+ * To add a kind: add it there, then wire its label/icon in
+ * `MINGO_CONTEXT_ENTITY_TYPES` and its fetcher in `FETCHERS` (both in
+ * `context-sources.tsx`). The TS `Record<ContextEntityKind, …>` on `FETCHERS`
+ * makes a missing entry a compile error.
  */
+export const CONTEXT_ENTITY_KIND = OPENFRAME_RECORD_KIND;
 
-export const CONTEXT_ENTITY_KIND = {
-  DEVICE: 'DEVICE',
-  SCRIPT: 'SCRIPT',
-  TICKET: 'TICKET',
-  ORGANIZATION: 'ORGANIZATION',
-  USER: 'USER',
-  KB_ARTICLE: 'KB_ARTICLE',
-  KB_FOLDER: 'KB_FOLDER',
-  POLICY: 'POLICY',
-  QUERY: 'QUERY',
-  SCHEDULED_SCRIPT: 'SCHEDULED_SCRIPT',
-  /**
-   * An incident (the API's `Insight`); its record link is `record://insight/<stored id>` —
-   * the id INSIDE the Relay handle, like every other kind.
-   */
-  INSIGHT: 'INSIGHT',
-  /**
-   * A software title from the fleet inventory. `Software.id` is the inventory's
-   * own id — not a Relay global id — and it is what `software(id:)` and the
-   * `/software/details?id=` route take, so it travels as is.
-   */
-  SOFTWARE: 'SOFTWARE',
-  /**
-   * A CVE. Keyed by its `cveId` (`CVE-2024-38063`) everywhere — the API has no
-   * other handle for one — so the id doubles as the display name.
-   */
-  VULNERABILITY: 'VULNERABILITY',
-} as const;
-
-export type ContextEntityKind = (typeof CONTEXT_ENTITY_KIND)[keyof typeof CONTEXT_ENTITY_KIND];
+export type ContextEntityKind = OpenFrameRecordKind;
 
 /** All kinds as a runtime list, in declaration order. */
-export const CONTEXT_ENTITY_KINDS = Object.values(CONTEXT_ENTITY_KIND) as ContextEntityKind[];
+export const CONTEXT_ENTITY_KINDS = OPENFRAME_RECORD_KINDS;
 
-/**
- * Record types — each kind's `ContextItemType.marker()`, the `<type>` of its
- * record link (`record://device/…`, `record://kb/…`, `record://policy/…`). Three
- * entries are not a plain lowercase of the kind: `KB_ARTICLE → 'kb'`, and the
- * camelCase `KB_FOLDER → 'kbFolder'` and `SCHEDULED_SCRIPT → 'scheduledScript'`
- * (the backend matches the type verbatim, so the case MUST be preserved end to
- * end). Fed to the lib via the picker so the committed record link matches.
- */
-export const CONTEXT_ENTITY_MARKER: Record<ContextEntityKind, string> = {
-  DEVICE: 'device',
-  SCRIPT: 'script',
-  TICKET: 'ticket',
-  ORGANIZATION: 'organization',
-  USER: 'user',
-  KB_ARTICLE: 'kb',
-  KB_FOLDER: 'kbFolder',
-  POLICY: 'policy',
-  QUERY: 'query',
-  SCHEDULED_SCRIPT: 'scheduledScript',
-  INSIGHT: 'insight',
-  SOFTWARE: 'software',
-  VULNERABILITY: 'vulnerability',
-};
+/** Each kind's record type: the `<type>` of its record link (`record://device/…`, `record://kb/…`). */
+export const CONTEXT_ENTITY_MARKER = OPENFRAME_RECORD_TYPE;
 
 /**
  * Relay `__typename` for the GraphQL-resolvable kinds. Used ONLY to round-trip a

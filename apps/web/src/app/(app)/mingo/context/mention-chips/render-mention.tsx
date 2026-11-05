@@ -23,12 +23,12 @@
  * resolve a name. Unknown type → the lib's own chip.
  */
 
-import type { ChatContextItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { OPENFRAME_CHAT_RECORD_TYPE } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import { type ChatContextItem, RecordChip } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import type { ReactNode } from 'react';
 import { routes } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND, type ContextEntityKind, CONTEXT_ENTITY_MARKER as M } from '../context-types';
-import { CHAT_REFERENCE_MARKER, ChatReferenceChip } from './chat-reference-chip';
-import { MentionTag } from './mention-tag';
+import { ChatReferenceChip } from './chat-reference-chip';
 import { GraphqlMentionChip } from './relay-mention-chips';
 import { RestMentionChip } from './rest-mention-chips';
 
@@ -42,7 +42,7 @@ const OBJECT_ID_RE = /^[0-9a-f]{24}$/i;
 export function renderMingoRecordChip({
   type,
   id,
-  label: linkLabel,
+  label,
 }: {
   type: string;
   id: string;
@@ -50,11 +50,8 @@ export function renderMingoRecordChip({
    *  never shows a bare id when the live resolve misses (e.g. a script id the resolver can't find). */
   label?: string;
 }): ReactNode {
-  // TODO(CU-17tkuw61kfy): goes with the old mention token. The lib writes `@device:m1` as a link labelled with itself, which
-  // names nothing: with no name, a chip reads its id.
-  const label = linkLabel === `@${type}:${id}` ? undefined : linkLabel;
   switch (type) {
-    case CHAT_REFERENCE_MARKER:
+    case OPENFRAME_CHAT_RECORD_TYPE:
       // Not an entity: an earlier conversation Mingo cites from chat memory.
       // Opens IN the drawer (see the chip), never on a page.
       return <ChatReferenceChip id={id} />;
@@ -77,7 +74,7 @@ export function renderMingoRecordChip({
     case M.VULNERABILITY:
       // A CVE id is its own name: nothing to resolve, so no fetch and no
       // skeleton — a linked chip straight away.
-      return <MentionTag label={label || id} href={routes.software.vulnerability(id)} />;
+      return <RecordChip type={type} id={id} label={label || id} href={routes.software.vulnerability(id)} />;
     case M.SCRIPT:
       // Dual-sourced: a 24-char ObjectId is a NATIVE script (Relay `script(id:)`);
       // anything else (numeric) is a LEGACY Tactical id, still reachable in old

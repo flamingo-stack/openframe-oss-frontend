@@ -1,6 +1,7 @@
 'use client';
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
-import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { RecordChip } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { ErrorBoundary, getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 /**
@@ -44,8 +45,12 @@ import type { relayMentionChipsSoftwareQuery } from '@/__generated__/relayMentio
 import { toUserSummary } from '@/graphql/users/user-summary-fields';
 import { ensureGlobalIdForType } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
-import { CONTEXT_ENTITY_KIND, CONTEXT_RELAY_TYPENAME, type ContextEntityKind } from '../context-types';
-import { MentionErrorBoundary, MentionTag } from './mention-tag';
+import {
+  CONTEXT_ENTITY_KIND,
+  CONTEXT_ENTITY_MARKER,
+  CONTEXT_RELAY_TYPENAME,
+  type ContextEntityKind,
+} from '../context-types';
 
 interface GraphqlMentionChipProps {
   /** GraphQL-resolvable kind — DEVICE | ORGANIZATION | USER | KB_ARTICLE | KB_FOLDER |
@@ -134,7 +139,7 @@ const SOFTWARE_QUERY = graphql`
 /** Detail-page URL for a resolved entity. Device/org/software routes key on the
  *  RAW id; the kb + script + schedule + incident routes key on the GLOBAL id
  *  (same id their queries take). */
-function hrefFor(kind: ContextEntityKind, rawId: string, globalId: string): string | undefined {
+function hrefFor(kind: ContextEntityKind, rawId: string, globalId: string): string | null {
   switch (kind) {
     case CONTEXT_ENTITY_KIND.DEVICE:
       return routes.devices.details(rawId);
@@ -155,8 +160,23 @@ function hrefFor(kind: ContextEntityKind, rawId: string, globalId: string): stri
     case CONTEXT_ENTITY_KIND.INSIGHT:
       return routes.incidents.details(globalId);
     default:
-      return undefined;
+      return null;
   }
+}
+
+/** The chip of one record of `kind`: the lib's `RecordChip`, opening the record on this app's own page for it. */
+function KindChip({
+  kind,
+  id,
+  globalId,
+  label,
+}: {
+  kind: ContextEntityKind;
+  id: string;
+  globalId: string;
+  label: string;
+}) {
+  return <RecordChip type={CONTEXT_ENTITY_MARKER[kind]} id={id} label={label} href={hrefFor(kind, id, globalId)} />;
 }
 
 type InnerProps = GraphqlMentionChipProps & { globalId: string };
@@ -184,7 +204,7 @@ function NodeInner({ kind, id, globalId, fallbackLabel }: InnerProps) {
         break;
     }
   }
-  return <MentionTag label={label} href={hrefFor(kind, id, globalId)} />;
+  return <KindChip kind={kind} id={id} globalId={globalId} label={label} />;
 }
 
 function KbInner({ kind, id, globalId, fallbackLabel }: InnerProps) {
@@ -193,7 +213,9 @@ function KbInner({ kind, id, globalId, fallbackLabel }: InnerProps) {
     { id: globalId },
     { fetchPolicy: 'store-or-network' },
   );
-  return <MentionTag label={data.knowledgeBaseItem?.name || fallbackLabel || id} href={hrefFor(kind, id, globalId)} />;
+  return (
+    <KindChip kind={kind} id={id} globalId={globalId} label={data.knowledgeBaseItem?.name || fallbackLabel || id} />
+  );
 }
 
 function ScriptInner({ kind, id, globalId, fallbackLabel }: InnerProps) {
@@ -202,7 +224,7 @@ function ScriptInner({ kind, id, globalId, fallbackLabel }: InnerProps) {
     { id: globalId },
     { fetchPolicy: 'store-or-network' },
   );
-  return <MentionTag label={data.script?.name || fallbackLabel || id} href={hrefFor(kind, id, globalId)} />;
+  return <KindChip kind={kind} id={id} globalId={globalId} label={data.script?.name || fallbackLabel || id} />;
 }
 
 function ScheduleInner({ kind, id, globalId, fallbackLabel }: InnerProps) {
@@ -211,7 +233,7 @@ function ScheduleInner({ kind, id, globalId, fallbackLabel }: InnerProps) {
     { id: globalId },
     { fetchPolicy: 'store-or-network' },
   );
-  return <MentionTag label={data.scriptSchedule?.name || fallbackLabel || id} href={hrefFor(kind, id, globalId)} />;
+  return <KindChip kind={kind} id={id} globalId={globalId} label={data.scriptSchedule?.name || fallbackLabel || id} />;
 }
 
 function InsightInner({ kind, id, globalId, fallbackLabel }: InnerProps) {
@@ -220,7 +242,7 @@ function InsightInner({ kind, id, globalId, fallbackLabel }: InnerProps) {
     { id: globalId },
     { fetchPolicy: 'store-or-network' },
   );
-  return <MentionTag label={data.insight.title || fallbackLabel || id} href={hrefFor(kind, id, globalId)} />;
+  return <KindChip kind={kind} id={id} globalId={globalId} label={data.insight.title || fallbackLabel || id} />;
 }
 
 function SoftwareInner({ kind, id, globalId, fallbackLabel }: InnerProps) {
@@ -229,7 +251,7 @@ function SoftwareInner({ kind, id, globalId, fallbackLabel }: InnerProps) {
     { id: globalId },
     { fetchPolicy: 'store-or-network' },
   );
-  return <MentionTag label={data.software?.name || fallbackLabel || id} href={hrefFor(kind, id, globalId)} />;
+  return <KindChip kind={kind} id={id} globalId={globalId} label={data.software?.name || fallbackLabel || id} />;
 }
 
 function innerFor(kind: ContextEntityKind): (p: InnerProps) => ReactNode {
@@ -261,9 +283,9 @@ export function GraphqlMentionChip({ kind, id, fallbackLabel }: GraphqlMentionCh
   // takes, so it goes through as is.
   const globalId = typename ? ensureGlobalIdForType(typename, id) : id;
   return (
-    <MentionErrorBoundary fallback={<MentionTag label={fallbackLabel || id} href={hrefFor(kind, id, globalId)} />}>
+    <ErrorBoundary fallback={<KindChip kind={kind} id={id} globalId={globalId} label={fallbackLabel || id} />}>
       <GraphqlMentionLoader kind={kind} id={id} globalId={globalId} fallbackLabel={fallbackLabel} />
-    </MentionErrorBoundary>
+    </ErrorBoundary>
   );
 }
 
@@ -283,7 +305,7 @@ function GraphqlMentionLoader(props: InnerProps) {
 
 function GraphqlMentionReader(props: InnerProps) {
   // In a loading scope it draws the chip with no label and runs no read.
-  if (useLoadingScope()) return <MentionTag label="" />;
+  if (useLoadingScope()) return <RecordChip type={CONTEXT_ENTITY_MARKER[props.kind]} id={props.id} label="" loading />;
   const Inner = innerFor(props.kind);
   return <Inner {...props} />;
 }
