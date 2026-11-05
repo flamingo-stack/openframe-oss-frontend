@@ -31,7 +31,8 @@ const tenantFormHelpersFragment = graphql`
         kind
         values {
           id
-          name
+          lastKnownName
+          deleted
         }
       }
     }
@@ -77,7 +78,10 @@ export function readTenantFormRecord(ref: tenantFormHelpers_connection$key): Ten
       customers.map(customer => ({
         ...readBoundCustomer(customer),
         // Field by field: `relay/unused-fields` counts only the fields this file names.
-        rules: customer.rules.map(({ kind, values }) => ({ kind, values })),
+        rules: customer.rules.map(({ kind, values }) => ({
+          kind,
+          values: values.map(value => ({ id: value.id, lastKnownName: value.lastKnownName, deleted: value.deleted })),
+        })),
       })),
     ),
   };

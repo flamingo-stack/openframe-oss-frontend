@@ -36,7 +36,7 @@ import {
   inactiveCustomerBadge,
   isReadable,
   licenseFilterLabel,
-  missingValuesBadge,
+  deletedValuesBadge,
   PROVIDER_ORDER,
   providerErrorLookupUrl,
   providerPresentation,
@@ -194,15 +194,21 @@ describe('attribution rules', () => {
     expect(inactiveCustomerBadge(null)).toBe('Deleted');
   });
 
-  it('names a value the directory no longer has by its id', () => {
+  it('marks a deleted value by its last known name, or by its id when none was recorded', () => {
+    expect(ruleValueLabel({ id: 'g-1', name: 'Clinicians', deleted: false })).toBe('Clinicians');
     expect(ruleValueLabel({ id: 'g-1', name: 'Clinicians' })).toBe('Clinicians');
-    expect(ruleValueLabel({ id: 'g-gone', name: null })).toBe('g-gone (not found in directory)');
+    expect(ruleValueLabel({ id: 'g-gone', name: 'Nurses', deleted: true })).toBe('Nurses (deleted)');
+    expect(ruleValueLabel({ id: 'g-gone', name: null, deleted: true })).toBe('g-gone (deleted)');
   });
 
-  it('badges a rule while some of its values are gone from the directory', () => {
-    expect(missingValuesBadge(0)).toBeNull();
-    expect(missingValuesBadge(1)).toBe('Not in directory');
-    expect(missingValuesBadge(3)).toBe('3 not in directory');
+  it('names a value with no name yet by its id, unmarked until a sync says it is gone', () => {
+    expect(ruleValueLabel({ id: 'g-new', name: null, deleted: false })).toBe('g-new');
+  });
+
+  it('badges a rule while some of its values are deleted', () => {
+    expect(deletedValuesBadge(0)).toBeNull();
+    expect(deletedValuesBadge(1)).toBe('Deleted value');
+    expect(deletedValuesBadge(3)).toBe('3 deleted values');
   });
 
   it('summarises attribution as the details card draws it', () => {

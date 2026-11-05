@@ -11,7 +11,7 @@ import type {
   directoryTabQuery as DirectoryTabQueryType,
 } from '@/__generated__/directoryTabQuery.graphql';
 import { UserTabHeading } from '@/app/(app)/users/components/user-detail/user-tab-heading';
-import { lastSignInLabel } from '@/app/(app)/users/utils/user-presentation';
+import { groupRefName, lastSignInLabel } from '@/app/(app)/users/utils/user-presentation';
 import { useRetryKey } from '@/app/components/shared';
 import { DirectoryReadability } from '@/generated/schema-enums';
 import { EMPTY_VALUE } from '@/lib/empty-value';
@@ -115,7 +115,11 @@ function EntraCard({ entra, stale }: { entra: NonNullable<Card['entra']>; stale:
         />
         <LeaderRow
           label="Member of"
-          value={entra.memberOf.length > 0 ? entra.memberOf.map(group => group.name).join(', ') : EMPTY_VALUE}
+          value={
+            entra.memberOf.length > 0
+              ? entra.memberOf.map(({ id, name }) => groupRefName({ id, name })).join(', ')
+              : EMPTY_VALUE
+          }
         />
         <StaleHint stale={stale} />
       </div>

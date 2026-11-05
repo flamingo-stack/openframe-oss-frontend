@@ -24,7 +24,7 @@ import { liveColumnMeta, oneLineEmptyState, useRetryKey } from '@/app/components
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { singleColumnFilter } from '../../../software/components/shared/column-filters';
-import { DELETED_GROUP_NAME } from '../../utils/user-presentation';
+import { groupRefName } from '../../utils/user-presentation';
 import { UserTabHeading } from './user-tab-heading';
 
 /** The selected account's licences, one per SKU (contract §2, S3), read whole: an account holds a handful. */
@@ -37,6 +37,7 @@ const userLicencesTabQuery = graphql`
         name
         assignedDirectly
         viaGroups {
+          id
           name
         }
       }
@@ -78,7 +79,7 @@ function toLicenceRow(licence: Licence, source: string): LicenceRow {
     name: licence.name,
     source,
     assignments: [...(licence.assignedDirectly ? [DIRECT] : []), ...(licence.viaGroups.length > 0 ? [VIA_GROUP] : [])],
-    viaGroups: licence.viaGroups.map(group => group.name ?? DELETED_GROUP_NAME),
+    viaGroups: licence.viaGroups.map(groupRefName),
   };
 }
 

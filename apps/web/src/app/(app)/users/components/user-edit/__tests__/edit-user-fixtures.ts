@@ -33,6 +33,7 @@ function fixtureAccount(overrides: Partial<FixtureAccount> = {}): FixtureAccount
     id: 'acc-1',
     source: OrgUserSource.MICROSOFT_365,
     email: 'olivia@contoso.com',
+    signInName: 'olivia@contoso.com',
     displayName: 'Olivia Grant',
     firstName: 'Olivia',
     lastName: 'Grant',

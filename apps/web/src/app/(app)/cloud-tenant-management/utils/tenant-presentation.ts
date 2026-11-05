@@ -372,21 +372,32 @@ export function ruleKindPlural(kind: string): string {
   return `${ruleKindLabel(kind).toLowerCase()}s`;
 }
 
-/**
- * A rule value in the values picker, whose chips take text only: its directory name, or for one the directory no
- * longer has, its id so the user can tell which to remove.
- */
-export function ruleValueLabel(value: { readonly id: string; readonly name: string | null | undefined }): string {
-  return value.name ?? `${value.id} (not found in directory)`;
+/** A group or org unit the directory no longer has, named the same way on every page: "Clinicians (deleted)". */
+export function deletedLabel(name: string): string {
+  return `${name} (deleted)`;
 }
 
 /**
- * The badge beside a rule's values while `missing` of them are gone from the directory (deleted there; the rule
- * keeps them, and claims nobody through them), or `null` while none are.
+ * A rule value as text, in the rules table and the values picker (whose chips take text only). `name` is the name to
+ * show (`lastKnownName`), which a value deleted before names were kept has none of: its id then, so the user can tell
+ * which to remove.
  */
-export function missingValuesBadge(missing: number): string | null {
-  if (missing <= 0) return null;
-  return missing === 1 ? 'Not in directory' : `${missing} not in directory`;
+export function ruleValueLabel(value: {
+  readonly id: string;
+  readonly name: string | null | undefined;
+  readonly deleted?: boolean;
+}): string {
+  const name = value.name ?? value.id;
+  return value.deleted ? deletedLabel(name) : name;
+}
+
+/**
+ * The badge beside a rule's values while `deleted` of them are gone from the directory (the rule keeps them, and
+ * claims nobody through them), or `null` while none are.
+ */
+export function deletedValuesBadge(deleted: number): string | null {
+  if (deleted <= 0) return null;
+  return deleted === 1 ? 'Deleted value' : `${deleted} deleted values`;
 }
 
 /** A bound customer whose organization document is gone: there is no name left to show. */

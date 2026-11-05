@@ -39,14 +39,19 @@ export interface SuspendTarget {
 }
 
 /**
- * Suspend and Unsuspend: one click each way, reversible, like a connection's Pause. Microsoft calls it blocking
- * sign-in, Google suspending the user; OpenFrame says Suspended for both.
+ * Suspend and Unsuspend: reversible, like a connection's Pause. Microsoft calls it blocking sign-in, Google suspending
+ * the user; OpenFrame says Suspended for both. `onSettled` runs once the write answers, either way: the confirmation
+ * stays open until then.
  */
 export function useSuspendUser() {
   const { toast } = useToast();
   const [commit, isSaving] = useMutation<useSuspendUserMutation>(suspendUserMutation);
 
-  const setSuspended = ({ accountId, organizationId, name }: SuspendTarget, suspended: boolean) => {
+  const setSuspended = (
+    { accountId, organizationId, name }: SuspendTarget,
+    suspended: boolean,
+    onSettled?: () => void,
+  ) => {
     const failedTitle = suspended ? 'Could not suspend the user' : 'Could not unsuspend the user';
     const doneTitle = suspended ? 'User suspended' : 'User unsuspended';
     const done = suspended ? `${name} can no longer sign in.` : `${name} can sign in again.`;
@@ -56,6 +61,7 @@ export function useSuspendUser() {
     commit({
       variables: { input: { id: accountId, organizationId, suspended } },
       onCompleted: ({ setDirectoryUserSuspended: { person, sessionsStillOpen, userErrors } }) => {
+        onSettled?.();
         const sessions = suspended && sessionsStillOpen ? ` ${SESSIONS_STILL_OPEN}` : '';
         if (userErrors.length === 0) {
           toast({ title: doneTitle, description: `${done}${sessions}`, variant: 'success' });
@@ -71,7 +77,10 @@ export function useSuspendUser() {
         }
         failed(userErrorsDescription(userErrors));
       },
-      onError: error => failed(getRelayErrorMessage(error, 'Please try again.')),
+      onError: error => {
+        onSettled?.();
+        failed(getRelayErrorMessage(error, 'Please try again.'));
+      },
     });
   };
 

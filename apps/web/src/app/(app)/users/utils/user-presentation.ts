@@ -1,5 +1,6 @@
 import type { TagProps } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { isSameDay } from 'date-fns';
+import { deletedLabel } from '@/app/(app)/cloud-tenant-management/utils/tenant-presentation';
 import {
   DirectoryFeed,
   DirectoryReadability,
@@ -109,13 +110,29 @@ export function secondFactorValue(state: string): string {
   return presentationFor(SECOND_FACTOR, state) ?? state;
 }
 
+/**
+ * The line under an account's name: its mailbox, else the name it signs in with. A Microsoft 365 account without a
+ * mailbox has no email but still a user principal name; a Google account's sign-in name is its primary email anyway.
+ */
+export function accountAddress(account: {
+  readonly email?: string | null;
+  readonly signInName?: string | null;
+}): string | null {
+  return account.email ?? account.signInName ?? null;
+}
+
 /** The mark in front of an account's name says which console it lives in: none for a user added in OpenFrame (brief). */
 export function providerMarks(source: string): string[] {
   return source === OrgUserSource.OPENFRAME ? [] : [source];
 }
 
-/** A group a stored membership still names after the provider deleted it. */
-export const DELETED_GROUP_NAME = 'A deleted group';
+/**
+ * A group a stored membership still names after the provider deleted it. The reference keeps no name, so its id,
+ * marked as a deleted rule value is.
+ */
+export function groupRefName(group: { readonly id: string; readonly name: string | null | undefined }): string {
+  return group.name ?? deletedLabel(group.id);
+}
 
 /** "Name +2": the first of several, counted. The empty mark when there are none. */
 export function firstAndCount(names: readonly string[]): { first: string; more: number } {

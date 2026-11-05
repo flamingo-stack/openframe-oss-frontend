@@ -99,6 +99,7 @@ const directoryUsersTableFragment = graphql`
           }
           accounts {
             id
+            signInName
             source
             status
             statusReason
@@ -153,7 +154,8 @@ function toUserRow(node: PersonNode): UserRow {
     id: node.personKey,
     href: firstAccount ? routes.users.details(firstAccount.id) : null,
     name: node.displayName,
-    email: node.email,
+    // A person whose accounts hold no mailbox is named by the sign-in name of the first account that has one.
+    email: node.email ?? node.accounts.find(account => account.signInName)?.signInName ?? null,
     providers: node.providers.flatMap(providerMarks),
     roleTag: adminAccount ? topAdminRole(node.topAdmin, adminAccount.source) : null,
     customers: node.customers.map(toClaimingCustomer),

@@ -950,9 +950,26 @@ type DirectoryRuleValue {
   id: String!
 
   """
-  Live display: the domain, the group name, the org-unit path. Null when no longer found in the directory.
+  Live display: the domain, the group name, the org-unit path. Null when the group or org unit no longer exists in
+  the directory: show the value as deleted, it matches nobody. lastKnownName keeps its name and deleted says it is
+  gone.
   """
   name: String
+
+  """
+  The name to show: name while the directory has the value, else the last name OpenFrame recorded for it, kept when
+  the rule was saved and when a sync removed the group or org unit. Null when no name was ever recorded, e.g. a value
+  deleted before names were kept. Equals name for every directoryRuleOptions row.
+  """
+  lastKnownName: String
+
+  """
+  True when the group or org unit no longer exists in the directory as of the connection's last sync: the rule claims
+  nobody through this value. Judged only once a sync has finished and the synced data holds values of the kind (the
+  same test directoryRuleOptions uses to trust it); false before that, for DOMAIN values and for every
+  directoryRuleOptions row.
+  """
+  deleted: Boolean!
 }
 
 """
@@ -7041,7 +7058,10 @@ type DirectoryAccount {
   sourceId: String
   "Null for OPENFRAME accounts."
   connection: DirectoryConnection
+  "The mailbox address (Microsoft 365 mail, Google primary email). Null for a Microsoft 365 account without a mailbox; signInName still names it."
   email: String
+  "The name the account signs in with: the user principal name for Microsoft 365, the primary email for Google Workspace. Null for OPENFRAME accounts."
+  signInName: String
   displayName: String!
   firstName: String
   lastName: String
@@ -7266,7 +7286,13 @@ type DirectoryGroupMemberConnection {
   totalCount: Int!
   "Members outside the customer's view: counted, not listed. 0 without organizationId."
   hiddenMemberCount: Int!
-  "NESTED only: true when the live read failed; the connection is then empty."
+  """
+  Members that are not a user, group or device of this connection's directory (for example an outside email address,
+  a Google CUSTOMER entry, a member not synced yet or, NESTED only, a Microsoft contact or service principal):
+  counted, not listed. Taken over the whole roster, the same on every page, with or without organizationId.
+  """
+  externalMemberCount: Int!
+  "NESTED only: true when the live read failed, or was not made because the connection is paused; the connection is then empty."
   liveDataUnavailable: Boolean!
 }
 

@@ -6,6 +6,7 @@ import {
   Button,
   type ColumnDef,
   FilterModal,
+  InfoHint,
   type Row,
   useDataTable,
   useLoadingScope,
@@ -41,7 +42,12 @@ import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { singleColumnFilter } from '../../../software/components/shared/column-filters';
 import { deviceOrigin } from '../../utils/device-presentation';
-import { nestedGroupLabel, pickMembershipScope } from '../../utils/group-presentation';
+import {
+  externalMembersHint,
+  membersEmptyMessage,
+  nestedGroupLabel,
+  pickMembershipScope,
+} from '../../utils/group-presentation';
 import { topAdminRole } from '../../utils/user-presentation';
 import { UserTabHeading } from '../user-detail/user-tab-heading';
 import { FirstPlusCountCell } from '../users-list/user-row-cells';
@@ -75,9 +81,11 @@ const groupMembersTableFragment = graphql`
     after: { type: "String" }
   ) {
     directoryGroup(id: $id, organizationId: $organizationId) {
+      provider
       members(scope: $scope, first: $first, after: $after) @connection(key: "groupMembersTable_members") {
         totalCount
         hiddenMemberCount
+        externalMemberCount
         liveDataUnavailable
         edges {
           node {
@@ -323,6 +331,7 @@ function GroupMembersReader(props: MembersProps) {
         rows={NO_ITEMS}
         totalCount={0}
         hiddenCount={0}
+        external={null}
         liveFailed={false}
         infiniteScroll={NO_NEXT_PAGE}
       />
@@ -344,7 +353,8 @@ function GroupMembersQuery(props: MembersProps) {
     groupMembersTable_query$key
   >(groupMembersTableFragment, queryData);
 
-  const members = data.directoryGroup?.members;
+  const group = data.directoryGroup;
+  const members = group?.members;
   const rows = useMemo(
     () =>
       (members?.edges ?? []).flatMap(edge => {
@@ -354,7 +364,7 @@ function GroupMembersQuery(props: MembersProps) {
     [members, customerId],
   );
   // A missing group is the title's to say ("Group not found").
-  if (!members) return null;
+  if (!group || !members) return null;
 
   const fetchNextPage = () => {
     if (hasNext && !isLoadingNext) loadNext(MEMBERS_PAGE_SIZE);
@@ -365,6 +375,7 @@ function GroupMembersQuery(props: MembersProps) {
       rows={rows}
       totalCount={members.totalCount}
       hiddenCount={members.hiddenMemberCount}
+      external={{ count: members.externalMemberCount, provider: group.provider }}
       liveFailed={members.liveDataUnavailable}
       infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
     />
@@ -375,6 +386,7 @@ function MembersRows({
   rows,
   totalCount,
   hiddenCount,
+  external,
   liveFailed,
   infiniteScroll,
   liveScope,
@@ -385,10 +397,13 @@ function MembersRows({
   rows: readonly MemberRow[];
   totalCount: number;
   hiddenCount: number;
+  /** Members the directory does not hold (an outside address, a contact): counted over the whole roster, never listed. */
+  external: { count: number; provider: string } | null;
   liveFailed: boolean;
   infiniteScroll: InfiniteScroll;
 }) {
   const loading = useLoadingScope();
+  const externalCount = external?.count ?? 0;
   const placeholderRows = useMemo(
     () => (loading ? loadingPlaceholderRows<MemberRow>(MEMBERS_PAGE_SIZE) : null),
     [loading],
@@ -424,14 +439,16 @@ function MembersRows({
           itemName="result"
           totalCount={totalCount}
           isPending={isPending}
-          emptyState={oneLineEmptyState(
-            liveFailed
-              ? 'The nested members could not be read just now. Try again in a few minutes.'
-              : 'This group has no members.',
-          )}
+          emptyState={oneLineEmptyState(membersEmptyMessage({ liveFailed, hiddenCount, externalCount }))}
           rowHref={rowHref}
           footer={rows.length > 0 ? infiniteScroll : null}
         />
+        {external && externalCount > 0 && (
+          <p className="flex items-center gap-[var(--spacing-system-xxs)] text-ods-text-secondary text-h6">
+            {pluralize(externalCount, 'external member')}
+            <InfoHint label="external members">{externalMembersHint(external.provider)}</InfoHint>
+          </p>
+        )}
       </div>
     </section>
   );

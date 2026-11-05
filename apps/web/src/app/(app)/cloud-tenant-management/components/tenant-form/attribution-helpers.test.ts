@@ -13,31 +13,39 @@ import {
   type StoredCustomer,
   valuesClaimedElsewhere,
 } from './attribution-helpers';
-import { ATTRIBUTION_MODE, type AttributionFormData } from './attribution.types';
+import { ATTRIBUTION_MODE, type AttributionFormData, type RuleValue } from './attribution.types';
+
+/** A rule as the form reads it back, stored as the connection holds it: the name it shows is `lastKnownName`. */
+function storedRule(rule: { kind: DirectoryRuleKind; values: readonly RuleValue[] }): StoredCustomer['rules'][number] {
+  return {
+    kind: rule.kind,
+    values: rule.values.map(({ id, name, deleted = false }) => ({ id, lastKnownName: name, deleted })),
+  };
+}
 
 function customer(
   organizationId: string,
-  rules: StoredCustomer['rules'],
+  rules: { kind: DirectoryRuleKind; values: readonly RuleValue[] }[],
   status: string | null = 'ACTIVE',
 ): StoredCustomer {
   return {
     organizationId,
     organization: { organizationId, name: `Org ${organizationId}`, image: null, status },
-    rules,
+    rules: rules.map(storedRule),
   };
 }
 
 const ALL_RULE = { kind: DirectoryRuleKind.ALL, values: [] };
-const DOMAIN_RULE = { kind: DirectoryRuleKind.DOMAIN, values: [{ id: 'acme.com', name: 'acme.com' }] };
+const DOMAIN_RULE = { kind: DirectoryRuleKind.DOMAIN, values: [{ id: 'acme.com', name: 'acme.com', deleted: false }] };
 const GROUP_RULE = {
   kind: DirectoryRuleKind.GROUP,
   values: [
-    { id: 'g-1', name: 'Clinicians' },
-    { id: 'g-gone', name: null },
+    { id: 'g-1', name: 'Clinicians', deleted: false },
+    { id: 'g-gone', name: null, deleted: true },
   ],
 };
 
-const LAB_GROUP = { kind: DirectoryRuleKind.GROUP, values: [{ id: 'g-1', name: 'Clinicians' }] };
+const LAB_GROUP = { kind: DirectoryRuleKind.GROUP, values: [{ id: 'g-1', name: 'Clinicians', deleted: false }] };
 
 const SHARED: AttributionFormData = {
   mode: ATTRIBUTION_MODE.SHARED,
@@ -94,7 +102,7 @@ describe('readAttribution', () => {
       customer('acme', [DOMAIN_RULE], null),
       customer('old', [GROUP_RULE], 'ARCHIVED'),
       customer('closed', [ALL_RULE], 'DELETED'),
-      { organizationId: 'gone', organization: null, rules: [LAB_GROUP] },
+      { organizationId: 'gone', organization: null, rules: [storedRule(LAB_GROUP)] },
     ]);
     expect(values.customers.map(stored => stored.organizationId)).toEqual(['acme', 'old', 'closed', 'gone']);
     expect(options.get('acme')).toEqual({ organizationId: 'acme', name: 'Org acme', image: null });

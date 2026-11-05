@@ -16,6 +16,7 @@ const editUserFormFragment = graphql`
       id
       source
       email
+      signInName
       displayName
       firstName
       lastName
@@ -106,6 +107,8 @@ export interface EditUserRecord {
   source: string;
   displayName: string;
   email: string | null;
+  /** The name the account signs in with; shown in place of a missing email (a Microsoft 365 account with no mailbox). */
+  signInName: string | null;
   connectionId: string | null;
   customers: EditUserCustomer[];
   readOnlyReasons: readonly string[];
@@ -135,6 +138,7 @@ export function toEditUserRecord(person: Person): EditUserRecord | null {
     source: account.source,
     displayName: account.displayName,
     email: account.email ?? null,
+    signInName: account.signInName ?? null,
     connectionId: account.connection?.id ?? null,
     customers: account.customers.map(claim => {
       const { organizationId, name, image } = toCustomerOption(claim.organization);

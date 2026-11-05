@@ -73,7 +73,7 @@ function toFormRule(rule: RecordCustomer['rules'][number]): AttributionRule {
   return {
     // A kind this build does not know reads as not picked: the form asks for one rather than sending it blind.
     kind: knownValue(DirectoryRuleKind, rule.kind) ?? '',
-    values: rule.values.map(value => ({ id: value.id, name: value.name ?? null })),
+    values: rule.values.map(({ id, lastKnownName, deleted }) => ({ id, name: lastKnownName ?? null, deleted })),
   };
 }
 

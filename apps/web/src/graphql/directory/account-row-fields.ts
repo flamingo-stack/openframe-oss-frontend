@@ -1,7 +1,7 @@
 import { graphql, readInlineData } from 'react-relay';
 import type { accountRowFields_account$key } from '@/__generated__/accountRowFields_account.graphql';
 import type { UserRow } from '@/app/(app)/users/components/users-list/user-row-cells';
-import { providerMarks } from '@/app/(app)/users/utils/user-presentation';
+import { accountAddress, providerMarks } from '@/app/(app)/users/utils/user-presentation';
 import { routes } from '@/lib/routes';
 import { toClaimingCustomer } from './customer-claim-fields';
 
@@ -14,6 +14,7 @@ export const accountRowFieldsFragment = graphql`
     id
     displayName
     email
+    signInName
     source
     customers {
       ...customerClaimFields_claim
@@ -30,7 +31,7 @@ export function toAccountRow(ref: accountRowFields_account$key): AccountRow {
     id: account.id,
     href: routes.users.details(account.id),
     name: account.displayName,
-    email: account.email ?? null,
+    email: accountAddress({ email: account.email, signInName: account.signInName }),
     providers: providerMarks(account.source),
     customers: account.customers.map(toClaimingCustomer),
   };

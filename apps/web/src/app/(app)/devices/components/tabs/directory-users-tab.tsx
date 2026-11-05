@@ -29,7 +29,7 @@ import {
   type UserRow,
 } from '@/app/(app)/users/components/users-list/user-row-cells';
 import {
-  DELETED_GROUP_NAME,
+  groupRefName,
   lastSignInLabel,
   userStatusTag,
   userStatusTooltip,
@@ -101,7 +101,7 @@ function toRow({ account, link, groups }: DirectoryUser): UserRow {
     status: userStatusTag(account.status),
     statusTooltip: userStatusTooltip(account.statusReason, account.statusDetail),
     lastSignIn: lastSignInLabel(account.lastSignInAt, account.signInData, 'relative'),
-    groups: groups.map(group => group.name ?? DELETED_GROUP_NAME),
+    groups: groups.map(groupRefName),
   };
 }
 

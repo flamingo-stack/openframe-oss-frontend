@@ -124,3 +124,32 @@ describe('EditUserView, a refetch on a dirty form', () => {
     expect(saveButton().disabled).toBe(true);
   });
 });
+
+describe('EditUserView, the email field', () => {
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('shows the email of an account that has a mailbox', () => {
+    loader.state = loaded(true);
+    act(() => root.render(<EditUserView id="acc-1" />));
+    expect(input('Email').value).toBe('olivia@contoso.com');
+  });
+
+  it('shows the sign-in name of a Microsoft 365 account with no mailbox', () => {
+    loader.state = {
+      status: 'ready',
+      record: userRecord({ email: null, signInName: 'olivia@contoso.onmicrosoft.com', details: LIVE_DETAILS }),
+    };
+    act(() => root.render(<EditUserView id="acc-1" />));
+    expect(input('Sign-in name').value).toBe('olivia@contoso.onmicrosoft.com');
+    expect(input('Sign-in name').disabled).toBe(true);
+  });
+});

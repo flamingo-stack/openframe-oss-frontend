@@ -27,7 +27,7 @@ import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { ValueText } from '@/app/components/shared/value-text';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import { missingValuesBadge, ruleKindLabel } from '../../utils/tenant-presentation';
+import { deletedValuesBadge, ruleKindLabel, ruleValueLabel } from '../../utils/tenant-presentation';
 import { boundCustomerOption } from '../tenant-form/bound-customer';
 
 // A fragment, so Save re-selects it (`useSaveIntegrationMutation`) and a saved set lands here with its counts.
@@ -39,7 +39,8 @@ const tenantAttributionRulesFragment = graphql`
         kind
         values {
           id
-          name
+          lastKnownName
+          deleted
         }
         userCount
       }
@@ -47,8 +48,8 @@ const tenantAttributionRulesFragment = graphql`
   }
 `;
 
-// Its own query, like the integration section: a value's `name` is the directory's display name, and the page's
-// record should not wait for it.
+// Its own query, like the integration section: a value's name is the directory's display name, and the page's record
+// should not wait for it.
 const tenantAttributionRulesQuery = graphql`
   query tenantAttributionRulesQuery($id: ID!) {
     directoryConnection(connectionId: $id) {
@@ -66,9 +67,9 @@ interface AttributionRuleRow {
   /** "Archived" / "Deleted": the customer stays bound, and its users count as unattributed. */
   badge?: string;
   matchBy: string;
-  /** `null` for a rule with no values (`ALL`): the empty mark. A value the directory no longer has reads as its id. */
+  /** `null` for a rule with no values (`ALL`): the empty mark. A deleted value reads "<name> (deleted)". */
   values: string | null;
-  /** "Not in directory" while some of `values` are gone from the directory: the rule claims nobody through them. */
+  /** "Deleted value" while some of `values` are gone from the directory: the rule claims nobody through them. */
   valuesBadge: string | null;
   /** `undefined` until the first sync counts anyone: sorts last in both directions. */
   users: number | undefined;
@@ -92,8 +93,13 @@ function toRows(customers: Customers): AttributionRuleRow[] {
       customer: name,
       badge,
       matchBy: ruleKindLabel(rule.kind),
-      values: rule.values.length > 0 ? rule.values.map(value => value.name ?? value.id).join(', ') : null,
-      valuesBadge: missingValuesBadge(rule.values.filter(value => value.name == null).length),
+      values:
+        rule.values.length > 0
+          ? rule.values
+              .map(({ id, lastKnownName, deleted }) => ruleValueLabel({ id, name: lastKnownName, deleted }))
+              .join(', ')
+          : null,
+      valuesBadge: deletedValuesBadge(rule.values.filter(value => value.deleted).length),
       users: rule.userCount ?? undefined,
     }));
   });

@@ -6,9 +6,11 @@ import {
   DirectoryReadOnlyReason,
 } from '@/generated/schema-enums';
 import {
+  externalMembersHint,
   groupMembershipLabel,
   groupTypeLabel,
   groupVisibilityLabel,
+  membersEmptyMessage,
   nestedGroupLabel,
   pickMembershipScope,
   readOnlyTooltip,
@@ -68,5 +70,37 @@ describe('pickMembershipScope', () => {
     expect(pickMembershipScope(NESTED, [NESTED])).toBe(NESTED);
     expect(pickMembershipScope(DIRECT, [DIRECT])).toBe(DIRECT);
     expect(pickMembershipScope(NESTED, [])).toBe(DIRECT);
+  });
+});
+
+describe('external members', () => {
+  it("names the provider's directory the members are outside of", () => {
+    expect(externalMembersHint('GOOGLE_WORKSPACE')).toBe(
+      'Not a user, group or device of this Google Workspace — e.g. an outside email address or a contact.',
+    );
+    expect(externalMembersHint('MICROSOFT_365')).toBe(
+      'Not a user, group or device of this Microsoft 365 tenant — e.g. an outside email address or a contact.',
+    );
+  });
+});
+
+describe('membersEmptyMessage', () => {
+  it('says a group with no member at all has none', () => {
+    expect(membersEmptyMessage({ liveFailed: false, hiddenCount: 0, externalCount: 0 })).toBe(
+      'This group has no members.',
+    );
+  });
+
+  it('never says "no members" of a group whose members are all external or outside this customer', () => {
+    expect(membersEmptyMessage({ liveFailed: false, hiddenCount: 0, externalCount: 1 })).toBe(
+      'No members to list here.',
+    );
+    expect(membersEmptyMessage({ liveFailed: false, hiddenCount: 2, externalCount: 0 })).toBe(
+      'No members to list here.',
+    );
+  });
+
+  it('says a failed nested read failed, whatever the counts', () => {
+    expect(membersEmptyMessage({ liveFailed: true, hiddenCount: 0, externalCount: 3 })).toMatch(/could not be read/);
   });
 });

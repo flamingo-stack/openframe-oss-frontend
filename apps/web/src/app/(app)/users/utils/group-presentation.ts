@@ -1,5 +1,6 @@
 import {
   DirectoryGroupKind,
+  DirectoryProvider,
   DirectoryGroupVisibility,
   DirectoryMembershipScope,
   DirectoryReadOnlyReason,
@@ -69,4 +70,28 @@ export function readOnlyTooltip(reasons: readonly string[]): string {
 export function pickMembershipScope(current: string, ticked: readonly string[]): string {
   if (ticked.length === 1 && ticked[0] === current) return current;
   return ticked.find(value => value !== current) ?? DirectoryMembershipScope.DIRECT;
+}
+
+/** The hint on a group's external member count: what its provider's directory does not hold. */
+export function externalMembersHint(provider: string): string {
+  const directory =
+    provider === DirectoryProvider.MICROSOFT_365 ? 'this Microsoft 365 tenant' : 'this Google Workspace';
+  return `Not a user, group or device of ${directory} — e.g. an outside email address or a contact.`;
+}
+
+/**
+ * The members table with no row to draw. A group whose members are all outside this customer or outside the
+ * directory has members, only none the table lists: the counts beside it say where they are.
+ */
+export function membersEmptyMessage({
+  liveFailed,
+  hiddenCount,
+  externalCount,
+}: {
+  liveFailed: boolean;
+  hiddenCount: number;
+  externalCount: number;
+}): string {
+  if (liveFailed) return 'The nested members could not be read just now. Try again in a few minutes.';
+  return hiddenCount > 0 || externalCount > 0 ? 'No members to list here.' : 'This group has no members.';
 }

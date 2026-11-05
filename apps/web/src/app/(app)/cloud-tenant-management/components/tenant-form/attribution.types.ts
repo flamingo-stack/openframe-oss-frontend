@@ -5,6 +5,7 @@
 
 import { z } from 'zod';
 import { DirectoryRuleKind } from '@/generated/schema-enums';
+import { ruleValueLabel } from '../../utils/tenant-presentation';
 
 /**
  * The two radios. `sole` is one customer that owns every account (stored as a single `ALL` rule);
@@ -15,8 +16,10 @@ export type AttributionMode = (typeof ATTRIBUTION_MODE)[keyof typeof ATTRIBUTION
 
 const ruleValueSchema = z.object({
   id: z.string(),
-  /** The directory's display name; `null` once the directory no longer has the value. */
+  /** The name to show: the directory's, else the last one recorded (`lastKnownName`); `null` when none ever was. */
   name: z.string().nullable(),
+  /** Gone from the directory as of its last sync. Set on a stored value only: one picked from the directory's options exists. */
+  deleted: z.boolean().optional(),
 });
 
 const ruleSchema = z.object({
@@ -78,7 +81,7 @@ export const attributionFormSchema = z
           return false;
         });
         if (taken.length > 0) {
-          const names = taken.map(value => value.name ?? value.id).join(', ');
+          const names = taken.map(ruleValueLabel).join(', ');
           ctx.addIssue({
             code: 'custom',
             path: [...path, 'values'],

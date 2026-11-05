@@ -1,8 +1,9 @@
 'use client';
 
+import { providerMark } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { FloatingTooltip, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import Link from 'next/link';
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type {
   userDetailsTab_person$data,
@@ -10,6 +11,7 @@ import type {
 } from '@/__generated__/userDetailsTab_person.graphql';
 import { CustomerInfoCell } from '@/app/components/shared';
 import { InfoCell } from '@/app/components/shared/info-cell';
+import { OrgUserSource } from '@/generated/schema-enums';
 import { toCustomerOption } from '@/graphql/directory/customer-option';
 import { formatDate } from '@/lib/format-date';
 import { parseInstant } from '@/lib/graphql-scalars';
@@ -17,6 +19,7 @@ import { getFullImageUrl } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
 import { readUserPhone } from '../../utils/user-phone';
 import {
+  accountAddress,
   lastSignInLabel,
   secondFactorValue,
   topAdminValue,
@@ -28,14 +31,19 @@ import { UserTabHeading } from './user-tab-heading';
 
 const userDetailsTabFragment = graphql`
   fragment userDetailsTab_person on DirectoryPerson {
-    customers {
-      organization {
-        ...customerOption_organization
-      }
-    }
     accounts {
+      id
       source
       email
+      signInName
+      connection {
+        name
+      }
+      customers {
+        organization {
+          ...customerOption_organization
+        }
+      }
       status
       statusReason
       statusDetail
@@ -96,11 +104,12 @@ function StatusValue({ account }: { account: Account | null }) {
 }
 
 /**
- * The customers that claim the user, read-only from the rules (P2 closed: no primary customer). One is the logo and its
- * linked name; several are all of them, in rule order; none is the empty mark.
+ * The customers that claim the open account, read-only from the rules (P2 closed: no primary customer): the account's,
+ * not the person's, whose other accounts can be claimed by others. One is the logo and its linked name; several are
+ * all of them, in rule order; none is the empty mark.
  */
-function CustomerValue({ person }: { person: userDetailsTab_person$data | null }) {
-  const customers = (person?.customers ?? []).map(claim => toCustomerOption(claim.organization));
+function CustomerValue({ account }: { account: Account | null }) {
+  const customers = (account?.customers ?? []).map(claim => toCustomerOption(claim.organization));
   if (customers.length > 1) {
     return (
       <InfoCell
@@ -136,6 +145,64 @@ function CustomerValue({ person }: { person: userDetailsTab_person$data | null }
   );
 }
 
+/** Where one account lives: its provider and connection, or OpenFrame for a user added there. */
+function accountOrigin(account: Account): string {
+  if (account.source === OrgUserSource.OPENFRAME) return 'Added in OpenFrame';
+  const provider = providerMark(account.source).label;
+  return account.connection ? `${provider} · ${account.connection.name}` : provider;
+}
+
+/**
+ * One account, named by where it lives: a person's accounts are merged by sharing an address, so the address alone
+ * does not tell them apart, and the link to another one is named by its provider and connection.
+ */
+function SourceCell({ account, open }: { account: Account; open: boolean }) {
+  const { Logo, label } = providerMark(account.source);
+  const origin = accountOrigin(account);
+  const address = accountAddress(account);
+  return (
+    <InfoCell
+      icon={account.source === OrgUserSource.OPENFRAME ? undefined : <Logo size={24} role="img" aria-label={label} />}
+      label={open ? [address, 'This account'].filter(Boolean).join(' · ') : (address ?? '')}
+      value={
+        open ? (
+          origin
+        ) : (
+          <Link href={routes.users.details(account.id)} className="text-ods-accent underline hover:opacity-80">
+            {origin}
+          </Link>
+        )
+      }
+    />
+  );
+}
+
+/**
+ * "Where this record comes from" (contract §2; no Figma frame, FE-Q2): one cell per account of the person, the open
+ * one first (`directoryUser` puts it there) and marked "This account". The others link to their own page: how a person's Microsoft 365 and Google
+ * accounts reach each other. Two a row where the card has four columns, one where it has two.
+ */
+function SourcesSection({ accounts }: { accounts: readonly Account[] | null }) {
+  return (
+    <Section title="Where this record comes from">
+      {accounts ? (
+        accounts.map((account, index) => (
+          <Fragment key={account.id}>
+            {index > 0 && <RowDivider at={index % 2 === 0 ? 'all' : 'narrow'} />}
+            <DetailCell className="col-span-2">
+              <SourceCell account={account} open={index === 0} />
+            </DetailCell>
+          </Fragment>
+        ))
+      ) : (
+        <DetailCell className="col-span-2">
+          <InfoCell label="" value={null} iconSkeleton={{ size: 'sm' }} labelSkeletonWidth="w-32" />
+        </DetailCell>
+      )}
+    </Section>
+  );
+}
+
 /**
  * The Details tab (Figma 1014:1222): the two cards. In a loading scope (no person yet) the labels are real and the
  * values are bars; a person that is not there renders nothing — the header says "User not found".
@@ -159,7 +226,12 @@ function UserDetailsCards({ person }: { person: userDetailsTab_person$data | nul
       <UserTabHeading title="Details" />
       <Section title="Identity">
         <DetailCell>
-          <InfoCell label="Primary email" value={account?.email} skeletonWidth="w-40" />
+          {/* A Microsoft 365 account with no mailbox has no email to show, but still the name it signs in with. */}
+          {account && !account.email && account.signInName ? (
+            <InfoCell label="Sign-in name" value={account.signInName} />
+          ) : (
+            <InfoCell label="Primary email" value={account?.email} skeletonWidth="w-40" />
+          )}
         </DetailCell>
         <DetailCell>
           <InfoCell
@@ -172,7 +244,7 @@ function UserDetailsCards({ person }: { person: userDetailsTab_person$data | nul
           <InfoCell label="Account" value={<StatusValue account={account} />} />
         </DetailCell>
         <DetailCell>
-          <CustomerValue person={person} />
+          <CustomerValue account={account} />
         </DetailCell>
         <RowDivider at="all" />
         <DetailCell>
@@ -230,6 +302,7 @@ function UserDetailsCards({ person }: { person: userDetailsTab_person$data | nul
           <InfoCell label="Created" value={account ? (created ? formatDate(created) : NOT_AVAILABLE) : null} />
         </DetailCell>
       </Section>
+      <SourcesSection accounts={person?.accounts ?? null} />
     </div>
   );
 }

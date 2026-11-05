@@ -10,9 +10,10 @@ import {
   Tag,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
-import type { ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type { userDetailHeader_person$key } from '@/__generated__/userDetailHeader_person.graphql';
+import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { OrgUserSource, OrgUserStatus, OrgUserStatusReason } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
@@ -65,6 +66,19 @@ const NO_CUSTOMER_SUSPEND_REASON = "No customer claims this user yet, so its sig
 // Google reports an Archived User licence as a suspension, and unsuspending does not lift it: only a licence change
 // in the Admin console does, so the button would report a success that changed nothing.
 const ARCHIVED_REASON = 'Archived in Google Workspace: restore it from the Admin console.';
+
+/**
+ * What Suspend does, asked before it is done (Unsuspend is not asked: it gives access back). Microsoft leaves the
+ * sessions already open; Google ends them itself (contract W2-D14).
+ */
+function suspendConfirmation(source: string, name: string): string {
+  return source === OrgUserSource.MICROSOFT_365
+    ? `${name} will be blocked from signing in at Microsoft 365. Sessions already open stay open until they are ` +
+        'revoked. The account, its mail, files and licence stay, and the licence is still billed. You can unsuspend ' +
+        'the user at any time.'
+    : `${name} will be suspended at Google Workspace and signed out. The account and its data stay, and it is ` +
+        'still billed as an active user. You can unsuspend the user at any time.';
+}
 
 /** The steps PageActions sizes an action's glyph on (its ACTION_GLYPH_CLASSES, not exported), for a button beside it. */
 const ACTION_GLYPH_CLASSES = 'inline-flex [&&_svg]:h-4 [&&_svg]:w-4 content-md:[&&_svg]:h-6 content-md:[&&_svg]:w-6';
@@ -142,6 +156,7 @@ export function UserDetailHeader({ person: personKey }: { person: userDetailHead
   const router = useRouter();
   const person = useFragment(userDetailHeaderFragment, personKey);
   const { setSuspended, isSaving } = useSuspendUser();
+  const [confirmingSuspend, setConfirmingSuspend] = useState(false);
   if (!person) {
     return (
       <>
@@ -164,6 +179,7 @@ export function UserDetailHeader({ person: personKey }: { person: userDetailHead
 
   const selector: ReactNode[] = [];
   const actions: PageActionButton[] = [];
+  let confirmation: ReactNode = null;
 
   // An OpenFrame account has no provider to block it at (contract W2-D12): deactivating one is another flow.
   if (account && account.source !== OrgUserSource.OPENFRAME) {
@@ -181,6 +197,7 @@ export function UserDetailHeader({ person: personKey }: { person: userDetailHead
     } else if (suspended && account.statusReason === OrgUserStatusReason.ARCHIVED) {
       selector.push(<UnavailableAction key="suspend" label={label} icon={icon} reason={ARCHIVED_REASON} />);
     } else {
+      const target = { accountId: account.id, organizationId, name: person.displayName };
       actions.push({
         label,
         icon,
@@ -189,8 +206,20 @@ export function UserDetailHeader({ person: personKey }: { person: userDetailHead
         tooltip: <span className="block max-w-xs">{suspendTooltip(account.source, suspended)}</span>,
         loading: isSaving,
         disabled: isSaving,
-        onClick: () => setSuspended({ accountId: account.id, organizationId, name: person.displayName }, !suspended),
+        onClick: () => (suspended ? setSuspended(target, false) : setConfirmingSuspend(true)),
       });
+      confirmation = (
+        <ConfirmDialog
+          open={confirmingSuspend}
+          onOpenChange={setConfirmingSuspend}
+          title="Suspend User"
+          description={suspendConfirmation(account.source, person.displayName)}
+          confirmLabel="Suspend User"
+          variant="warning"
+          isPending={isSaving}
+          onConfirm={() => setSuspended(target, true, () => setConfirmingSuspend(false))}
+        />
+      );
     }
   }
 
@@ -208,12 +237,15 @@ export function UserDetailHeader({ person: personKey }: { person: userDetailHead
   }
 
   return (
-    <UserTitle
-      title={person.displayName}
-      subtitle={subtitle}
-      adornment={adornment}
-      actions={actions}
-      selector={selector.length > 0 ? selector : undefined}
-    />
+    <>
+      <UserTitle
+        title={person.displayName}
+        subtitle={subtitle}
+        adornment={adornment}
+        actions={actions}
+        selector={selector.length > 0 ? selector : undefined}
+      />
+      {confirmation}
+    </>
   );
 }

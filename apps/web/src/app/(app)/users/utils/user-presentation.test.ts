@@ -13,8 +13,10 @@ import {
 } from '@/generated/schema-enums';
 import { asInstant } from '@/lib/graphql-scalars';
 import {
+  accountAddress,
   firstAndCount,
   groupFeedTag,
+  groupRefName,
   lastSignInLabel,
   providerMarks,
   secondFactorValue,
@@ -112,4 +114,23 @@ it('tags every feed, and a missing live feed is grey, not an error (D8)', () => 
   }
   expect(groupFeedTag(DirectoryFeed.PUSH)).toEqual({ label: 'Live', variant: 'success' });
   expect(groupFeedTag(DirectoryFeed.AUDIT_STREAM)).toEqual({ label: 'No push', variant: 'grey' });
+});
+
+describe('accountAddress', () => {
+  it('is the mailbox, else the name the account signs in with', () => {
+    expect(accountAddress({ email: 'olivia@contoso.com', signInName: 'olivia@contoso.com' })).toBe(
+      'olivia@contoso.com',
+    );
+    expect(accountAddress({ email: null, signInName: 'olivia@contoso.onmicrosoft.com' })).toBe(
+      'olivia@contoso.onmicrosoft.com',
+    );
+    expect(accountAddress({ email: null, signInName: null })).toBeNull();
+  });
+});
+
+describe('groupRefName', () => {
+  it('names a group by its name, and one the directory lost by its id, marked deleted', () => {
+    expect(groupRefName({ id: 'g-1', name: 'Clinicians' })).toBe('Clinicians');
+    expect(groupRefName({ id: 'g-gone', name: null })).toBe('g-gone (deleted)');
+  });
 });

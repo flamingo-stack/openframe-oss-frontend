@@ -11,6 +11,7 @@ import { useDeferredValue, useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { managerFieldQuery as ManagerFieldQueryType } from '@/__generated__/managerFieldQuery.graphql';
 import { ContentErrorBoundary, SectionLoadError, noop, useRetryKey } from '@/app/components/shared';
+import { accountAddress } from '../../utils/user-presentation';
 
 // The Manager picker. Figma draws text, but `managerId` is an account id: a live account of the same connection,
 // visible to the customer the edit is made for (contract §11.5), which is exactly what this query lists.
@@ -32,6 +33,7 @@ const managerFieldQuery = graphql`
             id
             displayName
             email
+            signInName
             connection {
               id
             }
@@ -102,7 +104,13 @@ function ManagerOptions({
   const options = directoryUsers.edges.flatMap<ManagerOption>(({ node }) => {
     const account = node.accounts.find(item => item.connection?.id === connectionId);
     if (!account || account.id === accountId) return [];
-    return [{ value: account.id, label: account.displayName, description: account.email ?? undefined }];
+    return [
+      {
+        value: account.id,
+        label: account.displayName,
+        description: accountAddress({ email: account.email, signInName: account.signInName }) ?? undefined,
+      },
+    ];
   });
 
   return (

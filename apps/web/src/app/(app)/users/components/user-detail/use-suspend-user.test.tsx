@@ -108,6 +108,25 @@ describe('useSuspendUser', () => {
     expect(toast.description).toContain('The connection may not change sign-in.');
   });
 
+  it('settles the caller once the write answers, done or refused', () => {
+    const onSettled = vi.fn();
+    act(() => hook?.setSuspended(TARGET, true, onSettled));
+    expect(onSettled).not.toHaveBeenCalled();
+    act(() =>
+      mocks.commit.mock.calls.at(-1)?.[0].onCompleted({
+        setDirectoryUserSuspended: { person: null, sessionsStillOpen: null, userErrors: [] },
+      }),
+    );
+    expect(onSettled).toHaveBeenCalledTimes(1);
+  });
+
+  it('settles the caller when the request fails', () => {
+    const onSettled = vi.fn();
+    act(() => hook?.setSuspended(TARGET, true, onSettled));
+    act(() => mocks.commit.mock.calls.at(-1)?.[0].onError(new Error('Network down')));
+    expect(onSettled).toHaveBeenCalledTimes(1);
+  });
+
   it('says it failed when the request does', () => {
     act(() => hook?.setSuspended(TARGET, false));
     act(() => mocks.commit.mock.calls.at(-1)?.[0].onError(new Error('Network down')));

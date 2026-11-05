@@ -122,6 +122,8 @@ interface EditUserFieldsProps {
 export function EditUserFields({ form: { control }, record, disabled }: EditUserFieldsProps) {
   const notice = record ? editUserNotice(record) : null;
   const locked = (field: LockableFormField) => disabled || !record || fieldLocked(record, field);
+  // A Microsoft 365 account with no mailbox: named by what it signs in with, as on the user page.
+  const emailLabel = !record?.email && record?.signInName ? 'Sign-in name' : 'Email';
   const customerId = record?.customers[0]?.id ?? null;
 
   return (
@@ -180,10 +182,10 @@ export function EditUserFields({ form: { control }, record, disabled }: EditUser
         />
         {/* Not in the input: people are merged by primary email, so a change here would re-key the person. */}
         <Input
-          label="Email"
+          label={emailLabel}
           labelVariant="large"
-          aria-label="Email"
-          value={record?.email ?? ''}
+          aria-label={emailLabel}
+          value={record?.email ?? record?.signInName ?? ''}
           placeholder="No email"
           disabled
         />
