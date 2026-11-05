@@ -74,8 +74,9 @@ export function GuardrailsTemplatePicker({
     <RadioGroupBlock
       name="policy-template"
       variant="grouped"
-      // The settings design's policy rows: 24px around each, the radio level with the name (Figma 4365-22636).
-      itemClassName="items-start p-[var(--spacing-system-lf)]"
+      // The settings design's policy rows: 24px around each (12 on a phone), the radio level with the name
+      // (Figma 4365-22636 / 4365-22414).
+      itemClassName="items-start p-[var(--spacing-system-sf)] content-md:p-[var(--spacing-system-lf)]"
       value={value}
       onValueChange={onSelect}
       disabled={disabled}
@@ -93,7 +94,8 @@ export function GuardrailsTemplatePicker({
                   {/* Mobile: collapsed into an ellipsis actions menu. preventDefault
                 stops the wrapping radio label from selecting the option. */}
                   <div
-                    className="content-md:hidden"
+                    // The phone's menu button sits at the row's top, beside the name (Figma 4365-22419).
+                    className="self-start content-md:hidden"
                     onClick={e => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -117,7 +119,13 @@ export function GuardrailsTemplatePicker({
                     />
                   </div>
                 </>
-              ) : undefined,
+              ) : (
+                // The custom row has no action, but its text wraps at the same column as the stock rows': an unseen,
+                // inert copy of their button holds that width (desktop only, where the button shows).
+                <span aria-hidden className="invisible">
+                  <CustomPolicyButton disabled />
+                </span>
+              ),
             }))
       }
     />
