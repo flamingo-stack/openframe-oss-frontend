@@ -101,9 +101,10 @@ public class ExternalLinksPlugin: CAPPlugin, CAPBridgedPlugin {
         case .active:
             break
         case .inactive:
-            // A notification tap reaches the page while the app is still coming forward:
-            // an announcement's `window.open` lands ~0.2 s before `didBecomeActive`
-            // (iOS 27 simulator), when there is nothing to present on yet. Open it then.
+            // Any page asked for while the app is still coming forward opens once it is
+            // active, when there is something to present on. The case it exists for is a
+            // notification tap: an announcement's `window.open` lands ~0.2 s before
+            // `didBecomeActive` (iOS 27 simulator).
             pendingURL = url
             return true
         default:

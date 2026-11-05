@@ -71,8 +71,9 @@ const TICKET_CHAT_TYPES = new Set<string>([
  * through the dialog-open seam (`openMingoDialog` in `./open-mingo-dialog`). Its
  * `route` is the canonical chat link.
  *
- * `readOnOpen` marks a route that is not the notification's entity (an announcement's
- * link into the app): arriving there must not read it, and opening it must.
+ * `readOnOpen` marks an action whose destination is not the notification's entity (an
+ * announcement's link, in the app or out of it): arriving there must not read it, and
+ * opening it must.
  */
 export type NotificationRouteAction = {
   label: string;
@@ -90,9 +91,9 @@ export type NotificationRouteAction = {
 export type NotificationLinkAction = {
   label: string;
   externalUrl: string;
+  readOnOpen: true;
   route?: never;
   mingoDialogId?: never;
-  readOnOpen?: never;
 };
 
 export type NotificationAction = NotificationLinkAction | NotificationRouteAction;
@@ -166,22 +167,29 @@ function linkAction(link: string): NotificationAction | null {
   if (url.origin === appOrigin() && !url.pathname.startsWith('//')) {
     return { label, route: `${url.pathname}${url.search}${url.hash}`, readOnOpen: true };
   }
-  return { label, externalUrl: url.href };
+  return { label, externalUrl: url.href, readOnOpen: true };
 }
 
-/** The entity ids, and an announcement's link, a notification can carry, read from `attributes` (or the flat push keys). */
-interface NotificationIds {
-  ticketId: string | null;
-  dialogId: string | null;
-  insightId: string | null;
-  recordingId: string | null;
-  deviceId: string | null;
-  link: string | null;
-}
+/**
+ * What an action is resolved from besides `type` and `category`: the entity ids, and an
+ * announcement's link, read from `attributes` (or the flat push keys). A shell that forwards
+ * a notification's click has to keep every one: the desktop's `click_payload`, held to this
+ * list by the cases in `apps/desktop/src-tauri/src/notification-click.json`.
+ */
+export const NOTIFICATION_ACTION_FIELDS = [
+  'ticketId',
+  'dialogId',
+  'insightId',
+  'recordingId',
+  'deviceId',
+  'link',
+] as const;
+
+type NotificationFacts = Record<(typeof NOTIFICATION_ACTION_FIELDS)[number], string | null>;
 
 function resolveAction(
   type: string | null,
-  { ticketId, dialogId, insightId, recordingId, deviceId, link }: NotificationIds,
+  { ticketId, dialogId, insightId, recordingId, deviceId, link }: NotificationFacts,
   category: string | null,
 ): NotificationAction | null {
   // Approval requests live in their ticket when one exists, otherwise the mingo dialog.
@@ -296,7 +304,7 @@ function actionFromWireFields(fields: Record<string, unknown>): NotificationActi
   // puts them (see resolvePushNotificationAction). Read the map first and fall back to the
   // flat keys.
   const attributes = readNotificationAttributes(fields.attributes);
-  const fact = (key: keyof NotificationIds) => attributes[NOTIFICATION_ATTR[key]] ?? nonEmptyString(fields[key]);
+  const fact = (key: keyof NotificationFacts) => attributes[NOTIFICATION_ATTR[key]] ?? nonEmptyString(fields[key]);
   return resolveAction(
     nonEmptyString(fields.type),
     {
@@ -328,6 +336,16 @@ export function resolveNatsNotificationAction(payload: unknown): NotificationAct
 }
 
 /**
+ * The stored id a NATS notification envelope names: `notificationId`, else `id`, which is
+ * what oss-lib's `NotificationMessage` carries. The desktop's `click_payload` reads the
+ * envelope in the same order.
+ */
+export function natsNotificationRawId(payload: unknown): string | null {
+  const envelope = (payload ?? {}) as { notificationId?: unknown; id?: unknown };
+  return nonEmptyString(envelope.notificationId) ?? nonEmptyString(envelope.id);
+}
+
+/**
  * Action for a push notification's FCM `data` payload — a FLAT string map, not the nested NATS
  * envelope, and the mobile shell's tap path.
  *
@@ -338,6 +356,20 @@ export function resolveNatsNotificationAction(payload: unknown): NotificationAct
  */
 export function resolvePushNotificationAction(data: unknown): NotificationAction | null {
   return actionFromWireFields((data ?? {}) as Record<string, unknown>);
+}
+
+/** A stored notification id: an ObjectId, or a UUID. */
+const NOTIFICATION_ID = /^[\w-]{1,64}$/;
+
+/**
+ * The stored id of the notification a shell's tap opened: the push data's, and the desktop
+ * click's, top-level `notificationId`. Anything not shaped like an id is dropped: a desktop
+ * click can be forged, and the id is base64-encoded into a Relay id next, which throws on a
+ * character outside Latin-1.
+ */
+export function tappedNotificationId(payload: unknown): string | null {
+  const id = nonEmptyString(((payload ?? {}) as Record<string, unknown>).notificationId);
+  return id && NOTIFICATION_ID.test(id) ? id : null;
 }
 
 /**
@@ -351,16 +383,21 @@ export function openNotificationLink(url: string): void {
 }
 
 /**
- * A tap that arrives from outside React — a push on the phone, an OS banner on the
- * desktop: open the link outside the app, else push the route, else the notifications
- * page, so a type this build does not know still lands somewhere useful.
+ * Open what a notification's action names: the link outside the app, else the route, else
+ * the notifications page, so a tap on a type this build does not know still lands somewhere
+ * useful. A `readOnOpen` action is read here, since no arrival reads it; every other route
+ * is read where it lands (`EntityViewAutoReader`).
  */
-export function followNotificationTap(action: NotificationAction | null, navigate: (route: string) => void): void {
+export function followNotificationTap(
+  action: NotificationAction | null,
+  { navigate, markRead }: { navigate: (route: string) => void; markRead: () => void },
+): void {
   if (action && isNotificationLinkAction(action)) {
     openNotificationLink(action.externalUrl);
-    return;
+  } else {
+    navigate(action?.route ?? routes.notifications());
   }
-  navigate(action?.route ?? routes.notifications());
+  if (action?.readOnOpen) markRead();
 }
 
 /** Convenience for callers that only need a router route. */

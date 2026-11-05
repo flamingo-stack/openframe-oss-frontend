@@ -104,10 +104,13 @@ export function buildNotificationColumns({
         const action = resolveNotificationAction(row.original.notification);
         if (!action) return null;
         const { id, read, archived } = row.original;
+        // Any open of an archived row clears its flag: only ticket and dialog pages
+        // auto-read on arrival, and the new-tab half leaves this row on screen. An
+        // announcement's link is never read by arrival (`readOnOpen`), so any open of an
+        // unread one reads it too.
+        const onOpen = archived || (action.readOnOpen && !read) ? () => onMarkRead?.(id) : undefined;
         if (isNotificationLinkAction(action)) {
-          // An announcement's page outside the app: no arrival there for the auto-reader to
-          // see, so opening it is what reads the row. One button, since it always opens a new tab.
-          const onOpenLink = !read || archived ? () => onMarkRead?.(id) : undefined;
+          // A page outside the app: one button, since it always opens a new tab.
           return (
             <div data-no-row-click className="flex w-full justify-end">
               <Button
@@ -115,7 +118,7 @@ export function buildNotificationColumns({
                 variant="outline"
                 href={action.externalUrl}
                 openInNewTab
-                onClick={onOpenLink}
+                onClick={onOpen}
                 rightIcon={<ExternalLinkIcon className="text-ods-text-secondary" />}
               >
                 {action.label}
@@ -126,19 +129,14 @@ export function buildNotificationColumns({
                 size="icon"
                 href={action.externalUrl}
                 openInNewTab
-                onClick={onOpenLink}
-                aria-label={action.label}
+                onClick={onOpen}
+                aria-label={`${action.label} in new tab`}
                 leftIcon={<ExternalLinkIcon />}
               />
             </div>
           );
         }
         const dialogId = action.mingoDialogId ?? null;
-        // Any open of an archived row clears its flag: only ticket and dialog pages
-        // auto-read on arrival, and the new-tab half leaves this row on screen. An
-        // announcement's page in the app is never read by arrival (`readOnOpen`), so any
-        // open of an unread one reads it too.
-        const onOpen = archived || (action.readOnOpen && !read) ? () => onMarkRead?.(id) : undefined;
         // A Mingo chat opens over this page when the composer dock can (the sheet, as the
         // classic drawer did), unless the click asks for a new tab or window. No URL
         // changes then, so opening clears the row's unread here.

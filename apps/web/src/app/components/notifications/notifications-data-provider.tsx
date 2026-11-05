@@ -93,11 +93,11 @@ import { withNotificationIcon } from './notification-category-icons';
 import {
   ADMIN_AI_MESSAGE_TYPE,
   ADMIN_AI_TICKET_MESSAGE_TYPE,
-  isNotificationLinkAction,
+  followNotificationTap,
+  natsNotificationRawId,
   type NotificationAction,
   notificationTargetsDialog,
   notificationTargetsLocation,
-  openNotificationLink,
   resolveNotificationAction,
 } from './notification-navigation';
 import { canOpenMingoDialogOverPage, openMingoDialog } from './open-mingo-dialog';
@@ -255,28 +255,20 @@ interface NavigationTileWrapperProps {
  * a desktop OS banner. A Mingo chat opens over the page when the composer dock can (the
  * sheet, as the classic drawer did): no URL changes then, so the location-based
  * `EntityViewAutoReader` never sees the user arrive and the notification is marked read
- * here. An announcement's link is the same case: outside the app it opens in a new tab or
- * the shell's browser, and inside it the page is not one the auto-reader matches
- * (`readOnOpen`), so this marks it read. Anything else navigates to its route, where the
- * auto-reader marks it.
+ * here. Anything else is followed as a shell's tap is (`followNotificationTap`): an
+ * announcement's link opens and is read on the spot, any other route is read where it lands.
  */
 function openNotificationTarget(
   action: NotificationAction,
   notificationId: string,
   { markRead, navigate }: { markRead: (id: string) => void; navigate: (route: string) => void },
 ): void {
-  if (isNotificationLinkAction(action)) {
-    openNotificationLink(action.externalUrl);
-    markRead(notificationId);
-    return;
-  }
   if (action.mingoDialogId && canOpenMingoDialogOverPage()) {
     openMingoDialog(action.mingoDialogId);
     markRead(notificationId);
     return;
   }
-  navigate(action.route);
-  if (action.readOnOpen) markRead(notificationId);
+  followNotificationTap(action, { navigate, markRead: () => markRead(notificationId) });
 }
 
 /** Wraps a tile so its body navigates to the notification's target entity; inner buttons keep their own clicks. */
@@ -702,7 +694,7 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
         applyReadStateEvent(environmentRef.current, payload.eventType, payload.notificationIds);
         return;
       }
-      const rawId = payload.notificationId ?? payload.id;
+      const rawId = natsNotificationRawId(payload);
       if (!rawId) return;
       const relayId = notificationGlobalId(rawId);
       const severity = parseSeverity(payload.severity);
