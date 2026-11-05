@@ -388,7 +388,9 @@ function NotificationsDataInner({
 
   const decideApproval = useCallback(
     async (approvalRequestId: string, approve: boolean) => {
-      if (!(await approveRequest(approvalRequestId, approve))) throw new Error('approval request failed');
+      // A request that no longer waits resolves too: the tile then completes (marks read) its
+      // notification, so it stops popping up.
+      if ((await approveRequest(approvalRequestId, approve)) === 'failed') throw new Error('approval request failed');
     },
     [approveRequest],
   );

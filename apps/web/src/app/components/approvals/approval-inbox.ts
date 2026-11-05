@@ -12,7 +12,7 @@ import { formatTicketRef } from '@/app/(app)/tickets/utils/ticket-ref';
 import { withNotificationIcon } from '@/app/components/notifications/notification-category-icons';
 import { normalizeToolCall } from '@/graphql/notifications/notification-attributes';
 import { parseInstant } from '@/lib/graphql-scalars';
-import type { ApprovalDecision } from './approval-decisions';
+import type { ApprovalDecision, RecordedApproval } from './approval-decisions';
 import type { ApprovalDialogNode } from './approval-dialogs-query';
 
 /**
@@ -51,7 +51,7 @@ export interface ApprovalSources {
   /** Tech Required tickets waiting on an approval; `null` where tickets do not exist (OSS). */
   tickets: readonly Dialog[] | null;
   /** Requests this tab has settled, from any surface (`approval-decisions.ts`). */
-  decisions: Readonly<Record<string, ApprovalDecision>>;
+  decisions: Readonly<Record<string, RecordedApproval>>;
   /** The session's chat titles by dialog id (the sidebar history's), to name untitled requests. */
   chatTitles: Readonly<Record<string, string>>;
 }

@@ -26,6 +26,8 @@ const { server, push, openMingoDialog, toast } = vi.hoisted(() => ({
     /** The lane's second page; while non-empty the first one says there is more. */
     olderTickets: [] as unknown[],
     resolved: [] as Array<{ id: string; approve: boolean }>,
+    /** What the server answers a decision with instead of taking it. */
+    refusal: null as string | null,
   },
   push: vi.fn<(href: string) => void>(),
   openMingoDialog: vi.fn(),
@@ -79,6 +81,7 @@ vi.mock('@/lib/api-client', () => {
         }
         if (body.query.includes('resolveApprovalRequest')) {
           const input = body.variables?.input as unknown as { id: string; approve: boolean };
+          if (server.refusal) return ok({ resolveApprovalRequest: { userErrors: [{ message: server.refusal }] } });
           server.resolved.push(input);
           // Decided: the server no longer counts its chat as waiting.
           server.dialogs = server.dialogs.filter(
@@ -215,7 +218,9 @@ beforeEach(() => {
   server.tickets = [];
   server.olderTickets = [];
   server.resolved = [];
+  server.refusal = null;
   push.mockReset();
+  toast.mockReset();
   openMingoDialog.mockReset();
   markRead.mockReset();
   useAuthStore.setState({ user: { id: 'u-1', email: 'ann@example.com', firstName: 'Ann', lastName: 'Lee' } });
@@ -355,6 +360,34 @@ describe('ApprovalsView', () => {
     expect(cardTitled('Chat d-2')).toBeNull();
     await settle();
     expect(badge()).toBe(1);
+  });
+
+  it('a request the server says no longer waits leaves the page and the drawer; any other refusal keeps it', async () => {
+    server.dialogs = [
+      mingoChat('d-1', 'ar-1', '2026-10-16T10:00:00Z'),
+      mingoChat('d-2', 'ar-2', '2026-10-16T09:00:00Z'),
+    ];
+    await renderPage([approvalNotification]);
+
+    server.refusal = 'Something went wrong';
+    await act(async () => {
+      buttonIn(cardTitled('Chat d-1'), 'Approve')?.click();
+    });
+    await settle();
+    expect(buttonIn(cardTitled('Chat d-1'), 'Approve')).not.toBeNull();
+    expect(markRead).not.toHaveBeenCalled();
+    expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ variant: 'destructive' }));
+
+    server.refusal = 'Approval request is already resolved';
+    await act(async () => {
+      buttonIn(cardTitled('Chat d-1'), 'Reject')?.click();
+    });
+    await settle();
+    expect(cardTitled('Chat d-1')).toBeNull();
+    expect(markRead).toHaveBeenCalledWith('n-1');
+    expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ variant: 'info' }));
+    expect(server.resolved).toEqual([]);
+    expect(cardTitled('Chat d-2')).not.toBeNull();
   });
 
   it('loads the next page on its own as the end of the list shows — no paging buttons', async () => {
