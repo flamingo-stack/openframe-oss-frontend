@@ -14,7 +14,6 @@ import { useChatPageNodeStore } from '@/app/components/mingo-shell/chat-page-nod
 import { routes } from '@/lib/routes';
 import { fakeChatProbe, makeFakeChat, resetFakeChatProbe } from '../providers/__tests__/fake-mingo-chat';
 import { MingoChatProvider } from '../providers/mingo-chat-provider';
-import { mingoDialogQueryKeys } from '../utils/query-keys';
 import { MingoChatView } from './mingo-chat-view';
 
 const replace = vi.hoisted(() => vi.fn<(href: string) => void>());
@@ -53,10 +52,9 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/ui', () => ({
 vi.mock('../hooks/use-mingo-unified-chat-state', async () => ({
   useMingoUnifiedChatState: (await import('../providers/__tests__/fake-mingo-chat')).useFakeMingoUnifiedChatState,
 }));
-vi.mock('../hooks/use-mingo-realtime-subscription', async () => ({
-  DialogSubscription: (await import('../providers/__tests__/fake-mingo-chat')).FakeDialogSubscription,
+vi.mock('@/lib/active-dialog-views', async () => ({
+  registerActiveDialogView: (await import('../providers/__tests__/fake-mingo-chat')).fakeRegisterActiveDialogView,
 }));
-vi.mock('../hooks/use-mingo-dialog-selection', () => ({ MINGO_DIALOG_NOT_FOUND: 'MINGO_DIALOG_NOT_FOUND' }));
 vi.mock('@/app/components/mingo-compaction-watchers', () => ({ MingoCompactionWatchers: () => null }));
 vi.mock('@/lib/runtime-config', () => ({ runtimeEnv: { tenantHostUrl: () => 'https://acme.openframe.ai' } }));
 
@@ -103,7 +101,7 @@ describe('MingoChatView', () => {
 
     const node = useChatPageNodeStore.getState().node;
     expect(node).toBe(container.querySelector('[data-testid="mingo-chat-thread-slot"]'));
-    expect(fakeChatProbe.onScreenTails).toEqual(['d-1']);
+    expect(fakeChatProbe.onScreen).toEqual(['d-1']);
 
     render(false);
     expect(useChatPageNodeStore.getState().node).toBeNull();
@@ -136,23 +134,35 @@ describe('MingoChatView', () => {
   });
 
   it('shows a dialog that does not exist as such, with the way home, and no thread', () => {
-    resetFakeChatProbe(makeFakeChat({ activeDialogId: 'd-1', dialogError: 'MINGO_DIALOG_NOT_FOUND', selectDialog }));
+    resetFakeChatProbe(
+      makeFakeChat({
+        activeDialogId: 'd-1',
+        dialogError: 'This conversation could not be found.',
+        dialogNotFound: true,
+        selectDialog,
+      }),
+    );
     render(true);
 
     expect(container.textContent).toContain('Conversation not available');
     expect(container.querySelector('a')?.getAttribute('href')).toBe(routes.mingo.home);
     expect(useChatPageNodeStore.getState().node).toBeNull();
-    expect(fakeChatProbe.onScreenTails).toEqual([]);
+    expect(fakeChatProbe.onScreen).toEqual([]);
   });
 
-  it('offers a retry when the dialog failed to load', () => {
-    const refetch = vi.spyOn(queryClient, 'refetchQueries').mockResolvedValue();
-    resetFakeChatProbe(makeFakeChat({ activeDialogId: 'd-1', dialogError: 'Network error', selectDialog }));
+  it('offers a retry when the dialog failed to load: the dialog is entered anew, the page stays', () => {
+    resetFakeChatProbe(
+      makeFakeChat({ activeDialogId: 'd-1', dialogError: 'This conversation could not be loaded.', selectDialog }),
+    );
     render(true);
     expect(container.textContent).toContain("Couldn't open this conversation");
 
     act(() => container.querySelector('button')?.click());
-    expect(refetch).toHaveBeenCalledWith({ queryKey: mingoDialogQueryKeys.detail('d-1') });
-    expect(refetch).toHaveBeenCalledWith({ queryKey: mingoDialogQueryKeys.messages('d-1') });
+    expect(selectDialog).toHaveBeenLastCalledWith(null);
+
+    fakeChatProbe.result = makeFakeChat({ activeDialogId: null, selectDialog });
+    render(true);
+    expect(selectDialog).toHaveBeenLastCalledWith('d-1');
+    expect(replace).not.toHaveBeenCalled();
   });
 });

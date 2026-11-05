@@ -7,6 +7,7 @@ import {
   NoData,
   PageLayout,
 } from '@flamingo-stack/openframe-frontend-core';
+import { OPENFRAME_RECORD_KIND } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { getDeviceName, RemoteDesktopChatPanel } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ChatsIcon,
@@ -35,7 +36,6 @@ import { useRemoteSessionChat, useRemoteSessionDialogId } from '@/app/(app)/devi
 import { buildRemoteAccessRelayIdPrefix, type RemoteSessionEndReason } from '@/app/(app)/devices/types/remote-access';
 import { toDesktopChatMessage } from '@/app/(app)/devices/types/remote-session-chat';
 import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
-import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
 import { useTrackOpenView } from '@/app/(app)/mingo/context/use-track-open-view';
 import { NO_ITEMS } from '@/app/components/shared';
 import { useIsMobileShell } from '@/app/hooks/use-is-mobile-shell';
@@ -211,7 +211,7 @@ function RemoteDesktopSession() {
 
   // Keep this device as the Mingo "open view" while on the remote-desktop surface
   // (the parent detail page unmounted on navigation, clearing its own openView).
-  useTrackOpenView(deviceName ? { type: CONTEXT_ENTITY_KIND.DEVICE, id: deviceId, label: deviceName } : null, {
+  useTrackOpenView(deviceName ? { type: OPENFRAME_RECORD_KIND.DEVICE, id: deviceId, label: deviceName } : null, {
     loading: isDeviceLoading,
   });
 

@@ -1,21 +1,49 @@
 'use client';
 
-import { useJetStreamDialogSubscription } from '@flamingo-stack/openframe-frontend-core';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { NATS_TOPICS } from '@/app/(app)/tickets/constants';
+/**
+ * A remote session's chat between the technician and the end user, on the lib's chat engine, the one web chat every
+ * app runs. The session dialog is a DIRECT-mode client chat the backend provisions with the session, so this file is
+ * the engine's configuration and the panel's view of its thread:
+ *
+ *   transport  the JetStream live tail of the dialog's `message` subject (it replays a gap and drops a redelivery
+ *              itself), and the send of a client-chat message;
+ *   history    the dialog's persisted client-chat pages, read with the lib's GraphQL document.
+ *
+ * The technician's own line shows as soon as it is sent (the engine's optimistic row), and its ADMIN-owned echo closes
+ * the turn instead of drawing a second row. The panel draws people's lines only: system notices and assistant turns
+ * are left out.
+ */
+
+import { type ChatMessage, textOfParts } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import {
+  type ChatTransport,
+  createMingoGraphqlHistory,
+  jetStreamLiveTail,
+  useChatEngine,
+} from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { useCallback, useMemo, useState } from 'react';
+import { postMingoGraphql } from '@/app/(app)/mingo/hooks/use-mingo-unified-chat-state';
+import { CHAT_TYPE, NATS_TOPICS, OWNER_TYPE } from '@/app/(app)/tickets/constants';
+import { ticketService } from '@/app/(app)/tickets/services';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useNatsAppConfig } from '@/lib/nats/nats-app-config';
 import { useRemoteAccessSession } from '../components/remote-access/remote-access-session-context';
-import { decodeRemoteSessionChatChunk, remoteSessionChatApiService } from '../services/remote-session-chat-api-service';
-import type { RemoteSessionChatMessage, RemoteSessionChatTechnician } from '../types/remote-session-chat';
+import {
+  REMOTE_SESSION_END_USER_NAME,
+  type RemoteSessionChatMessage,
+  type RemoteSessionChatTechnician,
+} from '../types/remote-session-chat';
 
-const CHAT_CHUNKS_STREAM = 'CHAT_CHUNKS';
+/** One page of the session dialog's persisted client-chat messages, oldest first. */
+const fetchSessionChatHistory = createMingoGraphqlHistory(postMingoGraphql, { chatType: CHAT_TYPE.CLIENT });
+
+/** The technician's own direct message comes back as theirs: an ADMIN row that names them, or no one. */
+const ownUserId = () => useAuthStore.getState().user?.id;
 
 /**
- * The chat dialog of the current remote session: the id the session record
- * carries - null until the record is known, when the backend provisioned no
- * chat, and with the flag off (the legacy auto-start session has no chat).
+ * The chat dialog of the current remote session: the id the session record carries, null until the record is known
+ * and when the backend provisioned no chat.
  */
 export function useRemoteSessionDialogId(): string | null {
   return useRemoteAccessSession().session?.dialogId ?? null;
@@ -33,30 +61,26 @@ export function useRemoteSessionChatTechnician(): RemoteSessionChatTechnician {
   );
 }
 
-interface ChatStore {
-  dialogId: string | null;
-  /** The persisted page, oldest first. */
-  history: RemoteSessionChatMessage[];
-  /** What the feed delivered after the page, in arrival order. */
-  live: RemoteSessionChatMessage[];
-  historyLoaded: boolean;
-  /** The page's highest stamped sequence; the feed opens right after it, older chunks are dropped. */
-  lastSeq: number;
-  /** An end-user message came in while the panel was closed and nobody has opened it since. */
-  unread: boolean;
-}
-
-const EMPTY_STORE: ChatStore = {
-  dialogId: null,
-  history: [],
-  live: [],
-  historyLoaded: false,
-  lastSeq: 0,
-  unread: false,
-};
-
-function storeFor(prev: ChatStore, dialogId: string): ChatStore {
-  return prev.dialogId === dialogId ? prev : { ...EMPTY_STORE, dialogId };
+/**
+ * A message of the engine's thread as the panel's line, or null for what is not a person's line (a system notice, an
+ * assistant turn, a hidden send). A row the engine wrote for the viewer's own send names no author: the technician's.
+ */
+export function sessionChatLineOf(
+  message: ChatMessage,
+  technician: RemoteSessionChatTechnician,
+): RemoteSessionChatMessage | null {
+  if (message.role !== 'user' || message.metadata?.hidden) return null;
+  const body = textOfParts(message.parts);
+  if (!body) return null;
+  const author = message.metadata?.author;
+  const fromEndUser = author?.authorType === 'user';
+  return {
+    id: message.id,
+    author: fromEndUser ? 'user' : 'technician',
+    authorName: fromEndUser ? REMOTE_SESSION_END_USER_NAME : author?.name || technician.name,
+    sentAt: message.metadata?.createdAt ?? new Date().toISOString(),
+    body,
+  };
 }
 
 export interface RemoteSessionChatState {
@@ -66,143 +90,96 @@ export interface RemoteSessionChatState {
   technician: RemoteSessionChatTechnician;
   /** Resolves `false` when nothing was sent (blank text, no dialog, failure). */
   send: (body: string) => Promise<boolean>;
-  /** The end user wrote while the panel was closed - the Open Chat marker. */
+  /** The end user wrote while the panel was closed: the Open Chat marker. */
   hasUnread: boolean;
   /** The technician has seen the chat (the panel opened or closed). */
   markRead: () => void;
 }
 
+/** How many end-user lines the technician has seen in the dialog: the history it opened with, and what came in since. */
+interface SeenLines {
+  dialogId: string | null;
+  count: number;
+  /** The first page is in: until then nothing is counted as seen or unseen. */
+  ready: boolean;
+}
+
 /**
- * History + live delivery for one session dialog: read from the chat service
- * and tailed on its JetStream subject from the page's last sequence. Own
- * messages come back through the same feed as the end user's, so the list is
- * one ordered stream, deduplicated by id and by sequence against the page.
- *
- * The feed runs whether the panel is open or not, so an end-user message that
- * arrives while `panelOpen` is false raises `hasUnread`; the history the page
- * opens with is old news and never does, nor do the technician's own lines.
+ * The session dialog's chat: the engine's thread as the panel's lines, and the Open Chat marker. The tail runs whether
+ * the panel is open or not, so an end-user line that arrives while `panelOpen` is false raises `hasUnread`; the history
+ * the page opens with is old news and never does, nor do the technician's own lines.
  */
 export function useRemoteSessionChat(dialogId: string | null, panelOpen = false): RemoteSessionChatState {
-  // One record per dialog: a dialog change is a derived reset (no setState in
-  // the effect body), live rows arriving before the page stay ordered after it.
-  const [store, setStore] = useState<ChatStore>(EMPTY_STORE);
-  const [sending, setSending] = useState(false);
   const technician = useRemoteSessionChatTechnician();
-  const technicianRef = useRef(technician);
-  useEffect(() => {
-    technicianRef.current = technician;
-  }, [technician]);
-  // Read when a message lands, not when the hook renders: the feed calls back between renders.
-  const panelOpenRef = useRef(panelOpen);
-  useEffect(() => {
-    panelOpenRef.current = panelOpen;
-  }, [panelOpen]);
-
-  const deliver = useCallback((dialog: string, message: RemoteSessionChatMessage) => {
-    setStore(prev => {
-      const base = storeFor(prev, dialog);
-      if (message.seq !== undefined && message.seq <= base.lastSeq) return base;
-      if (base.history.some(m => m.id === message.id) || base.live.some(m => m.id === message.id)) return base;
-      const unread = base.unread || (message.author === 'user' && !panelOpenRef.current);
-      return { ...base, live: [...base.live, message], unread };
-    });
-  }, []);
-
-  // The page: at every dialog open and after a gap, once the tail has caught up
-  // (the stream keeps minutes, a longer outage leaves a gap only the page can
-  // fill).
-  const [historyRevision, setHistoryRevision] = useState(0);
-  useEffect(() => {
-    if (!dialogId) return undefined;
-    let cancelled = false;
-    remoteSessionChatApiService
-      .history(dialogId)
-      .then(page => {
-        if (cancelled) return;
-        setStore(prev => {
-          const base = storeFor(prev, dialogId);
-          const known = new Set(page.messages.map(m => m.id));
-          const lastSeq = Math.max(base.lastSeq, page.lastSeq);
-          // A re-read after a gap can bring end-user lines the feed missed; the first page is history.
-          const held = new Set([...base.history, ...base.live].map(m => m.id));
-          const missed = base.historyLoaded && page.messages.some(m => m.author === 'user' && !held.has(m.id));
-          return {
-            ...base,
-            history: page.messages,
-            live: base.live.filter(m => !known.has(m.id) && (m.seq === undefined || m.seq > lastSeq)),
-            historyLoaded: true,
-            lastSeq,
-            unread: base.unread || (missed && !panelOpenRef.current),
-          };
-        });
-      })
-      .catch(() => {
-        // The panel simply starts empty; live delivery still works.
-        if (cancelled) return;
-        setStore(prev => ({ ...storeFor(prev, dialogId), historyLoaded: true }));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [dialogId, historyRevision]);
-
-  // The dialog's feed, from the page's tail once the page is in.
   const { getWsUrl, onBeforeReconnect } = useNatsAppConfig();
-  const current = store.dialogId === dialogId ? store : EMPTY_STORE;
-  const { caughtUpCount } = useJetStreamDialogSubscription({
-    enabled: dialogId !== null && current.historyLoaded,
-    dialogId,
-    streamName: CHAT_CHUNKS_STREAM,
-    topic: NATS_TOPICS.MESSAGE,
-    optStartSeq: current.lastSeq,
-    onEvent: useCallback(
-      (payload: unknown) => {
-        if (!dialogId) return;
-        const row = decodeRemoteSessionChatChunk(payload, technicianRef.current);
-        if (row) deliver(dialogId, row);
-      },
-      [dialogId, deliver],
-    ),
-    onBeforeReconnect,
-    getNatsWsUrl: getWsUrl,
-  });
-  // After a gap, once the replay is in (see `caughtUpCount`).
-  const lastCatchUpRef = useRef(0);
-  useEffect(() => {
-    if (caughtUpCount <= lastCatchUpRef.current) return;
-    lastCatchUpRef.current = caughtUpCount;
-    setHistoryRevision(n => n + 1);
-  }, [caughtUpCount]);
 
+  const transport = useMemo<ChatTransport>(
+    () => ({
+      replays: true,
+      useLiveTail: jetStreamLiveTail({ getNatsWsUrl: getWsUrl, topic: NATS_TOPICS.MESSAGE, onBeforeReconnect }),
+      publish: async (text, options) => {
+        if (!options.dialogId) return false;
+        await ticketService.sendMessage(options.dialogId, text, CHAT_TYPE.CLIENT);
+        return true;
+      },
+    }),
+    [getWsUrl, onBeforeReconnect],
+  );
+
+  const chat = useChatEngine(
+    {
+      transport,
+      history: { fetchDialogMessages: fetchSessionChatHistory },
+      dialogId,
+      chatTypeFilter: CHAT_TYPE.CLIENT,
+      directMode: true,
+      directMessages: { ownDirectOwnerType: OWNER_TYPE.ADMIN, ownUserId },
+    },
+    { active: dialogId !== null },
+  );
+
+  const messages = useMemo(
+    () => chat.messages.flatMap(message => sessionChatLineOf(message, technician) ?? []),
+    [chat.messages, technician],
+  );
+  const endUserLines = messages.filter(line => line.author === 'user').length;
+  const historyRead = dialogId !== null && !chat.isMessagesLoading;
+
+  // What has been seen follows the thread during render (React's state from the previous render): the first page when
+  // it arrives, and every line while the panel is open.
+  const [seen, setSeen] = useState<SeenLines>({ dialogId: null, count: 0, ready: false });
+  let next = seen.dialogId === dialogId ? seen : { dialogId, count: 0, ready: false };
+  if (historyRead && !next.ready) next = { ...next, count: endUserLines, ready: true };
+  if (next.ready && panelOpen && next.count !== endUserLines) next = { ...next, count: endUserLines };
+  if (next !== seen) setSeen(next);
+
+  const markRead = useCallback(() => {
+    setSeen(prev => (prev.ready && prev.count !== endUserLines ? { ...prev, count: endUserLines } : prev));
+  }, [endUserLines]);
+
+  const [sending, setSending] = useState(false);
+  const { sendMessage } = chat;
   const send = useCallback(
     async (body: string) => {
       const text = body.trim();
       if (!dialogId || !text) return false;
       setSending(true);
       try {
-        await remoteSessionChatApiService.send(dialogId, text);
-        return true;
-      } catch {
-        return false;
+        return (await sendMessage(text)) !== false;
       } finally {
         setSending(false);
       }
     },
-    [dialogId],
+    [dialogId, sendMessage],
   );
 
-  const markRead = useCallback(() => {
-    setStore(prev => (prev.unread ? { ...prev, unread: false } : prev));
-  }, []);
-
-  const messages = useMemo(() => [...current.history, ...current.live], [current.history, current.live]);
   return {
     messages,
-    isLoading: !!dialogId && !current.historyLoaded,
+    isLoading: dialogId !== null && chat.isMessagesLoading,
     sending,
     technician,
     send,
-    hasUnread: current.unread,
+    hasUnread: next.ready && endUserLines > next.count,
     markRead,
   };
 }

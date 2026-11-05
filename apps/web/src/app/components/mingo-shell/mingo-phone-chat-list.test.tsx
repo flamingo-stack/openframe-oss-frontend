@@ -14,9 +14,8 @@ const { push } = vi.hoisted(() => ({ push: vi.fn<(href: string) => void>() }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
 vi.mock('@/app/(app)/mingo/providers/mingo-chat-provider', () => ({
   useMingoChat: () => ({
-    chat: { state: { dialogs: [], loadMoreDialogs: vi.fn() } },
+    chat: { state: { dialogs: [], loadMoreDialogs: vi.fn(), dialogCapabilities: { onCopyLink: vi.fn() } } },
     error: null,
-    copyDialogLink: vi.fn(),
   }),
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', async importOriginal => ({

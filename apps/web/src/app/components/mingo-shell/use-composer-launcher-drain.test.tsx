@@ -18,7 +18,7 @@ function Harness({ route }: { route: ComposerRoute }) {
   useComposerLauncherDrain({
     handle: null,
     route,
-    sendInNewDialog: async () => {},
+    sendInNewDialog: async () => null,
     createIntentDialog: async () => null,
     selectDialog: () => {},
     openSheet: () => {},

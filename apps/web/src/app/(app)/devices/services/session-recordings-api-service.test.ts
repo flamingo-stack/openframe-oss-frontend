@@ -304,7 +304,6 @@ describe('SessionRecordingsApiService', () => {
         { id: 'm1', author: 'technician', authorName: 'Roman Smith', sentAt: '2026-09-25T10:50:00Z', body: 'Hi' },
         { id: 'm2', author: 'user', authorName: 'User', sentAt: '2026-09-25T10:50:10Z', body: 'Hello' },
       ],
-      lastSeq: 0,
     });
 
     const detail = await service.get('rec-2');
@@ -347,7 +346,6 @@ describe('SessionRecordingsApiService', () => {
     );
     chat.history.mockResolvedValue({
       messages: [{ id: 'm1', author: 'user', authorName: 'User', sentAt: '2026-09-25T10:50:10Z', body: 'Hello' }],
-      lastSeq: 0,
     });
 
     const detail = await service.live('session-1');
@@ -368,7 +366,7 @@ describe('SessionRecordingsApiService', () => {
       { remoteSession: { ...session({ status: 'ACTIVE', recordings: [] }), recordingSuppressed: 'STORAGE_FULL' } },
       { device: null },
     );
-    chat.history.mockResolvedValue({ messages: [], lastSeq: 0 });
+    chat.history.mockResolvedValue({ messages: [] });
     expect((await service.live('session-1')).notRecorded).toBe(true);
   });
 

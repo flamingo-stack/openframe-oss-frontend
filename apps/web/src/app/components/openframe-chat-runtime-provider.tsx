@@ -232,21 +232,24 @@ function openMingo({ prompt }: AssistantOpenRequest): void {
 
 export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
-  // In-app doc-tree swap bridge — the same hook the hub wires into `navigate`.
-  // When a knowledge-base viewer is mounted it swaps the doc in place; otherwise
-  // its safe no-op fallback returns false and we `router.push` instead.
+  // In-app doc-tree swap bridge: the same hook the hub wires into `navigate`,
+  // its provider mounted by the app layout. When a knowledge-base viewer is on the
+  // page it swaps the doc in place; otherwise it finds no navigator, returns false
+  // and we `router.push` instead.
   const docNav = useDocNavigation();
 
   // Host-mode navigation callbacks — mirror MPH's `HubRuntimeProvider` so the
   // `openframe-docs` chips / cards / search results navigate identically here.
   const navigate = useCallback<NonNullable<ChatRuntime['navigation']['navigate']>>(
     ({ href, path }) => {
-      // 1. In-page doc-tree swap when `path` matches a mounted viewer.
-      if (path != null && docNav.navigate(path)) return true;
+      const target = stripSameOriginToPath(href);
+      // 1. In-page doc-tree swap when the link (`path`, else the address) is a document of a mounted viewer. An address
+      //    with a fragment or a query names a place the swap would lose (it opens the document at its top), so it goes
+      //    to the router.
+      if (path != null ? docNav.navigate(path) : !/[?#]/.test(target) && docNav.navigate(target)) return true;
       // 2. Same-origin URL → soft-nav (hash targets get the smooth same-page tween
       //    + synthetic `hashchange` so FAQ auto-expand / scroll-to-hash still fire).
       if (!isCrossOriginUrl(href)) {
-        const target = stripSameOriginToPath(href);
         if (navigateSamePageHash(target)) return true;
         router.push(target);
         return true;
@@ -313,7 +316,6 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
         // Upstream paths verified live against the deployed instance
         // (2026-05-29 endpoint table).
         chatStreamUrl: content('/api/docs/chat'),
-        approvalToolUrl: content('/api/chat/agent/confirm-tool'),
         // Help Center ticket agent endpoints — proxied under `/content` like
         // every other endpoint, so they route through the existing `/content/*`
         // rewrite (dev) + platform reverse-proxy (prod). No bare `/api/chat/agent/*`
@@ -356,7 +358,7 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
         docsSearchUrl: content('/api/docs/search'),
         docsResolveLinkUrl: content('/api/docs/resolve-link'),
         // Fetch-mode entity cards (blog, roadmap, case study, release,
-        // podcast/webinar/event, …) expand their `[card://<type>:<id>]`
+        // podcast/webinar/event, …) expand their `record://<type>/<id>`
         // markers by GETting the type's list endpoint. The lib owns the
         // non-obvious per-type URL shapes (`task_ids` vs `ids`, `pageSize`,
         // `&filter=all`, distinct paths); we just point its builder at the
@@ -392,6 +394,9 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
         navigate,
         decideNewTab,
         openExternal,
+        // Where this window cannot or should not open a tab (`useSameWindowLinks`), no record's menu, a card's or a
+        // chip's, offers one.
+        opensTabs: !sameWindow,
       },
       // Unified content-href seam (shared with Help Center pages): the hosted
       // types and the Help Center overrides soft-nav into `/help-center/...`;
@@ -400,11 +405,11 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
       composeContentUrl: composeOpenframeInAppContentUrl,
       source: CHAT_SOURCE,
     };
-    // `navigate` / `decideNewTab` / `openExternal` are the only reactive deps.
-    // The first two are stable `useCallback`s; `openExternal` changes only on a
+    // `navigate` / `decideNewTab` / `openExternal` / `sameWindow` are the only reactive deps.
+    // The first two are stable `useCallback`s; the last two change only on a
     // resize across the md breakpoint, so the runtime object is rebuilt about as
     // often as never.
-  }, [navigate, decideNewTab, openExternal]);
+  }, [navigate, decideNewTab, openExternal, sameWindow]);
 
   // The lib's "ask" surfaces (the "Ask Mingo" card beside a FAQ) read the SAME
   // runtime configuration through its assistant context: whether this app's chat

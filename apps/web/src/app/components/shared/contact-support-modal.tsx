@@ -1,10 +1,7 @@
 'use client';
 
-import {
-  CHAT_ATTACHMENT_MIME_TYPES,
-  ChatAttachmentChipStrip,
-  useChatAttachments,
-} from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { CHAT_ATTACHMENT_MIME_TYPES } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import { ChatAttachmentChipStrip, useChatAttachments } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { PlusIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useTicketActions } from '@flamingo-stack/openframe-frontend-core/components/tickets';
 import {

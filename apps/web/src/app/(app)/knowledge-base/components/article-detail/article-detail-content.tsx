@@ -1,11 +1,11 @@
 'use client';
 
+import { OPENFRAME_RECORD_KIND } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { notFound } from 'next/navigation';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { articleDetailContentQuery as ArticleDetailContentQueryType } from '@/__generated__/articleDetailContentQuery.graphql';
-import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
 import { useTrackOpenView } from '@/app/(app)/mingo/context/use-track-open-view';
 import { useRetryKey } from '@/app/components/shared';
 import { KnowledgeBaseItemType } from '@/generated/schema-enums';
@@ -57,7 +57,7 @@ function ArticleDetailContentQuery({ articleId }: { articleId: string }) {
   // its own lookup.
   const articleDbId = decodeGlobalId(articleId)?.rawId ?? articleId;
   useTrackOpenView(
-    article ? { type: CONTEXT_ENTITY_KIND.KB_ARTICLE, id: articleDbId, label: article.name || articleDbId } : null,
+    article ? { type: OPENFRAME_RECORD_KIND.KB_ARTICLE, id: articleDbId, label: article.name || articleDbId } : null,
   );
 
   // An unknown id, or a folder's: there is no article to show.
