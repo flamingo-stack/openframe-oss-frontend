@@ -9,9 +9,9 @@ import {
   processHistoricalMessages,
 } from '@flamingo-stack/openframe-frontend-core';
 import type { ChatMessage, ChatPart } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import type { DialogMessagesPage } from '@/lib/dialog-messages-page';
 import { ASSISTANT_CONFIG } from '../../tickets/constants';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
-import type { MessagePage } from '../types';
 import type { FakeJetStream } from './fake-jetstream';
 
 export const DIALOG = 'dlg-1';
@@ -138,35 +138,35 @@ export function persistedRows(turn: PublishedTurn, i: number, stamp: boolean, at
       createdAt: new Date(at).toISOString(),
       lastChunkStreamSeq: null,
       owner: { type: OWNER_TYPE.ADMIN, user: { id: USER_ID, firstName: 'Alex', lastName: 'Admin' } },
-      messageData: [{ type: MESSAGE_TYPE.TEXT, text: turn.userText }],
+      parts: [{ type: MESSAGE_TYPE.TEXT, text: turn.userText }],
     },
     {
       ...base,
       id: `mongo-text1-${i}`,
       createdAt: new Date(at + 1000).toISOString(),
       lastChunkStreamSeq: seq(turn.seqs.firstContent),
-      messageData: [{ type: MESSAGE_TYPE.TEXT, text: `Checking device ${i}. ` }],
+      parts: [{ type: MESSAGE_TYPE.TEXT, text: `Checking device ${i}. ` }],
     },
     {
       ...base,
       id: `mongo-exec-${i}`,
       createdAt: new Date(at + 1100).toISOString(),
       lastChunkStreamSeq: seq(turn.seqs.executing),
-      messageData: [{ type: MESSAGE_TYPE.EXECUTING_TOOL, ...tool }],
+      parts: [{ type: MESSAGE_TYPE.EXECUTING_TOOL, ...tool }],
     },
     {
       ...base,
       id: `mongo-done-${i}`,
       createdAt: new Date(at + 1200).toISOString(),
       lastChunkStreamSeq: seq(turn.seqs.executed),
-      messageData: [{ type: MESSAGE_TYPE.EXECUTED_TOOL, ...tool, result: turn.output, success: true }],
+      parts: [{ type: MESSAGE_TYPE.EXECUTED_TOOL, ...tool, result: turn.output, success: true }],
     },
     {
       ...base,
       id: `mongo-asst-${i}`,
       createdAt: new Date(at + 1300).toISOString(),
       lastChunkStreamSeq: seq(turn.seqs.lastContent),
-      messageData: [{ type: MESSAGE_TYPE.TEXT, text: turn.answer }],
+      parts: [{ type: MESSAGE_TYPE.TEXT, text: turn.answer }],
     },
   ];
 }
@@ -190,9 +190,9 @@ export function countOccurrences(messages: Array<Pick<ChatMessage, 'parts'>>, ne
 }
 
 /** Rows as the newest-first history page the messages query returns. */
-export function historyPage(rows: ReturnType<typeof persistedRows>): MessagePage {
+export function historyPage(rows: ReturnType<typeof persistedRows>): DialogMessagesPage {
   return {
-    messages: [...rows].reverse() as unknown as MessagePage['messages'],
+    messages: [...rows].reverse() as unknown as DialogMessagesPage['messages'],
     pageInfo: { hasNextPage: false, hasPreviousPage: false },
   };
 }
@@ -251,7 +251,7 @@ export class ApprovalSession {
     };
   }
 
-  private row(owner: 'ADMIN' | 'ASSISTANT', seq: number | null, messageData: Record<string, unknown>): void {
+  private row(owner: 'ADMIN' | 'ASSISTANT', seq: number | null, part: Record<string, unknown>): void {
     this.at += 1000;
     this.rows.push({
       id: `mongo-${this.turn}-${this.rows.length}`,
@@ -263,7 +263,7 @@ export class ApprovalSession {
         owner === 'ADMIN'
           ? { type: OWNER_TYPE.ADMIN, user: { id: USER_ID, firstName: 'Alex', lastName: 'Admin' } }
           : { type: OWNER_TYPE.ASSISTANT },
-      messageData: [messageData],
+      parts: [part],
     });
   }
 

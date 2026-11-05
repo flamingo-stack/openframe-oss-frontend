@@ -122,7 +122,7 @@ describe('DialogSubscription replay into a hydrated thread', () => {
     server.current.publish(SUBJECT, { type: MESSAGE_TYPE.TEXT, text: 'Looking at device 7 now.' });
     // Only the user's row is persisted so far, and it carries no sequence.
     const [userRow] = persistedRows(publishTurn(new FakeJetStream(), 7), 7, true, Date.now());
-    const rows = [{ ...userRow, messageData: [{ type: MESSAGE_TYPE.TEXT, text: userText }] }];
+    const rows = [{ ...userRow, parts: [{ type: MESSAGE_TYPE.TEXT, text: userText }] }];
     hydrateFromHistory(rows);
 
     await mount(historyStreamFloor([historyPage(rows)]));

@@ -93,8 +93,6 @@ export interface FetchMessagesParams {
   chatType: ChatType;
   cursor?: string;
   limit: number;
-  sortField?: string;
-  sortDirection?: 'ASC' | 'DESC';
 }
 
 export interface CreateDialogParams {

@@ -19,16 +19,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { apiClient } from '@/lib/api-client';
+import { type DialogMessagesPage, fetchDialogMessagesPage } from '@/lib/dialog-messages-page';
 import { featureFlags } from '@/lib/feature-flags';
 import { sessionPollMeta, sessionPollsAllowed, sessionRetry } from '@/lib/session-poll';
 import type { ApprovalStatus } from '../../tickets/constants';
 import { APPROVAL_STATUS, ASSISTANT_CONFIG, CHAT_TYPE, MESSAGE_TYPE } from '../../tickets/constants';
 import { extractGraphQlData } from '../../tickets/utils/graphql';
-import { GET_MINGO_DIALOG_QUERY, normalizeAskMessageData } from '../queries/dialogs-queries';
-import { fetchMingoDialogMessages } from '../queries/fetch-dialog-messages';
+import { GET_MINGO_DIALOG_QUERY } from '../queries/dialogs-queries';
 import { useApproveRequestMutation, useRejectRequestMutation } from '../services/mingo-api-service';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
-import type { DialogResponse, MessagePage } from '../types';
+import type { DialogResponse } from '../types';
 import { historyStreamFloor } from '../utils/history-stream-floor';
 import { mingoDialogQueryKeys } from '../utils/query-keys';
 
@@ -239,37 +239,18 @@ export function useMingoDialogSelection() {
 
   const messagesQuery = useInfiniteQuery({
     queryKey: mingoDialogQueryKeys.messages(activeDialogId),
-    queryFn: async ({ pageParam }: { pageParam: string | undefined }): Promise<MessagePage> => {
+    queryFn: async ({ pageParam }: { pageParam: string | undefined }): Promise<DialogMessagesPage> => {
       if (!activeDialogId) return { messages: [], pageInfo: { hasNextPage: false, hasPreviousPage: false } };
 
-      const response = await fetchMingoDialogMessages({
+      // Only the operator's Mingo chat of the dialog, asked of the server.
+      return fetchDialogMessagesPage({
         dialogId: activeDialogId,
+        chatType: CHAT_TYPE.ADMIN,
         cursor: pageParam,
         limit: 50,
-        sortField: 'createdAt',
-        sortDirection: 'DESC',
       });
-
-      if (!response.ok || !response.data?.data?.messages) {
-        throw new Error(response.error || 'Failed to fetch messages');
-      }
-
-      const { edges, pageInfo } = response.data.data.messages;
-      const allMessages = edges.map(edge => edge.node);
-      // The ONE parse point, so the ask-intro alias is undone before any reader
-      // sees a row (see `ASK_INTRO_ALIAS`). `normalizeAskMessageData` returns its
-      // input by reference when there is nothing to rename, so a page without ASK
-      // rows is not copied.
-      const adminMessages = allMessages
-        .filter(msg => msg.chatType === CHAT_TYPE.ADMIN)
-        .map(msg => {
-          const messageData = normalizeAskMessageData(msg.messageData);
-          return messageData === msg.messageData ? msg : { ...msg, messageData };
-        });
-
-      return { messages: adminMessages, pageInfo };
     },
-    getNextPageParam: (lastPage: MessagePage) => {
+    getNextPageParam: (lastPage: DialogMessagesPage) => {
       return lastPage.pageInfo.hasNextPage ? lastPage.pageInfo.endCursor : undefined;
     },
     initialPageParam: undefined as string | undefined,
@@ -408,7 +389,7 @@ export function useMingoDialogSelection() {
 
       const extractedStatuses: Record<string, ApprovalStatus> = {};
       for (const msg of chronologicalMessages) {
-        const payloads: ApprovalResultPayload[] = Array.isArray(msg.messageData) ? msg.messageData : [msg.messageData];
+        const payloads: ApprovalResultPayload[] = msg.parts ?? [];
 
         for (const data of payloads) {
           if (data?.type === MESSAGE_TYPE.APPROVAL_RESULT && data.approvalRequestId) {
@@ -459,14 +440,14 @@ export function useMingoDialogSelection() {
       return;
     }
 
-    // The queryFn already filters to ADMIN messages — no re-filter needed.
+    // The queryFn already asks for ADMIN messages only — no re-filter needed.
     const historicalMessages: HistoricalMessage[] = chronologicalMessages.map(msg => ({
       id: msg.id,
       dialogId: msg.dialogId,
       chatType: msg.chatType,
       createdAt: msg.createdAt,
       owner: msg.owner,
-      messageData: msg.messageData,
+      parts: msg.parts,
       // Feed the merge's per-role seq coverage so a post-reload live synthetic
       // isn't dropped by an unrelated row's seq (message-loss on stop/reload).
       lastChunkStreamSeq: msg.lastChunkStreamSeq,

@@ -78,7 +78,7 @@ export function useHistoricalMessages({
       chatType: msg.chatType,
       createdAt: msg.createdAt,
       owner: msg.owner,
-      messageData: msg.messageData,
+      parts: msg.parts,
       // Feed the merge's per-role seq coverage so a post-reload live synthetic
       // isn't dropped by an unrelated row's seq (message-loss on stop/reload).
       lastChunkStreamSeq: msg.lastChunkStreamSeq,
@@ -86,8 +86,7 @@ export function useHistoricalMessages({
 
     const historicalResolutions: Record<string, 'approved' | 'rejected'> = {};
     for (const msg of historical) {
-      const dataArray = Array.isArray(msg.messageData) ? msg.messageData : msg.messageData ? [msg.messageData] : [];
-      for (const data of dataArray) {
+      for (const data of msg.parts ?? []) {
         const d = data as { type?: string; approvalRequestId?: string; approved?: boolean };
         if (d?.type === 'APPROVAL_RESULT' && typeof d.approvalRequestId === 'string' && d.approvalRequestId) {
           historicalResolutions[d.approvalRequestId] = d.approved ? 'approved' : 'rejected';

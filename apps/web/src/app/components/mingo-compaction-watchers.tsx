@@ -10,13 +10,14 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
+import { fetchDialogMessagesPage } from '@/lib/dialog-messages-page';
 import { useNatsAppConfig } from '@/lib/nats/nats-app-config';
 import { CHAT_CHUNKS_STREAM, MINGO_JETSTREAM_TOPIC } from '../(app)/mingo/hooks/use-mingo-realtime-subscription';
 import { COMPACT_MINGO_DIALOG_MUTATION } from '../(app)/mingo/queries/dialogs-queries';
-import { fetchMingoDialogMessages } from '../(app)/mingo/queries/fetch-dialog-messages';
 import { useMingoCompactionStore } from '../(app)/mingo/stores/mingo-compaction-store';
 import { useMingoMessagesStore } from '../(app)/mingo/stores/mingo-messages-store';
 import { mingoDialogQueryKeys } from '../(app)/mingo/utils/query-keys';
+import { CHAT_TYPE } from '../(app)/tickets/constants';
 import type { GraphQlResponse } from '../(app)/tickets/utils/graphql';
 
 // Nothing has been sent while the stream is not live, so this bound can be short.
@@ -77,16 +78,8 @@ const LATEST_MESSAGES_LIMIT = 10;
  * it.
  */
 async function latestStreamSeq(dialogId: string): Promise<number> {
-  const response = await fetchMingoDialogMessages({
-    dialogId,
-    limit: LATEST_MESSAGES_LIMIT,
-    sortField: 'createdAt',
-    sortDirection: 'DESC',
-  });
-  if (!response.ok || !response.data?.data?.messages) {
-    throw new Error(response.error || 'Failed to fetch messages');
-  }
-  const persisted = maxPersistedStreamSeq([{ messages: response.data.data.messages.edges.map(edge => edge.node) }]);
+  const page = await fetchDialogMessagesPage({ dialogId, chatType: CHAT_TYPE.ADMIN, limit: LATEST_MESSAGES_LIMIT });
+  const persisted = maxPersistedStreamSeq([page]);
   return Math.max(persisted, useMingoMessagesStore.getState().getHighestStreamSeq(dialogId));
 }
 

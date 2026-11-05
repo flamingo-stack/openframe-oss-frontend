@@ -1,6 +1,6 @@
 import { maxPersistedStreamSeq } from '@flamingo-stack/openframe-frontend-core';
+import type { DialogMessagesPage } from '@/lib/dialog-messages-page';
 import { OWNER_TYPE } from '../../tickets/constants';
-import type { MessagePage } from '../types';
 
 /**
  * Where the dialog's JetStream consumer starts, from fresh history pages: the
@@ -20,9 +20,9 @@ import type { MessagePage } from '../types';
  * so the tail starts live; a turn of such a dialog streaming at that moment
  * loses its head, which is the cost accepted.
  */
-export function historyStreamFloor(pages: readonly MessagePage[] | undefined): number | null {
+export function historyStreamFloor(pages: readonly DialogMessagesPage[] | undefined): number | null {
   const floor = maxPersistedStreamSeq(pages);
   if (floor > 0) return floor;
-  const hasAssistantRow = pages?.some(page => page.messages.some(m => m.owner.type === OWNER_TYPE.ASSISTANT));
+  const hasAssistantRow = pages?.some(page => page.messages.some(m => m.owner?.type === OWNER_TYPE.ASSISTANT));
   return hasAssistantRow ? null : 0;
 }

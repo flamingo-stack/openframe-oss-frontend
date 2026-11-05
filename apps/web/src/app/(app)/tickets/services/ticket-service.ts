@@ -1,11 +1,10 @@
 import { noteApprovalDecision } from '@/app/components/approvals/approval-decisions';
 import { apiClient } from '@/lib/api-client';
+import { fetchDialogMessagesPage } from '@/lib/dialog-messages-page';
 import type { ChatType, DialogModeValue } from '../constants';
 import { API_ENDPOINTS } from '../constants';
 import {
   CREATE_DIALOG_MUTATION,
-  GET_DIALOG_MESSAGES_QUERY,
-  normalizeMessageDataAliases,
   RESOLVE_APPROVAL_REQUEST_MUTATION,
   SEND_MESSAGE_MUTATION,
   STOP_DIALOG_GENERATION_MUTATION,
@@ -366,34 +365,14 @@ export class TicketService implements TicketServiceInterface {
   }
 
   async fetchMessages(params: FetchMessagesParams): Promise<MessagePage> {
-    const response = await apiClient.post<
-      GraphQlResponse<{
-        messages: { edges: Array<{ cursor: string; node: Message }>; pageInfo: MessagePage['pageInfo'] };
-      }>
-    >('/chat/graphql', {
-      query: GET_DIALOG_MESSAGES_QUERY,
-      variables: {
-        dialogId: params.dialogId,
-        chatType: params.chatType,
-        cursor: params.cursor,
-        limit: params.limit,
-        sortField: params.sortField || 'createdAt',
-        sortDirection: params.sortDirection || 'DESC',
-      },
+    const page = await fetchDialogMessagesPage({
+      dialogId: params.dialogId,
+      chatType: params.chatType,
+      cursor: params.cursor,
+      limit: params.limit,
     });
-
-    const data = extractGraphQlData(response);
-    const { edges, pageInfo } = data.messages;
-
-    return {
-      // Single parse point for the messageData field aliases — see
-      // `normalizeMessageDataAliases`.
-      messages: edges.map(edge => ({
-        ...edge.node,
-        messageData: normalizeMessageDataAliases(edge.node.messageData),
-      })),
-      pageInfo,
-    };
+    // The lib's history document answers `HistoricalMessage`s; a ticket reads the same rows as its `Message`.
+    return { messages: page.messages as Message[], pageInfo: page.pageInfo };
   }
 
   async transitionTicket(ticketId: string, toStatusId: string): Promise<void> {

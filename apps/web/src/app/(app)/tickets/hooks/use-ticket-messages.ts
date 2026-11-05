@@ -27,8 +27,6 @@ export function useTicketMessages(dialogId: string | null, chatType: ChatType) {
         chatType,
         cursor: pageParam,
         limit: 50,
-        sortField: 'createdAt',
-        sortDirection: 'DESC',
       });
     },
     getNextPageParam: (lastPage: MessagePage) => {

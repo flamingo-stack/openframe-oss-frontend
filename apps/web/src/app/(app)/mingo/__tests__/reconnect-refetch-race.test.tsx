@@ -48,24 +48,14 @@ vi.mock('nats.ws', async importOriginal => ({
 vi.mock('@/lib/nats/nats-app-config', () => ({
   useNatsAppConfig: () => ({ getWsUrl: () => 'ws://fake', onBeforeReconnect: async () => {} }),
 }));
-vi.mock('../queries/fetch-dialog-messages', () => ({
-  fetchMingoDialogMessages: async () => {
+vi.mock('@/lib/dialog-messages-page', () => ({
+  fetchDialogMessagesPage: async () => {
     h.fetches++;
-    if (h.dbDown) return { ok: false, error: 'history unavailable' };
+    if (h.dbDown) throw new Error('history unavailable');
     // Snapshot at request time, delivered after the latency — like a real query.
     const rows = [...h.db].reverse();
     if (h.dbDelayMs > 0) await new Promise(r => setTimeout(r, h.dbDelayMs));
-    return {
-      ok: true,
-      data: {
-        data: {
-          messages: {
-            edges: rows.map(node => ({ cursor: String(node.id), node })),
-            pageInfo: { hasNextPage: false, hasPreviousPage: false, startCursor: null, endCursor: null },
-          },
-        },
-      },
-    };
+    return { messages: rows, pageInfo: { hasNextPage: false, hasPreviousPage: false } };
   },
 }));
 vi.mock('@/lib/api-client', () => ({

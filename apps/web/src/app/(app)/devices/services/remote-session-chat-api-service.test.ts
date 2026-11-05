@@ -20,7 +20,7 @@ function message(overrides: Partial<Message> & { id: string }): Message {
     createdAt: '2026-09-23T10:00:00Z',
     lastChunkStreamSeq: null,
     owner: { type: 'CLIENT', machineId: 'machine-1' },
-    messageData: { type: 'TEXT', text: '' },
+    parts: [{ type: 'TEXT', text: '' }],
     ...overrides,
   } as Message;
 }
@@ -54,31 +54,31 @@ describe('RemoteSessionChatApiService', () => {
           id: 'm4',
           createdAt: '2026-09-23T10:03:00Z',
           lastChunkStreamSeq: 14,
-          messageData: [
+          parts: [
             { type: 'TEXT', text: 'a' },
             { type: 'TEXT', text: 'b' },
-          ] as unknown as Message['messageData'],
+          ],
         }),
         message({
           id: 'm3',
           lastChunkStreamSeq: 13,
           owner: { type: 'ASSISTANT', model: 'x' },
-          messageData: { type: 'TEXT', text: 'not a chat line' },
+          parts: [{ type: 'TEXT', text: 'not a chat line' }],
         }),
         message({
           id: 'm2',
           createdAt: '2026-09-23T10:01:00Z',
           lastChunkStreamSeq: 12,
           owner: { type: 'ADMIN', userId: 'u1', user: { id: 'u1', firstName: 'Roman', lastName: 'K.' } },
-          messageData: { type: 'TEXT', text: 'Hi' },
+          parts: [{ type: 'TEXT', text: 'Hi' }],
         }),
         message({
           id: 'm1',
           createdAt: '2026-09-23T10:00:30Z',
           lastChunkStreamSeq: 10,
-          messageData: { type: 'TEXT', text: 'Hello' },
+          parts: [{ type: 'TEXT', text: 'Hello' }],
         }),
-        message({ id: 'm0', lastChunkStreamSeq: 9, messageData: { type: 'SYSTEM', text: 'joined' } }),
+        message({ id: 'm0', lastChunkStreamSeq: 9, parts: [{ type: 'SYSTEM', text: 'joined' }] }),
       ],
       pageInfo: {},
     });
@@ -87,8 +87,6 @@ describe('RemoteSessionChatApiService', () => {
       dialogId: DIALOG_ID,
       chatType: 'CLIENT_CHAT',
       limit: 50,
-      sortField: 'createdAt',
-      sortDirection: 'DESC',
     });
     expect(page.messages).toEqual([
       {
@@ -122,9 +120,7 @@ describe('RemoteSessionChatApiService', () => {
 
   it('names a technician row without a user profile and reports an empty dialog', async () => {
     tickets.fetchMessages.mockResolvedValueOnce({
-      messages: [
-        message({ id: 'm1', owner: { type: 'ADMIN', userId: 'u1' }, messageData: { type: 'TEXT', text: 'Hi' } }),
-      ],
+      messages: [message({ id: 'm1', owner: { type: 'ADMIN', userId: 'u1' }, parts: [{ type: 'TEXT', text: 'Hi' }] })],
       pageInfo: {},
     });
     expect((await service.history(DIALOG_ID)).messages[0]).toMatchObject({ authorName: 'Technician', seq: undefined });

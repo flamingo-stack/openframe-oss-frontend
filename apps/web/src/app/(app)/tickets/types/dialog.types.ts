@@ -258,7 +258,8 @@ export interface Message {
   createdAt: string;
   lastChunkStreamSeq?: number | null;
   owner: ClientOwner | AssistantOwner | AdminOwner | MessageOwner;
-  messageData:
+  /** What the row holds, one entry per part, as the backend's `Message.parts` answers it. */
+  parts: Array<
     | TextData
     | ErrorData
     | ExecutingToolData
@@ -267,7 +268,8 @@ export interface Message {
     | ApprovalResultData
     | SystemData
     | TicketEventData
-    | MessageData;
+    | MessageData
+  >;
 }
 
 export interface MessageEdge {

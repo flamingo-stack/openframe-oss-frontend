@@ -67,7 +67,14 @@ function messagesWithSeqs(...seqs: number[]) {
   return {
     ok: true,
     status: 200,
-    data: { data: { messages: { edges: seqs.map(seq => ({ node: { lastChunkStreamSeq: seq } })) } } },
+    data: {
+      data: {
+        messages: {
+          edges: seqs.map(seq => ({ node: { lastChunkStreamSeq: seq } })),
+          pageInfo: { hasNextPage: false, hasPreviousPage: false, startCursor: null, endCursor: null },
+        },
+      },
+    },
   };
 }
 
