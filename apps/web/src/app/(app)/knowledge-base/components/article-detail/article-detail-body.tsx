@@ -7,8 +7,8 @@ import { SimpleMarkdownRenderer } from '@/app/components/shared/lazy-markdown';
 /** The text size the body renders at. */
 const BODY_TEXT_SIZE = 'compact';
 
-/** A typical article's length in body lines (its own is unknown until it arrives). */
-const ARTICLE_BODY_SKELETON_LINES = 10;
+/** A typical article's length in body lines at every width (its own is unknown until it arrives). */
+const ARTICLE_BODY_SKELETON_LINES = { phone: 10, md: 10, lg: 10 };
 
 const articleDetailBodyFragment = graphql`
   fragment articleDetailBody_article on KnowledgeBaseItem {
