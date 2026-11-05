@@ -38,7 +38,7 @@ function CustomPolicyButton({ onClick, disabled }: { onClick?: () => void; disab
           onClick();
         })
       }
-      className="hidden h-auto gap-[var(--spacing-system-xsf)] border-ods-border bg-ods-card !px-[var(--spacing-system-m)] py-[var(--spacing-system-sf)] text-ods-text-primary !text-h3 hover:bg-ods-bg-hover content-md:inline-flex [&_svg]:!size-6"
+      className="hidden h-auto gap-[var(--spacing-system-xsf)] border-ods-border bg-ods-card !px-[var(--spacing-system-m)] py-[var(--spacing-system-sf)] text-ods-text-primary !text-h3 hover:bg-ods-bg-hover content-md:ml-[var(--spacing-system-s)] content-md:inline-flex [&_svg]:!size-6"
       leftIcon={<Filter03HrIcon className="text-ods-text-secondary" />}
       disabled={disabled}
     >
@@ -74,6 +74,8 @@ export function GuardrailsTemplatePicker({
     <RadioGroupBlock
       name="policy-template"
       variant="grouped"
+      // The settings design's policy rows: 24px around each (Figma 4365-22636).
+      itemClassName="p-[var(--spacing-system-lf)]"
       value={value}
       onValueChange={onSelect}
       disabled={disabled}
