@@ -1,9 +1,12 @@
-import { type ChatSuggestionPrompt, recordLinkMarkdown } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import {
+  type ChatSuggestionPrompt,
+  recordLinkMarkdown,
+  OPENFRAME_RECORD_TYPE,
+} from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { getAgentAccent, type WhatToAskContent } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { whatToAskDevicesRelayQuery$data } from '@/__generated__/whatToAskDevicesRelayQuery.graphql';
 import { decodeGlobalId } from '@/lib/relay-id';
-import { CONTEXT_ENTITY_MARKER } from './context/context-types';
 
 /** An online device a prompt can name (`whatToAskDevicesRelayQuery`). */
 export type WhatToAskDevice = whatToAskDevicesRelayQuery$data['devices']['edges'][number]['node'];
@@ -32,7 +35,7 @@ const aboutDevice = (
   const name = getDeviceName(device);
   return {
     label: named(name),
-    prompt: named(recordLinkMarkdown({ type: CONTEXT_ENTITY_MARKER.DEVICE, id }, name)),
+    prompt: named(recordLinkMarkdown({ type: OPENFRAME_RECORD_TYPE.DEVICE, id }, name)),
     icon,
   };
 };

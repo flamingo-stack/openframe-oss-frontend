@@ -1,9 +1,4 @@
-import {
-  OPENFRAME_RECORD_KIND,
-  OPENFRAME_RECORD_KINDS,
-  OPENFRAME_RECORD_TYPE,
-  type OpenFrameRecordKind,
-} from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import type { OpenFrameRecordKind } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 
 /**
  * Mingo entity-context types shared across the host's context layer (the
@@ -16,21 +11,12 @@ import {
  *
  * The kinds and each kind's record type (the `<type>` of its record link) are
  * the lib's ONE table of OpenFrame record types (`OPENFRAME_RECORD_KIND`,
- * `OPENFRAME_RECORD_TYPE`), which the agent's `ContextItemType` matches by name.
- * To add a kind: add it there, then wire its label/icon in
- * `MINGO_CONTEXT_ENTITY_TYPES` and its fetcher in `FETCHERS` (both in
- * `context-sources.tsx`). The TS `Record<ContextEntityKind, …>` on `FETCHERS`
- * makes a missing entry a compile error.
+ * `OPENFRAME_RECORD_TYPE` in `chat-protocol`), imported from there wherever they
+ * are used. The agent's `ContextItemType` matches them by name. To add a kind:
+ * add it there, then wire its label/icon in `MINGO_CONTEXT_ENTITY_TYPES` and its
+ * fetcher in `FETCHERS` (both in `context-sources.tsx`). The TS
+ * `Record<OpenFrameRecordKind, …>` on `FETCHERS` makes a missing entry a compile error.
  */
-export const CONTEXT_ENTITY_KIND = OPENFRAME_RECORD_KIND;
-
-export type ContextEntityKind = OpenFrameRecordKind;
-
-/** All kinds as a runtime list, in declaration order. */
-export const CONTEXT_ENTITY_KINDS = OPENFRAME_RECORD_KINDS;
-
-/** Each kind's record type: the `<type>` of its record link (`record://device/…`, `record://kb/…`). */
-export const CONTEXT_ENTITY_MARKER = OPENFRAME_RECORD_TYPE;
 
 /**
  * Relay `__typename` for the GraphQL-resolvable kinds. Used ONLY to round-trip a
@@ -48,7 +34,7 @@ export const CONTEXT_ENTITY_MARKER = OPENFRAME_RECORD_TYPE;
  * and VULNERABILITY, whose stored id already IS what their query takes. Drop
  * this whole dance once the backend speaks global ids end-to-end for context.
  */
-export const CONTEXT_RELAY_TYPENAME: Partial<Record<ContextEntityKind, string>> = {
+export const CONTEXT_RELAY_TYPENAME: Partial<Record<OpenFrameRecordKind, string>> = {
   DEVICE: 'Machine',
   ORGANIZATION: 'Organization',
   KB_ARTICLE: 'KnowledgeBaseItem',
@@ -64,7 +50,7 @@ export const CONTEXT_RELAY_TYPENAME: Partial<Record<ContextEntityKind, string>> 
 
 /** Minimal wire shape for `contextItems` / `currentView` / `recentViews`. */
 export interface ContextRef {
-  type: ContextEntityKind;
+  type: OpenFrameRecordKind;
   id: string;
 }
 

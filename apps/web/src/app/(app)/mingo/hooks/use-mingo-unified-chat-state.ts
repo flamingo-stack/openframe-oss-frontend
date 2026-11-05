@@ -1,5 +1,6 @@
 'use client';
 
+import { OPENFRAME_RECORD_KIND } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 /**
  * useMingoUnifiedChatState — adapts the existing `/mingo` data stack
  * (react-query + the `mingo-messages-store` Zustand store + the NATS/JetStream
@@ -28,7 +29,6 @@
  * `useMingoChatSurface()`. A second call is a second dialog list poll and a
  * second live tail applying every chunk again.
  */
-
 import type {
   ChatConnectionState,
   ChatMessageActions,
@@ -59,7 +59,7 @@ import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { DISPLAY_APPROVAL_TYPES } from '@/lib/chat-approval-tiers';
 import { linkedInsightId } from '../../incidents/utils/fix-with-mingo-draft';
 import type { DialogIntent } from '../../tickets/constants';
-import { CONTEXT_ENTITY_KIND, CONTEXT_ITEMS_MAX, RECENT_VIEWS_MAX } from '../context/context-types';
+import { CONTEXT_ITEMS_MAX, RECENT_VIEWS_MAX } from '../context/context-types';
 import { pageContextHref, resolvePageContext } from '../context/page-context';
 import { useMingoContextStore } from '../stores/mingo-context-store';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
@@ -486,7 +486,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       // prefilled mention reached the send as text with `contextItems` absent
       // (observed), and the link is what the server resolves anyway.
       const insightId =
-        sendContext.contextItems?.find(item => item.type === CONTEXT_ENTITY_KIND.INSIGHT)?.id ??
+        sendContext.contextItems?.find(item => item.type === OPENFRAME_RECORD_KIND.INSIGHT)?.id ??
         linkedInsightId(trimmed);
       const newId = await createDialog({ insightId });
       if (!newId) return;

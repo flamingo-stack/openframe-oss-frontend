@@ -8,6 +8,7 @@ import {
   TabContent,
   TabNavigation,
 } from '@flamingo-stack/openframe-frontend-core';
+import { OPENFRAME_RECORD_KIND } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import {
   BoxArchiveIcon,
   PenEditIcon,
@@ -23,7 +24,6 @@ import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { getFullImageUrl } from '@/lib/image-url';
 import { type CustomerDetailTab, type CustomerEditTab, routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
-import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
 import { useCustomerArchive } from '../hooks/use-customer-archive';
 import { customerDetailsQueryKeys, useCustomerDetails } from '../hooks/use-customer-details';
@@ -94,7 +94,7 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
 
   // Register this organization as the Mingo "open view".
   useTrackOpenView(
-    organization ? { type: CONTEXT_ENTITY_KIND.ORGANIZATION, id, label: organization.name || id } : null,
+    organization ? { type: OPENFRAME_RECORD_KIND.ORGANIZATION, id, label: organization.name || id } : null,
     { loading: isLoading },
   );
   const { checkCanArchive, archiveOrganization, restoreOrganization } = useCustomerArchive();

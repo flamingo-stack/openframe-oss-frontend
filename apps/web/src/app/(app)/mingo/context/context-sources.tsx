@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  OPENFRAME_RECORD_KIND,
+  OPENFRAME_RECORD_TYPE,
+  type OpenFrameRecordKind,
+} from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 /**
  * Mingo entity-context types — the picker's first-level list (Figma 31:28708).
  * `type` is the backend discriminator (also stamped onto each `ChatContextItem.
@@ -7,7 +12,6 @@
  * per-type component (`relay-items` / `rest-items`), dispatched
  * by `renderMingoContextItems`.
  */
-
 import type { ChatContextEntityType } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import {
   AlertTriangleIcon,
@@ -26,98 +30,97 @@ import { KB_ITEM_ICON } from '@/app/(app)/knowledge-base/components/shared/knowl
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { KnowledgeBaseItemType } from '@/generated/schema-enums';
 import type { FeatureFlagName } from '@/lib/feature-flags';
-import { CONTEXT_ENTITY_KIND, CONTEXT_ENTITY_MARKER, type ContextEntityKind } from './context-types';
 
 const KbArticleIcon = KB_ITEM_ICON[KnowledgeBaseItemType.ARTICLE];
 const KbFolderIcon = KB_ITEM_ICON[KnowledgeBaseItemType.FOLDER];
 
 /**
  * Entity types in picker display order. `marker` is the backend's record type
- * (from `CONTEXT_ENTITY_MARKER`): the lib commits a picked record as a record
+ * (from `OPENFRAME_RECORD_TYPE`): the lib commits a picked record as a record
  * link of that type, which the backend's `MentionParser` reads. Every kind
  * offered here resolves server-side.
  */
 export const MINGO_CONTEXT_ENTITY_TYPES: ChatContextEntityType[] = [
   {
-    type: CONTEXT_ENTITY_KIND.DEVICE,
+    type: OPENFRAME_RECORD_KIND.DEVICE,
     label: 'Device',
-    marker: CONTEXT_ENTITY_MARKER.DEVICE,
+    marker: OPENFRAME_RECORD_TYPE.DEVICE,
     icon: <MonitorIcon size={24} />,
   },
   {
-    type: CONTEXT_ENTITY_KIND.SCRIPT,
+    type: OPENFRAME_RECORD_KIND.SCRIPT,
     label: 'Script',
-    marker: CONTEXT_ENTITY_MARKER.SCRIPT,
+    marker: OPENFRAME_RECORD_TYPE.SCRIPT,
     icon: <BracketCurlyIcon size={24} />,
   },
   {
     // Sits next to Script on purpose — a schedule is "when these scripts run",
     // so the two read as one pair in the picker.
-    type: CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT,
+    type: OPENFRAME_RECORD_KIND.SCHEDULED_SCRIPT,
     label: 'Script Schedule',
-    marker: CONTEXT_ENTITY_MARKER.SCHEDULED_SCRIPT,
+    marker: OPENFRAME_RECORD_TYPE.SCHEDULED_SCRIPT,
     icon: <TimerIcon size={24} />,
   },
   {
-    type: CONTEXT_ENTITY_KIND.TICKET,
+    type: OPENFRAME_RECORD_KIND.TICKET,
     label: 'Ticket',
-    marker: CONTEXT_ENTITY_MARKER.TICKET,
+    marker: OPENFRAME_RECORD_TYPE.TICKET,
     icon: <TagIcon size={24} />,
   },
   {
-    type: CONTEXT_ENTITY_KIND.ORGANIZATION,
+    type: OPENFRAME_RECORD_KIND.ORGANIZATION,
     label: 'Customer',
-    marker: CONTEXT_ENTITY_MARKER.ORGANIZATION,
+    marker: OPENFRAME_RECORD_TYPE.ORGANIZATION,
     icon: <IdCardIcon size={24} />,
   },
-  { type: CONTEXT_ENTITY_KIND.USER, label: 'User', marker: CONTEXT_ENTITY_MARKER.USER, icon: <UserIcon size={24} /> },
+  { type: OPENFRAME_RECORD_KIND.USER, label: 'User', marker: OPENFRAME_RECORD_TYPE.USER, icon: <UserIcon size={24} /> },
   {
-    type: CONTEXT_ENTITY_KIND.KB_ARTICLE,
+    type: OPENFRAME_RECORD_KIND.KB_ARTICLE,
     label: 'Knowledge Article',
-    marker: CONTEXT_ENTITY_MARKER.KB_ARTICLE,
+    marker: OPENFRAME_RECORD_TYPE.KB_ARTICLE,
     icon: <KbArticleIcon size={24} />,
   },
   {
     // Next to Knowledge Article on purpose — a folder is "every article on this
     // topic", so the two read as one pair. The glyph is the Knowledge Base
     // table's folder icon, the same the `@kbFolder` chip wears.
-    type: CONTEXT_ENTITY_KIND.KB_FOLDER,
+    type: OPENFRAME_RECORD_KIND.KB_FOLDER,
     label: 'Knowledge Folder',
-    marker: CONTEXT_ENTITY_MARKER.KB_FOLDER,
+    marker: OPENFRAME_RECORD_TYPE.KB_FOLDER,
     icon: <KbFolderIcon size={24} />,
   },
   {
-    type: CONTEXT_ENTITY_KIND.POLICY,
+    type: OPENFRAME_RECORD_KIND.POLICY,
     label: 'Policy',
-    marker: CONTEXT_ENTITY_MARKER.POLICY,
+    marker: OPENFRAME_RECORD_TYPE.POLICY,
     icon: <FolderShieldIcon size={24} />,
   },
   {
-    type: CONTEXT_ENTITY_KIND.QUERY,
+    type: OPENFRAME_RECORD_KIND.QUERY,
     label: 'Query',
-    marker: CONTEXT_ENTITY_MARKER.QUERY,
+    marker: OPENFRAME_RECORD_TYPE.QUERY,
     icon: <BracketCurlyEllipsisVrIcon size={24} />,
   },
   {
-    type: CONTEXT_ENTITY_KIND.INSIGHT,
+    type: OPENFRAME_RECORD_KIND.INSIGHT,
     label: 'Incident',
-    marker: CONTEXT_ENTITY_MARKER.INSIGHT,
+    marker: OPENFRAME_RECORD_TYPE.INSIGHT,
     icon: <AlertTriangleIcon size={24} />,
   },
   {
     // The same glyph as the Software sidebar item and section tab.
-    type: CONTEXT_ENTITY_KIND.SOFTWARE,
+    type: OPENFRAME_RECORD_KIND.SOFTWARE,
     label: 'Software',
-    marker: CONTEXT_ENTITY_MARKER.SOFTWARE,
+    marker: OPENFRAME_RECORD_TYPE.SOFTWARE,
     icon: <Parcel02Icon size={24} />,
   },
   {
     // Next to Software on purpose — a CVE is "what is wrong with this title",
     // so the two read as one pair. The glyph is the Vulnerabilities tab's,
     // on the device page and the Software section alike.
-    type: CONTEXT_ENTITY_KIND.VULNERABILITY,
+    type: OPENFRAME_RECORD_KIND.VULNERABILITY,
     label: 'Vulnerability',
-    marker: CONTEXT_ENTITY_MARKER.VULNERABILITY,
+    marker: OPENFRAME_RECORD_TYPE.VULNERABILITY,
     icon: <BracketSquareCheckIcon size={24} />,
   },
 ];
@@ -130,11 +133,11 @@ export const MINGO_CONTEXT_ENTITY_TYPES: ChatContextEntityType[] = [
  */
 type ModuleFlag = Extract<FeatureFlagName, 'insights' | 'software-management'>;
 
-const KIND_FLAG: Partial<Record<ContextEntityKind, ModuleFlag>> = {
+const KIND_FLAG: Partial<Record<OpenFrameRecordKind, ModuleFlag>> = {
   // The Incidents module — the same flag as its sidebar entry and its pages.
-  [CONTEXT_ENTITY_KIND.INSIGHT]: 'insights',
-  [CONTEXT_ENTITY_KIND.SOFTWARE]: 'software-management',
-  [CONTEXT_ENTITY_KIND.VULNERABILITY]: 'software-management',
+  [OPENFRAME_RECORD_KIND.INSIGHT]: 'insights',
+  [OPENFRAME_RECORD_KIND.SOFTWARE]: 'software-management',
+  [OPENFRAME_RECORD_KIND.VULNERABILITY]: 'software-management',
 };
 
 /**
@@ -151,7 +154,7 @@ export function useMingoContextEntityTypes(): ChatContextEntityType[] {
     'software-management': useFeatureFlag('software-management'),
   };
   return MINGO_CONTEXT_ENTITY_TYPES.filter(t => {
-    const flag = KIND_FLAG[t.type as ContextEntityKind];
+    const flag = KIND_FLAG[t.type as OpenFrameRecordKind];
     return flag === undefined || enabled[flag];
   });
 }

@@ -23,11 +23,15 @@
  * resolve a name. Unknown type → the lib's own chip.
  */
 
-import { OPENFRAME_CHAT_RECORD_TYPE } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import {
+  OPENFRAME_CHAT_RECORD_TYPE,
+  OPENFRAME_RECORD_KIND,
+  OPENFRAME_RECORD_TYPE,
+  type OpenFrameRecordKind,
+} from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { type ChatContextItem, RecordChip } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import type { ReactNode } from 'react';
 import { routes } from '@/lib/routes';
-import { CONTEXT_ENTITY_KIND, type ContextEntityKind, CONTEXT_ENTITY_MARKER as M } from '../context-types';
 import { ChatReferenceChip } from './chat-reference-chip';
 import { GraphqlMentionChip } from './relay-mention-chips';
 import { RestMentionChip } from './rest-mention-chips';
@@ -55,40 +59,40 @@ export function renderMingoRecordChip({
       // Not an entity: an earlier conversation Mingo cites from chat memory.
       // Opens IN the drawer (see the chip), never on a page.
       return <ChatReferenceChip id={id} />;
-    case M.DEVICE:
-      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.DEVICE} id={id} fallbackLabel={label} />;
-    case M.ORGANIZATION:
-      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.ORGANIZATION} id={id} fallbackLabel={label} />;
-    case M.KB_ARTICLE:
-      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.KB_ARTICLE} id={id} fallbackLabel={label} />;
-    case M.KB_FOLDER:
-      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.KB_FOLDER} id={id} fallbackLabel={label} />;
-    case M.SCHEDULED_SCRIPT:
+    case OPENFRAME_RECORD_TYPE.DEVICE:
+      return <GraphqlMentionChip kind={OPENFRAME_RECORD_KIND.DEVICE} id={id} fallbackLabel={label} />;
+    case OPENFRAME_RECORD_TYPE.ORGANIZATION:
+      return <GraphqlMentionChip kind={OPENFRAME_RECORD_KIND.ORGANIZATION} id={id} fallbackLabel={label} />;
+    case OPENFRAME_RECORD_TYPE.KB_ARTICLE:
+      return <GraphqlMentionChip kind={OPENFRAME_RECORD_KIND.KB_ARTICLE} id={id} fallbackLabel={label} />;
+    case OPENFRAME_RECORD_TYPE.KB_FOLDER:
+      return <GraphqlMentionChip kind={OPENFRAME_RECORD_KIND.KB_FOLDER} id={id} fallbackLabel={label} />;
+    case OPENFRAME_RECORD_TYPE.SCHEDULED_SCRIPT:
       // Native-only (schedules never existed in Tactical), so — unlike SCRIPT
       // below — there is no id-shape dispatch: every id resolves through Relay.
-      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT} id={id} fallbackLabel={label} />;
-    case M.INSIGHT:
-      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.INSIGHT} id={id} fallbackLabel={label} />;
-    case M.SOFTWARE:
-      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.SOFTWARE} id={id} fallbackLabel={label} />;
-    case M.VULNERABILITY:
+      return <GraphqlMentionChip kind={OPENFRAME_RECORD_KIND.SCHEDULED_SCRIPT} id={id} fallbackLabel={label} />;
+    case OPENFRAME_RECORD_TYPE.INSIGHT:
+      return <GraphqlMentionChip kind={OPENFRAME_RECORD_KIND.INSIGHT} id={id} fallbackLabel={label} />;
+    case OPENFRAME_RECORD_TYPE.SOFTWARE:
+      return <GraphqlMentionChip kind={OPENFRAME_RECORD_KIND.SOFTWARE} id={id} fallbackLabel={label} />;
+    case OPENFRAME_RECORD_TYPE.VULNERABILITY:
       // A CVE id is its own name: nothing to resolve, so no fetch and no
       // skeleton — a linked chip straight away.
       return <RecordChip type={type} id={id} label={label || id} href={routes.software.vulnerability(id)} />;
-    case M.SCRIPT:
+    case OPENFRAME_RECORD_TYPE.SCRIPT:
       // Dual-sourced: a 24-char ObjectId is a NATIVE script (Relay `script(id:)`);
       // anything else (numeric) is a LEGACY Tactical id, still reachable in old
       // chat history even though nothing writes those ids any more.
       return OBJECT_ID_RE.test(id) ? (
-        <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.SCRIPT} id={id} fallbackLabel={label} />
+        <GraphqlMentionChip kind={OPENFRAME_RECORD_KIND.SCRIPT} id={id} fallbackLabel={label} />
       ) : (
         <RestMentionChip marker={type} id={id} fallbackLabel={label} />
       );
-    case M.USER:
-      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.USER} id={id} fallbackLabel={label} />;
-    case M.POLICY:
-    case M.QUERY:
-    case M.TICKET:
+    case OPENFRAME_RECORD_TYPE.USER:
+      return <GraphqlMentionChip kind={OPENFRAME_RECORD_KIND.USER} id={id} fallbackLabel={label} />;
+    case OPENFRAME_RECORD_TYPE.POLICY:
+    case OPENFRAME_RECORD_TYPE.QUERY:
+    case OPENFRAME_RECORD_TYPE.TICKET:
       return <RestMentionChip marker={type} id={id} fallbackLabel={label} />;
     default:
       // Unknown type → the lib draws its own chip with the link's name.
@@ -107,7 +111,7 @@ export function renderMingoRecordChip({
  * message memo depends on it).
  */
 export function renderMingoContextItem(item: ChatContextItem): ReactNode {
-  const marker = M[item.type as ContextEntityKind];
+  const marker = OPENFRAME_RECORD_TYPE[item.type as OpenFrameRecordKind];
   if (!marker) return null;
   // Context items carry the picked display name — pass it as the chip's fallback
   // so it shows the name immediately (and never a bare id) even if the live

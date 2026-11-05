@@ -11,7 +11,11 @@ import {
   maxPersistedStreamSeq,
   NotFoundError,
 } from '@flamingo-stack/openframe-frontend-core';
-import { approvalRequestIdOf, type ChatMessage } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import {
+  approvalRequestIdOf,
+  type ChatMessage,
+  OPENFRAME_RECORD_KIND,
+} from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   findLatestPendingId,
@@ -71,7 +75,6 @@ import { routes } from '@/lib/routes';
 import { useAuthStore } from '@/stores';
 import { useDeviceActionsMenu } from '../../devices/hooks/use-device-actions-menu';
 import { useDeviceDetails } from '../../devices/hooks/use-device-details';
-import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
 import { APPROVAL_STATUS, ASSISTANT_CONFIG, CHAT_TYPE } from '../constants';
 import { useApprovalRequests } from '../hooks/use-approval-requests';
@@ -180,7 +183,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   // chat's context. `dialog.id` is the raw db id the backend TICKET resolver /
   // `record://ticket/<id>` link expects (TICKET is REST-resolved — no global-id round-trip).
   useTrackOpenView(
-    dialog ? { type: CONTEXT_ENTITY_KIND.TICKET, id: dialog.id, label: formatTicketRef(dialog, dialog.id) } : null,
+    dialog ? { type: OPENFRAME_RECORD_KIND.TICKET, id: dialog.id, label: formatTicketRef(dialog, dialog.id) } : null,
     { loading: isLoading },
   );
 

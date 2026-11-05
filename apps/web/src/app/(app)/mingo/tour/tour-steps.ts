@@ -1,4 +1,4 @@
-import { recordLinkMarkdown } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import { recordLinkMarkdown, OPENFRAME_RECORD_TYPE } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import {
   AlertCircleIcon,
   AlertOctagonIcon,
@@ -20,7 +20,6 @@ import {
 import type { ComponentType } from 'react';
 import { UserOnboardingStep } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
-import { CONTEXT_ENTITY_MARKER } from '../context/context-types';
 
 /** The conversation the tour lives in, as the chat list names it. */
 export const TOUR_DIALOG_TITLE = 'Welcome to OpenFrame';
@@ -296,6 +295,6 @@ export function tourPrompt(action: TourAction, device: { mentionId: string | nul
   if (typeof action.prompt === 'string') return action.prompt;
   const id = device?.mentionId;
   return action.prompt(
-    id && device ? recordLinkMarkdown({ type: CONTEXT_ENTITY_MARKER.DEVICE, id }, device.name) : TOUR_DEVICE_FALLBACK,
+    id && device ? recordLinkMarkdown({ type: OPENFRAME_RECORD_TYPE.DEVICE, id }, device.name) : TOUR_DEVICE_FALLBACK,
   );
 }

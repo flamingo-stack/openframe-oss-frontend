@@ -10,6 +10,7 @@ import {
   TabNavigation,
   Tag,
 } from '@flamingo-stack/openframe-frontend-core';
+import { OPENFRAME_RECORD_KIND } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import {
   getDeviceName,
   getDeviceStatusConfig,
@@ -21,7 +22,6 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
-import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
 import { useDeviceActionsMenu } from '../hooks/use-device-actions-menu';
 import { useDeviceDetails } from '../hooks/use-device-details';
@@ -131,7 +131,7 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
   useTrackOpenView(
     normalizedDevice
       ? {
-          type: CONTEXT_ENTITY_KIND.DEVICE,
+          type: OPENFRAME_RECORD_KIND.DEVICE,
           id: deviceId,
           label: getDeviceName(normalizedDevice) || deviceId,
         }

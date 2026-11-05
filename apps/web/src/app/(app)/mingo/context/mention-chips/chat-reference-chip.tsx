@@ -9,7 +9,7 @@
  *
  * `chat` is a record type, not a `ContextItemType`: nothing attaches a
  * conversation as context, the picker does not offer one, and it has no entry
- * in `CONTEXT_ENTITY_MARKER` (it is the lib's `OPENFRAME_CHAT_RECORD_TYPE`). It is the one link-only type.
+ * in `OPENFRAME_RECORD_TYPE` (it is the lib's `OPENFRAME_CHAT_RECORD_TYPE`). It is the one link-only type.
  *
  * The chip links to that chat's page (`mingoDialogLink`, the canonical chat route).
  *

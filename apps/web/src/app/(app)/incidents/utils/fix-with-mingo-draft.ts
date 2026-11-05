@@ -2,14 +2,16 @@ import {
   extractRecordLinks,
   leadingRecordLinks,
   openFrameRecordKindOf,
+  OPENFRAME_RECORD_KIND,
+  OPENFRAME_RECORD_TYPE,
+  type OpenFrameRecordKind,
 } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
-import { CONTEXT_ENTITY_KIND, CONTEXT_ENTITY_MARKER, type ContextEntityKind } from '../../mingo/context/context-types';
 import type { MingoDraft } from '../../mingo/stores/mingo-launcher-store';
 import type { IncidentRow } from './incident-transform';
 
 /** The incident a message links: the first record link of type insight in it (`[…](record://insight/<id>)`). */
 export function linkedInsightId(text: string): string | undefined {
-  return extractRecordLinks(text).find(record => record.type === CONTEXT_ENTITY_MARKER.INSIGHT)?.id;
+  return extractRecordLinks(text).find(record => record.type === OPENFRAME_RECORD_TYPE.INSIGHT)?.id;
 }
 
 /**
@@ -33,8 +35,8 @@ export function incidentMingoDraft(prompt: string, incident: IncidentRow): Mingo
   return { text: [...unknown, rest].filter(Boolean).join(' '), mentions };
 }
 
-function labelFor(kind: ContextEntityKind, id: string, incident: IncidentRow): string {
-  if (kind === CONTEXT_ENTITY_KIND.INSIGHT && id === incident.insightId) return incident.title;
-  if (kind === CONTEXT_ENTITY_KIND.DEVICE && id === incident.machineId) return incident.deviceName;
+function labelFor(kind: OpenFrameRecordKind, id: string, incident: IncidentRow): string {
+  if (kind === OPENFRAME_RECORD_KIND.INSIGHT && id === incident.insightId) return incident.title;
+  if (kind === OPENFRAME_RECORD_KIND.DEVICE && id === incident.machineId) return incident.deviceName;
   return id;
 }

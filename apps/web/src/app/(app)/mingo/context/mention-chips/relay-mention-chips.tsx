@@ -1,4 +1,10 @@
 'use client';
+
+import {
+  OPENFRAME_RECORD_KIND,
+  OPENFRAME_RECORD_TYPE,
+  type OpenFrameRecordKind,
+} from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { RecordChip } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { ErrorBoundary, getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
@@ -45,17 +51,12 @@ import type { relayMentionChipsSoftwareQuery } from '@/__generated__/relayMentio
 import { toUserSummary } from '@/graphql/users/user-summary-fields';
 import { ensureGlobalIdForType } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
-import {
-  CONTEXT_ENTITY_KIND,
-  CONTEXT_ENTITY_MARKER,
-  CONTEXT_RELAY_TYPENAME,
-  type ContextEntityKind,
-} from '../context-types';
+import { CONTEXT_RELAY_TYPENAME } from '../context-types';
 
 interface GraphqlMentionChipProps {
   /** GraphQL-resolvable kind — DEVICE | ORGANIZATION | USER | KB_ARTICLE | KB_FOLDER |
    *  SCRIPT | SCHEDULED_SCRIPT | INSIGHT | SOFTWARE. */
-  kind: ContextEntityKind;
+  kind: OpenFrameRecordKind;
   /** RAW db id (machineId / organizationId / kb id / script id / schedule id /
    *  software id). */
   id: string;
@@ -139,25 +140,25 @@ const SOFTWARE_QUERY = graphql`
 /** Detail-page URL for a resolved entity. Device/org/software routes key on the
  *  RAW id; the kb + script + schedule + incident routes key on the GLOBAL id
  *  (same id their queries take). */
-function hrefFor(kind: ContextEntityKind, rawId: string, globalId: string): string | null {
+function hrefFor(kind: OpenFrameRecordKind, rawId: string, globalId: string): string | null {
   switch (kind) {
-    case CONTEXT_ENTITY_KIND.DEVICE:
+    case OPENFRAME_RECORD_KIND.DEVICE:
       return routes.devices.details(rawId);
-    case CONTEXT_ENTITY_KIND.ORGANIZATION:
+    case OPENFRAME_RECORD_KIND.ORGANIZATION:
       return routes.customers.details(rawId);
-    case CONTEXT_ENTITY_KIND.SOFTWARE:
+    case OPENFRAME_RECORD_KIND.SOFTWARE:
       return routes.software.details(rawId);
-    case CONTEXT_ENTITY_KIND.USER:
+    case OPENFRAME_RECORD_KIND.USER:
       return routes.settings.employeeDetails(rawId);
-    case CONTEXT_ENTITY_KIND.KB_ARTICLE:
+    case OPENFRAME_RECORD_KIND.KB_ARTICLE:
       return routes.knowledgeBase.details(globalId);
-    case CONTEXT_ENTITY_KIND.KB_FOLDER:
+    case OPENFRAME_RECORD_KIND.KB_FOLDER:
       return routes.knowledgeBase.folder(globalId);
-    case CONTEXT_ENTITY_KIND.SCRIPT:
+    case OPENFRAME_RECORD_KIND.SCRIPT:
       return routes.scripts.details(globalId);
-    case CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT:
+    case OPENFRAME_RECORD_KIND.SCHEDULED_SCRIPT:
       return routes.scripts.schedules.details(globalId);
-    case CONTEXT_ENTITY_KIND.INSIGHT:
+    case OPENFRAME_RECORD_KIND.INSIGHT:
       return routes.incidents.details(globalId);
     default:
       return null;
@@ -171,12 +172,12 @@ function KindChip({
   globalId,
   label,
 }: {
-  kind: ContextEntityKind;
+  kind: OpenFrameRecordKind;
   id: string;
   globalId: string;
   label: string;
 }) {
-  return <RecordChip type={CONTEXT_ENTITY_MARKER[kind]} id={id} label={label} href={hrefFor(kind, id, globalId)} />;
+  return <RecordChip type={OPENFRAME_RECORD_TYPE[kind]} id={id} label={label} href={hrefFor(kind, id, globalId)} />;
 }
 
 type InnerProps = GraphqlMentionChipProps & { globalId: string };
@@ -254,18 +255,18 @@ function SoftwareInner({ kind, id, globalId, fallbackLabel }: InnerProps) {
   return <KindChip kind={kind} id={id} globalId={globalId} label={data.software?.name || fallbackLabel || id} />;
 }
 
-function innerFor(kind: ContextEntityKind): (p: InnerProps) => ReactNode {
+function innerFor(kind: OpenFrameRecordKind): (p: InnerProps) => ReactNode {
   switch (kind) {
-    case CONTEXT_ENTITY_KIND.KB_ARTICLE:
-    case CONTEXT_ENTITY_KIND.KB_FOLDER:
+    case OPENFRAME_RECORD_KIND.KB_ARTICLE:
+    case OPENFRAME_RECORD_KIND.KB_FOLDER:
       return KbInner;
-    case CONTEXT_ENTITY_KIND.SCRIPT:
+    case OPENFRAME_RECORD_KIND.SCRIPT:
       return ScriptInner;
-    case CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT:
+    case OPENFRAME_RECORD_KIND.SCHEDULED_SCRIPT:
       return ScheduleInner;
-    case CONTEXT_ENTITY_KIND.INSIGHT:
+    case OPENFRAME_RECORD_KIND.INSIGHT:
       return InsightInner;
-    case CONTEXT_ENTITY_KIND.SOFTWARE:
+    case OPENFRAME_RECORD_KIND.SOFTWARE:
       return SoftwareInner;
     default:
       return NodeInner;
@@ -305,7 +306,7 @@ function GraphqlMentionLoader(props: InnerProps) {
 
 function GraphqlMentionReader(props: InnerProps) {
   // In a loading scope it draws the chip with no label and runs no read.
-  if (useLoadingScope()) return <RecordChip type={CONTEXT_ENTITY_MARKER[props.kind]} id={props.id} label="" loading />;
+  if (useLoadingScope()) return <RecordChip type={OPENFRAME_RECORD_TYPE[props.kind]} id={props.id} label="" loading />;
   const Inner = innerFor(props.kind);
   return <Inner {...props} />;
 }
