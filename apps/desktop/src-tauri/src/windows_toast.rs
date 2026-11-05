@@ -59,8 +59,10 @@ const TITLE_LIMIT: usize = 50;
 const BODY_LIMIT: usize = 300;
 
 /// The platform caps a whole toast at ~5 KB and drops a larger one without an
-/// error. This is that cap with enough headroom that a regression trips
-/// `a_toast_stays_well_inside_the_payload_cap` rather than the platform.
+/// error. This is that cap with headroom, and the size `toast_xml` posts within:
+/// a toast that reaches it goes out without its link. The headroom is
+/// deliberate, so that a regression trips `a_toast_stays_well_inside_the_payload_cap`
+/// rather than the platform.
 const TOAST_XML_BUDGET: usize = 4096;
 
 /// Groups every toast the shell posts, so a tag only has to be unique within the
@@ -267,7 +269,7 @@ fn toast_xml(
     }
     match click.and_then(crate::notifications::without_link) {
         Some(trimmed) => {
-            log::info!("[notifications] toast over its size cap — posted without its link");
+            log::warn!("[notifications] toast over its size cap — posted without its link");
             compose_toast_xml(title, body, Some(&trimmed), user_id, kind)
         }
         None => xml,
@@ -467,11 +469,19 @@ fn escape_xml(value: &str) -> String {
 mod tests {
     use super::*;
 
+    /// The first click in `notification-click.json` that `matches`: what
+    /// `click_payload` really posts, not a hand-built stand-in.
+    fn fixture_click(matches: impl Fn(&serde_json::Value) -> bool) -> serde_json::Value {
+        crate::notifications::notification_click_cases()
+            .into_iter()
+            .map(|case| case["click"].clone())
+            .find(|click| matches(click))
+            .expect("notification-click.json has no click this test is built on")
+    }
+
+    /// A ticket approval's click: the largest one a toast with buttons carries.
     fn approval_click() -> serde_json::Value {
-        serde_json::json!({
-            "type": "MINGO_APPROVAL_REQUEST",
-            "attributes": { "approvalRequestId": "0a2a0b3c-9d1e-4f5a-8b7c-6d5e4f3a2b1c" },
-        })
+        fixture_click(|click| click["type"] == "TICKET_APPROVAL_REQUEST")
     }
 
     #[test]
@@ -552,12 +562,11 @@ mod tests {
         }
     }
 
+    /// An announcement's click, `notificationId` and all, carrying `link`.
     fn announcement_click(link: &str) -> serde_json::Value {
-        serde_json::json!({
-            "type": "ANNOUNCEMENT",
-            "category": "GENERIC",
-            "attributes": { "link": link },
-        })
+        let mut click = fixture_click(|click| click.pointer("/attributes/link").is_some());
+        click["attributes"]["link"] = serde_json::Value::String(link.to_string());
+        click
     }
 
     /// A release-notes link is far inside the cap, so it rides the click.

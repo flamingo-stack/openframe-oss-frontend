@@ -375,8 +375,12 @@ dials with a fresh bearer.
   (`resolveNatsNotificationAction`) reads, plus the id the action buttons need.
   `link` is an announcement's page (an https URL of up to 1,024 characters), which
   the webview opens in the system browser, or in the app when it is on the tenant's
-  own origin. The rest of `attributes` can be arbitrarily large, and the payload has
-  to fit inside a Windows activation URI.
+  own origin. A click with a link also carries the top-level `notificationId`: no
+  arrival reads an announcement, so the webview reads it when the click opens the
+  link. The rest of `attributes` can be arbitrarily large, and the payload has
+  to fit inside a Windows activation URI. `src-tauri/src/notification-click.json`
+  holds the cases both sides are tested against, so a field the mapping starts
+  reading cannot be left out of the payload.
 - Every logout path tears the subscription down — including a session death the
   shell detects itself, which the webview may not notice for hours while idle in
   the tray. Otherwise the previous user's notification content would keep
