@@ -369,10 +369,18 @@ dials with a fresh bearer.
   webview's own subscription keeps driving the in-app drawer — duplicate delivery,
   different sinks. A badge accumulates while hidden and clears on focus.
 - The click payload is the envelope narrowed to its routing fields, in the
-  envelope's own shape: top-level `type` plus `attributes` with `ticketId`,
-  `dialogId` and `approvalRequestId` — what the frontend's route mapping reads,
-  plus the id the action buttons need. The rest of `attributes` can be
-  arbitrarily large, and the payload has to fit inside a Windows activation URI.
+  envelope's own shape: top-level `type` and `category` plus `attributes` with
+  `ticketId`, `dialogId`, `insightId`, `recordingId`, `deviceId`,
+  `approvalRequestId` and `link` — what the frontend's mapping
+  (`resolveNatsNotificationAction`) reads, plus the id the action buttons need.
+  `link` is an announcement's page (an https URL of up to 1,024 characters), which
+  the webview opens in the system browser, or in the app when it is on the tenant's
+  own origin. A click with a link also carries the top-level `notificationId`: no
+  arrival reads an announcement, so the webview reads it when the click opens the
+  link. The rest of `attributes` can be arbitrarily large, and the payload has
+  to fit inside a Windows activation URI. `src-tauri/src/notification-click.json`
+  holds the cases both sides are tested against, so a field the mapping starts
+  reading cannot be left out of the payload.
 - Every logout path tears the subscription down — including a session death the
   shell detects itself, which the webview may not notice for hours while idle in
   the tray. Otherwise the previous user's notification content would keep
@@ -576,7 +584,10 @@ against the app's AUMID.
 - Windows has no per-notification sidecar like macOS's `userInfo`, so the payload,
   the title and the delivered-to user id ride in each button's `arguments` string.
   The click payload is already projected down to ids, which is what keeps a toast
-  inside the platform's ~5 KB cap when the arguments are repeated per button.
+  inside the platform's ~5 KB cap when the arguments are repeated per button. The one
+  long field is an announcement's `link`: when it would take the toast to
+  `TOAST_XML_BUDGET`, `toast_xml` posts it without the link
+  (`notifications::without_link`), and the click lands on the notifications page.
 - A press that arrives while the app is **quit** starts it through `LocalServer32`;
   that launch opens no window, so a background decision completes invisibly and
   leaves the app resident in the tray. A press that needs the app opens the window

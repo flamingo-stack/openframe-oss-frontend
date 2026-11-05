@@ -6,7 +6,6 @@ import { useMutation, useRelayEnvironment } from 'react-relay';
 import type { deleteAllReadNotificationsMutation as DeleteAllReadNotificationsMutationType } from '@/__generated__/deleteAllReadNotificationsMutation.graphql';
 import type { deleteNotificationMutation as DeleteNotificationMutationType } from '@/__generated__/deleteNotificationMutation.graphql';
 import type { markAllNotificationsReadMutation as MarkAllReadMutationType } from '@/__generated__/markAllNotificationsReadMutation.graphql';
-import type { markNotificationReadMutation as MarkReadMutationType } from '@/__generated__/markNotificationReadMutation.graphql';
 import type { markNotificationsReadForEntityMutation as MarkEntityReadMutationType } from '@/__generated__/markNotificationsReadForEntityMutation.graphql';
 import { deleteAllReadNotificationsMutation } from './delete-all-read-notifications-mutation';
 import { deleteNotificationMutation } from './delete-notification-mutation';
@@ -17,14 +16,13 @@ import {
   refreshEntityUnreadCounts,
 } from './entity-unread-counts';
 import { markAllNotificationsReadMutation } from './mark-all-notifications-read-mutation';
-import { markNotificationReadMutation } from './mark-notification-read-mutation';
+import { commitMarkNotificationRead } from './mark-notification-read-mutation';
 import { markNotificationsReadForEntityMutation } from './mark-notifications-read-for-entity-mutation';
 import {
   makeDeleteAllReadUpdater,
   makeDeleteNotificationUpdater,
   makeMarkAllReadUpdater,
   makeMarkEntityReadUpdater,
-  makeMarkReadUpdater,
   type NotificationConnectionPair,
   type NotificationEntityScope,
 } from './notifications-helpers';
@@ -50,7 +48,6 @@ export function useNotificationMutations({
 }: UseNotificationMutationsOptions) {
   const { toast } = useToast();
   const environment = useRelayEnvironment();
-  const [markReadCommit] = useMutation<MarkReadMutationType>(markNotificationReadMutation);
   const [markAllReadCommit, isMarkingAllRead] = useMutation<MarkAllReadMutationType>(markAllNotificationsReadMutation);
   const [deleteCommit] = useMutation<DeleteNotificationMutationType>(deleteNotificationMutation);
   const [deleteAllReadCommit, isDeletingAllRead] = useMutation<DeleteAllReadNotificationsMutationType>(
@@ -70,24 +67,15 @@ export function useNotificationMutations({
 
   const commitMarkRead = useCallback(
     (id: string, reportFailure: (err: Error) => void) => {
-      const updater = (store: Parameters<ReturnType<typeof makeMarkReadUpdater>>[0]) =>
-        makeMarkReadUpdater(id, filterPairsRef.current)(store);
-      const entityRefs = entityRefsOfNotifications(environment, [id]);
-      markReadCommit({
-        variables: { id },
-        optimisticUpdater: updater,
-        updater,
-        onCompleted: () => {
-          refreshUnreadCounts(environment);
-          refreshEntityUnreadCounts(environment, entityRefs);
-        },
+      commitMarkNotificationRead(environment, id, {
+        pairs: () => filterPairsRef.current,
         onError: err => {
           reportFailure(err);
           onError?.('markRead', err);
         },
       });
     },
-    [environment, markReadCommit, onError],
+    [environment, onError],
   );
 
   const markRead = useCallback(

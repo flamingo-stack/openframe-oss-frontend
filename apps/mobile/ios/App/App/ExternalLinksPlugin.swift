@@ -14,7 +14,10 @@ import WebKit
  * `itms-apps:`), which SFSafariViewController cannot open anyway. Subframe loads
  * (embedded players) are never touched. While a browser is up the plugin also
  * reports the app inactive through `@capacitor/app`'s event (see `browser`), and a
- * notification tap closes it (`dismissBrowser()`).
+ * notification tap closes it (`dismissBrowser()`). A page asked for by a notification
+ * tap (an announcement's link) arrives before the app is active and after that close
+ * has started, so `open(_:)` holds it until activation and `present(_:)` waits for the
+ * dismissal.
  */
 @objc(ExternalLinksPlugin)
 public class ExternalLinksPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -33,11 +36,15 @@ public class ExternalLinksPlugin: CAPPlugin, CAPBridgedPlugin {
     /// layer is told the app is inactive (apps/mobile CLAUDE.md, "SFSafariViewController
     /// never resigns the app active").
     private weak var browser: SFSafariViewController?
+    /// A page asked for while the app was still coming forward; opened once it is active
+    /// (see `open(_:)`).
+    private var pendingURL: URL?
     private var activationObserver: NSObjectProtocol?
+    private var backgroundObserver: NSObjectProtocol?
 
     deinit {
-        if let activationObserver {
-            NotificationCenter.default.removeObserver(activationObserver)
+        for observer in [activationObserver, backgroundObserver].compactMap({ $0 }) {
+            NotificationCenter.default.removeObserver(observer)
         }
     }
 
@@ -48,6 +55,10 @@ public class ExternalLinksPlugin: CAPPlugin, CAPBridgedPlugin {
         // inline send reaches JS right after its `true`; the deferred one is the
         // backstop should that order ever change.
         activationObserver = NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            if let url = self?.pendingURL {
+                self?.pendingURL = nil
+                _ = self?.open(url)
+            }
             guard self?.browser != nil else {
                 return
             }
@@ -57,6 +68,11 @@ public class ExternalLinksPlugin: CAPPlugin, CAPBridgedPlugin {
                     self?.reportAppState(isActive: false)
                 }
             }
+        }
+        // The app went back without ever becoming active: the user never got to the page
+        // they asked for, so it must not pop up at some later return.
+        backgroundObserver = NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.pendingURL = nil
         }
     }
 
@@ -81,8 +97,18 @@ public class ExternalLinksPlugin: CAPPlugin, CAPBridgedPlugin {
               !url.absoluteString.hasPrefix(bridge.config.localURL.absoluteString) else {
             return false
         }
-        // Capacitor drops a background navigation too rather than opening it.
-        guard UIApplication.shared.applicationState == .active else {
+        switch UIApplication.shared.applicationState {
+        case .active:
+            break
+        case .inactive:
+            // Any page asked for while the app is still coming forward opens once it is
+            // active, when there is something to present on. The case it exists for is a
+            // notification tap: an announcement's `window.open` lands ~0.2 s before
+            // `didBecomeActive` (iOS 27 simulator).
+            pendingURL = url
+            return true
+        default:
+            // Capacitor drops a background navigation too rather than opening it.
             return true
         }
         UIApplication.shared.open(url, options: [.universalLinksOnly: true]) { [weak self] openedInApp in
@@ -100,6 +126,15 @@ public class ExternalLinksPlugin: CAPPlugin, CAPBridgedPlugin {
         }
         while let presented = top.presentedViewController, !presented.isBeingDismissed {
             top = presented
+        }
+        // A notification tap closes the browser that was up (`dismissBrowser()`) just
+        // before the page opens the tapped link, and UIKit refuses a present while that
+        // dismissal runs: present once it has finished.
+        if let leaving = top.presentedViewController, let coordinator = leaving.transitionCoordinator {
+            coordinator.animate(alongsideTransition: nil) { [weak self] _ in
+                self?.present(url)
+            }
+            return
         }
         let browser = SFSafariViewController(url: url)
         browser.delegate = self

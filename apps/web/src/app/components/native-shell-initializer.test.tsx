@@ -1,12 +1,14 @@
 /**
- * The desktop "Open the app" link as page startup: the initializer subscribes to the shell's
- * arrival signal, takes the download id the shell holds, and stores it for the signup. What the
- * shell holds and how the signup sends it are tested on their own sides; verified here is the seam.
+ * The desktop shell's two page-startup seams. The "Open the app" link: the initializer subscribes
+ * to the shell's arrival signal, takes the download id the shell holds, and stores it for the
+ * signup. An OS notification click: the initializer follows the payload the shell forwards, the
+ * click that started the app included. What the shell holds and how the signup sends it are tested
+ * on their own sides; verified here is the seam.
  */
 
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const shell = vi.hoisted(() => ({
   desktop: true,
@@ -15,14 +17,24 @@ const shell = vi.hoisted(() => ({
   signal: null as (() => void) | null,
   listenFails: false,
   store: vi.fn<(id: string) => void>(),
+  clickTransport: false,
+  click: null as ((payload: unknown) => void) | null,
+  startupClick: null as unknown,
+  push: vi.fn<(route: string) => void>(),
+  markRead: vi.fn<(id: string) => void>(),
+  tenantHost: '',
 }));
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: shell.push }) }));
+vi.mock('@/graphql/notifications/mark-notification-read-mutation', () => ({
+  markNotificationReadById: shell.markRead,
+}));
 vi.mock('@/lib/client-identity', () => ({ primeShellVersion: vi.fn() }));
 vi.mock('@/lib/keyboard-inset', () => ({ initKeyboardInset: vi.fn() }));
 vi.mock('@/lib/native-back', () => ({ initNativeBack: vi.fn() }));
 vi.mock('@/lib/token-store', () => ({ initTokenStore: () => Promise.resolve() }));
-vi.mock('./notifications/notification-navigation', () => ({ resolveNatsNotificationRoute: () => null }));
+// The tenant host decides whether an announcement's link is a page of the app.
+vi.mock('@/lib/runtime-config', () => ({ runtimeEnv: { tenantHostUrl: () => shell.tenantHost } }));
 vi.mock('@/lib/platform', () => ({
   isAppShell: () => shell.desktop,
   isDesktopShell: () => shell.desktop,
@@ -33,9 +45,13 @@ vi.mock('@/lib/registration-attribution', () => ({ storeDownloadId: shell.store 
 vi.mock('@/lib/native-shell', () => ({
   hideSplashScreen: () => Promise.resolve(),
   initNativeChrome: () => Promise.resolve(),
-  // No notification transport, so the notification half stops before it takes anything.
-  onNativeNotificationClick: () => Promise.resolve(false),
-  takeNativeStartupNotificationClick: () => Promise.resolve(null),
+  // Without a transport the notification half stops before it takes anything.
+  onNativeNotificationClick: (callback: (payload: unknown) => void) => {
+    if (!shell.clickTransport) return Promise.resolve(false);
+    shell.click = callback;
+    return Promise.resolve(true);
+  },
+  takeNativeStartupNotificationClick: () => Promise.resolve(shell.startupClick),
   onDesktopDownloadLink: (callback: () => void) => {
     shell.calls.push('listen');
     if (shell.listenFails) return Promise.reject(new Error('no event transport'));
@@ -57,6 +73,13 @@ async function mount() {
   await act(async () => root.render(<NativeShellInitializer />));
 }
 
+// The first import transforms the module graph, the core library's barrel included: seconds
+// on a loaded machine, against a 5 s test timeout. Paid once here, so each test's fresh
+// import below only evaluates it again.
+beforeAll(async () => {
+  await import('./native-shell-initializer');
+}, 60_000);
+
 beforeEach(() => {
   vi.resetModules();
   shell.desktop = true;
@@ -65,6 +88,12 @@ beforeEach(() => {
   shell.signal = null;
   shell.listenFails = false;
   shell.store.mockReset();
+  shell.clickTransport = false;
+  shell.click = null;
+  shell.startupClick = null;
+  shell.push.mockReset();
+  shell.markRead.mockReset();
+  shell.tenantHost = '';
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -73,6 +102,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  vi.restoreAllMocks();
 });
 
 describe('the "Open the app" download id', () => {
@@ -105,5 +135,73 @@ describe('the "Open the app" download id', () => {
     shell.desktop = false;
     await mount();
     expect(shell.calls).toEqual([]);
+  });
+});
+
+describe('a desktop notification click', () => {
+  const LINK = 'https://www.flamingo.run/releases/v1-5-81';
+  const announcement = {
+    type: 'ANNOUNCEMENT',
+    category: 'GENERIC',
+    notificationId: 'n-1',
+    attributes: { link: LINK },
+  };
+
+  it("opens an announcement's link in the system browser, leaves the app where it is, and reads it", async () => {
+    shell.clickTransport = true;
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    await mount();
+    await vi.waitFor(() => expect(shell.click).not.toBeNull());
+
+    act(() => shell.click?.(announcement));
+
+    expect(open).toHaveBeenCalledWith(LINK, '_blank', 'noopener,noreferrer');
+    expect(shell.push).not.toHaveBeenCalled();
+    expect(shell.markRead.mock.calls).toEqual([['n-1']]);
+  });
+
+  it('routes any other click inside the app, and one it cannot place to the notifications page', async () => {
+    shell.clickTransport = true;
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    await mount();
+    await vi.waitFor(() => expect(shell.click).not.toBeNull());
+
+    act(() => shell.click?.({ type: 'TICKET_ASSIGNED', notificationId: 'n-3', attributes: { ticketId: 't-1' } }));
+    act(() => shell.click?.({ type: 'ANNOUNCEMENT', category: 'GENERIC', notificationId: 'n-4' }));
+
+    expect(shell.push.mock.calls).toEqual([['/tickets/dialog?id=t-1'], ['/notifications']]);
+    expect(open).not.toHaveBeenCalled();
+    // The ticket is read where it lands; an announcement without a link opens nothing to read.
+    expect(shell.markRead).not.toHaveBeenCalled();
+  });
+
+  it("navigates inside the app for a link on the tenant's origin, and reads it", async () => {
+    shell.tenantHost = 'https://acme.openframe.ai';
+    shell.clickTransport = true;
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    await mount();
+    await vi.waitFor(() => expect(shell.click).not.toBeNull());
+
+    act(() =>
+      shell.click?.({
+        type: 'ANNOUNCEMENT',
+        category: 'GENERIC',
+        notificationId: 'n-5',
+        attributes: { link: 'https://acme.openframe.ai/devices' },
+      }),
+    );
+
+    expect(shell.push.mock.calls).toEqual([['/devices']]);
+    expect(open).not.toHaveBeenCalled();
+    expect(shell.markRead.mock.calls).toEqual([['n-5']]);
+  });
+
+  it('follows the click that started the app', async () => {
+    shell.clickTransport = true;
+    shell.startupClick = announcement;
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    await mount();
+
+    await vi.waitFor(() => expect(open).toHaveBeenCalledWith(LINK, '_blank', 'noopener,noreferrer'));
   });
 });

@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 import type { MouseEvent, ReactNode } from 'react';
 import type { ApprovalCard } from '@/app/components/approvals/approval-inbox';
 import {
-  type NotificationAction,
+  isNotificationLinkAction,
+  type NotificationRouteAction,
   resolveNotificationAction,
 } from '@/app/components/notifications/notification-navigation';
 import { openMingoDialog } from '@/app/components/notifications/open-mingo-dialog';
@@ -26,7 +27,8 @@ interface ApprovalRequestCardProps {
  * none behind it to complete.
  */
 export function ApprovalRequestCard({ card, onDecide, onComplete }: ApprovalRequestCardProps) {
-  const action = resolveNotificationAction(card.notification);
+  const resolved = resolveNotificationAction(card.notification);
+  const action = resolved && !isNotificationLinkAction(resolved) ? resolved : null;
   const { title } = card.notification;
   const notification = action
     ? { ...card.notification, title: <EntityTitleLink action={action}>{title}</EntityTitleLink> }
@@ -50,7 +52,7 @@ function isPlainClick(event: MouseEvent<HTMLAnchorElement>): boolean {
  * A real link (new tab, copy link address) to the entity's canonical route. A plain click
  * on a chat goes through `openMingoDialog`, the one way the app opens a conversation.
  */
-function EntityTitleLink({ action, children }: { action: NotificationAction; children: ReactNode }) {
+function EntityTitleLink({ action, children }: { action: NotificationRouteAction; children: ReactNode }) {
   const router = useRouter();
   const { mingoDialogId } = action;
 

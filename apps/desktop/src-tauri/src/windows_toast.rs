@@ -58,6 +58,13 @@ const REPLY_ACTION: &str = "reply";
 const TITLE_LIMIT: usize = 50;
 const BODY_LIMIT: usize = 300;
 
+/// The platform caps a whole toast at ~5 KB and drops a larger one without an
+/// error. This is that cap with headroom, and the size `toast_xml` posts within:
+/// a toast that reaches it goes out without its link. The headroom is
+/// deliberate, so that a regression trips `a_toast_stays_well_inside_the_payload_cap`
+/// rather than the platform.
+const TOAST_XML_BUDGET: usize = 4096;
+
 /// Groups every toast the shell posts, so a tag only has to be unique within the
 /// app. Windows matches tag **and** group, so both have to be set for a
 /// replacement to land.
@@ -242,6 +249,33 @@ fn toast_tag(key: &str) -> String {
         .collect()
 }
 
+/// The toast document, posted without an announcement's `link` when the link
+/// would take it to [`TOAST_XML_BUDGET`]. The link is the one field of a click
+/// payload with no fixed size (up to 1,024 characters, and `click_uri`'s
+/// percent-encoding triples most of its punctuation), and the URI is in the
+/// document twice: the body click and "Open". Past the cap the toast never
+/// appears; a URI past ~2 KB is cut, and the click loses its type too. Without
+/// the link the click still lands on the notifications page.
+fn toast_xml(
+    title: &str,
+    body: &str,
+    click: Option<&serde_json::Value>,
+    user_id: Option<&str>,
+    kind: ActionKind,
+) -> String {
+    let xml = compose_toast_xml(title, body, click, user_id, kind);
+    if xml.len() < TOAST_XML_BUDGET {
+        return xml;
+    }
+    match click.and_then(crate::notifications::without_link) {
+        Some(trimmed) => {
+            log::warn!("[notifications] toast over its size cap — posted without its link");
+            compose_toast_xml(title, body, Some(&trimmed), user_id, kind)
+        }
+        None => xml,
+    }
+}
+
 /// Silent to match the previously shipped toasts. `useButtonStyle` is what lets
 /// Reject render red — the closest Windows has to macOS's Destructive, and worth
 /// having for the same reason: denying a tool execution is the fail-safe
@@ -250,7 +284,7 @@ fn toast_tag(key: &str) -> String {
 /// Unlike macOS, which folds every action behind the banner's "Options" chevron,
 /// Windows renders these inline — so the approval decision is actually visible
 /// on the banner here.
-fn toast_xml(
+fn compose_toast_xml(
     title: &str,
     body: &str,
     click: Option<&serde_json::Value>,
@@ -435,11 +469,19 @@ fn escape_xml(value: &str) -> String {
 mod tests {
     use super::*;
 
+    /// The first click in `notification-click.json` that `matches`: what
+    /// `click_payload` really posts, not a hand-built stand-in.
+    fn fixture_click(matches: impl Fn(&serde_json::Value) -> bool) -> serde_json::Value {
+        crate::notifications::notification_click_cases()
+            .into_iter()
+            .map(|case| case["click"].clone())
+            .find(|click| matches(click))
+            .expect("notification-click.json has no click this test is built on")
+    }
+
+    /// A ticket approval's click: the largest one a toast with buttons carries.
     fn approval_click() -> serde_json::Value {
-        serde_json::json!({
-            "type": "MINGO_APPROVAL_REQUEST",
-            "attributes": { "approvalRequestId": "0a2a0b3c-9d1e-4f5a-8b7c-6d5e4f3a2b1c" },
-        })
+        fixture_click(|click| click["type"] == "TICKET_APPROVAL_REQUEST")
     }
 
     #[test]
@@ -513,10 +555,64 @@ mod tests {
                 ActionKind::Approval,
             );
             assert!(
-                xml.len() < 4096,
+                xml.len() < TOAST_XML_BUDGET,
                 "toast xml of {filler} was {} bytes",
                 xml.len()
             );
+        }
+    }
+
+    /// An announcement's click, `notificationId` and all, carrying `link`.
+    fn announcement_click(link: &str) -> serde_json::Value {
+        let mut click = fixture_click(|click| click.pointer("/attributes/link").is_some());
+        click["attributes"]["link"] = serde_json::Value::String(link.to_string());
+        click
+    }
+
+    /// A release-notes link is far inside the cap, so it rides the click.
+    #[test]
+    fn a_typical_link_rides_the_toast() {
+        let click = announcement_click(
+            "https://www.flamingo.run/releases/v1-5-81-remote-access-locks-fae-mingo-refresh",
+        );
+        let xml = toast_xml(
+            "New release",
+            "What shipped",
+            Some(&click),
+            Some("u1"),
+            ActionKind::Default,
+        );
+        let uri = escape_xml(&crate::notifications::click_uri(Some(&click)));
+        assert_eq!(xml.matches(&uri).count(), 2);
+    }
+
+    /// The longest link management-api accepts, as punctuated as a URL gets,
+    /// under the worst-case title and body: with it the toast would be over the
+    /// cap, so it goes out without the link and keeps its type.
+    #[test]
+    fn a_link_that_does_not_fit_is_left_out_rather_than_the_toast() {
+        let link: String = format!("https://www.flamingo.run/{}", "a/".repeat(512))
+            .chars()
+            .take(1024)
+            .collect();
+        let click = announcement_click(&link);
+        let trimmed = crate::notifications::without_link(&click).unwrap();
+        let fallback = escape_xml(&crate::notifications::click_uri(Some(&trimmed)));
+        for filler in ["'", "🔒", "x"] {
+            let (title, body) = (filler.repeat(4096), filler.repeat(64 * 1024));
+            assert!(
+                compose_toast_xml(&title, &body, Some(&click), Some("u1"), ActionKind::Default)
+                    .len()
+                    >= TOAST_XML_BUDGET,
+                "the link fits under {filler}, so this test exercises nothing"
+            );
+            let xml = toast_xml(&title, &body, Some(&click), Some("u1"), ActionKind::Default);
+            assert!(
+                xml.len() < TOAST_XML_BUDGET,
+                "toast xml of {filler} was {} bytes",
+                xml.len()
+            );
+            assert_eq!(xml.matches(&fallback).count(), 2, "under {filler}");
         }
     }
 
