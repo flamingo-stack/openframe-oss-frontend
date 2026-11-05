@@ -219,9 +219,8 @@ export const useTicketDetailsStore = create<TicketDetailsStore>((set, get) => ({
     });
   },
 
-  // `threads.hydrate`, NOT a raw thread write — see `ChatThreadHydrateOptions` and the
-  // twin comment in `mingo-messages-store`. Per-side here, but the same
-  // first-page semantics: the paginated path goes through
+  // `threads.hydrate`, NOT a raw thread write — see `ChatThreadHydrateOptions`.
+  // Per-side here, with the lib engine's first-page semantics: the paginated path goes through
   // `prependWithBoundaryMerge`.
   setMessages: (side, messages) => {
     threads.hydrate(side, messages);

@@ -2,8 +2,7 @@
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Component, type ReactNode, useEffect, useLayoutEffect, useRef } from 'react';
-import { MINGO_DIALOG_NOT_FOUND } from '../hooks/use-mingo-dialog-selection';
-import { DialogSubscription } from '../hooks/use-mingo-realtime-subscription';
+import { registerActiveDialogView } from '@/lib/active-dialog-views';
 import { useMingoUnifiedChatState } from '../hooks/use-mingo-unified-chat-state';
 import type { MingoChatState, MingoChatStore } from './mingo-chat-store';
 
@@ -14,11 +13,14 @@ import type { MingoChatState, MingoChatStore } from './mingo-chat-store';
  * (dialog, error) so a retry can't stack duplicates — and once per SESSION, which is
  * why it lives here and not in a surface: two surfaces on screen would toast twice.
  *
- * The reader never sees the underlying error text: it is a raw GraphQL-envelope
- * string, and the two cases a person can act on differently ("this link is dead" vs
- * "the network is") are already separated by `MINGO_DIALOG_NOT_FOUND`.
+ * The reader never sees the underlying error text: the two cases a person can act on
+ * differently ("this link is dead" vs "the network is") are already told apart by
+ * `dialogNotFound`.
  */
-function useDialogErrorToast({ dialogError, state: { activeDialogId, selectDialog } }: MingoChatState): void {
+function useDialogErrorToast({
+  dialogNotFound,
+  state: { activeDialogId, selectDialog, dialogError },
+}: MingoChatState): void {
   const { toast } = useToast();
   const toastedDialogErrorRef = useRef<string | null>(null);
 
@@ -31,7 +33,7 @@ function useDialogErrorToast({ dialogError, state: { activeDialogId, selectDialo
     if (toastedDialogErrorRef.current === key) return;
     toastedDialogErrorRef.current = key;
 
-    const missing = dialogError === MINGO_DIALOG_NOT_FOUND;
+    const missing = dialogNotFound;
     toast({
       title: missing ? 'Conversation not available' : "Couldn't open this conversation",
       description: missing
@@ -45,15 +47,16 @@ function useDialogErrorToast({ dialogError, state: { activeDialogId, selectDialo
     // nothing to re-open on reload or to copy onward. A transient failure keeps its
     // selection, because a reload would have recovered it.
     if (missing) selectDialog(null);
-  }, [dialogError, activeDialogId, selectDialog, toast]);
+  }, [dialogError, dialogNotFound, activeDialogId, selectDialog, toast]);
 }
 
 /**
  * The one `useMingoUnifiedChatState()` of the session, mounted by `MingoChatProvider`
- * only while a surface is registered — its mount and unmount are the surfaces'.
+ * only while a surface is registered — its mount and unmount are the surfaces'. The
+ * engine inside it runs the open dialog's live tail.
  */
 export function MingoChatRunner({ store, onScreen }: { store: MingoChatStore; onScreen: boolean }) {
-  const { subscription, ...chat } = useMingoUnifiedChatState();
+  const chat = useMingoUnifiedChatState();
 
   // A layout effect, so a surface that registered in this same pass renders the
   // state before the browser paints: the store notifies `useSyncExternalStore`,
@@ -66,24 +69,16 @@ export function MingoChatRunner({ store, onScreen }: { store: MingoChatStore; on
 
   useDialogErrorToast(chat);
 
-  // Realtime tail for the active dialog — writes chunks into the shared store.
-  // Gated on active + subscribed; on a remount it resubscribes and replays missed
-  // chunks from the stored sequence offset. `onScreen`: whether the dialog counts
-  // as watched (see the provider's "Subscribed is not on screen").
-  if (!subscription.activeDialogId || !subscription.isSubscribed) return null;
-  return (
-    <DialogSubscription
-      key={subscription.activeDialogId}
-      dialogId={subscription.activeDialogId}
-      isActive
-      approvalStatuses={subscription.approvalStatuses}
-      onConnectionChange={subscription.onConnectionChange}
-      onMetadata={subscription.onMetadata}
-      initialOptStartSeq={subscription.initialOptStartSeq}
-      isInitialOptStartSeqReady={subscription.isInitialOptStartSeqReady}
-      onScreen={onScreen}
-    />
+  // While the open dialog's thread is on screen the user is watching it, so the
+  // notifications pipeline skips its popups and reads them on arrival (see the
+  // provider's "Subscribed is not on screen").
+  const { activeDialogId } = chat.state;
+  useEffect(
+    () => (onScreen && activeDialogId ? registerActiveDialogView(activeDialogId) : undefined),
+    [activeDialogId, onScreen],
   );
+
+  return null;
 }
 
 /**

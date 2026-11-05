@@ -1,6 +1,6 @@
 /**
- * The archive page lists archived chats only, a page at a time through the drawer's
- * archived-dialog fetcher, and opens a chat on its chat page (read-only there, with
+ * The archive page lists archived chats only, a page at a time through the session's
+ * archived-dialog reader, and opens a chat on its chat page (read-only there, with
  * Unarchive in its header).
  */
 
@@ -36,7 +36,7 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({
     return null;
   },
 }));
-vi.mock('../hooks/use-mingo-dialog-actions', () => ({ useMingoDialogActions: () => ({ fetchArchivedDialogs }) }));
+vi.mock('../hooks/use-mingo-unified-chat-state', () => ({ mingoDialogs: { fetchArchivedDialogs } }));
 
 const FIRST: DialogItem = { id: 'd-1', title: 'Backups', archived: true };
 const SECOND: DialogItem = { id: 'd-2', title: 'Printers', archived: true };

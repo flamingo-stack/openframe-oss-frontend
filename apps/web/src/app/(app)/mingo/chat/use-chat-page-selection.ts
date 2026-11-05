@@ -3,7 +3,6 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { routes } from '@/lib/routes';
-import { MINGO_DIALOG_NOT_FOUND } from '../hooks/use-mingo-dialog-selection';
 import type { MingoChatState } from '../providers/mingo-chat-provider';
 
 /**
@@ -16,6 +15,13 @@ import type { MingoChatState } from '../providers/mingo-chat-provider';
  * - `failed`: the dialog could not be loaded; the selection is kept for a retry.
  */
 export type ChatPageStatus = 'starting' | 'ready' | 'not-found' | 'failed';
+
+/** What the chat page shows, and how it asks for its dialog again after `failed`. */
+export interface ChatPageSelection {
+  status: ChatPageStatus;
+  /** Read the dialog again: the selection is dropped and taken back, which the engine reads as entering it anew. */
+  retry: () => void;
+}
 
 /**
  * The Mingo-first chat page's half of the selection: `?id` → the session's selected
@@ -35,21 +41,19 @@ export type ChatPageStatus = 'starting' | 'ready' | 'not-found' | 'failed';
  * - **No id** (`null`, "What to ask Mingo?"): a chat not created yet. Nothing is written
  *   (the dock opens the new chat); it has landed once nothing is selected, and the chat
  *   a pick creates then becomes the page's `?id`.
+ * - **Retry** drops the selection and takes it back once that has landed, which reads
+ *   the dialog afresh; the drop in between is not a selection moving on.
  */
-export function useChatPageSelection(dialogId: string | null, chat: MingoChatState | null): ChatPageStatus {
+export function useChatPageSelection(dialogId: string | null, chat: MingoChatState | null): ChatPageSelection {
   const router = useRouter();
   const selectDialog = chat?.state.selectDialog;
   // `undefined`: no running state to read a selection from.
   const activeDialogId = chat ? chat.state.activeDialogId : undefined;
-  const dialogError = chat?.dialogError ?? null;
+  const dialogError = chat?.state.dialogError ?? null;
+  const dialogNotFound = chat?.dialogNotFound ?? false;
 
   const [notFoundId, setNotFoundId] = useState<string | null>(null);
-  if (
-    dialogId !== null &&
-    dialogError === MINGO_DIALOG_NOT_FOUND &&
-    activeDialogId === dialogId &&
-    notFoundId !== dialogId
-  ) {
+  if (dialogId !== null && dialogNotFound && activeDialogId === dialogId && notFoundId !== dialogId) {
     setNotFoundId(dialogId);
   }
   const notFound = dialogId !== null && notFoundId === dialogId;
@@ -61,20 +65,38 @@ export function useChatPageSelection(dialogId: string | null, chat: MingoChatSta
     selectDialog(dialogId);
   }, [dialogId, selectDialog]);
 
+  // The dialog a retry dropped, until it is selected again; and whether it was asked for again yet.
+  const retryRef = useRef<{ dialogId: string; reselected: boolean } | null>(null);
+  const retry = () => {
+    if (dialogId === null || !selectDialog) return;
+    retryRef.current = { dialogId, reselected: false };
+    selectDialog(null);
+  };
+
   // `undefined`: nothing has landed yet (`null` is the new chat's landing).
   const landedIdRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
     if (activeDialogId === undefined) return;
+    const retrying = retryRef.current?.dialogId === dialogId ? retryRef.current : null;
     if (activeDialogId === dialogId) {
       landedIdRef.current = dialogId;
+      // Still selected: the retry's drop has not landed yet. Taken back: the retry is done.
+      if (retrying?.reselected) retryRef.current = null;
+      return;
+    }
+    if (retrying && activeDialogId === null) {
+      if (!retrying.reselected) {
+        retrying.reselected = true;
+        selectDialog?.(dialogId);
+      }
       return;
     }
     if (landedIdRef.current !== dialogId) return;
     if (activeDialogId !== null) router.replace(routes.mingo.chat(activeDialogId));
     else if (!notFound) router.replace(routes.mingo.home);
-  }, [activeDialogId, dialogId, notFound, router]);
+  }, [activeDialogId, dialogId, notFound, router, selectDialog]);
 
-  if (notFound) return 'not-found';
-  if (activeDialogId !== dialogId) return 'starting';
-  return dialogError && dialogId !== null ? 'failed' : 'ready';
+  if (notFound) return { status: 'not-found', retry };
+  if (activeDialogId !== dialogId) return { status: 'starting', retry };
+  return { status: dialogError && dialogId !== null ? 'failed' : 'ready', retry };
 }

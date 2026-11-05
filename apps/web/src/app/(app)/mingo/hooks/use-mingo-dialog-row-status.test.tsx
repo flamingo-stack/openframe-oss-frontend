@@ -1,26 +1,22 @@
 /**
- * The chat list row status: the open chat answers from its own thread once its
- * history has loaded, every other row from the list query, and the open chat's
- * live state is written onto its list row so it holds after switching chats.
+ * The chat list row status: the open chat answers from its own thread once its history has loaded, every other row
+ * from what the server last said of it, and the open chat's live state is written onto its row so it holds after
+ * switching chats.
  */
 
-import type { ChatMessage, ChatPart } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
-import type { DialogItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { type InfiniteData, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ChatMessage, ChatPart, MingoDialogNode } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import type { DialogItem, StreamingPhase } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
-import { useMingoMessagesStore } from '../stores/mingo-messages-store';
-import type { DialogNode } from '../types';
-import type { MingoDialogsPage } from '../utils/dialog-row-status';
-import { mingoDialogQueryKeys } from '../utils/query-keys';
+import { noteMingoDialogResponse, useMingoDialogRowsStore } from '../stores/mingo-dialog-rows-store';
 import { useMingoDialogRowStatus } from './use-mingo-dialog-row-status';
 
 type StatusOf = ReturnType<typeof useMingoDialogRowStatus>;
 
 let root: Root | null = null;
 
-function node(id: string, fields: Partial<DialogNode> = {}): DialogNode {
+function node(id: string, fields: Partial<MingoDialogNode> = {}): MingoDialogNode {
   // `id` is the Relay global id; rows are matched on the raw `dialogId`.
   return {
     id: `global-${id}`,
@@ -31,6 +27,11 @@ function node(id: string, fields: Partial<DialogNode> = {}): DialogNode {
     createdAt: '2026-10-09T09:00:00Z',
     ...fields,
   };
+}
+
+/** A list page as the ai-agent answers it: every row it carries is noted. */
+function listed(...nodes: MingoDialogNode[]) {
+  act(() => noteMingoDialogResponse({ dialogs: { edges: nodes.map(n => ({ cursor: n.dialogId, node: n })) } }));
 }
 
 function row(id: string): DialogItem {
@@ -53,37 +54,26 @@ function batch(approvalRequestId: string, status: 'pending' | 'rejected'): ChatP
     : { ...base, state: 'output-denied', approval: { ...approval, approved: false } };
 }
 
-/** The open chat as its stream left it in the store. */
-function openChat(dialogId: string, phase: 'idle' | 'streaming', parts: ChatPart[]) {
-  const thread: ChatMessage[] = [{ id: 'm-1', role: 'assistant', parts }];
-  useMingoMessagesStore.setState({
-    phaseByDialog: new Map([[dialogId, phase]]),
-    messagesByDialog: new Map([[dialogId, thread]]),
-  });
+function thread(...parts: ChatPart[]): ChatMessage[] {
+  return [{ id: 'm-1', role: 'assistant', parts }];
 }
 
-function listData(nodes: DialogNode[]): InfiniteData<MingoDialogsPage> {
-  return { pages: [{ dialogs: nodes, pageInfo: { hasNextPage: false } }], pageParams: [undefined] };
-}
-
-function mount(
-  options: Parameters<typeof useMingoDialogRowStatus>[0],
-  queryClient = new QueryClient(),
-): { statusOf: () => StatusOf } {
+function mount(options: {
+  activeDialogId: string | null;
+  phase?: StreamingPhase;
+  messages?: ChatMessage[];
+  activeThreadLoaded: boolean;
+}): { statusOf: () => StatusOf } {
   let latest: StatusOf | null = null;
   function Probe() {
-    latest = useMingoDialogRowStatus(options);
+    latest = useMingoDialogRowStatus({ phase: 'idle', messages: [], ...options });
     return null;
   }
   const container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
   act(() => {
-    root?.render(
-      <QueryClientProvider client={queryClient}>
-        <Probe />
-      </QueryClientProvider>,
-    );
+    root?.render(<Probe />);
   });
   return {
     statusOf: () => {
@@ -98,49 +88,45 @@ afterEach(() => {
     root?.unmount();
   });
   root = null;
-  useMingoMessagesStore.setState({ phaseByDialog: new Map(), messagesByDialog: new Map() });
+  useMingoDialogRowsStore.setState({ rows: new Map(), missing: new Set(), restored: new Set() });
   document.body.innerHTML = '';
 });
 
 describe('useMingoDialogRowStatus', () => {
-  it('reads the rows of other chats off the list query', () => {
-    const nodes = [
+  it('reads the rows of other chats off what the server last said', () => {
+    listed(
       node('d-1', { pendingApproval: { id: 'ar-1', approvalType: 'ADMIN' } }),
       node('d-2', { streamState: 'STREAMING' }),
       node('d-3'),
-    ];
-    const { statusOf } = mount({ activeDialogId: null, nodes, activeThreadLoaded: false });
+    );
+    const { statusOf } = mount({ activeDialogId: null, activeThreadLoaded: false });
     expect(statusOf()(row('d-1'))).toBe('approval');
     expect(statusOf()(row('d-2'))).toBe('working');
     expect(statusOf()(row('d-3'))).toBeUndefined();
   });
 
   it('answers the open chat from its thread, over a stale list row', () => {
-    openChat('d-1', 'idle', [batch('ar-2', 'pending')]);
-    const { statusOf } = mount({ activeDialogId: 'd-1', nodes: [node('d-1')], activeThreadLoaded: true });
+    listed(node('d-1'));
+    const { statusOf } = mount({
+      activeDialogId: 'd-1',
+      messages: thread(batch('ar-2', 'pending')),
+      activeThreadLoaded: true,
+    });
     expect(statusOf()(row('d-1'))).toBe('approval');
   });
 
   it('keeps the list row until the open chat has loaded its history', () => {
-    openChat('d-1', 'idle', []);
-    const nodes = [node('d-1', { pendingApproval: { id: 'ar-1', approvalType: 'ADMIN' } })];
-    const { statusOf } = mount({ activeDialogId: 'd-1', nodes, activeThreadLoaded: false });
+    listed(node('d-1', { pendingApproval: { id: 'ar-1', approvalType: 'ADMIN' } }));
+    const { statusOf } = mount({ activeDialogId: 'd-1', activeThreadLoaded: false });
     expect(statusOf()(row('d-1'))).toBe('approval');
   });
 
-  it('writes the open chat state onto its list row and leaves other caches alone', () => {
-    const queryClient = new QueryClient();
-    const listKey = mingoDialogQueryKeys.list({ limit: 20, scope: 'all' });
-    queryClient.setQueryData(listKey, listData([node('d-1', { pendingApproval: { id: 'ar-2' } })]));
-    const incidentKey = ['mingo-dialogs', 'insight', 'i-1'];
-    const incidentData = [{ id: 'd-1' }];
-    queryClient.setQueryData(incidentKey, incidentData);
+  it("writes the open chat's state onto its row, which keeps it once another chat opens", () => {
+    listed(node('d-1', { pendingApproval: { id: 'ar-2', approvalType: 'ADMIN' } }));
+    mount({ activeDialogId: 'd-1', messages: thread(batch('ar-2', 'rejected')), activeThreadLoaded: true });
 
-    openChat('d-1', 'idle', [batch('ar-2', 'rejected')]);
-    mount({ activeDialogId: 'd-1', nodes: [], activeThreadLoaded: true }, queryClient);
-
-    const list = queryClient.getQueryData<InfiniteData<MingoDialogsPage>>(listKey);
-    expect(list?.pages[0].dialogs[0].pendingApproval).toBeNull();
-    expect(queryClient.getQueryData(incidentKey)).toBe(incidentData);
+    const written = useMingoDialogRowsStore.getState().rows.get('d-1');
+    expect(written?.awaitingApproval).toBe(false);
+    expect(written?.title).toBe('d-1');
   });
 });

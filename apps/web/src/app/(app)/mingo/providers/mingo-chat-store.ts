@@ -1,12 +1,7 @@
 import type { MingoUnifiedChat } from '../hooks/use-mingo-unified-chat-state';
 
-/**
- * The session's chat state as a surface reads it: everything
- * `useMingoUnifiedChatState()` returns except the live-tail bindings, which only
- * the provider renders (`<DialogSubscription>`, once per session). A second
- * subscription for the same dialog would apply every chunk twice.
- */
-export type MingoChatState = Omit<MingoUnifiedChat, 'subscription'>;
+/** The session's chat state as a surface reads it: what `useMingoUnifiedChatState()` returns. */
+export type MingoChatState = MingoUnifiedChat;
 
 export interface MingoChatSnapshot {
   /** Null while nothing runs: no surface registered, the provider disabled, or the state failed. */

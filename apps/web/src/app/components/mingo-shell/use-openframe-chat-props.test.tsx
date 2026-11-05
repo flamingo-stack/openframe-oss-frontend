@@ -19,7 +19,7 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({
   renderQuickActionIcon: () => null,
 }));
 vi.mock('@/app/(app)/help-center/endpoints', () => ({ KNOWLEDGE_BASE_ROUTE: '/help-center/knowledge-base' }));
-vi.mock('@/app/(app)/mingo/hooks/use-mingo-dialogs', () => ({ MINGO_DIALOGS_PAGE_SIZE: 20 }));
+vi.mock('@/app/(app)/mingo/hooks/use-mingo-unified-chat-state', () => ({ MINGO_DIALOGS_PAGE_SIZE: 20 }));
 vi.mock('@/app/(app)/mingo/context/context-sources', () => ({ useMingoContextEntityTypes: () => [] }));
 vi.mock('@/app/(app)/mingo/context/mention-chips/render-mention', () => ({
   renderMingoContextItem: () => null,
@@ -40,7 +40,17 @@ vi.mock('@/app/(auth)/auth/stores/auth-store', () => ({
 }));
 vi.mock('@/lib/image-url', () => ({ getFullImageUrl: () => undefined }));
 
-const chat = { ...makeFakeChat({ activeDialogId: 'd-1' }) } as unknown as MingoChatState;
+const fake = makeFakeChat({ activeDialogId: 'd-1' });
+/** The engine's dialog capabilities, as the session's state carries them. */
+const dialogCapabilities = {
+  canRename: true,
+  canArchive: true,
+  searchQuery: '',
+  onSearchChange: vi.fn(),
+  unarchiveDialog: vi.fn(async () => {}),
+  fetchArchivedDialogs: vi.fn(async () => ({ dialogs: [], nextCursor: null })),
+};
+const chat = { ...fake, state: { ...fake.state, dialogCapabilities } } as unknown as MingoChatState;
 const copyDialogLink = vi.fn(async () => {});
 const compactDialog = vi.fn();
 const probe = { compact: true };
@@ -85,14 +95,8 @@ describe('useOpenframeChatProps', () => {
     });
   });
 
-  it('offers every dialog action, Compact compacting the chat it is asked for', () => {
-    expect(seen.props?.mingoDialogCapabilities).toMatchObject({
-      canRename: true,
-      canArchive: true,
-      unarchiveDialog: chat.unarchiveDialog,
-      fetchArchivedDialogs: chat.fetchArchivedDialogs,
-      onCopyLink: copyDialogLink,
-    });
+  it("offers the engine's dialog actions and the host's own, Compact compacting the chat it is asked for", () => {
+    expect(seen.props?.mingoDialogCapabilities).toMatchObject({ ...dialogCapabilities, onCopyLink: copyDialogLink });
     seen.props?.mingoDialogCapabilities?.compactDialog?.({ id: 'd-7', title: 'Disk space' });
     expect(compactDialog).toHaveBeenCalledWith('d-7');
   });

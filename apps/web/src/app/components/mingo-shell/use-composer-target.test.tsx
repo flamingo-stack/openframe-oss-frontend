@@ -21,7 +21,7 @@ const select = (id: string | null) => selection.setState({ active: id });
 const selectDialog = vi.fn(select);
 const navigate = vi.fn();
 const sendMessage = vi.fn<UnifiedChatState['sendMessage']>();
-const sendInNewDialog = vi.fn<(text: string) => Promise<void>>();
+const sendInNewDialog = vi.fn<(text: string) => Promise<string | null>>();
 const createIntentDialog = vi.fn(async () => null);
 const openSheet = vi.fn();
 
@@ -267,9 +267,12 @@ describe('useComposerTarget', () => {
   it('opens a chat created by a send from home over home, and makes home new again once it closes', async () => {
     render('home');
     const { send, releaseCreate, finish } = deferredCreate('new-home');
-    sendInNewDialog.mockImplementation(send);
+    sendInNewDialog.mockImplementation(async () => {
+      await send();
+      return null;
+    });
 
-    let sending: Promise<void> = Promise.resolve();
+    let sending: Promise<string | null> = Promise.resolve(null);
     act(() => {
       sending = target().sendInNewDialog('List every online machine');
     });
@@ -292,9 +295,12 @@ describe('useComposerTarget', () => {
     select('a');
     render('page');
     const { send, releaseCreate, finish } = deferredCreate('new-2');
-    sendInNewDialog.mockImplementation(send);
+    sendInNewDialog.mockImplementation(async () => {
+      await send();
+      return null;
+    });
 
-    let sending: Promise<void> = Promise.resolve();
+    let sending: Promise<string | null> = Promise.resolve(null);
     act(() => {
       sending = target().sendInNewDialog('Meet Mingo');
     });

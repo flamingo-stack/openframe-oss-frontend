@@ -11,7 +11,7 @@ import { act, StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useMingoCompactionStore } from '../(app)/mingo/stores/mingo-compaction-store';
-import { useMingoMessagesStore } from '../(app)/mingo/stores/mingo-messages-store';
+import { mingoThreadStore } from '../(app)/mingo/stores/mingo-thread-store';
 import {
   COMPACTION_STREAM_START_TIMEOUT_MS,
   COMPACTION_WATCH_TIMEOUT_MS,
@@ -39,11 +39,15 @@ const { streams, toast, dismiss, post, fetchMessages } = vi.hoisted(() => {
   };
 });
 
-vi.mock('@flamingo-stack/openframe-frontend-core', async importOriginal => ({
+// The lib's JetStream tail, as the watcher calls it: opened once the start sequence is known.
+vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', async importOriginal => ({
   ...(await importOriginal<Record<string, unknown>>()),
-  useJetStreamDialogSubscription: (options: StreamOptions) => {
-    streams.set(options.dialogId, options);
-    return { isSubscribed: true, reconnectionCount: 0 };
+  jetStreamLiveTail: () => (options: Omit<StreamOptions, 'optStartSeq'> & { fromSeq: number | null | undefined }) => {
+    streams.set(options.dialogId, {
+      ...options,
+      enabled: options.enabled && options.fromSeq !== undefined,
+      optStartSeq: options.fromSeq ?? null,
+    });
   },
 }));
 
@@ -144,7 +148,7 @@ describe('MingoCompactionWatchers', () => {
     streams.clear();
     post.mockResolvedValue(compactAnswer());
     fetchMessages.mockResolvedValue(messagesWithSeqs(40, 42, 41));
-    useMingoMessagesStore.setState({ highestStreamSeqByDialog: new Map() });
+    mingoThreadStore.drop('d-1');
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -378,7 +382,9 @@ describe('MingoCompactionWatchers', () => {
   });
 
   it("resumes after the open dialog's live sequence when it is ahead of the persisted history", async () => {
-    useMingoMessagesStore.setState({ highestStreamSeqByDialog: new Map([['d-1', 57]]) });
+    mingoThreadStore.hydrate('d-1', [{ id: 'm-57', role: 'assistant', metadata: { streamSeq: 57 }, parts: [] }], {
+      expectingReplay: false,
+    });
     await start('d-1');
 
     expect(stream('d-1').optStartSeq).toBe(57);

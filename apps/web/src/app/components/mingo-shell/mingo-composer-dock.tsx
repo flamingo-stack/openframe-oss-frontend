@@ -260,10 +260,11 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   // The tour decorates the session's state before the send target wraps it: its step
   // chips send through the bare state (the section they open is where the user goes,
   // not the chat page), while the composer's own sends follow to the chat as ever.
+  const { startNewDialog } = chat.state;
   const tour = useMingoTour({
     state: chat.state,
-    createNamedDialog: chat.createNamedDialog,
-    dialogError: chat.dialogError,
+    createNamedDialog: title => startNewDialog({ title }),
+    dialogNotFound: chat.dialogNotFound,
     dialogCreatedAt: chat.dialogCreatedAt,
     // A chip's answer opens over the section it opened: at once when that is this
     // page, else on the page the navigation lands on.
@@ -284,8 +285,8 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   const target = useComposerTarget({
     route,
     state: tour.state,
-    sendInNewDialog: chat.sendInNewDialog,
-    createIntentDialog: chat.createIntentDialog,
+    sendInNewDialog: prompt => startNewDialog({ prompt }),
+    createIntentDialog: intent => startNewDialog({ intent }),
     navigate,
     openSheet: showSheet,
     sheetOpen,

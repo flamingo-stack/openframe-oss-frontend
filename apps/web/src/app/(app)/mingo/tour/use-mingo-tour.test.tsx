@@ -37,7 +37,6 @@ vi.mock('@/app/(auth)/auth/stores/auth-store', () => ({
 vi.mock('@/app/hooks/use-feature-flag', () => ({ useFeatureFlag: () => false }));
 vi.mock('@/app/(app)/setup/lib/tour-state', () => ({ useTourState: () => null }));
 vi.mock('@/app/(app)/setup/hooks/use-first-device-enrollment', () => ({ fetchFirstDevice: vi.fn() }));
-vi.mock('../hooks/use-mingo-dialog-selection', () => ({ MINGO_DIALOG_NOT_FOUND: 'MINGO_DIALOG_NOT_FOUND' }));
 vi.mock('@/graphql/onboarding/use-onboarding-mutations', () => ({
   useOnboardingMutations: () => ({
     completeUserStepInBackground: vi.fn(),
@@ -112,7 +111,14 @@ function renderTour(
     archiveDialog,
   } as unknown as UnifiedChatState;
   function Probe() {
-    tour = useMingoTour({ state, createNamedDialog: vi.fn(), dialogError: null, dialogCreatedAt, onScreen, onClose });
+    tour = useMingoTour({
+      state,
+      createNamedDialog: vi.fn(),
+      dialogNotFound: false,
+      dialogCreatedAt,
+      onScreen,
+      onClose,
+    });
     return <>{tour.aboveComposer}</>;
   }
   act(() => root.render(<Probe />));

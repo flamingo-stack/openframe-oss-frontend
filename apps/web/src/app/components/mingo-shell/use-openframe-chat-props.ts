@@ -10,7 +10,7 @@ import { CONTEXT_ITEMS_MAX } from '@/app/(app)/mingo/context/context-types';
 import { renderMingoContextItem, renderMingoRecordChip } from '@/app/(app)/mingo/context/mention-chips/render-mention';
 import { renderMingoContextItems } from '@/app/(app)/mingo/context/render-context-items';
 import { useMingoContextMemory } from '@/app/(app)/mingo/context/use-context-memory';
-import { MINGO_DIALOGS_PAGE_SIZE } from '@/app/(app)/mingo/hooks/use-mingo-dialogs';
+import { MINGO_DIALOGS_PAGE_SIZE } from '@/app/(app)/mingo/hooks/use-mingo-unified-chat-state';
 import { useMingoWhatToAsk } from '@/app/(app)/mingo/hooks/use-mingo-what-to-ask';
 import type { MingoChat, MingoChatState } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
@@ -52,7 +52,7 @@ export function useOpenframeChatProps({
   copyDialogLink,
   compactDialog,
 }: OpenframeChatPropsOptions): OpenframeChatProps {
-  const { state, dialogStatusOf, searchQuery, setSearchQuery, fetchArchivedDialogs, unarchiveDialog } = chat;
+  const { state, dialogStatusOf } = chat;
 
   const loadWhatToAsk = useMingoWhatToAsk();
   // Signed-in user's display name for the chat header sub-line. The lib prefers
@@ -104,30 +104,18 @@ export function useOpenframeChatProps({
     // returns no name — sourced from the host auth store.
     userDisplayName,
     userAvatarUrl,
-    // Mingo mode is host-owned via `mingoState`, so we do NOT pass
-    // `modes.mingo` — that keeps the lib's built-in NATS adapter idle.
-    // The EXPLICIT empty object matters: omitting `modes` entirely makes
-    // the lib fall back to its legacy guide-only default, resurrecting the
-    // Guide (SSE hub) mode. With no `modes.guide`, the panel is
-    // Mingo-only: no mode toggle, no "Start Guide Chat" entry point, and
-    // the uncontrolled active mode defaults to 'mingo'.
+    // Mingo runs on the lib's chat engine in the session's provider (one engine for
+    // every surface: the dock, the sidebar's history, the approvals), so its state is
+    // handed in as `mingoState` and `modes.mingo` is not passed. The EXPLICIT empty
+    // object matters: omitting `modes` entirely makes the lib fall back to its
+    // guide-only default. With no `modes.guide`, the panel is Mingo-only.
     modes: {},
     mingoState: state,
-    // Dialog management for the host-injected Mingo state:
-    //  - search: the chat-history search bar emits the debounced term into
-    //    `setSearchQuery`, which rides the `useMingoDialogs` query key.
-    //  - rename/archive: enable the row + header ⋯ menu (mutations live on
-    //    `mingoState` via `useMingoDialogActions`).
-    //  - compact: the chat's ⋯, before Archive, while its flag is on.
-    //  - archive page: `fetchArchivedDialogs` gates the clock-history button;
-    //    `unarchiveDialog` enables restore.
+    // The engine's dialog capabilities (server-side search, rename, archive, the
+    // archive page and restore), plus the host's own: the link to copy, and Compact
+    // while its flag is on (its result is reported by the compaction watchers).
     mingoDialogCapabilities: {
-      searchQuery,
-      onSearchChange: setSearchQuery,
-      canRename: true,
-      canArchive: true,
-      fetchArchivedDialogs,
-      unarchiveDialog,
+      ...state.dialogCapabilities,
       onCopyLink: copyDialogLink,
       compactDialog: compactDialog && (dialog => compactDialog(dialog.id)),
     },

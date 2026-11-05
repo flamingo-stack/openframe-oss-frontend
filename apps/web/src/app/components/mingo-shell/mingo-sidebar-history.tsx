@@ -28,6 +28,8 @@ const NO_DIALOGS: DialogItem[] = [];
 const subscribeToNothing = () => () => {};
 const onClient = () => true;
 const onServer = () => false;
+/** The engine's list always searches; its capability type is optional. */
+const searchNothing = () => {};
 
 /**
  * Chat history section of the Mingo-first sidebar (`sectionSlot`): the lib's
@@ -147,8 +149,8 @@ export function MingoSidebarHistory() {
         }
         scope={state.dialogScope}
         onScopeChange={state.setDialogScope}
-        searchQuery={chat.searchQuery}
-        onSearchChange={chat.setSearchQuery}
+        searchQuery={state.dialogCapabilities?.searchQuery}
+        onSearchChange={state.dialogCapabilities?.onSearchChange}
         searchOpen={searchOpen}
         onSearchOpenChange={setSearchOpen}
         hasMore={state.hasMoreDialogs}
@@ -159,7 +161,7 @@ export function MingoSidebarHistory() {
         onLoadMore={() => void loadMoreDialogs()}
         // A page (20) at a time, on "Show more" at the end of the list.
         loadMore="button"
-        loadError={chat.dialogsLoadFailed && state.dialogs.length === 0}
+        loadError={state.dialogsError && state.dialogs.length === 0}
         onRetry={state.reloadDialogs}
       />
       {canPortal &&
@@ -278,8 +280,8 @@ export function MingoHistorySearch() {
       activeDialogId={state.activeDialogId ?? undefined}
       statusOf={chat.dialogStatusOf}
       currentUserId={currentUserId}
-      searchQuery={chat.searchQuery}
-      onSearchChange={chat.setSearchQuery}
+      searchQuery={state.dialogCapabilities?.searchQuery}
+      onSearchChange={state.dialogCapabilities?.onSearchChange ?? searchNothing}
       onSelectDialog={id => {
         closeMobileMenu();
         openMingoDialog(id, { navigate: href => router.push(href) });
@@ -288,7 +290,7 @@ export function MingoHistorySearch() {
       isLoadingMore={loading && state.dialogs.length > 0}
       isLoadingHistory={loading && state.dialogs.length === 0}
       onLoadMore={() => void loadMoreDialogs()}
-      loadError={chat.dialogsLoadFailed && state.dialogs.length === 0}
+      loadError={state.dialogsError && state.dialogs.length === 0}
       onRetry={state.reloadDialogs}
     />
   );

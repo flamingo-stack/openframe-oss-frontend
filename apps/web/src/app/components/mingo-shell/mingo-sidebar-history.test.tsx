@@ -71,7 +71,7 @@ const spies = {
   loadMoreDialogs: vi.fn(async () => {}),
   reloadDialogs: vi.fn(),
   setDialogScope: vi.fn(),
-  setSearchQuery: vi.fn(),
+  onSearchChange: vi.fn(),
   copyDialogLink: vi.fn(async (_dialog: { id: string }) => {}),
 };
 
@@ -81,9 +81,9 @@ function session(state: Partial<MingoChatState['state']> = {}, extra: Partial<Mi
     chat: {
       ...base,
       ...extra,
-      setSearchQuery: spies.setSearchQuery,
       state: {
         ...base.state,
+        dialogCapabilities: { searchQuery: '', onSearchChange: spies.onSearchChange },
         dialogs: [DIALOG, OTHER],
         isDialogsLoading: false,
         hasMoreDialogs: true,
@@ -216,7 +216,7 @@ describe('MingoSidebarHistory', () => {
     act(() => rail().onScopeChange?.('all'));
     expect(spies.setDialogScope).toHaveBeenCalledWith('all');
     act(() => rail().onSearchChange?.('printer'));
-    expect(spies.setSearchQuery).toHaveBeenCalledWith('printer');
+    expect(spies.onSearchChange).toHaveBeenCalledWith('printer');
     act(() => rail().onLoadMore?.());
     expect(spies.loadMoreDialogs).toHaveBeenCalledTimes(1);
   });
@@ -230,7 +230,7 @@ describe('MingoSidebarHistory', () => {
   });
 
   it('says the list failed only with nothing to show, and retries through the session', () => {
-    render(session({ dialogs: [] }, { dialogsLoadFailed: true }));
+    render(session({ dialogs: [], dialogsError: true }));
     expect(rail().loadError).toBe(true);
 
     act(() => rail().onRetry?.());
@@ -328,7 +328,7 @@ describe('MingoHistorySearch', () => {
     act(() => (seen.search?.onSelectDialog as (id: string) => void)('d-2'));
     expect(push).toHaveBeenCalledWith(routes.mingo.chat('d-2'));
     (seen.search?.onSearchChange as (term: string) => void)('vpn');
-    expect(spies.setSearchQuery).toHaveBeenCalledWith('vpn');
+    expect(spies.onSearchChange).toHaveBeenCalledWith('vpn');
   });
 
   it('draws nothing while chat is off', () => {

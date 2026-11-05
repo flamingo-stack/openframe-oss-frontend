@@ -1,10 +1,13 @@
 'use client';
 
+import {
+  type MingoDialogNode,
+  type MingoDialogsConnection,
+  mingoDialogsQuery,
+} from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { keepPreviousData, queryOptions, useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
-import { ACTIVE_DIALOG_STATUSES } from '../../mingo/hooks/use-mingo-dialogs';
-import { GET_MINGO_DIALOGS_QUERY } from '../../mingo/queries/dialogs-queries';
-import type { DialogConnection, DialogNode } from '../../mingo/types';
+import { ACTIVE_DIALOG_STATUSES } from '../../mingo/hooks/use-mingo-unified-chat-state';
 import type { GraphQlResponse } from '../../tickets/utils/graphql';
 
 /** One freshness policy for one answer, whichever query asks. */
@@ -28,9 +31,9 @@ const DIALOG_LOOKUP_STALE_MS = 30 * 1000;
 function latestIncidentDialogQuery(insightId: string) {
   return queryOptions({
     queryKey: ['mingo-dialogs', 'insight', insightId],
-    queryFn: async (): Promise<DialogNode | null> => {
-      const response = await apiClient.post<GraphQlResponse<{ dialogs: DialogConnection }>>('/chat/graphql', {
-        query: GET_MINGO_DIALOGS_QUERY,
+    queryFn: async (): Promise<MingoDialogNode | null> => {
+      const response = await apiClient.post<GraphQlResponse<{ dialogs: MingoDialogsConnection }>>('/chat/graphql', {
+        query: mingoDialogsQuery({ pendingApproval: false }),
         variables: {
           filter: { agentTypes: ['ADMIN'], statuses: ACTIVE_DIALOG_STATUSES, insightId },
           first: 1,
@@ -48,12 +51,12 @@ function latestIncidentDialogQuery(insightId: string) {
 }
 
 /** The detail header's answer. Suspends, so the header renders once with the right button — no spinner, no relabel. */
-export function useLatestIncidentDialog(insightId: string): DialogNode | null {
+export function useLatestIncidentDialog(insightId: string): MingoDialogNode | null {
   return useSuspenseQuery(latestIncidentDialogQuery(insightId)).data;
 }
 
 /** Per incident: the chat, null for none, undefined while the lookup is pending. */
-export type IncidentDialogLookup = Readonly<Record<string, DialogNode | null | undefined>>;
+export type IncidentDialogLookup = Readonly<Record<string, MingoDialogNode | null | undefined>>;
 
 const NO_LOOKUP: IncidentDialogLookup = {};
 

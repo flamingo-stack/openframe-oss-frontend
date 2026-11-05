@@ -1,8 +1,8 @@
 /**
- * Stand-ins for the two things `MingoChatProvider` runs — the chat-state hook and
- * the live tail — that count how many of each are mounted, so a test can assert
- * "one state for the session" and "running only while a surface is registered"
- * without a backend. Installed with `vi.mock(…)` factories that import this module.
+ * A stand-in for what `MingoChatProvider` runs, the chat-state hook (the lib's chat engine and its live tail), that
+ * counts how many are mounted, and a stand-in for the registry of dialogs on screen, so a test can assert "one state
+ * for the session", "running only while a surface is registered" and "on screen only while the page says so" without
+ * a backend. Installed with `vi.mock(…)` factories that import this module.
  */
 import type { UnifiedChatState } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useEffect, useState } from 'react';
@@ -11,12 +11,10 @@ import type { MingoUnifiedChat } from '../../hooks/use-mingo-unified-chat-state'
 export const fakeChatProbe = {
   /** Hook instances ever created. */
   created: 0,
-  /** Hook instances mounted right now. */
+  /** Hook instances mounted right now: each runs the open dialog's live tail. */
   mounted: 0,
-  /** Live tails mounted right now, by dialog id. */
-  liveTails: [] as string[],
-  /** The subset of `liveTails` that counts its dialog as on screen (`onScreen`). */
-  onScreenTails: [] as string[],
+  /** Dialogs registered as on screen right now (`registerActiveDialogView`). */
+  onScreen: [] as string[],
   /** What the hook returns. */
   result: null as MingoUnifiedChat | null,
   /** Thrown by the hook while set. */
@@ -26,8 +24,7 @@ export const fakeChatProbe = {
 export function resetFakeChatProbe(result: MingoUnifiedChat) {
   fakeChatProbe.created = 0;
   fakeChatProbe.mounted = 0;
-  fakeChatProbe.liveTails = [];
-  fakeChatProbe.onScreenTails = [];
+  fakeChatProbe.onScreen = [];
   fakeChatProbe.result = result;
   fakeChatProbe.crash = null;
 }
@@ -37,46 +34,35 @@ const noop = () => {};
 interface FakeChatOptions {
   activeDialogId?: string | null;
   dialogError?: string | null;
+  dialogNotFound?: boolean;
   isMessagesLoading?: boolean;
   selectDialog?: (id: string | null) => void;
-  sendInNewDialog?: (text: string) => Promise<void>;
+  startNewDialog?: UnifiedChatState['startNewDialog'];
 }
 
 /** One result object, returned as-is on every render — the way the compiled hook memoizes it. */
 export function makeFakeChat({
   activeDialogId = null,
   dialogError = null,
+  dialogNotFound = false,
   isMessagesLoading = false,
   selectDialog = noop,
-  sendInNewDialog = async () => {},
+  startNewDialog = async () => null,
 }: FakeChatOptions = {}): MingoUnifiedChat {
   return {
     state: {
       activeDialogId,
       isMessagesLoading,
       selectDialog,
+      startNewDialog,
+      dialogError,
+      dialogsError: false,
       messages: [],
       dialogs: [],
+      dialogCapabilities: { searchQuery: '', onSearchChange: noop },
     } as unknown as UnifiedChatState,
-    subscription: {
-      activeDialogId,
-      isSubscribed: activeDialogId !== null,
-      approvalStatuses: {},
-      onConnectionChange: noop,
-      onMetadata: noop,
-      initialOptStartSeq: null,
-      isInitialOptStartSeqReady: true,
-    },
     dialogStatusOf: () => undefined,
-    dialogsLoadFailed: false,
-    sendInNewDialog,
-    createNamedDialog: async () => null,
-    createIntentDialog: async () => null,
-    searchQuery: '',
-    setSearchQuery: noop,
-    fetchArchivedDialogs: async () => ({ dialogs: [], nextCursor: null }),
-    unarchiveDialog: async () => {},
-    dialogError,
+    dialogNotFound,
     dialogCreatedAt: null,
   };
 }
@@ -97,19 +83,10 @@ export function useFakeMingoUnifiedChatState(): MingoUnifiedChat {
   return fakeChatProbe.result;
 }
 
-export function FakeDialogSubscription({ dialogId, onScreen = true }: { dialogId: string; onScreen?: boolean }) {
-  useEffect(() => {
-    fakeChatProbe.liveTails.push(dialogId);
-    return () => {
-      fakeChatProbe.liveTails = fakeChatProbe.liveTails.filter(id => id !== dialogId);
-    };
-  }, [dialogId]);
-  useEffect(() => {
-    if (!onScreen) return undefined;
-    fakeChatProbe.onScreenTails.push(dialogId);
-    return () => {
-      fakeChatProbe.onScreenTails = fakeChatProbe.onScreenTails.filter(id => id !== dialogId);
-    };
-  }, [dialogId, onScreen]);
-  return null;
+/** `registerActiveDialogView`, counted. */
+export function fakeRegisterActiveDialogView(dialogId: string): () => void {
+  fakeChatProbe.onScreen.push(dialogId);
+  return () => {
+    fakeChatProbe.onScreen = fakeChatProbe.onScreen.filter(id => id !== dialogId);
+  };
 }

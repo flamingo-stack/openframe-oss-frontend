@@ -163,8 +163,8 @@ vi.mock('./use-openframe-chat-props', () => ({
 }));
 
 const compactDialog = vi.fn();
-const sendInNewDialog = vi.fn(async () => {});
-const createIntentDialog = vi.fn(async () => null);
+/** The engine's one way to start a chat: a prompt sent at once, or an intent. */
+const startNewDialog = vi.fn(async (_options?: { prompt?: string; intent?: string; title?: string }) => null);
 const selectDialog = vi.fn();
 /** The session's thread handlers: the dock must hand them to the chat untouched. */
 const loadMoreMessages = vi.fn();
@@ -201,9 +201,8 @@ function setSurface({
             actions,
             displayApprovalTypes,
             stopMessage,
+            startNewDialog,
           },
-          sendInNewDialog,
-          createIntentDialog,
         },
     error,
     enabled,
@@ -617,7 +616,7 @@ describe('MingoComposerDock', () => {
   it('sends a quick action at once, in a new chat', () => {
     render('/mingo/');
     act(() => chips.onSend?.('List every online machine'));
-    expect(sendInNewDialog).toHaveBeenCalledWith('List every online machine');
+    expect(startNewDialog).toHaveBeenCalledWith({ prompt: 'List every online machine' });
     expect(panel.prefillDraft).not.toHaveBeenCalled();
   });
 
@@ -935,14 +934,14 @@ describe('MingoComposerDock', () => {
     it('Meet Mingo: the prompt is sent in a new chat', () => {
       render('/onboarding/');
       act(() => useMingoLauncherStore.getState().sendToMingo('What can you do?'));
-      expect(sendInNewDialog).toHaveBeenCalledWith('What can you do?');
+      expect(startNewDialog).toHaveBeenCalledWith({ prompt: 'What can you do?' });
       expect(useMingoLauncherStore.getState().dockRequest).toBeNull();
     });
 
     it('Generate with AI: the intent chat is created at once, from the page it was raised on', () => {
       render('/scripts/');
       act(() => useMingoLauncherStore.getState().startIntentChat('CREATE_SCRIPT'));
-      expect(createIntentDialog).toHaveBeenCalledWith('CREATE_SCRIPT');
+      expect(startNewDialog).toHaveBeenCalledWith({ intent: 'CREATE_SCRIPT' });
       expect(nav.push).not.toHaveBeenCalledWith(routes.mingo.home);
       expect(useMingoLauncherStore.getState().dockRequest).toBeNull();
     });

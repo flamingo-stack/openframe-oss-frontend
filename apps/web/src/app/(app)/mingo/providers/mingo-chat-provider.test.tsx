@@ -29,10 +29,9 @@ const { toast, flags, watchers, tenantHost } = vi.hoisted(() => ({
 vi.mock('../hooks/use-mingo-unified-chat-state', async () => ({
   useMingoUnifiedChatState: (await import('./__tests__/fake-mingo-chat')).useFakeMingoUnifiedChatState,
 }));
-vi.mock('../hooks/use-mingo-realtime-subscription', async () => ({
-  DialogSubscription: (await import('./__tests__/fake-mingo-chat')).FakeDialogSubscription,
+vi.mock('@/lib/active-dialog-views', async () => ({
+  registerActiveDialogView: (await import('./__tests__/fake-mingo-chat')).fakeRegisterActiveDialogView,
 }));
-vi.mock('../hooks/use-mingo-dialog-selection', () => ({ MINGO_DIALOG_NOT_FOUND: 'MINGO_DIALOG_NOT_FOUND' }));
 vi.mock('@/app/components/mingo-compaction-watchers', async () => {
   const { useEffect } = await import('react');
   return {
@@ -139,7 +138,7 @@ describe('MingoChatProvider', () => {
     render(shell([]));
 
     expect(fakeChatProbe.created).toBe(0);
-    expect(fakeChatProbe.liveTails).toEqual([]);
+    expect(fakeChatProbe.mounted).toBe(0);
     expect(seen.get('reader')?.chat).toBeNull();
     // The compaction watchers do not wait for a surface: they outlive the panel.
     expect(watchers.mounted).toBe(1);
@@ -150,7 +149,6 @@ describe('MingoChatProvider', () => {
 
     expect(fakeChatProbe.created).toBe(1);
     expect(fakeChatProbe.mounted).toBe(1);
-    expect(fakeChatProbe.liveTails).toEqual(['d-1']);
     const state = fakeChatProbe.result?.state;
     expect(seen.get('page')?.chat?.state).toBe(state);
     expect(seen.get('dock')?.chat?.state).toBe(state);
@@ -163,18 +161,15 @@ describe('MingoChatProvider', () => {
   it('starts with the first surface and stops with the last', () => {
     render(shell(['page']));
     expect(fakeChatProbe.mounted).toBe(1);
-    expect(fakeChatProbe.liveTails).toEqual(['d-1']);
 
     render(shell([]));
     expect(fakeChatProbe.mounted).toBe(0);
-    expect(fakeChatProbe.liveTails).toEqual([]);
     expect(seen.get('reader')?.chat).toBeNull();
 
     // A new surface is a fresh state: nothing local carries over.
     render(shell(['page']));
     expect(fakeChatProbe.created).toBe(2);
     expect(fakeChatProbe.mounted).toBe(1);
-    expect(fakeChatProbe.liveTails).toEqual(['d-1']);
   });
 
   it('keeps running while any surface is left', () => {
@@ -238,7 +233,14 @@ describe('MingoChatProvider', () => {
 
   it('toasts a dialog that does not exist once, and drops the selection', () => {
     const selectDialog = vi.fn();
-    resetFakeChatProbe(makeFakeChat({ activeDialogId: 'd-gone', dialogError: 'MINGO_DIALOG_NOT_FOUND', selectDialog }));
+    resetFakeChatProbe(
+      makeFakeChat({
+        activeDialogId: 'd-gone',
+        dialogError: 'This conversation could not be found.',
+        dialogNotFound: true,
+        selectDialog,
+      }),
+    );
 
     render(shell(['page', 'dock']));
 
@@ -313,8 +315,8 @@ describe('MingoChatProvider', () => {
     it('not while only the dock keeps the tail running', () => {
       render(shell(['dock']));
 
-      expect(fakeChatProbe.liveTails).toEqual(['d-1']);
-      expect(fakeChatProbe.onScreenTails).toEqual([]);
+      expect(fakeChatProbe.mounted).toBe(1);
+      expect(fakeChatProbe.onScreen).toEqual([]);
     });
 
     it('the open dialog while the chat page shows the thread, and no longer once it leaves', () => {
@@ -326,11 +328,11 @@ describe('MingoChatProvider', () => {
       );
 
       render(withPage(true));
-      expect(fakeChatProbe.onScreenTails).toEqual(['d-1']);
+      expect(fakeChatProbe.onScreen).toEqual(['d-1']);
 
       render(withPage(false));
-      expect(fakeChatProbe.liveTails).toEqual(['d-1']);
-      expect(fakeChatProbe.onScreenTails).toEqual([]);
+      expect(fakeChatProbe.mounted).toBe(1);
+      expect(fakeChatProbe.onScreen).toEqual([]);
     });
   });
 });

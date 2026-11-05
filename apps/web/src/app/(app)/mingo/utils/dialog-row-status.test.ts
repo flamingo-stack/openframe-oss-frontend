@@ -1,16 +1,8 @@
-import type { ChatMessage, ChatPart } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
-import type { InfiniteData } from '@tanstack/react-query';
+import type { ChatMessage, ChatPart, MingoDialogNode } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { describe, expect, it } from 'vitest';
-import type { DialogNode } from '../types';
-import {
-  dialogRowStatus,
-  liveRowState,
-  type MingoDialogsPage,
-  serverRowState,
-  withLiveRowState,
-} from './dialog-row-status';
+import { dialogRowStatus, liveRowState, serverRowState } from './dialog-row-status';
 
-function node(id: string, fields: Partial<DialogNode> = {}): DialogNode {
+function node(id: string, fields: Partial<MingoDialogNode> = {}): MingoDialogNode {
   // `id` is the Relay global id; rows are matched on the raw `dialogId`.
   return {
     id: `global-${id}`,
@@ -20,13 +12,6 @@ function node(id: string, fields: Partial<DialogNode> = {}): DialogNode {
     streamState: 'IDLE',
     createdAt: '2026-10-09T09:00:00Z',
     ...fields,
-  };
-}
-
-function pages(...dialogPages: DialogNode[][]): InfiniteData<MingoDialogsPage> {
-  return {
-    pages: dialogPages.map(dialogs => ({ dialogs, pageInfo: { hasNextPage: false } })),
-    pageParams: dialogPages.map(() => undefined),
   };
 }
 
@@ -107,39 +92,5 @@ describe('liveRowState', () => {
       awaitingApproval: false,
       approvalRequestId: undefined,
     });
-  });
-});
-
-describe('withLiveRowState', () => {
-  const waiting = liveRowState('idle', [reply(batch('ar-2'))]);
-  const settled = liveRowState('idle', [reply(batch('ar-2', 'approved'))]);
-
-  it('writes a new approval onto the open chat row, on whichever page holds it', () => {
-    const data = pages([node('d-1')], [node('d-2')]);
-    const next = withLiveRowState(data, 'd-2', waiting);
-    expect(next?.pages[1].dialogs[0].pendingApproval).toEqual({ id: 'ar-2' });
-    expect(next?.pages[0]).toBe(data.pages[0]);
-  });
-
-  it('clears the approval once it is resolved', () => {
-    const data = pages([node('d-1', { pendingApproval: { id: 'ar-2', approvalType: 'ADMIN' } })]);
-    expect(withLiveRowState(data, 'd-1', settled)?.pages[0].dialogs[0].pendingApproval).toBeNull();
-  });
-
-  it('marks the row working while Mingo answers', () => {
-    const next = withLiveRowState(pages([node('d-1')]), 'd-1', liveRowState('streaming', []));
-    expect(next?.pages[0].dialogs[0].streamState).toBe('STREAMING');
-  });
-
-  it('keeps the server record of the same request', () => {
-    const data = pages([node('d-1', { pendingApproval: { id: 'ar-2', approvalType: 'ADMIN' } })]);
-    expect(withLiveRowState(data, 'd-1', waiting)).toBe(data);
-  });
-
-  it('returns the same data when the row already says the same', () => {
-    const data = pages([node('d-1')]);
-    expect(withLiveRowState(data, 'd-1', settled)).toBe(data);
-    expect(withLiveRowState(data, 'missing', waiting)).toBe(data);
-    expect(withLiveRowState(undefined, 'd-1', settled)).toBeUndefined();
   });
 });

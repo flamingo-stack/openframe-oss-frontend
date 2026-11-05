@@ -37,9 +37,9 @@ import type { ComposerRoute } from './mingo-dock-route';
 interface ComposerTargetOptions {
   route: ComposerRoute;
   state: UnifiedChatState;
-  /** The session's always-new send (`MingoChatState.sendInNewDialog`). */
-  sendInNewDialog: (text: string) => Promise<void>;
-  /** A new chat created to make one entity (`MingoChatState.createIntentDialog`). */
+  /** A new chat sent `text` at once (`UnifiedChatState.startNewDialog({ prompt })`). */
+  sendInNewDialog: (text: string) => Promise<string | null>;
+  /** A new chat created to make one entity (`UnifiedChatState.startNewDialog({ intent })`). */
   createIntentDialog: (intent: DialogIntent) => Promise<string | null>;
   navigate: (href: string) => void;
   /** Raise the chat over the page (`useMingoSheetStore.show`). */
@@ -54,7 +54,7 @@ interface ComposerTarget {
   /** `state` whose send, when no chat is open, follows the chat it creates. Hand it to `EmbeddableChat`. */
   mingoState: UnifiedChatState;
   /** `sendInNewDialog` that follows the chat it creates. */
-  sendInNewDialog: (text: string) => Promise<void>;
+  sendInNewDialog: (text: string) => Promise<string | null>;
   /** `createIntentDialog` that follows the chat it creates. */
   createIntentDialog: (intent: DialogIntent) => Promise<string | null>;
 }
