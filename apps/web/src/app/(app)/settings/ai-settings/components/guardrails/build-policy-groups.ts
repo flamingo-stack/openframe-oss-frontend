@@ -1,5 +1,6 @@
 import type { PermissionCategory } from '@flamingo-stack/openframe-frontend-core';
 import { normalizeToolTypeWithFallback } from '@flamingo-stack/openframe-frontend-core/utils';
+import { categoryIcon } from './category-icons';
 import type { PolicyRule } from './guardrails.types';
 
 function slugify(value: string) {
@@ -30,7 +31,7 @@ export function buildPolicyGroups(rules: PolicyRule[]): Map<string, PermissionCa
 
     let category = categoriesMap.get(categoryId);
     if (!category) {
-      category = { id: categoryId, name: categoryName, policies: [] };
+      category = { id: categoryId, name: categoryName, icon: categoryIcon(categoryName), policies: [] };
       categoriesMap.set(categoryId, category);
     }
 

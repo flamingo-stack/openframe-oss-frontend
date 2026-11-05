@@ -3,6 +3,7 @@
 import type { ApprovalLevel, PermissionCategory } from '@flamingo-stack/openframe-frontend-core';
 import { PolicyConfigurationPanel } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { LoadingItems, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { formatUnderscoreText } from '@flamingo-stack/openframe-frontend-core/utils';
 import { noop, NO_ITEMS } from '@/app/components/shared';
 
 interface GuardrailsPolicyGroupsProps {
@@ -44,8 +45,9 @@ function PolicyGroup({
   const isLoading = useLoadingScope() || loading;
   return (
     <div className={GROUP_CLASS} data-loading-item>
+      {/* The group is the template's enum (`FILE_OPERATIONS_POLICY`): written as words. */}
       <TruncateText variant="h5" tone="secondary" loading={isLoading}>
-        {name}
+        {formatUnderscoreText(name)}
       </TruncateText>
       <PolicyConfigurationPanel
         categories={categories}
