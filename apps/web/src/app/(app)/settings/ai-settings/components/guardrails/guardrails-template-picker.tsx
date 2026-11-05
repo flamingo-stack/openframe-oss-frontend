@@ -74,8 +74,8 @@ export function GuardrailsTemplatePicker({
     <RadioGroupBlock
       name="policy-template"
       variant="grouped"
-      // The settings design's policy rows: 24px around each (Figma 4365-22636).
-      itemClassName="p-[var(--spacing-system-lf)]"
+      // The settings design's policy rows: 24px around each, the radio level with the name (Figma 4365-22636).
+      itemClassName="items-start p-[var(--spacing-system-lf)]"
       value={value}
       onValueChange={onSelect}
       disabled={disabled}

@@ -1,5 +1,5 @@
 import type { PermissionCategory } from '@flamingo-stack/openframe-frontend-core';
-import { normalizeToolTypeWithFallback } from '@flamingo-stack/openframe-frontend-core/utils';
+import { formatUnderscoreText, normalizeToolTypeWithFallback } from '@flamingo-stack/openframe-frontend-core/utils';
 import { categoryIcon } from './category-icons';
 import type { PolicyRule } from './guardrails.types';
 
@@ -10,10 +10,22 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, '');
 }
 
+/** Groups whose enum joins two subjects: the design writes them with "&" (Figma 555-40960, "Communication & Messaging"). */
+const JOINED_GROUP_LABELS: Record<string, string> = {
+  COMMUNICATION_MESSAGING_POLICY: 'Communication & Messaging Policy',
+  MONITORING_DIAGNOSTICS_POLICY: 'Monitoring & Diagnostics Policy',
+};
+
+/** A policy group's enum (`FILE_OPERATIONS_POLICY`) as its section label is written. */
+export function policyGroupLabel(policyGroup: string): string {
+  return JOINED_GROUP_LABELS[policyGroup] ?? formatUnderscoreText(policyGroup);
+}
+
 /**
  * Groups flat policy rules into policy-group → categories → policies for the
- * core-lib PolicyConfigurationPanel. Pure data transform — presentation state
- * (expansion, bulk selections) is owned by the panel.
+ * core-lib PolicyConfigurationPanel, in the template's own order (the order the
+ * design lists them in: Downloads, Uploads, Management). Pure data transform —
+ * presentation state (expansion, bulk selections) is owned by the panel.
  */
 export function buildPolicyGroups(rules: PolicyRule[]): Map<string, PermissionCategory[]> {
   const groupedByPolicyGroup = new Map<string, Map<string, PermissionCategory>>();
@@ -47,10 +59,7 @@ export function buildPolicyGroups(rules: PolicyRule[]): Map<string, PermissionCa
 
   const finalGroups = new Map<string, PermissionCategory[]>();
   for (const [policyGroupName, categoriesMap] of groupedByPolicyGroup) {
-    finalGroups.set(
-      policyGroupName,
-      Array.from(categoriesMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
-    );
+    finalGroups.set(policyGroupName, Array.from(categoriesMap.values()));
   }
 
   return finalGroups;

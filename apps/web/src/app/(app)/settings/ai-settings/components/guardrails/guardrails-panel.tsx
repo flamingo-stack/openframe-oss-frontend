@@ -49,10 +49,11 @@ export function GuardrailsPanel({ editor, isEditMode }: GuardrailsPanelProps) {
 
   return (
     <LoadingWhen loading={loading} label="Loading guardrails" className="flex flex-col gap-[var(--spacing-system-l)]">
-      <div className="flex items-center gap-[var(--spacing-system-s)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-s)]">
+      {/* Figma 4365-22633: 16px padding and gap, a bold title 4px over its line. */}
+      <div className="flex items-center gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)]">
         <InfoCircleIcon className="size-6 shrink-0 text-ods-text-secondary" />
-        <div className="flex min-w-0 flex-col">
-          <p className="text-ods-text-primary text-h4">Default settings for all customers</p>
+        <div className="flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]">
+          <p className="text-ods-text-primary text-h3">Default settings for all customers</p>
           <p className="text-ods-text-secondary text-h6">
             Individual customers can be customized separately in their settings.
           </p>
