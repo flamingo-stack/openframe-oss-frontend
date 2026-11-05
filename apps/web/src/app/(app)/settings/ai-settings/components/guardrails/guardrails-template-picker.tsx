@@ -1,11 +1,9 @@
 'use client';
 
 import { ActionsMenuDropdown, Button, RadioGroupBlock } from '@flamingo-stack/openframe-frontend-core';
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { Filter03HrIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import {
-  RADIO_GROUP_BLOCK_SKELETON_OPTIONS,
-  useLoadingScope,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 
 export interface GuardrailsTemplateOption {
   id: string;
@@ -47,14 +45,19 @@ function CustomPolicyButton({ onClick, disabled }: { onClick?: () => void; disab
   );
 }
 
+/** The stock templates the catalog ships (Autonomous, Balanced, Permissive, Restrictive): the picker's loading rows. */
+const STOCK_TEMPLATE_COUNT = 4;
+/** A stock template's description runs two lines on a desktop row (Figma 4365-22636). */
+const DESCRIPTION_SKELETON_LINES = 2;
+
 /**
- * A row while the templates are read (the lib's typical option count; the templates are not paged): a null label and
- * description, which the block draws as its own bars, and the stock row's button for real but inert (static copy), so the row has its loaded height.
+ * A row while the templates are read: a null label, which the block draws as its own bar, two description lines, and
+ * the stock row's button for real but inert (static copy), so each row has a stock row's loaded height (112px).
  */
-const LOADING_OPTIONS = Array.from({ length: RADIO_GROUP_BLOCK_SKELETON_OPTIONS }, (_, index) => ({
+const LOADING_OPTIONS = Array.from({ length: STOCK_TEMPLATE_COUNT }, (_, index) => ({
   value: `loading-${index}`,
   label: null,
-  description: null,
+  description: <TextLineSkeleton as="span" type="inherit" lines={DESCRIPTION_SKELETON_LINES} />,
   trailing: <CustomPolicyButton disabled />,
 }));
 

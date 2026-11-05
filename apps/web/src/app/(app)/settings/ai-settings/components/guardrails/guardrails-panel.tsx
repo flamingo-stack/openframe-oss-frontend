@@ -60,15 +60,21 @@ export function GuardrailsPanel({ editor, isEditMode }: GuardrailsPanelProps) {
         </div>
       </div>
 
+      {/* Edit Settings swaps the preset card for the picker: the one that comes in fades in, as panels do across the
+          system (keyed, so the swap re-runs it). */}
       {isEditMode ? (
-        <GuardrailsTemplatePicker
-          options={editor.templateOptions}
-          value={editor.selectedTemplateId}
-          onSelect={editor.selectTemplate}
-          onCreateCustomPolicyFrom={editor.createCustomPolicyFrom}
-        />
+        <div key="picker" className="duration-300 animate-in fade-in motion-reduce:animate-none">
+          <GuardrailsTemplatePicker
+            options={editor.templateOptions}
+            value={editor.selectedTemplateId}
+            onSelect={editor.selectTemplate}
+            onCreateCustomPolicyFrom={editor.createCustomPolicyFrom}
+          />
+        </div>
       ) : (
-        <GuardrailsPresetCard label={editor.activePresetLabel} />
+        <div key="preset" className="duration-300 animate-in fade-in motion-reduce:animate-none">
+          <GuardrailsPresetCard label={editor.activePresetLabel} />
+        </div>
       )}
 
       {/* The rules load on their own (a template change re-reads them): one scope, always mounted, in which the

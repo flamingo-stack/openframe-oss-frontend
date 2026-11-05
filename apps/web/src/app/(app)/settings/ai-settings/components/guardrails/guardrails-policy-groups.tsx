@@ -25,6 +25,8 @@ const GROUP_CLASS = 'flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]';
  * size: this is a template's typical count. Each group's panel draws its own skeleton categories.
  */
 const GUARDRAILS_SKELETON_GROUPS = 2;
+/** Categories a loading group draws: a template's groups hold three (File Downloads, Uploads, Management). */
+const GUARDRAILS_SKELETON_CATEGORIES = 3;
 
 interface PolicyGroupProps {
   /** The group's label; unread while loading. */
@@ -58,6 +60,7 @@ function PolicyGroup({
         onPolicyPermissionChange={onPolicyPermissionChange}
         onCategoryPermissionChange={onCategoryPermissionChange}
         loading={isLoading}
+        skeletonCount={GUARDRAILS_SKELETON_CATEGORIES}
       />
     </div>
   );
@@ -86,7 +89,8 @@ export function GuardrailsPolicyGroups({
             <PolicyGroup
               name=""
               categories={NO_ITEMS}
-              editMode={false}
+              // The loaded rows' columns (the bulk dropdown while a custom policy is edited), locked.
+              editMode={editMode}
               onPolicyPermissionChange={noop}
               onCategoryPermissionChange={noop}
               loading
