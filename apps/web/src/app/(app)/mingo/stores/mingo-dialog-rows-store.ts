@@ -4,7 +4,7 @@ import { type DialogRowState, serverRowState } from '../utils/dialog-row-status'
 
 /**
  * What the chat list's rows hold beside what the lib's list draws: each dialog's state as the server last answered it
- * (its stream and pending approval, for the row status), its generated title and its creation time.
+ * (its stream and pending approval, for the row status) and its creation time.
  *
  * The lib's chat engine owns the list and maps each node to a `DialogItem`, which carries none of these. Every answer
  * of the ai-agent passes through `postMingoGraphql`, which notes the dialog nodes it carries here: a list page, the open
@@ -12,7 +12,6 @@ import { type DialogRowState, serverRowState } from '../utils/dialog-row-status'
  * row left mid-answer or with an approval pending keeps its glyph until the server answers otherwise.
  */
 export interface MingoDialogRow extends DialogRowState {
-  title: string | null;
   createdAt: string;
 }
 
@@ -20,24 +19,20 @@ interface MingoDialogRowsState {
   rows: ReadonlyMap<string, MingoDialogRow>;
   /** Dialogs whose record answered that they do not exist for this viewer. */
   missing: ReadonlySet<string>;
-  /** Dialogs restored from the archive here, whose open record still says archived. */
-  restored: ReadonlySet<string>;
 }
 
 export const useMingoDialogRowsStore = create<MingoDialogRowsState>()(() => ({
   rows: new Map(),
   missing: new Set(),
-  restored: new Set(),
 }));
 
 function rowOf(node: MingoDialogNode): MingoDialogRow {
-  return { ...serverRowState(node), title: node.title ?? null, createdAt: node.createdAt };
+  return { ...serverRowState(node), createdAt: node.createdAt };
 }
 
 function sameRow(a: MingoDialogRow | undefined, b: MingoDialogRow): boolean {
   return (
     a !== undefined &&
-    a.title === b.title &&
     a.createdAt === b.createdAt &&
     a.streaming === b.streaming &&
     a.awaitingApproval === b.awaitingApproval &&
@@ -107,32 +102,4 @@ export function settleMingoRowApproval(approvalRequestId: string): void {
     }
     return rows ? { rows } : state;
   });
-}
-
-/** A dialog was restored from the archive here. */
-export function noteMingoDialogRestored(dialogId: string): void {
-  useMingoDialogRowsStore.setState(state =>
-    state.restored.has(dialogId) ? state : { restored: new Set(state.restored).add(dialogId) },
-  );
-}
-
-/** A dialog was archived here: a later restore is a new one. */
-export function noteMingoDialogArchived(dialogId: string): void {
-  useMingoDialogRowsStore.setState(state => {
-    if (!state.restored.has(dialogId)) return state;
-    const restored = new Set(state.restored);
-    restored.delete(dialogId);
-    return { restored };
-  });
-}
-
-// The backend generates a title asynchronously after the first message, with no realtime event when it lands. A
-// fresh dialog with none is refreshed sooner, until it has one or is too old to be getting one.
-const TITLE_WAIT_MAX_DIALOG_AGE_MS = 10 * 60 * 1000;
-
-/** A fresh dialog still waiting for its generated title. */
-export function isAwaitingGeneratedTitle(row: Pick<MingoDialogRow, 'title' | 'createdAt'> | undefined): boolean {
-  if (!row || row.title) return false;
-  const ageMs = Date.now() - new Date(row.createdAt).getTime();
-  return Number.isFinite(ageMs) && ageMs >= 0 && ageMs < TITLE_WAIT_MAX_DIALOG_AGE_MS;
 }

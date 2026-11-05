@@ -17,7 +17,7 @@ import {
 
 afterEach(() => {
   clearApprovalDecisions();
-  useMingoDialogRowsStore.setState({ rows: new Map(), missing: new Set(), restored: new Set() });
+  useMingoDialogRowsStore.setState({ rows: new Map(), missing: new Set() });
 });
 
 describe('noteApprovalDecision', () => {

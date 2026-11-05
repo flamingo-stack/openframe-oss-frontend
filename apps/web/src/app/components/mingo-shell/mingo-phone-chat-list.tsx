@@ -18,7 +18,7 @@ const NO_DIALOGS: DialogItem[] = [];
  * phone a chat takes the screen.
  */
 export function MingoPhoneChatList() {
-  const { chat, error, copyDialogLink } = useMingoChat();
+  const { chat, error } = useMingoChat();
   const router = useRouter();
   const rememberNewChatPage = useMingoSheetStore(s => s.rememberNewChatPage);
 
@@ -38,7 +38,7 @@ export function MingoPhoneChatList() {
         rememberNewChatPage();
         router.push(routes.mingo.home);
       }}
-      onRequestCopyLink={dialog => void copyDialogLink(dialog)}
+      onRequestCopyLink={state.dialogCapabilities?.onCopyLink}
       scope={state.dialogScope}
       onScopeChange={state.setDialogScope}
       searchQuery={state.dialogCapabilities?.searchQuery}

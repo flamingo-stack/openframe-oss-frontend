@@ -9,8 +9,8 @@ import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { routes } from '@/lib/routes';
+import type { MingoUnifiedChat } from '../hooks/use-mingo-unified-chat-state';
 import { makeFakeChat } from '../providers/__tests__/fake-mingo-chat';
-import type { MingoChatState } from '../providers/mingo-chat-provider';
 import { useChatPageSelection } from './use-chat-page-selection';
 
 const replace = vi.hoisted(() => vi.fn<(href: string) => void>());
@@ -18,7 +18,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ replace }) }));
 
 const selectDialog = vi.fn<(id: string | null) => void>();
 
-function Page({ dialogId, chat }: { dialogId: string | null; chat: MingoChatState | null }) {
+function Page({ dialogId, chat }: { dialogId: string | null; chat: MingoUnifiedChat | null }) {
   return <p>{useChatPageSelection(dialogId, chat).status}</p>;
 }
 
@@ -27,7 +27,7 @@ function chatWith(
   activeDialogId: string | null,
   dialogError: string | null = null,
   dialogNotFound = false,
-): MingoChatState {
+): MingoUnifiedChat {
   return makeFakeChat({ activeDialogId, dialogError, dialogNotFound, selectDialog: id => selectDialog(id) });
 }
 

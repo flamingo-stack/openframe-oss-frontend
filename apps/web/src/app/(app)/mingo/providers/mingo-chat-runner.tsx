@@ -3,8 +3,8 @@
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Component, type ReactNode, useEffect, useLayoutEffect, useRef } from 'react';
 import { registerActiveDialogView } from '@/lib/active-dialog-views';
-import { useMingoUnifiedChatState } from '../hooks/use-mingo-unified-chat-state';
-import type { MingoChatState, MingoChatStore } from './mingo-chat-store';
+import { type MingoUnifiedChat, useMingoUnifiedChatState } from '../hooks/use-mingo-unified-chat-state';
+import type { MingoChatStore } from './mingo-chat-store';
 
 /**
  * A dialog that won't load is otherwise indistinguishable from an empty one — the
@@ -20,7 +20,7 @@ import type { MingoChatState, MingoChatStore } from './mingo-chat-store';
 function useDialogErrorToast({
   dialogNotFound,
   state: { activeDialogId, selectDialog, dialogError },
-}: MingoChatState): void {
+}: MingoUnifiedChat): void {
   const { toast } = useToast();
   const toastedDialogErrorRef = useRef<string | null>(null);
 

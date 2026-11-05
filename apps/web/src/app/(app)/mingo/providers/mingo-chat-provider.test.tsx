@@ -1,15 +1,13 @@
 /**
  * Pins the session contract of `MingoChatProvider`: one chat state however many
  * surfaces read it, running only while a surface is registered, and the per-session
- * effects — dialog-error toast, compaction — happening once.
+ * effects — dialog-error toast, compaction watchers — happening once.
  */
 
 import { act, Component, type ReactNode, useLayoutEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MingoDockErrorBoundary } from '@/app/components/mingo-shell/mingo-dock-error-boundary';
-import { mingoDialogLink } from '@/lib/routes';
-import { useMingoCompactionStore } from '../stores/mingo-compaction-store';
 import { fakeChatProbe, makeFakeChat, resetFakeChatProbe } from './__tests__/fake-mingo-chat';
 import {
   type MingoChat,
@@ -19,11 +17,9 @@ import {
   useMingoChatThreadOnScreen,
 } from './mingo-chat-provider';
 
-const { toast, flags, watchers, tenantHost } = vi.hoisted(() => ({
+const { toast, watchers } = vi.hoisted(() => ({
   toast: vi.fn(),
-  flags: new Map<string, boolean>(),
   watchers: { mounted: 0 },
-  tenantHost: { url: 'https://acme.openframe.ai' },
 }));
 
 vi.mock('../hooks/use-mingo-unified-chat-state', async () => ({
@@ -47,8 +43,6 @@ vi.mock('@/app/components/mingo-compaction-watchers', async () => {
   };
 });
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', () => ({ useToast: () => ({ toast, dismiss: vi.fn() }) }));
-vi.mock('@/app/hooks/use-feature-flag', () => ({ useFeatureFlag: (name: string) => flags.get(name) ?? false }));
-vi.mock('@/lib/runtime-config', () => ({ runtimeEnv: { tenantHostUrl: () => tenantHost.url } }));
 
 /** What each probe last read, by name. */
 const seen = new Map<string, MingoChat>();
@@ -117,12 +111,9 @@ function shell(surfaces: string[], { enabled = true }: { enabled?: boolean } = {
 describe('MingoChatProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    flags.clear();
     seen.clear();
     watchers.mounted = 0;
-    tenantHost.url = 'https://acme.openframe.ai';
     resetFakeChatProbe(makeFakeChat({ activeDialogId: 'd-1' }));
-    useMingoCompactionStore.setState({ compactingDialogIds: [] });
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -247,68 +238,6 @@ describe('MingoChatProvider', () => {
     expect(toast).toHaveBeenCalledTimes(1);
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Conversation not available' }));
     expect(selectDialog).toHaveBeenCalledWith(null);
-  });
-
-  it('offers compaction behind its flag, and says when one is already running', () => {
-    render(shell(['page']));
-    expect(seen.get('page')?.compactDialog).toBeUndefined();
-
-    flags.set('mingo-compact-memory', true);
-    render(shell(['page']));
-    const compactDialog = seen.get('page')?.compactDialog;
-    act(() => compactDialog?.('d-1'));
-    act(() => compactDialog?.('d-1'));
-
-    expect(useMingoCompactionStore.getState().compactingDialogIds).toEqual(['d-1']);
-    expect(toast).toHaveBeenCalledTimes(1);
-    expect(toast).toHaveBeenCalledWith({ title: 'Already compacting this chat' });
-  });
-
-  it('copies the canonical link on the tenant host', async () => {
-    const writeText = vi.fn(async () => {});
-    vi.stubGlobal('navigator', { clipboard: { writeText } });
-    render(shell([]));
-
-    await act(async () => {
-      await seen.get('reader')?.copyDialogLink({ id: 'd-1' });
-    });
-
-    expect(writeText).toHaveBeenCalledWith(`https://acme.openframe.ai${mingoDialogLink('d-1')}`);
-    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Link copied' }));
-    vi.unstubAllGlobals();
-  });
-
-  it('shows the link in the toast when the clipboard refuses it, so it can still be copied by hand', async () => {
-    vi.stubGlobal('navigator', { clipboard: { writeText: vi.fn(async () => Promise.reject(new Error('denied'))) } });
-    render(shell([]));
-
-    await act(async () => {
-      await seen.get('reader')?.copyDialogLink({ id: 'd-1' });
-    });
-
-    expect(toast).toHaveBeenCalledWith({
-      title: "Couldn't copy the link",
-      description: `https://acme.openframe.ai${mingoDialogLink('d-1')}`,
-      variant: 'destructive',
-    });
-    vi.unstubAllGlobals();
-  });
-
-  it('copies nothing from a shell origin (capacitor://, tauri://): such a link is dead off the device', async () => {
-    const writeText = vi.fn(async () => {});
-    vi.stubGlobal('navigator', { clipboard: { writeText } });
-    tenantHost.url = 'capacitor://localhost';
-    render(shell([]));
-
-    await act(async () => {
-      await seen.get('reader')?.copyDialogLink({ id: 'd-1' });
-    });
-
-    expect(writeText).not.toHaveBeenCalled();
-    expect(toast).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "Couldn't copy the link", variant: 'destructive' }),
-    );
-    vi.unstubAllGlobals();
   });
 
   describe('which dialog counts as on screen (popups, auto-read)', () => {

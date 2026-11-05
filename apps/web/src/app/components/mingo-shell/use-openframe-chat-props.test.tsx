@@ -1,15 +1,14 @@
 /**
- * What OpenFrame's chat can do, as the dock hands it to `EmbeddableChat`: the session's
- * state, the row status glyphs and "What to ask Mingo?", every dialog action (Compact
- * while its flag is on), and quick actions that start their chat through the send the
- * dock passes.
+ * What OpenFrame's chat can do, as the dock hands it to `EmbeddableChat`: the row status
+ * glyphs and "What to ask Mingo?", and quick actions whose instructions go into the
+ * composer. The session's engine and its dialog actions reach the panel through
+ * `ChatEngineProvider`, not as props.
  */
 
 import { act, useLayoutEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeFakeChat } from '@/app/(app)/mingo/providers/__tests__/fake-mingo-chat';
-import type { MingoChatState } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { type OpenframeChatProps, useOpenframeChatProps } from './use-openframe-chat-props';
 
 const { whatToAsk } = vi.hoisted(() => ({ whatToAsk: async () => [] }));
@@ -40,31 +39,14 @@ vi.mock('@/app/(auth)/auth/stores/auth-store', () => ({
 }));
 vi.mock('@/lib/image-url', () => ({ getFullImageUrl: () => undefined }));
 
-const fake = makeFakeChat({ activeDialogId: 'd-1' });
-/** The engine's dialog capabilities, as the session's state carries them. */
-const dialogCapabilities = {
-  canRename: true,
-  canArchive: true,
-  searchQuery: '',
-  onSearchChange: vi.fn(),
-  unarchiveDialog: vi.fn(async () => {}),
-  fetchArchivedDialogs: vi.fn(async () => ({ dialogs: [], nextCursor: null })),
-};
-const chat = { ...fake, state: { ...fake.state, dialogCapabilities } } as unknown as MingoChatState;
-const copyDialogLink = vi.fn(async () => {});
-const compactDialog = vi.fn();
-const probe = { compact: true };
+const chat = makeFakeChat({ activeDialogId: 'd-1' });
 
 let container: HTMLDivElement;
 let root: Root;
 const seen: { props: OpenframeChatProps | null } = { props: null };
 
 function Probe() {
-  const props = useOpenframeChatProps({
-    chat,
-    copyDialogLink,
-    compactDialog: probe.compact ? compactDialog : undefined,
-  });
+  const props = useOpenframeChatProps({ dialogStatusOf: chat.dialogStatusOf });
   useLayoutEffect(() => {
     seen.props = props;
   });
@@ -85,27 +67,15 @@ afterEach(() => {
 });
 
 describe('useOpenframeChatProps', () => {
-  it("hands the chat the session's state, row status and What to ask Mingo", () => {
+  it('hands the chat the row status and What to ask Mingo, and no engine of its own', () => {
     expect(seen.props).toMatchObject({
-      mingoState: chat.state,
       dialogStatusOf: chat.dialogStatusOf,
       whatToAsk,
       modes: {},
       userDisplayName: 'Ann Lee',
     });
-  });
-
-  it("offers the engine's dialog actions and the host's own, Compact compacting the chat it is asked for", () => {
-    expect(seen.props?.mingoDialogCapabilities).toMatchObject({ ...dialogCapabilities, onCopyLink: copyDialogLink });
-    seen.props?.mingoDialogCapabilities?.compactDialog?.({ id: 'd-7', title: 'Disk space' });
-    expect(compactDialog).toHaveBeenCalledWith('d-7');
-  });
-
-  it('offers no Compact while its flag is off', () => {
-    probe.compact = false;
-    act(() => root.render(<Probe />));
-    expect(seen.props?.mingoDialogCapabilities?.compactDialog).toBeUndefined();
-    probe.compact = true;
+    expect(seen.props).not.toHaveProperty('mingoState');
+    expect(seen.props).not.toHaveProperty('mingoDialogCapabilities');
   });
 
   it("hands the chat each quick action's instructions, which it puts into its composer", () => {

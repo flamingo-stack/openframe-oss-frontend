@@ -51,7 +51,7 @@ const searchNothing = () => {};
  * the shell, which opens it on ⌘K / Ctrl+K.
  */
 export function MingoSidebarHistory() {
-  const { chat, error, enabled, copyDialogLink } = useMingoChat();
+  const { chat, error, enabled } = useMingoChat();
   const currentUserId = useAuthStore(s => s.user?.id ?? null);
   const searchOpen = useHistorySearchStore(s => s.open);
   const setSearchOpen = useHistorySearchStore(s => s.setOpen);
@@ -130,7 +130,8 @@ export function MingoSidebarHistory() {
         // A row whose `owner.id` is not the viewer's shows the owner's initials.
         currentUserId={currentUserId}
         onRequestRename={setRenameTarget}
-        onRequestCopyLink={dialog => void copyDialogLink(dialog)}
+        // The engine's "Copy Chat Link" (its config names the link), as the chat's own ⋯ has it.
+        onRequestCopyLink={state.dialogCapabilities?.onCopyLink}
         onRequestArchive={setArchiveTarget}
         onOpenArchive={() => open(routes.mingo.archive)}
         // The design's "What to ask Mingo?" in the history's ⋯: the suggestions, as the full chat.

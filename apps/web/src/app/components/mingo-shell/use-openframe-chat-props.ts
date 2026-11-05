@@ -10,17 +10,17 @@ import { CONTEXT_ITEMS_MAX } from '@/app/(app)/mingo/context/context-types';
 import { renderMingoContextItem, renderMingoRecordChip } from '@/app/(app)/mingo/context/mention-chips/render-mention';
 import { renderMingoContextItems } from '@/app/(app)/mingo/context/render-context-items';
 import { useMingoContextMemory } from '@/app/(app)/mingo/context/use-context-memory';
-import { MINGO_DIALOGS_PAGE_SIZE } from '@/app/(app)/mingo/hooks/use-mingo-unified-chat-state';
+import { MINGO_DIALOGS_PAGE_SIZE, type MingoUnifiedChat } from '@/app/(app)/mingo/hooks/use-mingo-unified-chat-state';
 import { useMingoWhatToAsk } from '@/app/(app)/mingo/hooks/use-mingo-what-to-ask';
-import type { MingoChat, MingoChatState } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useMingoQuickActionChips } from './use-mingo-quick-action-chips';
 
 /**
  * What OpenFrame's chat can do, as `EmbeddableChat` props: the context picker, `@`,
- * the memory strip, quick actions, identity, the dialog actions. The composer dock
- * adds its own layout props on top.
+ * the memory strip, quick actions, identity, the row status. The dialog actions are
+ * the engine's (its config), and the engine reaches the panel through
+ * `ChatEngineProvider`. The composer dock adds its own layout props on top.
  */
 export type OpenframeChatProps = Pick<
   EmbeddableChatProps,
@@ -28,8 +28,6 @@ export type OpenframeChatProps = Pick<
   | 'contextPicker'
   | 'dialogStatusOf'
   | 'historyPageSize'
-  | 'mingoDialogCapabilities'
-  | 'mingoState'
   | 'mingoWelcome'
   | 'modes'
   | 'renderContextItem'
@@ -39,21 +37,10 @@ export type OpenframeChatProps = Pick<
   | 'whatToAsk'
 >;
 
-interface OpenframeChatPropsOptions {
-  chat: MingoChatState;
-  copyDialogLink: MingoChat['copyDialogLink'];
-  /** "Compact Chat Memory" in the chat's ⋯; undefined while its flag is off. */
-  compactDialog?: MingoChat['compactDialog'];
-}
-
 /** Builds {@link OpenframeChatProps} from the session's chat state. */
 export function useOpenframeChatProps({
-  chat,
-  copyDialogLink,
-  compactDialog,
-}: OpenframeChatPropsOptions): OpenframeChatProps {
-  const { state, dialogStatusOf } = chat;
-
+  dialogStatusOf,
+}: Pick<MingoUnifiedChat, 'dialogStatusOf'>): OpenframeChatProps {
   const loadWhatToAsk = useMingoWhatToAsk();
   // Signed-in user's display name for the chat header sub-line. The lib prefers
   // its server-resolved chat identity; this is the reliable host fallback (the
@@ -105,20 +92,11 @@ export function useOpenframeChatProps({
     userDisplayName,
     userAvatarUrl,
     // Mingo runs on the lib's chat engine in the session's provider (one engine for
-    // every surface: the dock, the sidebar's history, the approvals), so its state is
-    // handed in as `mingoState` and `modes.mingo` is not passed. The EXPLICIT empty
-    // object matters: omitting `modes` entirely makes the lib fall back to its
-    // guide-only default. With no `modes.guide`, the panel is Mingo-only.
+    // every surface: the dock, the sidebar's history, the approvals), which the dock
+    // hands to the panel (`ChatEngineProvider`), so `modes.mingo` is not passed. The
+    // EXPLICIT empty object matters: omitting `modes` entirely makes the lib fall back
+    // to its guide-only default. With no `modes.guide`, the panel is Mingo-only.
     modes: {},
-    mingoState: state,
-    // The engine's dialog capabilities (server-side search, rename, archive, the
-    // archive page and restore), plus the host's own: the link to copy, and Compact
-    // while its flag is on (its result is reported by the compaction watchers).
-    mingoDialogCapabilities: {
-      ...state.dialogCapabilities,
-      onCopyLink: copyDialogLink,
-      compactDialog: compactDialog && (dialog => compactDialog(dialog.id)),
-    },
     // Admin-configured Mingo quick actions rendered as the lib's quick-action set in the
     // Mingo empty state. While they are read the set holds its slots (its chips' loading
     // form), so the empty state keeps its height when they land. Omitted when none are

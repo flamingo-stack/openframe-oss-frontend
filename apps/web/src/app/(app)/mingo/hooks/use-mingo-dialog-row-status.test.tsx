@@ -88,7 +88,7 @@ afterEach(() => {
     root?.unmount();
   });
   root = null;
-  useMingoDialogRowsStore.setState({ rows: new Map(), missing: new Set(), restored: new Set() });
+  useMingoDialogRowsStore.setState({ rows: new Map(), missing: new Set() });
   document.body.innerHTML = '';
 });
 
@@ -127,6 +127,6 @@ describe('useMingoDialogRowStatus', () => {
 
     const written = useMingoDialogRowsStore.getState().rows.get('d-1');
     expect(written?.awaitingApproval).toBe(false);
-    expect(written?.title).toBe('d-1');
+    expect(written?.createdAt).toBe('2026-10-09T09:00:00Z');
   });
 });

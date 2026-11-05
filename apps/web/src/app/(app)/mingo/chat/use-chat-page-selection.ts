@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { routes } from '@/lib/routes';
-import type { MingoChatState } from '../providers/mingo-chat-provider';
+import type { MingoUnifiedChat } from '../hooks/use-mingo-unified-chat-state';
 
 /**
  * What the chat page shows for its `?id`:
@@ -44,7 +44,7 @@ export interface ChatPageSelection {
  * - **Retry** drops the selection and takes it back once that has landed, which reads
  *   the dialog afresh; the drop in between is not a selection moving on.
  */
-export function useChatPageSelection(dialogId: string | null, chat: MingoChatState | null): ChatPageSelection {
+export function useChatPageSelection(dialogId: string | null, chat: MingoUnifiedChat | null): ChatPageSelection {
   const router = useRouter();
   const selectDialog = chat?.state.selectDialog;
   // `undefined`: no running state to read a selection from.
