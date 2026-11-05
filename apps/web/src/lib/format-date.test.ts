@@ -17,9 +17,9 @@ const SUMMER = '2026-06-26T11:22:00Z';
 const WINTER = '2026-01-15T11:22:00Z';
 
 describe('formatUtcDay', () => {
-  it('dates an instant on the UTC calendar, whatever the viewer zone', () => {
-    expect(formatUtcDay('2026-10-28T23:30:00Z')).toBe('2026-10-28');
-    expect(formatUtcDay('2026-10-28T23:30:00+00:00')).toBe('2026-10-28');
+  it('dates an instant on the UTC calendar, written as formatDate writes that day', () => {
+    expect(formatUtcDay('2026-10-28T23:30:00Z')).toBe(formatDate('2026-10-28'));
+    expect(formatUtcDay('2026-10-29T00:30:00+01:00')).toBe(formatDate('2026-10-28'));
   });
 
   it('renders the empty mark when there is no instant', () => {

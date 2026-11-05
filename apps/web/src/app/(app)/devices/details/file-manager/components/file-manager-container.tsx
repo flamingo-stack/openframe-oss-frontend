@@ -12,6 +12,7 @@ import {
   type FileItem,
   FileManager,
 } from '@flamingo-stack/openframe-frontend-core/components/ui/file-manager';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { NO_ITEMS } from '@/app/components/shared';
@@ -21,6 +22,13 @@ import { useMeshFileManager } from '../../../hooks/use-mesh-file-manager';
 import { DeleteConfirmationModal } from './delete-confirmation-modal';
 import { NewFolderModal } from './new-folder-modal';
 import { RenameItemModal } from './rename-item-modal';
+
+/**
+ * The shortest the page gets: its header, the folder bar, search and the list's header with about three rows. A
+ * shorter content area (a short window, the banners above the app, the composer under the page) scrolls the page
+ * instead of squeezing the list to nothing.
+ */
+const PAGE_MIN_HEIGHT = 'min-h-[38rem]';
 
 interface FileManagerContainerProps {
   deviceId: string;
@@ -300,7 +308,7 @@ export function FileManagerContainer({
       title={'File Manager'}
       // In the page's loading scope the device's name is not here yet: an empty subtitle draws its bar.
       subtitle={deviceLoading ? '' : deviceName || `Device ${deviceId}`}
-      className={className ? `${className} h-full` : 'h-full'}
+      className={cn(className, 'h-full', PAGE_MIN_HEIGHT)}
       contentClassName="flex min-h-0 flex-col overflow-hidden"
       backButton={{
         label: 'Back',

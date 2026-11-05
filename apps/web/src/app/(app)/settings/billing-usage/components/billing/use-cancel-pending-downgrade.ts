@@ -3,13 +3,12 @@
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { graphql, useMutation } from 'react-relay';
 import type { useCancelPendingDowngradeMutation as UseCancelPendingDowngradeMutationType } from '@/__generated__/useCancelPendingDowngradeMutation.graphql';
-import { getRelayErrorMessage } from '@/lib/handle-api-error';
 
 /**
  * Undoes a scheduled downgrade: the backend drops the staged package (or the
  * end date of a commitment lapsing to pay-as-you-go) and releases the Stripe
  * schedule, so the current plan simply renews. Selects no packages, for the
- * reason `useUpdateSubscription` gives: the page refetches via `onSuccess`.
+ * reason `useUpdateSubscription` gives: the page refetches via `onSettled`.
  */
 const cancelPendingDowngradeMutation = graphql`
   mutation useCancelPendingDowngradeMutation {
@@ -26,8 +25,23 @@ const cancelPendingDowngradeMutation = graphql`
 `;
 
 interface CancelPendingDowngradeOptions {
-  onSuccess?: () => void;
+  /**
+   * After either answer. A failure refetches too: the usual one is a page older
+   * than the subscription (undone in another tab, or already in effect), which
+   * would otherwise keep offering the undo it just refused.
+   */
+  onSettled?: () => void;
 }
+
+/**
+ * Not the backend's text: it names the tenant id ("No pending downgrade to
+ * cancel: <id>"). The refetch beside it shows what the plan actually is.
+ */
+const UNDO_FAILED = {
+  title: 'Undo Failed',
+  description: 'This downgrade may already be undone or in effect. The page now shows your current plan.',
+  variant: 'destructive',
+} as const;
 
 export function useCancelPendingDowngrade() {
   const { toast } = useToast();
@@ -39,27 +53,21 @@ export function useCancelPendingDowngrade() {
       onCompleted: (response, errors) => {
         const userErrors = response.cancelPendingDowngrade?.errors ?? [];
         if (errors?.length || userErrors.length > 0) {
+          console.error('cancelPendingDowngrade failed', [...(errors ?? []), ...userErrors]);
+          toast(UNDO_FAILED);
+        } else {
           toast({
-            title: 'Undo Failed',
-            description:
-              [...(errors ?? []), ...userErrors].map(e => e.message).join('. ') || 'Failed to undo the downgrade',
-            variant: 'destructive',
+            title: 'Downgrade Undone',
+            description: 'Your current plan stays in place and renews as before.',
+            variant: 'success',
           });
-          return;
         }
-        toast({
-          title: 'Downgrade Undone',
-          description: 'Your current plan stays in place and renews as before.',
-          variant: 'success',
-        });
-        options?.onSuccess?.();
+        options?.onSettled?.();
       },
       onError: err => {
-        toast({
-          title: 'Undo Failed',
-          description: getRelayErrorMessage(err, 'Failed to undo the downgrade'),
-          variant: 'destructive',
-        });
+        console.error('cancelPendingDowngrade failed', err);
+        toast(UNDO_FAILED);
+        options?.onSettled?.();
       },
     });
   };

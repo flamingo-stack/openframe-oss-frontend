@@ -27,15 +27,21 @@ export type AutoTopUpSettingsValidation =
   | { ok: true; input: AutoTopUpSettingsInputValues }
   | { ok: false; errors: Partial<Record<AutoTopUpSettingsField, string>> };
 
-/** Digits only, so a pasted "$50" or "50.00" lands as the whole dollars it meant. */
-export function toWholeDollarsText(next: string): string {
-  return next.replace(/\..*$/, '').replace(/\D/g, '');
+/**
+ * Digits and the first decimal point: a pasted "$1,000" lands as 1000, and cents stay visible so the save can say
+ * they are not taken instead of dropping them unseen.
+ */
+export function toDollarsText(next: string): string {
+  const [whole = '', ...rest] = next.replace(/[^\d.]/g, '').split('.');
+  return rest.length > 0 ? `${whole}.${rest.join('')}` : whole;
 }
 
+const NOT_WHOLE = 'Whole dollars only.';
+
+/** `null` for an empty field, `NaN` for one with cents ("50.00" is still whole). */
 function parseWholeDollars(text: string): number | null {
-  if (text === '') return null;
-  const usd = Number.parseInt(text, 10);
-  return Number.isFinite(usd) ? usd : null;
+  if (text === '' || text === '.') return null;
+  return /^\d+(\.0*)?$/.test(text) ? Number.parseInt(text, 10) : Number.NaN;
 }
 
 /**
@@ -49,23 +55,27 @@ export function validateAutoTopUpSettings(
   { minimumAmountUsd, minimumThresholdUsd }: AutoTopUpMinimums,
 ): AutoTopUpSettingsValidation {
   const errors: Partial<Record<AutoTopUpSettingsField, string>> = {};
+  // A field with cents is NaN, and every comparison with NaN is false: it gets its own message and no other.
   const amountUsd = parseWholeDollars(values.amountUsd);
   const thresholdUsd = parseWholeDollars(values.thresholdUsd);
   const spendLimitUsd = parseWholeDollars(values.spendLimitUsd);
 
   if (amountUsd == null) errors.amountUsd = 'Enter a top-up amount.';
+  else if (Number.isNaN(amountUsd)) errors.amountUsd = NOT_WHOLE;
   else if (amountUsd < minimumAmountUsd) {
     errors.amountUsd = `The minimum top-up is ${formatWholeCurrency(minimumAmountUsd)}.`;
   }
 
   if (thresholdUsd == null) errors.thresholdUsd = 'Enter a threshold.';
+  else if (Number.isNaN(thresholdUsd)) errors.thresholdUsd = NOT_WHOLE;
   else if (thresholdUsd < minimumThresholdUsd) {
     errors.thresholdUsd = `The minimum threshold is ${formatWholeCurrency(minimumThresholdUsd)}.`;
   } else if (amountUsd != null && thresholdUsd >= amountUsd) {
     errors.thresholdUsd = 'The threshold must be lower than the top-up amount.';
   }
 
-  if (spendLimitUsd != null && amountUsd != null && spendLimitUsd < amountUsd) {
+  if (spendLimitUsd != null && Number.isNaN(spendLimitUsd)) errors.spendLimitUsd = NOT_WHOLE;
+  else if (spendLimitUsd != null && amountUsd != null && spendLimitUsd < amountUsd) {
     errors.spendLimitUsd = 'The spend limit must be at least the top-up amount.';
   }
 

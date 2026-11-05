@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { initialAutoTopUpSettingsValues, toWholeDollarsText, validateAutoTopUpSettings } from './auto-top-up-settings';
+import { initialAutoTopUpSettingsValues, toDollarsText, validateAutoTopUpSettings } from './auto-top-up-settings';
 
 const MINIMUMS = { minimumAmountUsd: 10, minimumThresholdUsd: 2 };
 
@@ -62,13 +62,36 @@ describe('validateAutoTopUpSettings', () => {
       ).ok,
     ).toBe(true);
   });
+
+  it('says cents are not taken, in that field only', () => {
+    expect(
+      validateAutoTopUpSettings({ thresholdUsd: '2.5', amountUsd: '50.99', spendLimitUsd: '200.5' }, MINIMUMS),
+    ).toEqual({
+      ok: false,
+      errors: {
+        thresholdUsd: 'Whole dollars only.',
+        amountUsd: 'Whole dollars only.',
+        spendLimitUsd: 'Whole dollars only.',
+      },
+    });
+  });
+
+  it('takes zero cents as whole dollars', () => {
+    expect(validateAutoTopUpSettings({ thresholdUsd: '10.', amountUsd: '50.00', spendLimitUsd: '' }, MINIMUMS)).toEqual(
+      {
+        ok: true,
+        input: { thresholdUsd: 10, amountUsd: 50, spendLimitUsd: null },
+      },
+    );
+  });
 });
 
-describe('toWholeDollarsText', () => {
-  it('keeps the whole dollars of what was typed or pasted', () => {
-    expect(toWholeDollarsText('$50')).toBe('50');
-    expect(toWholeDollarsText('50.99')).toBe('50');
-    expect(toWholeDollarsText('1,000')).toBe('1000');
+describe('toDollarsText', () => {
+  it('keeps the digits and the first decimal point of what was typed or pasted', () => {
+    expect(toDollarsText('$50')).toBe('50');
+    expect(toDollarsText('1,000')).toBe('1000');
+    expect(toDollarsText('2.5')).toBe('2.5');
+    expect(toDollarsText('2.5.1')).toBe('2.51');
   });
 });
 

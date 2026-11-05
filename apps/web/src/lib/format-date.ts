@@ -45,12 +45,13 @@ const format = (input: DateInput | null | undefined, fmt: Intl.DateTimeFormat): 
 
 export const formatDate = (input: DateInput | null | undefined): string => format(input, dateFmt);
 
+const utcDateFmt = new Intl.DateTimeFormat(viewerLocale(), { dateStyle: 'short', timeZone: 'UTC' });
+
 /**
- * An instant's UTC day as `yyyy-MM-dd`, for a date read beside a `Date` scalar printed as it came: a token pack's
- * purchase next to its `validUntil`, both on the UTC calendar billing dates them on.
+ * An instant's UTC day, written as `formatDate` writes a day: for a date read beside a `Date` scalar, such as a
+ * token pack's purchase next to its `validUntil`, both on the UTC calendar billing dates them on.
  */
-export const formatUtcDay = (input: DateInput | null | undefined): string =>
-  toValidDate(input)?.toISOString().slice(0, 10) ?? EMPTY_VALUE;
+export const formatUtcDay = (input: DateInput | null | undefined): string => format(input, utcDateFmt);
 
 export const formatTime = (input: DateInput | null | undefined): string => format(input, timeFmt);
 
