@@ -32,7 +32,6 @@ export type OpenframeChatProps = Pick<
   | 'mingoState'
   | 'mingoWelcome'
   | 'modes'
-  | 'pendingApprovals'
   | 'renderContextItem'
   | 'renderRecordChip'
   | 'userAvatarUrl'
@@ -53,15 +52,7 @@ export function useOpenframeChatProps({
   copyDialogLink,
   compactDialog,
 }: OpenframeChatPropsOptions): OpenframeChatProps {
-  const {
-    state,
-    pendingApprovals,
-    dialogStatusOf,
-    searchQuery,
-    setSearchQuery,
-    fetchArchivedDialogs,
-    unarchiveDialog,
-  } = chat;
+  const { state, dialogStatusOf, searchQuery, setSearchQuery, fetchArchivedDialogs, unarchiveDialog } = chat;
 
   const loadWhatToAsk = useMingoWhatToAsk();
   // Signed-in user's display name for the chat header sub-line. The lib prefers
@@ -122,12 +113,6 @@ export function useOpenframeChatProps({
     // the uncontrolled active mode defaults to 'mingo'.
     modes: {},
     mingoState: state,
-    // PENDING approval cards are FILTERED OUT of their bubble by
-    // `useMingoDialogChat` (dedupe for interrupted retries), so a card that the
-    // reducer built renders nowhere unless it is handed back here — including the
-    // Product Guide's "create a support ticket" card whose own preamble tells the
-    // user to click Approve.
-    pendingApprovals,
     // Dialog management for the host-injected Mingo state:
     //  - search: the chat-history search bar emits the debounced term into
     //    `setSearchQuery`, which rides the `useMingoDialogs` query key.

@@ -5,15 +5,14 @@ import {
   type NatsMessageType,
   useJetStreamDialogSubscription,
 } from '@flamingo-stack/openframe-frontend-core';
+import { type ChatModelMetadata, useChatChunkProcessor } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { registerActiveDialogView } from '@/lib/active-dialog-views';
-import type { ChatModelMetadata } from '@/lib/chat-stream-thread';
 import { featureFlags } from '@/lib/feature-flags';
 import { useNatsAppConfig } from '@/lib/nats/nats-app-config';
-import { useChatChunkProcessor } from '@/lib/use-chat-chunk-processor';
 import { noteMingoToolExecuted } from '../stores/mingo-created-entities-store';
-import { bindMingoDialog, setMingoChatHandlers, useMingoMessagesStore } from '../stores/mingo-messages-store';
+import { bindMingoDialog, setMingoMetadataHandler, useMingoMessagesStore } from '../stores/mingo-messages-store';
 import { mingoDialogQueryKeys } from '../utils/query-keys';
 
 export const MINGO_JETSTREAM_TOPIC: NatsMessageType = 'admin-message';
@@ -143,29 +142,24 @@ interface UseDialogChunkProcessorOptions {
 }
 
 /**
- * Phase 4: chunks feed the lib's master stream reducer directly
- * (`createMingoDecoder` → `dialogStore.apply`). The reducer owns EVERY
- * accumulation rule that used to live in the ~270-LOC callback glue here
- * (stream windows, part routing, cross-message tool merges, approval
- * flips, participant dedup, typing phase); the store mirrors its snapshot.
- * The residual side concerns (own-echo suppression, approval-status sync,
- * the keyed incomplete-turn seed) are shared with the tickets processor via
- * `useChatChunkProcessor`, and the model badge rides the reducer's own
- * `onMetadata` effect; only the handler binding is mingo-specific.
+ * Chunks feed the lib's thread store through the lib's `useChatChunkProcessor` (one decoder per dialog, the reducer owns
+ * every accumulation rule); the model badge rides the reducer's own `onMetadata` effect, and only the handler binding
+ * is mingo-specific.
  */
 function useDialogChunkProcessor(dialogId: string, options: UseDialogChunkProcessorOptions = {}) {
   const { approvalStatuses, onMetadata } = options;
 
   useEffect(() => {
-    setMingoChatHandlers(dialogId, { onMetadata });
+    setMingoMetadataHandler(dialogId, onMetadata);
   }, [dialogId, onMetadata]);
 
   const messages = useMingoMessagesStore(s => s.messagesByDialog.get(dialogId));
 
   const processChunk = useChatChunkProcessor({
-    boundMirror: bindMingoDialog(dialogId),
+    thread: bindMingoDialog(dialogId),
     messages,
     approvalStatuses,
+    debug: () => featureFlags.debugNatsChunks.enabled(),
   });
 
   return { processChunk };

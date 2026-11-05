@@ -67,7 +67,6 @@ export function makeFakeChat({
       initialOptStartSeq: null,
       isInitialOptStartSeqReady: true,
     },
-    pendingApprovals: [],
     dialogStatusOf: () => undefined,
     dialogsLoadFailed: false,
     sendInNewDialog,

@@ -1,26 +1,21 @@
 'use client';
 
+import type { ChatMessage } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import {
-  type ChatMessage,
-  type ChatToolPart,
-  mingoUserText,
-} from '@flamingo-stack/openframe-frontend-core/chat-protocol';
-import type { ChatContextItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
+  type ChatContextItem,
+  findLatestPendingId,
+  isCompactingTail,
+  pendingApprovalIdOf,
+  threadForDisplay,
+} from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import {
-  extractPendingApprovals,
-  findLatestPendingApprovalId,
-  isCompactingTail,
-  stripPendingApprovals,
-} from '@/lib/chat-history';
-import { adminDisplayName, makeChatRowId } from '@/lib/chat-stream-thread';
+import { adminDisplayName, makeChatRowId } from '@/lib/chat-row';
 import { appendImageHash, getFullImageUrl } from '@/lib/image-url';
 import { selectUser, useAuthStore } from '@/stores';
 import type { MessageListRef, MessagePageRef } from '../../tickets/services/ticket-service.types';
-import { textForMingoBackend } from '../queries/fetch-dialog-messages';
 import {
   type CreateMingoDialogOptions,
   useCreateDialogMutation,
@@ -54,9 +49,6 @@ interface UseMingoDialogChat {
   createDialog: (options?: CreateMingoDialogOptions & { title?: string }) => Promise<string | null>;
   sendMessage: (content: string, targetDialogId?: string, context?: MingoSendContext) => Promise<boolean>;
   stopGeneration: () => Promise<void>;
-
-  // Approval system
-  approvals: ChatToolPart[];
 
   // State
   isCreatingDialog: boolean;
@@ -134,11 +126,8 @@ export function useMingoDialogChat(dialogId: string | null): UseMingoDialogChat 
     }
 
     const currentMessages = messagesByDialog.get(dialogId) || [];
-    // Which approval cards render in the flow, which are lifted into the sticky
-    // footer, and how duplicates are deduped is `@/lib/chat-history` — shared
-    // with tickets, which consumes the same stream and must sort cards the same
-    // way.
-    const processed = stripPendingApprovals(currentMessages).map(withFullAvatar);
+    // How duplicate cards are deduped is the lib's `threadForDisplay`, the one rule every web chat draws by.
+    const processed = threadForDisplay(currentMessages).map(withFullAvatar);
 
     // Reference reconciliation: the lib memoizes each rendered message and
     // compares `parts` BY REFERENCE, so it only skips re-rendering when the
@@ -160,14 +149,6 @@ export function useMingoDialogChat(dialogId: string | null): UseMingoDialogChat 
     stableMessagesRef.current = nextStable;
 
     return reconciled;
-  }, [dialogId, messagesByDialog]);
-
-  // The exact complement of `stripPendingApprovals` above — same module, so a
-  // card can never be dropped from the flow AND skipped by the footer (which is
-  // how a guide card managed to render nowhere at all).
-  const approvals = useMemo(() => {
-    if (!dialogId) return [];
-    return extractPendingApprovals(messagesByDialog.get(dialogId) || []);
   }, [dialogId, messagesByDialog]);
 
   const isCompacting = useMemo(
@@ -232,14 +213,12 @@ export function useMingoDialogChat(dialogId: string | null): UseMingoDialogChat 
         removeWelcomeMessages(effectiveDialogId);
 
         const text = content.trim();
-        // TODO(CU-17tkuw61kfy): `sent` is `text` once every backend reads record links, and its bubble with it.
-        const sent = await textForMingoBackend(effectiveDialogId, text);
 
         // Sending while an approval pends is an interrupt — backend will
         // cancel it and emit APPROVAL_RESULT (rejected) shortly. Flip the
         // latest pending one now so the card resolves in the same frame as
         // the user-message bubble (no layout jump between the two updates).
-        const pendingId = findLatestPendingApprovalId(messagesByDialog.get(effectiveDialogId) || []);
+        const pendingId = findLatestPendingId(messagesByDialog.get(effectiveDialogId) || [], pendingApprovalIdOf);
         if (pendingId) {
           updateApprovalStatusInMessages(effectiveDialogId, pendingId, 'rejected');
         }
@@ -258,19 +237,19 @@ export function useMingoDialogChat(dialogId: string | null): UseMingoDialogChat 
             // Attach the picked context so the optimistic bubble renders its chips.
             ...(context?.contextItems?.length ? { contextItems: context.contextItems } : {}),
           },
-          parts: [{ type: 'text', text: sent === text ? text : mingoUserText(sent) }],
+          parts: [{ type: 'text', text }],
         };
 
         // Through the reducer: it records the sent text and consumes the
         // backend's MESSAGE_REQUEST echo itself (see `pushOptimisticSend`).
-        pushOptimisticSend(effectiveDialogId, optimisticMessage, sent);
+        pushOptimisticSend(effectiveDialogId, optimisticMessage);
         // The chat now has the latest message: first in the history at once. A list
         // read still in flight would put it back, so it is cancelled first.
         await queryClient.cancelQueries({ queryKey: mingoDialogQueryKeys.lists });
         raiseDialog(queryClient, effectiveDialogId);
         await sendMessageMutation.mutateAsync({
           dialogId: effectiveDialogId,
-          content: sent,
+          content: text,
           // Strip to the `{ type, id }` wire shape; mutation omits empties.
           // Internal `openView` maps to the API's `currentView` field.
           contextItems: context?.contextItems?.map(i => ({ type: i.type, id: i.id })),
@@ -337,9 +316,6 @@ export function useMingoDialogChat(dialogId: string | null): UseMingoDialogChat 
     createDialog,
     sendMessage,
     stopGeneration,
-
-    // Approval system
-    approvals,
 
     // State
     isCreatingDialog,

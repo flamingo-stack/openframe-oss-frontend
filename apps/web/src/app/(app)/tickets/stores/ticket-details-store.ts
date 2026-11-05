@@ -1,55 +1,44 @@
-import type { ChatMessage } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
-import { type ChatStreamReducer, createChatDialogStore } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { type ChatMessage, textOfParts } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import {
+  type ChatModelMetadata,
+  type ChatStreamReducer,
+  chatThreadReducerOptions,
+  createChatDialogStore,
+  createChatThreadStore,
+} from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { create } from 'zustand';
-import { createReducerMirror, type NatsMirrorHandlers, natsMirrorOptions } from '@/lib/chat-stream-thread';
 import { useAuthStore } from '@/stores';
 
 export type ChatSide = 'client' | 'admin';
 
 /**
- * Phase 4 of the chat unification: each chat side is a lib
- * `createChatStreamReducer` instance held in a `createChatDialogStore`
- * keyed (dialog, side). The store's built-in cross-side projections
- * (approval resolution by requestId, tool-execution merge by execId)
- * replace the app's both-sides fan-out. This zustand store survives as
- * persistence/cache + identity: per-side seq bookkeeping, approval-status
- * map, and a READ MIRROR of each reducer snapshot so existing
- * selectors keep working.
+ * Each chat side is a lib reducer held in the lib's thread store (`createChatThreadStore`), keyed (dialog, side). The
+ * dialog store's built-in cross-side projections (approval resolution by requestId, tool-execution merge by execId)
+ * replace the app's both-sides fan-out. This zustand store survives as persistence/cache + identity: per-side seq
+ * bookkeeping, approval-status map, and a READ MIRROR of each reducer snapshot so existing selectors keep working.
  *
- * Only one ticket dialog is open at a time (the view clears state on
- * ticket switch/unmount), so the reducers use a constant thread key —
- * the two SIDES are the real keys.
+ * Only one ticket dialog is open at a time (the view clears state on ticket switch/unmount), so the reducers use a
+ * constant thread key — the two SIDES are the real keys.
  */
 const TICKET_THREAD_KEY = 'ticket-details';
 
-const handlersBySide = new Map<ChatSide, NatsMirrorHandlers>();
+const metadataHandlerBySide = new Map<ChatSide, (metadata: ChatModelMetadata) => void>();
 
 const BOTH_SIDES: readonly ChatSide[] = ['client', 'admin'];
 
-/** Creation options for a side's reducer. Shared by the mirror (which
- *  pre-creates with them) and the STORE-level default below. */
-const ticketReducerOptions = natsMirrorOptions<ChatSide>(
-  side => handlersBySide.get(side),
-  () => useAuthStore.getState().user?.id,
-);
+/** Creation options for a side's reducer. The operator IS the admin: their own send echoes back as 'ADMIN'. */
+const ticketReducerOptions = chatThreadReducerOptions<ChatSide>({
+  ownEchoIncludesAdmin: true,
+  selfUserId: () => useAuthStore.getState().user?.id,
+  onMetadata: (side, metadata) => metadataHandlerBySide.get(side)?.(metadata),
+});
 
-/** All reducer-mirror scaffolding (create-or-get, retention, snapshot change
- *  detection, thread RMW, delta batching, the per-key decoder, approval-status
- *  merge, cross-side materialize + resync) lives in the shared
- *  `createReducerMirror` factory, and the NATS options block in
- *  `natsMirrorOptions` — this host supplies only the key mapping, the sibling
- *  set and the zustand patch. Mirror key = the chat SIDE (the thread key is
- *  constant: only one ticket dialog is open at a time). */
-const mirror = createReducerMirror<ChatSide>({
-  // The mirror builds the store so it can wire its own `onEvict`; this host
-  // adds `defaultCreateOptions`, which closes the store-level hole: a reducer
-  // first materialized by a bare `apply()` / `mutate()` (no per-call options)
-  // would otherwise be built WITHOUT `ownEchoIncludesAdmin` / `selfUserId` and
-  // keep those semantics missing for its whole life — creation options are
-  // consulted once — so every message a technician sends would render twice.
-  // The mirror happens to always pre-create with options today; this makes the
-  // guarantee structural rather than incidental. Mirror key = the store's
-  // `side` (the thread key is constant), so the mapping back is the identity.
+/** The lib's thread store: this host supplies the key mapping, the sibling set and the zustand patch. Key = the chat
+ *  SIDE (the thread key is constant: only one ticket dialog is open at a time). */
+const threads = createChatThreadStore<ChatSide>({
+  // `defaultCreateOptions` closes the store-level hole: a reducer first materialized by a bare `apply()` / `mutate()`
+  // would otherwise be built WITHOUT `ownEchoIncludesAdmin` / `selfUserId` and keep them missing for its whole life
+  // (creation options are consulted once), so every message a technician sends would render twice.
   createStore: storeOptions =>
     createChatDialogStore({
       ...storeOptions,
@@ -59,7 +48,7 @@ const mirror = createReducerMirror<ChatSide>({
   // The dialog store's cross-side projections (approval resolution by
   // requestId, tool-execution merge by execId) land on the OTHER side's
   // reducer, so both sides must exist before an event lands and both must
-  // re-sync after. The mirror owns that ordering.
+  // re-sync after. The thread store owns that ordering.
   siblingKeys: () => BOTH_SIDES,
   options: ticketReducerOptions,
   onSnapshot: (side, { messages, phase, streamingId, state: snap }) => {
@@ -72,14 +61,12 @@ const mirror = createReducerMirror<ChatSide>({
       };
 
       // Approval resolutions the reducer learned from stream events flow
-      // back into the shared status map (history processing + pending-card
-      // extraction read it). ADDITIVE ON PURPOSE — only 'approved'/'rejected'
-      // are copied IN, nothing is ever removed. The mirror's post-eviction
-      // re-seed does restore the parked `approvalStatuses` onto the
-      // replacement reducer, so its first snapshot is no longer blank — but
-      // this map is still the WIDER record (it also carries statuses learned
-      // from history processing and from the other side), so a blanking write
-      // would re-arm buttons for approvals this host knows were resolved.
+      // back into the shared status map (history processing reads it).
+      // ADDITIVE ON PURPOSE — only 'approved'/'rejected' are copied IN,
+      // nothing is ever removed: this map is the WIDER record (it also
+      // carries statuses learned from history processing and from the other
+      // side), so a blanking write would re-arm buttons for approvals this
+      // host knows were resolved.
       let approvalStatuses = state.approvalStatuses;
       for (const [id, status] of Object.entries(snap.approvalStatuses)) {
         if ((status === 'approved' || status === 'rejected') && approvalStatuses[id] !== status) {
@@ -93,19 +80,19 @@ const mirror = createReducerMirror<ChatSide>({
   },
 });
 
-/** The dialog store behind this host's two side reducers (built by the mirror). */
-export const ticketChatDialogStore = mirror.store;
+/** The dialog store behind this host's two side reducers (built by the thread store). */
+export const ticketChatDialogStore = threads.store;
 
-/** Run reducer commands (non-wire mutations) against one side, then mirror. */
+/** Run reducer commands (non-wire mutations) against one side, then threads. */
 export function mutateTicketSide<T>(side: ChatSide, fn: (reducer: ChatStreamReducer) => T): T {
-  return mirror.mutate(side, fn);
+  return threads.mutate(side, fn);
 }
 
 /** Pre-curried `{ decode, apply, mutate, mergeApprovalStatuses }` for one side.
- *  Identity is stable per side (memoized inside the mirror); `apply` needs no
- *  host wrapper — `siblingKeys` above tells the mirror to materialize and
+ *  Identity is stable per side (memoized inside the thread store); `apply` needs
+ *  no host wrapper — `siblingKeys` above tells the store to materialize and
  *  re-sync the other side itself. */
-export const bindTicketSide = mirror.bind;
+export const bindTicketSide = threads.bind;
 
 /** NO retention here, deliberately. `setActiveKeys` declares what is
  *  currently DISPLAYED, and at module-init time no ticket is open at all — the
@@ -116,8 +103,8 @@ export const bindTicketSide = mirror.bind;
  *  dialogId and really can exceed the cap, is the host that needs pinning. */
 
 function dropSideCaches(side: ChatSide): void {
-  mirror.drop(side);
-  handlersBySide.delete(side);
+  threads.drop(side);
+  metadataHandlerBySide.delete(side);
 }
 
 // ─── Zustand store (persistence/cache + identity + read mirror) ─────────────
@@ -188,14 +175,14 @@ interface TicketDetailsStore {
   /**
    * Upsert PERSISTED resolutions into this store's status map — INCOMING
    * WINS, which is the opposite of the reducer-side merge this map eventually
-   * feeds (`ReducerMirror.mergeApprovalStatuses` → the reducer's
+   * feeds (`ChatThreadStore.mergeApprovalStatuses` → the reducer's
    * `mergeApprovalStatuses`, where stream-learned wins over persisted).
    * Deliberately not called `merge*`: the two rules must not read as one.
    */
   upsertApprovalStatuses: (entries: ApprovalStatusMap) => void;
 
-  /** Late-bound per-side handlers: `onMetadata` rides the reducer's own metadata effect. */
-  setChatHandlers: (side: ChatSide, handlers: NatsMirrorHandlers) => void;
+  /** Late-bound per-side model badge handler: it rides the reducer's own metadata effect. */
+  setMetadataHandler: (side: ChatSide, onMetadata: ((metadata: ChatModelMetadata) => void) | undefined) => void;
 
   // Typing (delegates to the reducer's phase machine)
   setTypingIndicator: (side: ChatSide, typing: boolean) => void;
@@ -232,12 +219,12 @@ export const useTicketDetailsStore = create<TicketDetailsStore>((set, get) => ({
     });
   },
 
-  // `mirror.hydrate`, NOT a raw thread write — see `HydrateOptions` and the
+  // `threads.hydrate`, NOT a raw thread write — see `ChatThreadHydrateOptions` and the
   // twin comment in `mingo-messages-store`. Per-side here, but the same
   // first-page semantics: the paginated path goes through
   // `prependWithBoundaryMerge`.
   setMessages: (side, messages) => {
-    mirror.hydrate(side, messages);
+    threads.hydrate(side, messages);
   },
 
   prependMessages: (side, messages) => {
@@ -245,32 +232,32 @@ export const useTicketDetailsStore = create<TicketDetailsStore>((set, get) => ({
   },
 
   prependWithBoundaryMerge: (side, newMessages, boundaryMessageId, boundaryUpdates) => {
-    mirror.prependWithBoundaryMerge(side, newMessages, boundaryMessageId, boundaryUpdates);
+    threads.prependWithBoundaryMerge(side, newMessages, boundaryMessageId, boundaryUpdates);
   },
 
   addMessage: (side, message) => {
-    mirror.upsertMessage(side, message);
+    threads.upsertMessage(side, message);
   },
 
   pushOptimisticSend: (side, message) => {
-    mirror.pushOptimisticSend(side, message);
+    threads.pushOptimisticSend(side, textOfParts(message.parts), { message });
   },
 
   updateMessage: (side, messageId, updates) => {
-    mirror.patchMessage(side, messageId, updates);
+    threads.patchMessage(side, messageId, updates);
   },
 
   removeMessage: (side, messageId) => {
-    mirror.removeMessage(side, messageId);
+    threads.removeMessage(side, messageId);
   },
 
   getMessages: side => {
-    mirror.flush();
+    threads.flush();
     return get()[side].messages;
   },
 
   updateApprovalStatusInMessages: (side, requestId, status, resolvedByName) => {
-    mirror.updateApprovalStatus(side, requestId, status, resolvedByName);
+    threads.updateApprovalStatus(side, requestId, status, resolvedByName);
     get().setApprovalStatus(requestId, status);
   },
 
@@ -294,13 +281,13 @@ export const useTicketDetailsStore = create<TicketDetailsStore>((set, get) => ({
       return changed ? { approvalStatuses: next } : state;
     }),
 
-  // MERGE, don't replace: a host that registers one handler leaves the others standing.
-  setChatHandlers: (side, handlers) => {
-    handlersBySide.set(side, { ...handlersBySide.get(side), ...handlers });
+  setMetadataHandler: (side, onMetadata) => {
+    if (onMetadata) metadataHandlerBySide.set(side, onMetadata);
+    else metadataHandlerBySide.delete(side);
   },
 
   setTypingIndicator: (side, typing) => {
-    mirror.setTyping(side, typing);
+    threads.setTyping(side, typing);
   },
 
   recordHighestStreamSeq: (side, seq) =>

@@ -29,7 +29,6 @@
  * second live tail applying every chunk again.
  */
 
-import type { ChatToolPart } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import type {
   ChatConnectionState,
   ChatMessageActions,
@@ -57,7 +56,7 @@ import { useMingoSheetStore } from '@/app/components/mingo-shell/mingo-sheet-sto
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
 import { isMobileViewportNow } from '@/app/hooks/use-is-mobile-viewport';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
-import { DISPLAY_APPROVAL_TYPES } from '@/lib/chat-history';
+import { DISPLAY_APPROVAL_TYPES } from '@/lib/chat-approval-tiers';
 import { linkedInsightId } from '../../incidents/utils/fix-with-mingo-draft';
 import type { DialogIntent } from '../../tickets/constants';
 import { CONTEXT_ENTITY_KIND, CONTEXT_ITEMS_MAX, RECENT_VIEWS_MAX } from '../context/context-types';
@@ -100,14 +99,6 @@ export interface MingoSubscriptionBindings {
 export interface MingoUnifiedChat {
   state: UnifiedChatState;
   subscription: MingoSubscriptionBindings;
-  /**
-   * PENDING approval cards, lifted out of the thread by `useMingoDialogChat` — it
-   * filters them from their bubble so an interrupted retry cannot render the
-   * same request twice. They therefore reach the view ONLY through the chat's
-   * sticky-footer prop, which is why they travel beside `state` rather than
-   * inside it.
-   */
-  pendingApprovals: ChatToolPart[];
   /** The v2 list's status at the end of a row: working, waiting for approval, or none. */
   dialogStatusOf: (dialog: DialogItem) => MingoDialogStatus | undefined;
   /**
@@ -356,7 +347,6 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
 
   const {
     messages,
-    approvals: pendingApprovals,
     createDialog,
     sendMessage: sendMingoMessage,
     stopGeneration,
@@ -784,11 +774,6 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
   return {
     state,
     subscription,
-    /** PENDING approval cards, lifted out of the thread by `useMingoDialogChat` (it
-     *  filters them from their bubble to dedupe an interrupted retry). They are
-     *  displayed nowhere unless the host hands them to the chat's sticky
-     *  footer, which is why they leave this hook separately from `state`. */
-    pendingApprovals,
     dialogStatusOf,
     dialogsLoadFailed: isDialogsError,
     sendInNewDialog,

@@ -29,7 +29,6 @@ const {
   tour,
   CONTEXT_MEMORY,
   CAPABILITIES,
-  PENDING_APPROVALS,
   RENDER_MENTION,
   RENDER_CONTEXT_ITEM,
 } = vi.hoisted(() => ({
@@ -56,16 +55,6 @@ const {
   tour: { input: null as { onScreen?: boolean; onClose?: () => void } | null },
   CONTEXT_MEMORY: { items: [{ type: 'DEVICE', id: 'm-1', label: 'web-01' }], onRemove: () => {} },
   CAPABILITIES: { canRename: true, canArchive: true, unarchiveDialog: () => Promise.resolve() },
-  PENDING_APPROVALS: [
-    {
-      type: 'dynamic-tool',
-      toolName: 'run_script',
-      toolCallId: 'r-1',
-      state: 'approval-requested',
-      input: {},
-      approval: { id: 'r-1', descriptor: { approvalType: 'CLIENT' } },
-    },
-  ],
   RENDER_MENTION: () => null,
   RENDER_CONTEXT_ITEM: () => null,
 }));
@@ -167,7 +156,6 @@ vi.mock('./use-openframe-chat-props', () => ({
       contextMemory: CONTEXT_MEMORY,
       contextPicker: { fromBuilder: true },
       mingoDialogCapabilities: CAPABILITIES,
-      pendingApprovals: PENDING_APPROVALS,
       renderRecordChip: RENDER_MENTION,
       renderContextItem: RENDER_CONTEXT_ITEM,
     };
@@ -725,12 +713,11 @@ describe('MingoComposerDock', () => {
 
   // MISSING 3.6-3.8: the thread on the chat page is the session's, with everything the
   // classic panel drew in it.
-  it("portals the session's thread: approvals, mention and context chips, paging, Stop", () => {
+  it("portals the session's thread: mention and context chips, paging, Stop", () => {
     useChatPageNodeStore.setState({ node: document.createElement('div') });
     setSurface({ activeDialogId: 'd-1' });
     render('/mingo/chat/');
     expect(props()).toMatchObject({
-      pendingApprovals: PENDING_APPROVALS,
       renderRecordChip: RENDER_MENTION,
       renderContextItem: RENDER_CONTEXT_ITEM,
     });

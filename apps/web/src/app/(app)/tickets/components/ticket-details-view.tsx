@@ -13,6 +13,13 @@ import {
 } from '@flamingo-stack/openframe-frontend-core';
 import { approvalRequestIdOf, type ChatMessage } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import {
+  findLatestPendingId,
+  isCompactingTail,
+  pendingApprovalIdOf,
+  threadForDisplay,
+  ticketReceiptMessage,
+} from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { getDeviceName, useOptionalTimeTracker } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   BoxArchiveIcon,
@@ -55,13 +62,7 @@ import { AssignedItemsView, useAssignedItems } from '@/components/assignments';
 import { startTimerMutation } from '@/graphql/time-tracker/start-timer-mutation';
 import { makeSetCurrentTimerUpdater, toTicketGlobalId } from '@/graphql/time-tracker/time-tracker-helpers';
 import { EVENT_SUBTYPE, type EventSubtype, trackDashboardActivity } from '@/lib/analytics';
-import {
-  DISPLAY_APPROVAL_TYPES,
-  extractPendingApprovals,
-  findLatestPendingApprovalId,
-  isCompactingTail,
-  stripPendingApprovals,
-} from '@/lib/chat-history';
+import { DISPLAY_APPROVAL_TYPES } from '@/lib/chat-approval-tiers';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
@@ -77,7 +78,6 @@ import { useApprovalRequests } from '../hooks/use-approval-requests';
 import { useAssignTicket } from '../hooks/use-assign-ticket';
 import { useAssigneeOptions } from '../hooks/use-assignee-options';
 import { useDirectChat } from '../hooks/use-direct-chat';
-import { useFaeFormMessage } from '../hooks/use-fae-form-message';
 import { useHistoricalMessages } from '../hooks/use-historical-messages';
 import { useSideChunkProcessor } from '../hooks/use-side-chunk-processor';
 import { useTicketDetail } from '../hooks/use-ticket-detail';
@@ -209,7 +209,6 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
       recordHighestStreamSeq: s.recordHighestStreamSeq,
     })),
   );
-  const approvalStatuses = useTicketDetailsStore(s => s.approvalStatuses);
 
   const { messages: clientMessages, isTyping: isClientChatTyping } = client;
   // Re-arms the shared unread-message mark (TicketNotificationsAutoReader) on every
@@ -349,7 +348,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   // between the user's send and the backend's resolution chunk.
   const sendClientMessageWithReject = useCallback(
     (text: string) => {
-      const pendingId = findLatestPendingApprovalId(clientMessages);
+      const pendingId = findLatestPendingId(clientMessages, pendingApprovalIdOf);
       if (pendingId) updateApprovalStatusInMessages('client', pendingId, 'rejected');
       return sendClientMessage(text);
     },
@@ -535,11 +534,6 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     isFetched: clientChat.isFetched,
   });
 
-  const clientPendingApprovals = useMemo(
-    () => extractPendingApprovals(clientMessages, approvalStatuses),
-    [clientMessages, approvalStatuses],
-  );
-
   const remapClientChatNames = useCallback(
     (msg: ChatMessage): ChatMessage => {
       const author = msg.metadata?.author;
@@ -550,12 +544,34 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     [clientDisplayName, assistantName],
   );
 
-  const faeFormMessage = useFaeFormMessage(dialog, assistantName);
+  // The receipt a ticket made by a form opens with: the lib's one copy, the Fae client's too. One object per what it
+  // says, because the thread it heads changes on every chunk and the message memo compares parts by reference.
+  const receiptTicketId = dialog?.id;
+  const receiptCreationSource = dialog?.creationSource;
+  const receiptCreatedAt = dialog?.createdAt;
+  const receiptTitle = dialog?.title;
+  const receiptDescription = dialog?.description;
+  const ticketReceipt = useMemo(
+    () =>
+      receiptTicketId === undefined
+        ? null
+        : ticketReceiptMessage(
+            {
+              id: receiptTicketId,
+              creationSource: receiptCreationSource,
+              createdAt: receiptCreatedAt,
+              title: receiptTitle,
+              description: receiptDescription,
+            },
+            { name: assistantName, assistantType: ASSISTANT_CONFIG.FAE.type, authorType: 'fae' },
+          ),
+    [receiptTicketId, receiptCreationSource, receiptCreatedAt, receiptTitle, receiptDescription, assistantName],
+  );
 
   const clientChatMessages = useMemo(() => {
-    const visible = stripPendingApprovals(clientMessages).map(remapClientChatNames);
-    return faeFormMessage && !clientChat.hasNextPage ? [faeFormMessage, ...visible] : visible;
-  }, [clientMessages, remapClientChatNames, faeFormMessage, clientChat.hasNextPage]);
+    const visible = threadForDisplay(clientMessages).map(remapClientChatNames);
+    return ticketReceipt && !clientChat.hasNextPage ? [ticketReceipt, ...visible] : visible;
+  }, [clientMessages, remapClientChatNames, ticketReceipt, clientChat.hasNextPage]);
 
   const menuActions = useMemo<ActionsMenuGroup[]>(() => {
     if (!dialog) return [];
@@ -814,7 +830,6 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
           showAvatars={true}
           isLoading={loading || clientChat.isLoading}
           isTyping={isClientChatTyping}
-          pendingApprovals={clientPendingApprovals}
           actions={clientChatActions}
           displayApprovalTypes={DISPLAY_APPROVAL_TYPES}
           assistantType={ASSISTANT_CONFIG.FAE.type}

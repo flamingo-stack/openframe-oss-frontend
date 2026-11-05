@@ -28,11 +28,8 @@ vi.mock('../services/mingo-api-service', () => ({
   useApproveRequestMutation: () => ({ mutateAsync: approve }),
   useRejectRequestMutation: () => ({ mutateAsync: reject }),
 }));
-vi.mock('../queries/fetch-dialog-messages', () => ({
-  fetchMingoDialogMessages: async () => ({
-    ok: true,
-    data: { data: { messages: { edges: [], pageInfo: { hasNextPage: false, hasPreviousPage: false } } } },
-  }),
+vi.mock('@/lib/dialog-messages-page', () => ({
+  fetchDialogMessagesPage: async () => ({ messages: [], pageInfo: { hasNextPage: false, hasPreviousPage: false } }),
 }));
 vi.mock('@/lib/api-client', () => ({
   apiClient: {
@@ -110,15 +107,6 @@ describe('useMingoDialogSelection approvals', () => {
 
     expect(reject).toHaveBeenCalledWith('ar-1');
     expect(toolStates()).toEqual(['output-denied', 'output-denied']);
-  });
-
-  it('answers a card of one under its own id', async () => {
-    askForApproval({ approvalRequestId: 'ar-2', command: 'whoami', streamSeq: 1 });
-
-    await act(() => selection.handleApprove('ar-2'));
-
-    expect(approve).toHaveBeenCalledWith('ar-2');
-    expect(toolStates()).toEqual(['approval-responded']);
   });
 
   it('locks the composer for the round trip, as the agent resumes on the answer', async () => {

@@ -1,63 +1,44 @@
 import type { TokenUsageData } from '@flamingo-stack/openframe-frontend-core';
-import type { ChatMessage } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import { type ChatMessage, textOfParts } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import {
+  type BoundChatThread,
+  type ChatModelMetadata,
   type ChatStreamReducer,
+  chatThreadReducerOptions,
   createChatDialogStore,
-  DEFAULT_DIALOG_SIDE,
+  createChatThreadStore,
   DEFAULT_MAX_REDUCERS,
   type StreamingPhase,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import {
-  type BoundMirror,
-  createReducerMirror,
-  type NatsMirrorHandlers,
-  natsMirrorOptions,
-} from '@/lib/chat-stream-thread';
 import { useAuthStore } from '@/stores';
 
 /**
- * Phase 4 of the chat unification: message ACCUMULATION lives in the lib's
- * `createChatDialogStore` reducers (one per dialogId, side 'main'). This
- * zustand store survives as persistence/cache + identity only — dialog
- * list, active id, unread counts, loading/pagination, per-dialog seq
- * bookkeeping — plus a READ MIRROR of each reducer's snapshot
- * (messages / streaming phase / streaming bubble id / token usage) so
- * existing selectors keep working unchanged. Thread commands (history
- * hydration, optimistic sends, welcome rows) delegate to the reducer.
+ * Message ACCUMULATION lives in the lib's thread store (`createChatThreadStore`, one reducer per dialogId, side 'main').
+ * This zustand store survives as persistence/cache + identity only — dialog list, active id, unread counts,
+ * loading/pagination, per-dialog seq bookkeeping — plus a READ MIRROR of each thread's snapshot (messages / streaming
+ * phase / streaming bubble id / token usage) so existing selectors keep working unchanged. Thread commands (history
+ * hydration, optimistic sends, welcome rows) delegate to the thread store.
  */
 
-// ─── Lib reducer registry (module-level, outlives React) ────────────────────
+// ─── Lib thread store (module-level, outlives React) ────────────────────────
 
-const handlersByDialog = new Map<string, NatsMirrorHandlers>();
+const metadataHandlerByDialog = new Map<string, (metadata: ChatModelMetadata) => void>();
 
-/** Creation options for a dialog's reducer. Shared by the mirror (which
- *  pre-creates with them) and the STORE-level default below. */
-const mingoReducerOptions = natsMirrorOptions<string>(
-  dialogId => handlersByDialog.get(dialogId),
-  () => useAuthStore.getState().user?.id,
-);
+/** Creation options for a dialog's reducer. The operator IS the admin: their own send echoes back as 'ADMIN'. */
+const mingoReducerOptions = chatThreadReducerOptions<string>({
+  ownEchoIncludesAdmin: true,
+  selfUserId: () => useAuthStore.getState().user?.id,
+  onMetadata: (dialogId, metadata) => metadataHandlerByDialog.get(dialogId)?.(metadata),
+});
 
-/** All reducer-mirror scaffolding (create-or-get, retention, snapshot change
- *  detection, thread RMW, delta batching, the per-key decoder, approval-status
- *  merge) lives in the shared `createReducerMirror` factory, and the NATS
- *  options block in `natsMirrorOptions` — this host supplies only the key
- *  mapping and the zustand patch. Mirror key = dialogId (side is always
- *  'main'); no `siblingKeys` — mingo dialogs are independent, so nothing
- *  projects across keys. */
-const mirror = createReducerMirror<string>({
-  // The mirror builds the store so it can wire its own `onEvict`; this host
-  // adds `defaultCreateOptions`, which closes the store-level hole: a reducer
-  // first materialized by a bare `apply()` / `mutate()` (no per-call options)
-  // would otherwise be built WITHOUT `ownEchoIncludesAdmin` / `selfUserId` and
-  // keep those semantics missing for its whole life — creation options are
-  // consulted once — so every message this user sends would render twice. The
-  // mirror happens to always pre-create with options today; this makes the
-  // guarantee structural rather than incidental. Mirror key = dialogId = the
-  // store's `dialogId`, so the mapping back is the identity.
+/** The lib's thread store: this host supplies only the reducer options and the zustand patch. Key = dialogId. */
+const threads = createChatThreadStore<string>({
+  // `defaultCreateOptions` closes the store-level hole: a reducer first materialized by a bare `apply()` / `mutate()`
+  // would otherwise be built WITHOUT `ownEchoIncludesAdmin` / `selfUserId` and keep them missing for its whole life
+  // (creation options are consulted once), so every message this user sends would render twice.
   createStore: storeOptions => createChatDialogStore({ ...storeOptions, defaultCreateOptions: mingoReducerOptions }),
-  identityFor: dialogId => ({ dialogId, side: DEFAULT_DIALOG_SIDE }),
   options: mingoReducerOptions,
   onSnapshot: (dialogId, { messages, phase, streamingId, state: snap }) => {
     const usage = snap.dialogTokenUsage ?? null;
@@ -88,27 +69,31 @@ const mirror = createReducerMirror<string>({
   },
 });
 
-/** The dialog store behind this host's reducers (built by the mirror). */
-export const mingoChatDialogStore = mirror.store;
+/** The dialog store behind this host's reducers (built by the thread store). */
+export const mingoChatDialogStore = threads.store;
 
 /** Late-bind the model-badge handler (it rides the reducer effect). */
-export function setMingoChatHandlers(dialogId: string, handlers: NatsMirrorHandlers): void {
-  handlersByDialog.set(dialogId, handlers);
+export function setMingoMetadataHandler(
+  dialogId: string,
+  onMetadata: ((metadata: ChatModelMetadata) => void) | undefined,
+): void {
+  if (onMetadata) metadataHandlerByDialog.set(dialogId, onMetadata);
+  else metadataHandlerByDialog.delete(dialogId);
 }
 
 /** Pre-curried `{ decode, apply, mutate, mergeApprovalStatuses }` for one dialog.
- *  Identity is stable per dialogId (memoized inside the mirror). */
-export function bindMingoDialog(dialogId: string): BoundMirror {
-  return mirror.bind(dialogId);
+ *  Identity is stable per dialogId (memoized inside the thread store). */
+export function bindMingoDialog(dialogId: string): BoundChatThread {
+  return threads.bind(dialogId);
 }
 
-/** Run reducer commands (non-wire mutations) against a dialog, then mirror. */
+/** Run reducer commands (non-wire mutations) against a dialog, then threads. */
 export function mutateMingoDialog<T>(dialogId: string, fn: (reducer: ChatStreamReducer) => T): T {
-  return mirror.mutate(dialogId, fn);
+  return threads.mutate(dialogId, fn);
 }
 
 /** How many most-recently opened dialogs keep their threads cached — the
- *  lib reducer cap, which the mirror's re-seed parking defeated: every dialog
+ *  lib reducer cap, which re-seed parking would otherwise defeat: every dialog
  *  opened stayed in memory for the life of the page, and the desktop shell's
  *  page lives for days. */
 const MAX_CACHED_DIALOGS = DEFAULT_MAX_REDUCERS;
@@ -122,8 +107,8 @@ function forgetRecent(dialogId: string): void {
 }
 
 function dropDialogCaches(dialogId: string): void {
-  mirror.drop(dialogId);
-  handlersByDialog.delete(dialogId);
+  threads.drop(dialogId);
+  metadataHandlerByDialog.delete(dialogId);
   forgetRecent(dialogId);
 }
 
@@ -174,9 +159,8 @@ interface MingoMessagesStore {
   addMessage: (dialogId: string, message: ChatMessage) => void;
   /** Optimistic local send. Routed through the reducer so IT owns own-echo
    *  suppression (text-matched, one-shot) — a blanket "drop every echo with
-   *  my user id" would also hide this user's sends from other tabs.
-   *  TODO(CU-17tkuw61kfy): `sentText` goes with `textForMingoBackend`. */
-  pushOptimisticSend: (dialogId: string, message: ChatMessage, sentText?: string) => void;
+   *  my user id" would also hide this user's sends from other tabs. */
+  pushOptimisticSend: (dialogId: string, message: ChatMessage) => void;
   updateMessage: (dialogId: string, messageId: string, updates: Partial<ChatMessage>) => void;
   removeMessage: (dialogId: string, messageId: string) => void;
   /** Cross-message approval flip (the reducer's projection). */
@@ -254,9 +238,9 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
         // one pinned against the reducer LRU. Every other visited dialog
         // falls back to protection-by-recency (plus the store's own
         // mid-stream guard); if one is evicted, the store PUBLISHES that via
-        // `onEvict` and the mirror parks the key's state, re-seeding the
+        // `onEvict` and the thread store parks the key's state, re-seeding the
         // replacement reducer with it on the next `getReducer`.
-        mirror.setActiveKeys(dialogId ? [dialogId] : []);
+        threads.setActiveKeys(dialogId ? [dialogId] : []);
         set({ activeDialogId: dialogId });
 
         if (!dialogId) return;
@@ -276,7 +260,7 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
         // stream while it is closed. Unread counts and token usage are small
         // and stay.
         const recent = new Set(recentDialogIds);
-        const stale = [...new Set([...mirror.knownKeys(), ...get().messagesByDialog.keys()])].filter(
+        const stale = [...new Set([...threads.knownKeys(), ...get().messagesByDialog.keys()])].filter(
           key => !recent.has(key),
         );
         if (stale.length === 0) return;
@@ -302,14 +286,14 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
       },
 
       // Thread commands — the lib reducer owns the mutation semantics
-      // `mirror.hydrate`, NOT a raw thread write: restoring a turn takes three
+      // `threads.hydrate`, NOT a raw thread write: restoring a turn takes three
       // steps that only work together (thread, agent-busy extras,
-      // adopt-once) — see `HydrateOptions`. This is the ONLY full-thread write
+      // adopt-once) — see `ChatThreadHydrateOptions`. This is the ONLY full-thread write
       // on the mingo hydration path (the paginated one goes through
       // `prependWithBoundaryMerge`), so it maps 1:1 onto the lib adapter's
       // `cursor === undefined` first-page branch.
       setMessages: (dialogId, messages) => {
-        mirror.hydrate(dialogId, messages);
+        threads.hydrate(dialogId, messages);
       },
 
       prependMessages: (dialogId, messages) => {
@@ -317,37 +301,36 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
       },
 
       prependWithBoundaryMerge: (dialogId, newMessages, boundaryMessageId?, boundaryUpdates?) => {
-        mirror.prependWithBoundaryMerge(dialogId, newMessages, boundaryMessageId, boundaryUpdates);
+        threads.prependWithBoundaryMerge(dialogId, newMessages, boundaryMessageId, boundaryUpdates);
       },
 
       addMessage: (dialogId, message) => {
-        mirror.upsertMessage(dialogId, message);
+        threads.upsertMessage(dialogId, message);
       },
 
-      // TODO(CU-17tkuw61kfy): `sentText` goes with `textForMingoBackend`.
-      pushOptimisticSend: (dialogId, message, sentText) => {
-        mirror.pushOptimisticSend(dialogId, message, sentText);
+      pushOptimisticSend: (dialogId, message) => {
+        threads.pushOptimisticSend(dialogId, textOfParts(message.parts), { message });
       },
 
       updateMessage: (dialogId, messageId, updates) => {
-        mirror.patchMessage(dialogId, messageId, updates);
+        threads.patchMessage(dialogId, messageId, updates);
       },
 
       removeMessage: (dialogId, messageId) => {
-        mirror.removeMessage(dialogId, messageId);
+        threads.removeMessage(dialogId, messageId);
       },
 
       updateApprovalStatusInMessages: (dialogId, requestId, status, resolvedByName?) => {
-        mirror.updateApprovalStatus(dialogId, requestId, status, resolvedByName);
+        threads.updateApprovalStatus(dialogId, requestId, status, resolvedByName);
       },
 
       getMessages: (dialogId: string) => {
-        mirror.flush();
+        threads.flush();
         return get().messagesByDialog.get(dialogId) || [];
       },
 
       removeWelcomeMessages: (dialogId: string) => {
-        mirror.mutateThread(dialogId, current => {
+        threads.mutateThread(dialogId, current => {
           const filtered = current.filter(m => !m.id.startsWith('welcome-'));
           return filtered.length === current.length ? current : filtered;
         });
@@ -355,7 +338,7 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
 
       // Typing / phase
       setTyping: (dialogId, typing) => {
-        mirror.setTyping(dialogId, typing);
+        threads.setTyping(dialogId, typing);
       },
 
       getTyping: (dialogId: string) => {
@@ -447,10 +430,10 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
       },
 
       resetAll: () => {
-        for (const dialogId of mirror.knownKeys()) dropDialogCaches(dialogId);
+        for (const dialogId of threads.knownKeys()) dropDialogCaches(dialogId);
         recentDialogIds.length = 0;
         // Nothing is displayed after a reset — release any surviving pin.
-        mirror.setActiveKeys([]);
+        threads.setActiveKeys([]);
         set({
           messagesByDialog: new Map(),
           phaseByDialog: new Map(),

@@ -1,13 +1,12 @@
 'use client';
 
 import type { ChatStreamEntry } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import { type ChatModelMetadata, useChatChunkProcessor } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useCallback, useEffect, useRef } from 'react';
-import { type ChatModelMetadata, makeChatRowId } from '@/lib/chat-stream-thread';
-import { useChatChunkProcessor } from '@/lib/use-chat-chunk-processor';
+import { makeChatRowId } from '@/lib/chat-row';
+import { featureFlags } from '@/lib/feature-flags';
 import { OWNER_TYPE } from '../constants';
 import { bindTicketSide, type ChatSide, mutateTicketSide, useTicketDetailsStore } from '../stores/ticket-details-store';
-
-export type { ChatModelMetadata };
 
 interface UseSideChunkProcessorOptions {
   /** Ticket currently open — half of the incomplete-turn seeding key. */
@@ -20,17 +19,10 @@ interface UseSideChunkProcessorOptions {
 /**
  * Drives one chat side (client or admin) of a dialog from NATS chunks.
  *
- * Phase 4: chunks feed the lib master stream reducer directly
- * (`createMingoDecoder` → `ticketChatDialogStore.apply`). The reducer owns
- * every accumulation rule the ~200-LOC callback glue here used to
- * re-implement, and the dialog store's built-in cross-side projections
- * (approval resolution by its id, a tool's run by its call id)
- * replace the app's both-sides fan-out. The residual glue (own-echo
- * suppression, approval-status sync, the incomplete-turn seed) is shared
- * with mingo via `useChatChunkProcessor`, and the model-badge side-channel
- * rides the reducer's own `onMetadata` effect; what remains here is
- * genuinely tickets-only: the direct-mode flag sync and the client-authored
- * `direct-message` intercept.
+ * Chunks feed the lib's thread store through the lib's `useChatChunkProcessor`, and the dialog store's built-in
+ * cross-side projections (approval resolution by its id, a tool's run by its call id) replace the app's both-sides
+ * fan-out. The model badge rides the reducer's own `onMetadata` effect; what remains here is genuinely tickets-only:
+ * the direct-mode flag sync and the client-authored `direct-message` intercept.
  */
 export function useSideChunkProcessor(
   side: ChatSide,
@@ -39,7 +31,7 @@ export function useSideChunkProcessor(
   const messages = useTicketDetailsStore(s => s[side].messages);
   const approvalStatuses = useTicketDetailsStore(s => s.approvalStatuses);
   const addMessage = useTicketDetailsStore(s => s.addMessage);
-  const setChatHandlers = useTicketDetailsStore(s => s.setChatHandlers);
+  const setMetadataHandler = useTicketDetailsStore(s => s.setMetadataHandler);
 
   const userDisplayNameRef = useRef(userDisplayName);
   // Latest-value refs, written after the commit rather than during render:
@@ -58,8 +50,8 @@ export function useSideChunkProcessor(
   // Model badge: the reducer emits the mapped metadata as an effect, so the
   // host only late-binds the sink.
   useEffect(() => {
-    setChatHandlers(side, { onMetadata });
-  }, [side, onMetadata, setChatHandlers]);
+    setMetadataHandler(side, onMetadata);
+  }, [side, onMetadata, setMetadataHandler]);
 
   // Client-authored DIRECT_MESSAGE: the lib reducer renders every direct
   // message as an admin-authored row (its home surface only sees technician
@@ -93,9 +85,10 @@ export function useSideChunkProcessor(
   );
 
   return useChatChunkProcessor({
-    boundMirror: bindTicketSide(side),
+    thread: bindTicketSide(side),
     messages,
     approvalStatuses,
     interceptEntry,
+    debug: () => featureFlags.debugNatsChunks.enabled(),
   });
 }

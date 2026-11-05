@@ -80,7 +80,6 @@ describe('useOpenframeChatProps', () => {
       mingoState: chat.state,
       dialogStatusOf: chat.dialogStatusOf,
       whatToAsk,
-      pendingApprovals: chat.pendingApprovals,
       modes: {},
       userDisplayName: 'Ann Lee',
     });
