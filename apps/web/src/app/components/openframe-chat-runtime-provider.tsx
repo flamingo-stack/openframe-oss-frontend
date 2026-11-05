@@ -232,7 +232,7 @@ function openMingo({ prompt }: AssistantOpenRequest): void {
 
 export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
-  // In-app doc-tree swap bridge — the same hook the hub wires into `navigate`,
+  // In-app doc-tree swap bridge: the same hook the hub wires into `navigate`,
   // its provider mounted by the app layout. When a knowledge-base viewer is on the
   // page it swaps the doc in place; otherwise it finds no navigator, returns false
   // and we `router.push` instead.

@@ -1,7 +1,7 @@
 /**
  * Pins the session contract of `MingoChatProvider`: one chat state however many
  * surfaces read it, running only while a surface is registered, and the per-session
- * effects — dialog-error toast, compaction watchers — happening once.
+ * effects (dialog-error toast, compaction watchers) happening once.
  */
 
 import { act, Component, type ReactNode, useLayoutEffect } from 'react';

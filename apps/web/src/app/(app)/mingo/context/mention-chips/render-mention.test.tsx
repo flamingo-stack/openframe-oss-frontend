@@ -46,4 +46,10 @@ describe('renderMingoRecordChip', () => {
     expect(chip?.type).toBe(GraphqlMentionChip);
     expect(chip?.props.fallbackLabel).toBe('MacBook');
   });
+
+  it('reads every script id through Relay, whatever its shape', () => {
+    for (const id of ['507f1f77bcf86cd799439011', '42']) {
+      expect(propsOf(renderMingoRecordChip({ type: 'script', id }))?.type).toBe(GraphqlMentionChip);
+    }
+  });
 });

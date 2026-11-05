@@ -24,8 +24,8 @@ import type { OpenFrameRecordKind } from '@flamingo-stack/openframe-frontend-cor
  * `@/lib/relay-id`) right before a client-side `node(id:)` fetch in the chips.
  *
  * TEMPORARY (intentional hack): record links AND contextItems carry RAW database ids
- * — that's what the backend context resolvers expect, and
- * what we store + send on the wire. But Relay's store is keyed by GLOBAL id, so
+ * (that's what the backend context resolvers expect, and
+ * what we store + send on the wire). But Relay's store is keyed by GLOBAL id, so
  * each chip must re-encode the raw id before fetching. On the way IN (manual
  * context-add in the picker) we do the inverse: take the GraphQL node's global
  * `id`, `decodeGlobalId` it, and store the decoded raw id. This typename map

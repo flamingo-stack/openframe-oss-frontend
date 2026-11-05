@@ -91,7 +91,7 @@ function ScriptHeaderView({ scriptId, script }: ScriptDetailsViewProps & { scrip
   const handleBack = useSafeBack(isArchived ? routes.scripts.archived : routes.scripts.list);
 
   // Mingo context carries the RAW db id (the route's `scriptId` is the Relay
-  // global id) — matching the picker + the `record://script/<id>` link the backend
+  // global id), matching the picker + the `record://script/<id>` link the backend
   // resolver expects. The mention chip re-encodes it to a global id for fetch.
   const scriptDbId = useMemo(() => decodeGlobalId(scriptId)?.rawId ?? scriptId, [scriptId]);
   useTrackOpenView(

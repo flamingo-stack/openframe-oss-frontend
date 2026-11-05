@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DialogHistoryMessage } from '@/lib/dialog-messages-page';
 import { REMOTE_SESSION_END_USER_NAME } from '../types/remote-session-chat';
-import { decodeRemoteSessionChatChunk, RemoteSessionChatApiService } from './remote-session-chat-api-service';
+import { RemoteSessionChatApiService } from './remote-session-chat-api-service';
 
 const tickets = vi.hoisted(() => ({
   fetchMessages: vi.fn(),
-  sendMessage: vi.fn(),
 }));
 
 vi.mock('@/app/(app)/tickets/services', () => ({ ticketService: tickets }));
@@ -27,27 +26,12 @@ function message(overrides: Partial<DialogHistoryMessage> & { id: string }): Dia
 
 const service = new RemoteSessionChatApiService();
 
-describe('decodeRemoteSessionChatChunk: a plain-text feed', () => {
-  it.each([
-    ['DIRECT_MESSAGE', 'ADMIN'],
-    ['MESSAGE_REQUEST', 'CLIENT'],
-  ])('a live %s from %s reads as it was typed, mention and all', (type, ownerType) => {
-    const text = 'ping me @support:help or see [card://blog_post:1]';
-    expect(decodeRemoteSessionChatChunk({ type, text, ownerType, streamSeq: 3 })?.body).toBe(text);
-  });
-
-  it('a chunk with no text is still no line', () => {
-    expect(decodeRemoteSessionChatChunk({ type: 'DIRECT_MESSAGE', text: '', ownerType: 'CLIENT' })).toBeNull();
-  });
-});
-
 describe('RemoteSessionChatApiService', () => {
   beforeEach(() => {
     tickets.fetchMessages.mockReset();
-    tickets.sendMessage.mockReset();
   });
 
-  it('reads the client-chat page oldest first, TEXT rows by owner, and remembers the last sequence', async () => {
+  it('reads the client-chat page oldest first, TEXT rows by owner', async () => {
     tickets.fetchMessages.mockResolvedValueOnce({
       messages: [
         message({
@@ -95,16 +79,14 @@ describe('RemoteSessionChatApiService', () => {
         authorName: REMOTE_SESSION_END_USER_NAME,
         sentAt: '2026-09-23T10:00:30Z',
         body: 'Hello',
-        seq: 10,
       },
-      { id: 'm2', author: 'technician', authorName: 'Roman K.', sentAt: '2026-09-23T10:01:00Z', body: 'Hi', seq: 12 },
+      { id: 'm2', author: 'technician', authorName: 'Roman K.', sentAt: '2026-09-23T10:01:00Z', body: 'Hi' },
       {
         id: 'm4:0',
         author: 'user',
         authorName: REMOTE_SESSION_END_USER_NAME,
         sentAt: '2026-09-23T10:03:00Z',
         body: 'a',
-        seq: 14,
       },
       {
         id: 'm4:1',
@@ -112,10 +94,8 @@ describe('RemoteSessionChatApiService', () => {
         authorName: REMOTE_SESSION_END_USER_NAME,
         sentAt: '2026-09-23T10:03:00Z',
         body: 'b',
-        seq: 14,
       },
     ]);
-    expect(page.lastSeq).toBe(14);
   });
 
   it('names a technician row without a user profile and reports an empty dialog', async () => {
@@ -123,65 +103,8 @@ describe('RemoteSessionChatApiService', () => {
       messages: [message({ id: 'm1', owner: { type: 'ADMIN', userId: 'u1' }, parts: [{ type: 'TEXT', text: 'Hi' }] })],
       pageInfo: {},
     });
-    expect((await service.history(DIALOG_ID)).messages[0]).toMatchObject({ authorName: 'Technician', seq: undefined });
+    expect((await service.history(DIALOG_ID)).messages[0]).toMatchObject({ authorName: 'Technician' });
     tickets.fetchMessages.mockResolvedValueOnce({ messages: [], pageInfo: {} });
-    expect(await service.history(DIALOG_ID)).toEqual({ messages: [], lastSeq: 0 });
-  });
-
-  it('sends through the chat service as a client-chat line', async () => {
-    tickets.sendMessage.mockResolvedValueOnce(undefined);
-    await service.send(DIALOG_ID, 'Hello there');
-    expect(tickets.sendMessage).toHaveBeenCalledWith(DIALOG_ID, 'Hello there', 'CLIENT_CHAT');
-    tickets.sendMessage.mockRejectedValueOnce(new Error('403'));
-    await expect(service.send(DIALOG_ID, 'x')).rejects.toThrow('403');
-  });
-});
-
-describe('decodeRemoteSessionChatChunk', () => {
-  it("turns the end user's direct message into a user row keyed by its sequence", () => {
-    const row = decodeRemoteSessionChatChunk({
-      type: 'DIRECT_MESSAGE',
-      text: 'Hey',
-      ownerType: 'CLIENT',
-      streamSeq: 15,
-    });
-    expect(row).toMatchObject({
-      id: 'seq-15',
-      author: 'user',
-      authorName: REMOTE_SESSION_END_USER_NAME,
-      body: 'Hey',
-      seq: 15,
-    });
-  });
-
-  it('reads a redelivery again: the hook is what keeps a line from showing twice', () => {
-    const chunk = { type: 'DIRECT_MESSAGE', text: 'Hey', ownerType: 'CLIENT', streamSeq: 15 };
-    expect(decodeRemoteSessionChatChunk(chunk)).toMatchObject({ id: 'seq-15', body: 'Hey' });
-    expect(decodeRemoteSessionChatChunk(chunk)).toMatchObject({ id: 'seq-15', body: 'Hey' });
-  });
-
-  it("turns the technician's echo into a technician row, named from the chunk or the signed-in user", () => {
-    const named = decodeRemoteSessionChatChunk(
-      { type: 'DIRECT_MESSAGE', text: 'Hi', ownerType: 'ADMIN', displayName: 'Roman K.', streamSeq: 16 },
-      { name: 'Someone Else' },
-    );
-    expect(named).toMatchObject({ author: 'technician', authorName: 'Roman K.', body: 'Hi', seq: 16 });
-    const unnamed = decodeRemoteSessionChatChunk(
-      { type: 'DIRECT_MESSAGE', text: 'Hi', ownerType: 'ADMIN' },
-      { name: 'Roman' },
-    );
-    expect(unnamed).toMatchObject({ author: 'technician', authorName: 'Roman', seq: undefined });
-    expect(unnamed?.id).toMatch(/^live-/);
-  });
-
-  it('drops system notices, assistant deltas, unknown owners and malformed chunks', () => {
-    expect(decodeRemoteSessionChatChunk({ type: 'SYSTEM', text: 'joined the chat', streamSeq: 17 })).toBeNull();
-    expect(decodeRemoteSessionChatChunk({ type: 'MESSAGE', text: 'delta', streamSeq: 18 })).toBeNull();
-    expect(decodeRemoteSessionChatChunk({ type: 'TEXT', text: 'an assistant slice', streamSeq: 18 })).toBeNull();
-    expect(
-      decodeRemoteSessionChatChunk({ type: 'DIRECT_MESSAGE', text: 'x', ownerType: 'ASSISTANT', streamSeq: 19 }),
-    ).toBeNull();
-    expect(decodeRemoteSessionChatChunk({ type: 'DIRECT_MESSAGE', ownerType: 'CLIENT', streamSeq: 20 })).toBeNull();
-    expect(decodeRemoteSessionChatChunk('nope')).toBeNull();
+    expect(await service.history(DIALOG_ID)).toEqual({ messages: [] });
   });
 });

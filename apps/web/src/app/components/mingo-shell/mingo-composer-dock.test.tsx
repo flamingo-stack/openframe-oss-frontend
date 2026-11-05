@@ -1,8 +1,8 @@
 /**
  * The Mingo-first composer dock: the session's one `EmbeddableChat`, drawing the session's
- * one engine (`ChatEngineProvider`), laid out per route — the thread portalled into the
+ * one engine (`ChatEngineProvider`), laid out per route: the thread portalled into the
  * chat page's node (an element there, `null` everywhere else, never `undefined`), no
- * memory strip on full-width pages — plus the launcher drain, the locked composer that
+ * memory strip on full-width pages; plus the launcher drain, the locked composer that
  * holds its place while the chat loads, and its own crash fallback.
  */
 

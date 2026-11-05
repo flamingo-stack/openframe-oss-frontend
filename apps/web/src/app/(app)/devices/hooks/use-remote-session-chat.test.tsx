@@ -1,45 +1,65 @@
 /**
- * The Open Chat marker's source: an end-user message that arrives on the live
- * feed while the panel is closed. The history the page opens with, the
- * technician's own lines and anything that comes in with the panel open never
- * raise it; opening (or closing) the panel clears it.
+ * The remote session's chat on the lib's chat engine: the engine's thread drawn as the panel's lines, and the Open Chat
+ * marker. Live chunks go through the engine's real decoder and reducers; only the tail, the history read and the send
+ * are stood in for.
+ *
+ * The marker's source is an end-user line that arrives while the panel is closed. The history the page opens with, the
+ * technician's own lines and anything that comes in with the panel open never raise it; opening (or closing) the panel
+ * clears it.
  */
 
+import type { ChatMessage } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { RemoteSessionChatMessage } from '../types/remote-session-chat';
 import { type RemoteSessionChatState, useRemoteSessionChat } from './use-remote-session-chat';
 
 const feed = vi.hoisted(() => ({
   onEvent: null as ((payload: unknown) => void) | null,
   history: vi.fn(),
+  send: vi.fn(),
 }));
 
-// The lib's JetStream tail, as the hook calls it.
-vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({
-  jetStreamLiveTail: () => (options: { onEvent: (payload: unknown) => void }) => {
-    feed.onEvent = options.onEvent;
-  },
+// The lib's engine runs for real; its JetStream tail and its GraphQL history are stood in for.
+vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', async importOriginal => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  jetStreamLiveTail:
+    () => (options: { enabled: boolean; fromSeq: number | null | undefined; onEvent: (payload: unknown) => void }) => {
+      feed.onEvent = options.enabled && options.fromSeq !== undefined ? options.onEvent : null;
+    },
+  createMingoGraphqlHistory: () => feed.history,
 }));
+vi.mock('@/app/(app)/mingo/hooks/use-mingo-unified-chat-state', () => ({ postMingoGraphql: vi.fn() }));
+vi.mock('@/app/(app)/tickets/services', () => ({ ticketService: { sendMessage: feed.send } }));
 vi.mock('@/lib/nats/nats-app-config', () => ({
   useNatsAppConfig: () => ({ getWsUrl: () => 'ws://test', onBeforeReconnect: undefined }),
 }));
-vi.mock('@/app/(auth)/auth/stores/auth-store', () => ({
-  useAuthStore: (select: (state: { user: null }) => unknown) => select({ user: null }),
-}));
+vi.mock('@/app/(auth)/auth/stores/auth-store', () => {
+  const user = { id: 'tech-1', firstName: 'Roman', lastName: 'K.', email: 'roman@example.com' };
+  const useAuthStore = (select: (state: { user: typeof user }) => unknown) => select({ user });
+  useAuthStore.getState = () => ({ user });
+  return { useAuthStore };
+});
 vi.mock('../components/remote-access/remote-access-session-context', () => ({
   useRemoteAccessSession: () => ({ session: null }),
 }));
-vi.mock('../services/remote-session-chat-api-service', () => ({
-  // The test feeds already-decoded rows through the feed.
-  decodeRemoteSessionChatChunk: (payload: unknown) => payload as RemoteSessionChatMessage,
-  remoteSessionChatApiService: { history: feed.history, send: vi.fn() },
-}));
 
-function row(id: number, author: RemoteSessionChatMessage['author']): RemoteSessionChatMessage {
-  return { id: `seq-${id}`, author, authorName: author === 'user' ? 'User' : 'Tech', sentAt: '', body: 'hi', seq: id };
-}
+/** A persisted end-user line, as the history page gives it to the engine. */
+const historyLine: ChatMessage = {
+  id: 'h-1',
+  role: 'user',
+  metadata: { createdAt: '2026-09-23T10:00:00Z', streamSeq: 1, author: { name: 'You', authorType: 'user' } },
+  parts: [{ type: 'text', text: 'Earlier' }],
+};
+
+/** A live direct message on the dialog's subject. */
+const direct = (seq: number, ownerType: 'CLIENT' | 'ADMIN', text: string, extra: Record<string, unknown> = {}) => ({
+  type: 'DIRECT_MESSAGE',
+  text,
+  ownerType,
+  streamSeq: seq,
+  ...extra,
+});
 
 const state: { chat: RemoteSessionChatState | null } = { chat: null };
 
@@ -58,21 +78,71 @@ async function mount(panelOpen = false) {
     root.render(<Probe panelOpen={panelOpen} />);
     await Promise.resolve();
   });
+  await act(async () => {
+    await Promise.resolve();
+  });
 }
 
-const deliver = (message: RemoteSessionChatMessage) => act(() => feed.onEvent?.(message));
+const deliver = (payload: unknown) => act(() => feed.onEvent?.(payload));
 const unread = () => state.chat?.hasUnread;
+const lines = () => state.chat?.messages.map(line => [line.author, line.authorName, line.body]);
 
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   feed.onEvent = null;
-  // The page the panel opens with: an older end-user line, already seen.
-  feed.history.mockReset().mockResolvedValue({ messages: [row(1, 'user')], lastSeq: 1 });
+  feed.history.mockReset().mockResolvedValue({ thread: [historyLine], nextCursor: null });
+  feed.send.mockReset().mockResolvedValue(undefined);
   root = createRoot(document.createElement('div'));
 });
 
 afterEach(() => {
   act(() => root.unmount());
+});
+
+describe('useRemoteSessionChat lines', () => {
+  it("draws the history and the end user's live lines as the end user's, and drops system notices", async () => {
+    await mount();
+    deliver(direct(2, 'CLIENT', 'Hello'));
+    deliver({ type: 'SYSTEM', text: 'joined the chat', streamSeq: 3 });
+    expect(lines()).toEqual([
+      ['user', 'User', 'Earlier'],
+      ['user', 'User', 'Hello'],
+    ]);
+  });
+
+  it('draws a line the tail delivers again once', async () => {
+    await mount();
+    deliver(direct(2, 'CLIENT', 'Hello'));
+    deliver(direct(2, 'CLIENT', 'Hello'));
+    expect(lines()).toHaveLength(2);
+  });
+
+  it("shows the technician's own send once: its echo closes the turn instead of drawing a second row", async () => {
+    await mount();
+    await act(async () => {
+      expect(await state.chat?.send('  On it  ')).toBe(true);
+    });
+    expect(feed.send).toHaveBeenCalledWith('dialog-1', 'On it', 'CLIENT_CHAT');
+    deliver(direct(2, 'ADMIN', 'On it', { userId: 'tech-1' }));
+    expect(lines()).toEqual([
+      ['user', 'User', 'Earlier'],
+      ['technician', 'Roman K.', 'On it'],
+    ]);
+  });
+
+  it("names another technician's line by its own name", async () => {
+    await mount();
+    deliver(direct(2, 'ADMIN', 'Joining', { userId: 'tech-2', displayName: 'Dana' }));
+    expect(lines()?.at(-1)).toEqual(['technician', 'Dana', 'Joining']);
+  });
+
+  it('sends nothing blank', async () => {
+    await mount();
+    await act(async () => {
+      expect(await state.chat?.send('   ')).toBe(false);
+    });
+    expect(feed.send).not.toHaveBeenCalled();
+  });
 });
 
 describe('useRemoteSessionChat unread marker', () => {
@@ -84,7 +154,7 @@ describe('useRemoteSessionChat unread marker', () => {
 
   it('turns on for an end-user message with the panel closed, and off once read', async () => {
     await mount();
-    deliver(row(2, 'user'));
+    deliver(direct(2, 'CLIENT', 'Hello'));
     expect(unread()).toBe(true);
     act(() => state.chat?.markRead());
     expect(unread()).toBe(false);
@@ -92,13 +162,13 @@ describe('useRemoteSessionChat unread marker', () => {
 
   it("stays off for the technician's own lines", async () => {
     await mount();
-    deliver(row(2, 'technician'));
+    deliver(direct(2, 'ADMIN', 'Hi', { userId: 'tech-2', displayName: 'Dana' }));
     expect(unread()).toBe(false);
   });
 
   it('stays off for messages that arrive with the panel open, also after it closes', async () => {
     await mount(true);
-    deliver(row(2, 'user'));
+    deliver(direct(2, 'CLIENT', 'Hello'));
     await mount(false);
     expect(unread()).toBe(false);
   });

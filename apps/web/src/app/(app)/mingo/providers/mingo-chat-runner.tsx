@@ -52,7 +52,7 @@ function useDialogErrorToast({
 
 /**
  * The one `useMingoUnifiedChatState()` of the session, mounted by `MingoChatProvider`
- * only while a surface is registered — its mount and unmount are the surfaces'. The
+ * only while a surface is registered: its mount and unmount are the surfaces'. The
  * engine inside it runs the open dialog's live tail.
  */
 export function MingoChatRunner({ store, onScreen }: { store: MingoChatStore; onScreen: boolean }) {

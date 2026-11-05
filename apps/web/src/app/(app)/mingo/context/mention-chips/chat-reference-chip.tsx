@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * A chat record link, `[title](record://chat/<dialogId>)` — Mingo citing an
+ * A chat record link, `[title](record://chat/<dialogId>)`: Mingo citing an
  * EARLIER CONVERSATION of the same technician when it answers from chat memory.
  * The ai-agent's memory search hands the model a `sourceId` per supporting
- * source — only for dialogs the asking technician owns, and never the one
- * open — and the model links it beside the statement it supports.
+ * source (only for dialogs the asking technician owns, and never the one
+ * open), and the model links it beside the statement it supports.
  *
  * `chat` is a record type, not a `ContextItemType`: nothing attaches a
  * conversation as context, the picker does not offer one, and it has no entry

@@ -187,7 +187,7 @@ function prependNotificationEdge(
  * no bucket locally, so the counts are refetched after every event either way.
  *
  * History re-reads the statuses only when the store can't settle them: an ARCHIVED id the store
- * never loaded has no card to flag — see `requestReadStatusRefresh`.
+ * never loaded has no card to flag (see `requestReadStatusRefresh`).
  */
 function applyReadStateEvent(
   environment: IEnvironment,

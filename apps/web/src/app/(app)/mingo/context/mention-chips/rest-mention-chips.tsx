@@ -3,18 +3,15 @@
  * Self-fetching mention chips for the REST / ai-agent-GraphQL entity types. One
  * generic component (`RestMentionChip`) backed by a per-marker async resolver,
  * driven by a TanStack `useSuspenseQuery` so the skeleton/Suspense story matches
- * the Relay chips. Resolvers never throw — they degrade to `{ label: id }` on a
- * failed response — so the chip always renders (id when the name can't load).
+ * the Relay chips. Resolvers never throw: they degrade to `{ label: id }` on a
+ * failed response, so the chip always renders (id when the name can't load).
  *
  * id semantics + routes (per the picker in `rest-items.tsx` / `relay-items.tsx`):
- *   - policy → fleet `getPolicy(policyId)`        → /monitoring/policy/{id}
- *   - query  → fleet `getQuery(queryId)`          → /monitoring/query/{id}
- *   - script → tactical `getScript(id)`           → /scripts/details/{id}
- *   - ticket → ai-agent `ticket(id:)` GraphQL      → /tickets/dialog?id={id}
+ *   - policy: fleet `getPolicy(policyId)`, /monitoring/policy/{id}
+ *   - query: fleet `getQuery(queryId)`, /monitoring/query/{id}
+ *   - ticket: ai-agent `ticket(id:)` GraphQL, /tickets/dialog?id={id}
  *
- * The `script` resolver here is the LEGACY (Tactical) path. New scripts resolve
- * via the Relay `GraphqlMentionChip`; `render-mention.tsx` dispatches by id shape
- * (24-char ObjectId → new, numeric → this Tactical resolver) so BOTH resolve.
+ * A script resolves through the Relay `GraphqlMentionChip` (`render-mention.tsx`).
  */
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { RecordChip } from '@flamingo-stack/openframe-frontend-core/components/chat';
@@ -45,14 +42,6 @@ async function resolveQuery(id: string): Promise<Resolved> {
   return { label: name || id, href: routes.monitoring.query(id) };
 }
 
-async function resolveScript(id: string): Promise<Resolved> {
-  // TODO(openframe-rmm): Tactical RMM removed — the legacy single-script endpoint is gone.
-  // Numeric (legacy) script ids can no longer resolve a name, so degrade to the id + link
-  // (the caller's `fallbackLabel` is preferred over the raw id in `RestInner`). New scripts
-  // resolve via the Relay `GraphqlMentionChip`. See render-mention.tsx dispatch.
-  return { label: id, href: routes.scripts.details(id) };
-}
-
 interface TicketEnvelope {
   data?: { ticket?: { title?: string; ticketNumber?: number } };
 }
@@ -71,7 +60,6 @@ async function resolveTicket(id: string): Promise<Resolved> {
 const RESOLVERS: Record<string, (id: string) => Promise<Resolved>> = {
   policy: resolvePolicy,
   query: resolveQuery,
-  script: resolveScript,
   ticket: resolveTicket,
 };
 

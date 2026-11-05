@@ -438,7 +438,7 @@ function DockChat({ route, chat }: DockChatProps) {
           aboveComposer={tour.aboveComposer}
           chatMenuExtraItems={chatMenuExtraItems}
           contextMemory={view.showContextMemory ? chatProps.contextMemory : undefined}
-          // An element on the chat page, `null` everywhere else — never `undefined`,
+          // An element on the chat page, `null` everywhere else, never `undefined`,
           // which switches the chat back to its in-place layout and remounts the
           // composer (draft and all).
           // The chat page's node on the chat page, the sheet's while it is up over a page.
