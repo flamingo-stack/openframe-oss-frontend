@@ -10,6 +10,7 @@ import {
   useActivateGuardrailsTemplate,
   useGuardrailsTemplate,
   useGuardrailsTemplates,
+  usePrefetchGuardrailsTemplates,
   useSaveCustomGuardrailsPolicy,
 } from './use-guardrails-policies';
 
@@ -73,7 +74,16 @@ export function useGuardrailsEditor({ isEditMode }: UseGuardrailsEditorArgs) {
     return draft.baseTemplateId;
   }, [isEditMode, draft, defaultTemplateId, customTemplateId]);
 
-  const { template: displayTemplate, isLoading: isDetailLoading } = useGuardrailsTemplate(displayTemplateId);
+  const {
+    template: displayTemplate,
+    isLoading: isDetailLoading,
+    isSwitching: isTemplateSwitching,
+  } = useGuardrailsTemplate(displayTemplateId);
+  // While editing, every template's rules are read ahead: a radio switch shows the new rules at once.
+  usePrefetchGuardrailsTemplates(
+    templates.map(t => t.id),
+    isEditMode,
+  );
 
   // Approval levels as the server knows them — edits that return to these are
   // dropped from the draft instead of being sent as overrides.
@@ -128,7 +138,8 @@ export function useGuardrailsEditor({ isEditMode }: UseGuardrailsEditorArgs) {
       ? (draft?.templateId ?? defaultTemplateId ?? '')
       : (customTemplateId ?? CUSTOM_CREATION_TEMPLATE_ID);
 
-  const canEditRules = isEditMode && !!draft && draft.kind !== 'template';
+  // Not while the previous template's rules stand in for the new ones: an edit would land on the wrong baseline.
+  const canEditRules = isEditMode && !!draft && draft.kind !== 'template' && !isTemplateSwitching;
 
   const selectTemplate = useCallback(
     (templateId: string) => {
@@ -214,6 +225,7 @@ export function useGuardrailsEditor({ isEditMode }: UseGuardrailsEditorArgs) {
     loadError: error,
     refetch,
     isDetailLoading,
+    isTemplateSwitching,
     // Edit session
     templateOptions,
     selectedTemplateId,

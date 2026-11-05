@@ -3,6 +3,7 @@
 import type { ApprovalLevel, PermissionCategory } from '@flamingo-stack/openframe-frontend-core';
 import { PolicyConfigurationPanel } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { LoadingItems, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { noop, NO_ITEMS } from '@/app/components/shared';
 import { policyGroupLabel } from './build-policy-groups';
 
@@ -12,6 +13,8 @@ interface GuardrailsPolicyGroupsProps {
   editMode?: boolean;
   onPolicyPermissionChange?: (categoryId: string, policyId: string, level: ApprovalLevel) => void;
   onCategoryPermissionChange?: (categoryId: string, level: ApprovalLevel) => void;
+  /** Another template's rules are on their way: these stay, dimmed and busy, until they land (no skeleton flash). */
+  switching?: boolean;
 }
 
 const GROUPS_CLASS = 'flex min-w-0 flex-col gap-[var(--spacing-system-l)]';
@@ -69,10 +72,14 @@ export function GuardrailsPolicyGroups({
   editMode = false,
   onPolicyPermissionChange = noop,
   onCategoryPermissionChange = noop,
+  switching = false,
 }: GuardrailsPolicyGroupsProps) {
   const loading = useLoadingScope() || groups == null;
   return (
-    <div className={GROUPS_CLASS}>
+    <div
+      aria-busy={switching || undefined}
+      className={cn(GROUPS_CLASS, 'transition-opacity duration-200', switching && 'opacity-60')}
+    >
       {loading ? (
         <LoadingItems count={GUARDRAILS_SKELETON_GROUPS}>
           {() => (

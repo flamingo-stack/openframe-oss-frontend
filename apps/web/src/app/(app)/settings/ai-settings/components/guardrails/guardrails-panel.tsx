@@ -64,7 +64,6 @@ export function GuardrailsPanel({ editor, isEditMode }: GuardrailsPanelProps) {
         <GuardrailsTemplatePicker
           options={editor.templateOptions}
           value={editor.selectedTemplateId}
-          disabled={editor.isDetailLoading}
           onSelect={editor.selectTemplate}
           onCreateCustomPolicyFrom={editor.createCustomPolicyFrom}
         />
@@ -83,6 +82,7 @@ export function GuardrailsPanel({ editor, isEditMode }: GuardrailsPanelProps) {
           />
         ) : (
           <GuardrailsPolicyGroups
+            switching={editor.isTemplateSwitching}
             groups={editor.policyGroups}
             editMode={editor.canEditRules}
             onPolicyPermissionChange={editor.setPolicyPermission}
