@@ -14,7 +14,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { noteApprovalDecision } from '@/app/components/approvals/approval-decisions';
 import { apiClient } from '@/lib/api-client';
-import { fetchDialogMessagesPage } from '@/lib/dialog-messages-page';
+import { type DialogMessagesPage, fetchDialogMessagesPage } from '@/lib/dialog-messages-page';
 import type { ChatType, DialogModeValue } from '../constants';
 import { API_ENDPOINTS } from '../constants';
 import {
@@ -30,7 +30,7 @@ import {
   TICKETS_DEFAULT_SORT,
   TRANSITION_TICKET_MUTATION,
 } from '../queries/ticket-queries';
-import type { Dialog, DialogOwnerEnum, Message, TicketActivityState } from '../types/dialog.types';
+import type { Dialog, DialogOwnerEnum, TicketActivityState } from '../types/dialog.types';
 import type { GraphQlResponse } from '../utils/graphql';
 import { extractGraphQlData } from '../utils/graphql';
 import type {
@@ -40,7 +40,6 @@ import type {
   FetchEscalatedTicketsParams,
   FetchPendingApprovalTicketsParams,
   FetchTicketsParams,
-  MessagePage,
   ReorderTicketParams,
   SendMessageContext,
   TicketService as TicketServiceInterface,
@@ -366,15 +365,13 @@ export class TicketService implements TicketServiceInterface {
     return normalizeTicketToDialog(data.ticket);
   }
 
-  async fetchMessages(params: FetchMessagesParams): Promise<MessagePage> {
-    const page = await fetchDialogMessagesPage({
+  async fetchMessages(params: FetchMessagesParams): Promise<DialogMessagesPage> {
+    return fetchDialogMessagesPage({
       dialogId: params.dialogId,
       chatType: params.chatType,
       cursor: params.cursor,
       limit: params.limit,
     });
-    // The lib's history document answers `HistoricalMessage`s; a ticket reads the same rows as its `Message`.
-    return { messages: page.messages as Message[], pageInfo: page.pageInfo };
   }
 
   async transitionTicket(ticketId: string, toStatusId: string): Promise<void> {

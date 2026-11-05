@@ -370,7 +370,7 @@ dials with a fresh bearer.
   different sinks. A badge accumulates while hidden and clears on focus.
 - The click payload is the envelope narrowed to its routing fields, in the
   envelope's own shape: top-level `type` plus `attributes` with `ticketId`,
-  `dialogId` and `approvalRequestId` — what the frontend's route mapping reads,
+  `dialogId` and `approvalRequestId`: what the frontend's route mapping reads,
   plus the id the action buttons need. The rest of `attributes` can be
   arbitrarily large, and the payload has to fit inside a Windows activation URI.
 - Every logout path tears the subscription down — including a session death the

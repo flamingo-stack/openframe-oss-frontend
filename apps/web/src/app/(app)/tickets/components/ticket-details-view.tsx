@@ -4,26 +4,14 @@ import {
   CHAT_APPEARANCE,
   ChatAppearanceContext,
   ChatInput,
-  type ChatMessageActions,
   ChatMessageList,
   LoadError,
   ModelDisplay,
-  maxPersistedStreamSeq,
   NotFoundError,
 } from '@flamingo-stack/openframe-frontend-core';
-import {
-  approvalRequestIdOf,
-  type ChatMessage,
-  OPENFRAME_RECORD_KIND,
-} from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import { type ChatMessage, OPENFRAME_RECORD_KIND } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
-import {
-  findLatestPendingId,
-  isCompactingTail,
-  pendingApprovalIdOf,
-  threadForDisplay,
-  ticketReceiptMessage,
-} from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { isCompactingTail, ticketReceiptMessage } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { getDeviceName, useOptionalTimeTracker } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   BoxArchiveIcon,
@@ -51,15 +39,13 @@ import {
 import { useContentLgUp, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useMutation } from 'react-relay';
-import { useShallow } from 'zustand/react/shallow';
 import type { startTimerMutation as StartTimerMutationType } from '@/__generated__/startTimerMutation.graphql';
 import { useClientView } from '@/app/(app)/settings/ai-settings/hooks/use-client-view';
 import { useOrganizationClientAiConfig } from '@/app/(app)/settings/ai-settings/hooks/use-organization-ai-config';
 import { getProviderModelLabel, useSupportedModels } from '@/app/(app)/settings/ai-settings/hooks/use-supported-models';
 import { NotesSection } from '@/app/components/shared';
-import type { AiModel } from '@/app/hooks/use-ai-model';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { AssignedItemsView, useAssignedItems } from '@/components/assignments';
@@ -76,24 +62,19 @@ import { useAuthStore } from '@/stores';
 import { useDeviceActionsMenu } from '../../devices/hooks/use-device-actions-menu';
 import { useDeviceDetails } from '../../devices/hooks/use-device-details';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
-import { APPROVAL_STATUS, ASSISTANT_CONFIG, CHAT_TYPE } from '../constants';
-import { useApprovalRequests } from '../hooks/use-approval-requests';
+import { ASSISTANT_CONFIG, CHAT_TYPE } from '../constants';
 import { useAssignTicket } from '../hooks/use-assign-ticket';
 import { useAssigneeOptions } from '../hooks/use-assignee-options';
 import { useDirectChat } from '../hooks/use-direct-chat';
-import { useHistoricalMessages } from '../hooks/use-historical-messages';
-import { useSideChunkProcessor } from '../hooks/use-side-chunk-processor';
+import { useTicketClientChat } from '../hooks/use-ticket-client-chat';
 import { useTicketDetail } from '../hooks/use-ticket-detail';
-import { useTicketMessages } from '../hooks/use-ticket-messages';
 import { useAddTicketNote, useDeleteTicketNote, useUpdateTicketNote } from '../hooks/use-ticket-notes';
 import { useTransitionTicket } from '../hooks/use-transition-ticket';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
-import { useTicketDetailsStore } from '../stores/ticket-details-store';
 import type { ClientDialogOwner, DialogOwner } from '../types/dialog.types';
 import { hasActiveAiDialog } from '../utils/ai-dialog';
 import { lastClientMessageId } from '../utils/client-chat-read';
 import { isResolvedStatusId } from '../utils/is-resolved-status';
-import { latestAssistantModel } from '../utils/latest-assistant-model';
 import { ticketsQueryKeys } from '../utils/query-keys';
 import { isStatusLockedByPendingApproval, STATUS_LOCKED_BY_APPROVAL_REASON } from '../utils/status-lock';
 import { getTicketDeviceName } from '../utils/ticket-device-name';
@@ -102,7 +83,6 @@ import { TICKET_STATUS_KIND } from '../utils/ticket-statistics';
 import { ReopenTicketModal, type ReopenTicketTarget } from './reopen-ticket-modal';
 import { TakeOverTicketModal, type TakeOverTicketTarget } from './take-over-ticket-modal';
 import { TicketAttachmentsSection } from './ticket-attachments-section';
-import { TicketDialogSubscription } from './ticket-dialog-subscription';
 import { TicketNotificationsAutoReader } from './ticket-notifications-auto-reader';
 import { TicketTagsSection } from './ticket-tags-section';
 
@@ -165,7 +145,6 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const isLgUp = useContentLgUp();
   const assignedItems = useAssignedItems({ itemId: ticketId, itemType: 'TICKET' });
   const { modelsByProvider } = useSupportedModels();
-  const [currentClientModel, setCurrentClientModel] = useState<AiModel | null>(null);
   const isClientOwner = useCallback((owner: ClientDialogOwner | DialogOwner): owner is ClientDialogOwner => {
     return owner != null && typeof owner === 'object' && 'machineId' in owner;
   }, []);
@@ -204,22 +183,6 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const ticketDeviceName = getDeviceName(deviceDetails) || (dialog ? getTicketDeviceName(dialog) : '');
   const { items: deviceMenuItems } = useDeviceActionsMenu(deviceDetails, { deviceId: machineId });
 
-  const { client, clearChatState, updateApprovalStatusInMessages, recordHighestStreamSeq } = useTicketDetailsStore(
-    useShallow(s => ({
-      client: s.client,
-      clearChatState: s.clearChatState,
-      updateApprovalStatusInMessages: s.updateApprovalStatusInMessages,
-      recordHighestStreamSeq: s.recordHighestStreamSeq,
-    })),
-  );
-
-  const { messages: clientMessages, isTyping: isClientChatTyping } = client;
-  // Re-arms the shared unread-message mark (TicketNotificationsAutoReader) on every
-  // end-user row the chat shows; technician and assistant rows do not move it.
-  const newestClientMessageId = lastClientMessageId(clientMessages);
-
-  const isClientCompacting = useMemo(() => isCompactingTail(clientMessages), [clientMessages]);
-
   const currentUser = useAuthStore(state => state.user);
 
   const refetchDialog = useCallback(() => {
@@ -233,13 +196,12 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const assigneeOptions = useAssigneeOptions();
   const { isUserDeleted } = useUserStatusMap([dialog?.assignedTo]);
 
-  const { isDirectMode, isStartingDirectChat, isSendingClientMessage, startDirectChat, sendClientMessage } =
-    useDirectChat({
-      ticketId,
-      dialogId: dialog?.dialogId,
-      currentMode: dialog?.currentMode,
-      onDialogCreated: refetchDialog,
-    });
+  const { isDirectMode, isStartingDirectChat, startDirectChat } = useDirectChat({
+    ticketId,
+    dialogId: dialog?.dialogId,
+    currentMode: dialog?.currentMode,
+    onDialogCreated: refetchDialog,
+  });
 
   // Take Over flow: leaving the AI-assisted state (status change, assignment,
   // starting a direct chat) requires explicit confirmation via this modal.
@@ -282,13 +244,10 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   // The URL param is the ticket ID; messages belong to the linked dialog
   const messageDialogId = dialog?.dialogId ?? null;
 
-  const clientChat = useTicketMessages(messageDialogId, CHAT_TYPE.CLIENT);
-
   const transitionTicket = useTransitionTicket();
   // Target-status kinds, to recognize a resolve at click time (availableTransitions
   // carries no `kind`). Cached/shared with the board & table, so no extra fetch.
   const { data: statusesData } = useTicketStatusesQuery();
-  const { handleApproveRequest, handleRejectRequest } = useApprovalRequests();
 
   // Time tracker lives in a global host provider (enabled once the session
   // resolves on an unlocked workspace). Starting here writes the running timer
@@ -326,54 +285,6 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
 
   const clientDisplayName = ticketDeviceName || undefined;
 
-  const processClientChunk = useSideChunkProcessor('client', {
-    ticketId,
-    userDisplayName: clientDisplayName,
-    isDirectMode,
-    onMetadata: useCallback((metadata: { modelDisplayName: string; providerName: string }) => {
-      setCurrentClientModel({ provider: metadata.providerName, displayName: metadata.modelDisplayName });
-    }, []),
-  });
-
-  const dispatchChunk = useCallback(
-    (chunk: unknown) => {
-      const seq = (chunk as { streamSeq?: number }).streamSeq;
-      if (typeof seq === 'number') recordHighestStreamSeq('client', seq);
-      processClientChunk(chunk);
-    },
-    [processClientChunk, recordHighestStreamSeq],
-  );
-
-  // Sending while an approval is pending is an interrupt — backend cancels
-  // it and emits APPROVAL_RESULT (rejected) shortly. Flipping the latest
-  // pending approval on the same side optimistically resolves the card in
-  // the same frame as the user-message bubble, eliminating the flicker
-  // between the user's send and the backend's resolution chunk.
-  const sendClientMessageWithReject = useCallback(
-    (text: string) => {
-      const pendingId = findLatestPendingId(clientMessages, pendingApprovalIdOf);
-      if (pendingId) updateApprovalStatusInMessages('client', pendingId, 'rejected');
-      return sendClientMessage(text);
-    },
-    [sendClientMessage, clientMessages, updateApprovalStatusInMessages],
-  );
-
-  useEffect(() => {
-    if (!ticketId) return undefined;
-
-    return () => {
-      clearChatState();
-    };
-  }, [ticketId, clearChatState]);
-
-  // Model badge sources, in order of truth: live stream metadata (state set by
-  // the chunk processor) → the newest assistant message's provenance from
-  // history → what the NEXT reply would use, i.e. the customer's effective org
-  // config.
-  const historyClientModel = useMemo(
-    () => latestAssistantModel(clientChat.rawPages, modelsByProvider),
-    [clientChat.rawPages, modelsByProvider],
-  );
   const { config: orgAiConfig } = useOrganizationClientAiConfig(dialog?.organizationId ?? '', {
     enabled: !!dialog?.organizationId,
   });
@@ -394,24 +305,26 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         : null,
     [orgAiConfig, modelsByProvider],
   );
-  const displayClientModel = currentClientModel ?? historyClientModel ?? orgClientModel;
-
-  const clientInitialOptStartSeq = useMemo(() => maxPersistedStreamSeq(clientChat.rawPages), [clientChat.rawPages]);
-  // Fresh pages only (`isFetchedAfterMount`), not `isFetched`: on re-entry React Query
-  // serves the previous visit's cache first while `useTicketMessages` refetches, and
-  // `isFetched` is already true for it. A consumer created from that stale max seq
-  // replays every message that arrived while the user was away - and the refetch
-  // renders the same messages as persisted rows, so each shows twice (the replay
-  // lands after the history merge ran, so nothing dedupes it). Waiting for the
-  // post-mount fetch starts the consumer after the newest persisted seq instead;
-  // anything published in the meantime is still delivered from there.
-  const isInitialOptStartSeqReady = clientChat.isFetchedAfterMount;
-
-  // After a gap, once the replay is in (see `caughtUpCount`).
-  const refetchClientChat = clientChat.refetch;
-  const handleCaughtUp = useCallback(() => {
-    void refetchClientChat();
-  }, [refetchClientChat]);
+  // The client chat, on the lib's engine. Its model badge: the live turn's model, else the newest answer's in the
+  // history, else what the NEXT reply would use (the customer's effective configuration).
+  const clientChat = useTicketClientChat({
+    dialogId: messageDialogId,
+    isDirectMode,
+    assistantName,
+    baselineModel: orgClientModel,
+    modelsByProvider,
+    onApprovalAnswered: refetchDialog,
+  });
+  const clientMessages = clientChat.messages;
+  const isClientChatTyping = clientChat.streamingPhase !== 'idle';
+  // Re-arms the shared unread-message mark (TicketNotificationsAutoReader) on every
+  // end-user row the chat shows; technician and assistant rows do not move it.
+  const newestClientMessageId = lastClientMessageId(clientMessages);
+  const isClientCompacting = useMemo(() => isCompactingTail(clientMessages), [clientMessages]);
+  const displayClientModel =
+    clientChat.currentProvider || clientChat.currentModelLabel
+      ? { provider: clientChat.currentProvider ?? undefined, displayName: clientChat.currentModelLabel ?? undefined }
+      : null;
 
   // Archive / Unarchive are plain lifecycle transitions (the per-status legacy
   // mutations are rejected by the backend): Archive targets the ARCHIVED-kind
@@ -479,72 +392,24 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     [dialog, ticketId, transitionTicket, statusesData, openTakeOver],
   );
 
-  const handleApprovalAction = useCallback(
-    async (requestId: string | undefined, approving: boolean) => {
-      if (!requestId) return;
-      const mutate = approving ? handleApproveRequest : handleRejectRequest;
-      const status = approving ? APPROVAL_STATUS.APPROVED : APPROVAL_STATUS.REJECTED;
-      // Optimistic flip *before* the network round-trip. Backend starts
-      // streaming continuation chunks immediately on approval; if we wait
-      // for the mutation, the incoming MESSAGE_START adopts the still-
-      // pending bubble and text chunks overwrite the approval card.
-      updateApprovalStatusInMessages('client', requestId, status);
-      try {
-        await mutate(requestId);
-        // Resolving the approval releases the status lock and changes the
-        // available transitions - refresh the cached ticket right away.
-        refetchDialog();
-      } catch (error) {
-        toast({
-          title: approving ? 'Approval Failed' : 'Rejection Failed',
-          description:
-            error instanceof Error
-              ? error.message
-              : approving
-                ? 'Unable to approve request'
-                : 'Unable to reject request',
-          variant: 'destructive',
-          duration: 5000,
-        });
-      }
-    },
-    [handleApproveRequest, handleRejectRequest, toast, updateApprovalStatusInMessages, refetchDialog],
-  );
-
-  // What a message's controls do: a stable object, because the lib's message memo compares it by reference. The handler
-  // behind it changes with its mutations' state, so it reads the latest one when a control is used. A control names its
-  // row or its batch; the backend knows the request.
-  const latestApprovalAction = useRef(handleApprovalAction);
-  useEffect(() => {
-    latestApprovalAction.current = handleApprovalAction;
-  });
-  const clientChatActions = useMemo<ChatMessageActions>(() => {
-    const decide = (id: string, approving: boolean) =>
-      latestApprovalAction.current(
-        approvalRequestIdOf(useTicketDetailsStore.getState().client.messages, id),
-        approving,
-      );
-    return { approve: id => decide(id, true), reject: id => decide(id, false) };
-  }, []);
-
-  useHistoricalMessages({
-    side: 'client',
-    messageDialogId,
-    chatType: CHAT_TYPE.CLIENT,
-    assistantConfig: ASSISTANT_CONFIG.FAE,
-    pages: clientChat.rawPages,
-    dataUpdatedAt: clientChat.dataUpdatedAt,
-    isFetched: clientChat.isFetched,
-  });
-
+  // The technician's own send is the row the engine adds as it goes out (it names no author: the echo that comes back
+  // is consumed as theirs), so it is drawn as theirs, a technician's.
+  const technicianName =
+    [currentUser?.firstName, currentUser?.lastName].filter(Boolean).join(' ') || currentUser?.email || 'Technician';
   const remapClientChatNames = useCallback(
     (msg: ChatMessage): ChatMessage => {
       const author = msg.metadata?.author;
+      if (msg.role === 'user' && !author?.authorType) {
+        return {
+          ...msg,
+          metadata: { ...msg.metadata, author: { ...author, name: technicianName, authorType: 'admin' } },
+        };
+      }
       const name = author?.authorType === 'user' && clientDisplayName ? clientDisplayName : undefined;
       const shown = name ?? (msg.role === 'assistant' ? assistantName : undefined);
       return shown ? { ...msg, metadata: { ...msg.metadata, author: { ...author, name: shown } } } : msg;
     },
-    [clientDisplayName, assistantName],
+    [clientDisplayName, assistantName, technicianName],
   );
 
   // The receipt a ticket made by a form opens with: the lib's one copy, the Fae client's too. One object per what it
@@ -571,10 +436,11 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     [receiptTicketId, receiptCreationSource, receiptCreatedAt, receiptTitle, receiptDescription, assistantName],
   );
 
+  const hasOlderClientMessages = clientChat.hasMoreMessages;
   const clientChatMessages = useMemo(() => {
-    const visible = threadForDisplay(clientMessages).map(remapClientChatNames);
-    return ticketReceipt && !clientChat.hasNextPage ? [ticketReceipt, ...visible] : visible;
-  }, [clientMessages, remapClientChatNames, ticketReceipt, clientChat.hasNextPage]);
+    const visible = clientMessages.map(remapClientChatNames);
+    return ticketReceipt && !hasOlderClientMessages ? [ticketReceipt, ...visible] : visible;
+  }, [clientMessages, remapClientChatNames, ticketReceipt, hasOlderClientMessages]);
 
   const menuActions = useMemo<ActionsMenuGroup[]>(() => {
     if (!dialog) return [];
@@ -831,9 +697,9 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
           // its speaker's face — without it a Fae reply reads as the tail of
           // the end user's message above it.
           showAvatars={true}
-          isLoading={loading || clientChat.isLoading}
+          isLoading={loading || (clientChat.isMessagesLoading && clientMessages.length === 0)}
           isTyping={isClientChatTyping}
-          actions={clientChatActions}
+          actions={clientChat.actions}
           displayApprovalTypes={DISPLAY_APPROVAL_TYPES}
           assistantType={ASSISTANT_CONFIG.FAE.type}
           appearance={clientChatAppearance}
@@ -843,9 +709,9 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
           // here, so every turn names its speaker.
           selfAuthorType="admin"
           nameEveryTurn={true}
-          hasNextPage={clientChat.hasNextPage}
-          isFetchingNextPage={clientChat.isFetchingNextPage}
-          onLoadMore={clientChat.fetchNextPage}
+          hasNextPage={clientChat.hasMoreMessages}
+          isFetchingNextPage={clientChat.isMessagesLoading && clientMessages.length > 0}
+          onLoadMore={clientChat.loadMoreMessages}
           contentClassName="!max-w-full px-[var(--spacing-system-mf)]"
         />
       </div>
@@ -878,8 +744,8 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
           placeholder="Enter your Message..."
           disabled={loading}
           disabledPlaceholder="Enter your Message..."
-          onSend={sendClientMessageWithReject}
-          sending={isSendingClientMessage || isClientChatTyping || isClientCompacting}
+          onSend={text => void clientChat.sendMessage(text)}
+          sending={clientChat.isLoading || isClientChatTyping || isClientCompacting}
           autoFocus={false}
           className="mt-[var(--spacing-system-xsf)] !max-w-full rounded-lg bg-ods-card"
         />
@@ -959,13 +825,6 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
 
   return (
     <>
-      <TicketDialogSubscription
-        dialogId={messageDialogId}
-        dispatchChunk={dispatchChunk}
-        clientInitialOptStartSeq={clientInitialOptStartSeq}
-        isInitialOptStartSeqReady={isInitialOptStartSeqReady}
-        onCaughtUp={handleCaughtUp}
-      />
       {dialog && (
         <TicketNotificationsAutoReader
           ticketId={dialog.id}

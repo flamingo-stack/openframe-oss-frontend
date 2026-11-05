@@ -28,7 +28,7 @@ export interface DialogMessagesPage {
 
 interface DialogMessagesPageRequest {
   dialogId: string;
-  /** Only this chat of the dialog: the operator's Mingo, or a ticket's client side. */
+  /** Only this chat of the dialog: the operator's Mingo, or the end user's client chat. */
   chatType: MingoChatType;
   cursor?: string;
   limit: number;
@@ -36,7 +36,7 @@ interface DialogMessagesPageRequest {
 
 /**
  * One page of a dialog's persisted messages, read with the lib's one chat history document (the Fae client posts the
- * same one), for Mingo and a ticket's two sides alike. Rejects when the request or any GraphQL field fails: there is one
+ * same one), for the remote-session chat and the compaction watchers. Rejects when the request or any GraphQL field fails: there is one
  * shape, and an error is an error.
  */
 export async function fetchDialogMessagesPage({

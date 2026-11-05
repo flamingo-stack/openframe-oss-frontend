@@ -28,8 +28,6 @@ export interface LoginDiscoveryResult {
  * outside this list has no button to show, so it does not count.
  */
 const TENANT_SSO_PROVIDERS: Exclude<AuthSsoProvider, 'openframe'>[] = ['google', 'microsoft', 'apple'];
-/** The built-in login in `auth_providers`; 'openframe-sso' is its legacy id. */
-const OPENFRAME_IDS = ['openframe', 'openframe-sso'];
 
 export function toLoginDiscoveryResult(response: TenantDiscoveryResponse): LoginDiscoveryResult {
   return {
@@ -42,11 +40,7 @@ export function toLoginDiscoveryResult(response: TenantDiscoveryResponse): Login
         }
       : null,
     tenantName: response.tenant_name || undefined,
-    // An authorization server older than `openframe_login_enabled` reports the built-in login in
-    // `auth_providers` instead, and has no `custom_providers` — no custom SSO it could tell apart.
-    openframe:
-      response.openframe_login_enabled ??
-      (response.auth_providers || ['openframe']).some(id => OPENFRAME_IDS.includes(id)),
+    openframe: response.openframe_login_enabled === true,
     customProviders: TENANT_SSO_PROVIDERS.filter(provider => response.custom_providers?.includes(provider)),
   };
 }

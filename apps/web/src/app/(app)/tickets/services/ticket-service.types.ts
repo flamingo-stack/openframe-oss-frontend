@@ -1,15 +1,11 @@
+import type { DialogMessagesPage } from '@/lib/dialog-messages-page';
 import type { ChatType, DialogIntent, DialogModeValue } from '../constants';
-import type { CursorPageInfo, Dialog, Message, TicketActivityFilter } from '../types/dialog.types';
+import type { CursorPageInfo, Dialog, TicketActivityFilter } from '../types/dialog.types';
 
 export interface TicketsPage {
   dialogs: Dialog[];
   pageInfo: CursorPageInfo;
   filteredCount: number;
-}
-
-export interface MessagePage {
-  messages: Message[];
-  pageInfo: CursorPageInfo;
 }
 
 /**
@@ -169,7 +165,7 @@ export interface TicketService {
   /** The first `limit` tickets of the given lanes that the end user escalated. */
   fetchEscalatedTickets(params: FetchEscalatedTicketsParams): Promise<Dialog[]>;
   fetchDialog(id: string): Promise<Dialog | null>;
-  fetchMessages(params: FetchMessagesParams): Promise<MessagePage>;
+  fetchMessages(params: FetchMessagesParams): Promise<DialogMessagesPage>;
   transitionTicket(ticketId: string, toStatusId: string): Promise<void>;
   reorderTicket(params: ReorderTicketParams): Promise<void>;
   /** Resets the technicians' shared unread client-message counter of one dialog;

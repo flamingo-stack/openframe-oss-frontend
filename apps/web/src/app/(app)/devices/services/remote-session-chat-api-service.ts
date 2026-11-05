@@ -5,7 +5,7 @@ import {
   participantLinesOfRow,
 } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { ticketService } from '@/app/(app)/tickets/services';
-import type { Message } from '@/app/(app)/tickets/types/dialog.types';
+import type { DialogHistoryMessage } from '@/lib/dialog-messages-page';
 import {
   REMOTE_SESSION_END_USER_NAME,
   type RemoteSessionChatMessage,
@@ -43,7 +43,7 @@ function rowOf(
 }
 
 /** The rows of one persisted message: its people's lines; anything else (system notices, assistant turns) is none. */
-function rowsOf(message: Message): RemoteSessionChatMessage[] {
+function rowsOf(message: DialogHistoryMessage): RemoteSessionChatMessage[] {
   const lines = participantLinesOfRow(message).filter(line => line.author !== 'system');
   return lines.flatMap((line, index) => {
     const id = lines.length > 1 ? `${message.id}:${index}` : message.id;

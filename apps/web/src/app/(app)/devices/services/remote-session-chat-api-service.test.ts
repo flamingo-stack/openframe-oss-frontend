@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Message } from '@/app/(app)/tickets/types/dialog.types';
+import type { DialogHistoryMessage } from '@/lib/dialog-messages-page';
 import { REMOTE_SESSION_END_USER_NAME } from '../types/remote-session-chat';
 import { decodeRemoteSessionChatChunk, RemoteSessionChatApiService } from './remote-session-chat-api-service';
 
@@ -12,7 +12,7 @@ vi.mock('@/app/(app)/tickets/services', () => ({ ticketService: tickets }));
 
 const DIALOG_ID = '6ab3dc7f39817b02bf2d58a8';
 
-function message(overrides: Partial<Message> & { id: string }): Message {
+function message(overrides: Partial<DialogHistoryMessage> & { id: string }): DialogHistoryMessage {
   return {
     dialogId: DIALOG_ID,
     chatType: 'CLIENT_CHAT',
@@ -22,7 +22,7 @@ function message(overrides: Partial<Message> & { id: string }): Message {
     owner: { type: 'CLIENT', machineId: 'machine-1' },
     parts: [{ type: 'TEXT', text: '' }],
     ...overrides,
-  } as Message;
+  };
 }
 
 const service = new RemoteSessionChatApiService();

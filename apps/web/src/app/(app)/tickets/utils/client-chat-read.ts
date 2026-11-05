@@ -4,9 +4,9 @@ import type { TicketsPage } from '../services/ticket-service.types';
 import { dialogsQueryKeys } from './query-keys';
 
 /**
- * The END USER's rows carry this `authorType` on both the persisted history
- * (`useHistoricalMessages`) and the live direct-message intercept
- * (`useSideChunkProcessor`); technician rows are `'admin'`, assistants `'fae'`.
+ * The END USER's rows carry this `authorType` on both the persisted history and a
+ * live direct message (the lib's chat engine draws both); technician rows are
+ * `'admin'`, assistants `'fae'`.
  */
 const CLIENT_AUTHOR_TYPE = 'user';
 
