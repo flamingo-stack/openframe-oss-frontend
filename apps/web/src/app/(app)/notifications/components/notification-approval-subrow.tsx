@@ -14,7 +14,7 @@ import { useApproveRequest } from '@/app/components/notifications/use-approve-re
 interface NotificationApprovalSubRowProps {
   /** `null` while the list is read: the block draws its own loading form (a typical notification is an approval). */
   notification: Notification | null;
-  /** Called after a successful approve/reject (e.g. to mark the notification read). */
+  /** Called after a successful approve/reject, or when the request no longer waits (e.g. to mark the notification read). */
   onResolved?: (notificationId: string) => void;
 }
 
@@ -33,11 +33,10 @@ export function NotificationApprovalSubRow({ notification, onResolved }: Notific
     async (approve: boolean) => {
       if (!approval) return;
       setLocalStatus(approve ? 'approved' : 'rejected');
-      if (await approveRequest(approval.approvalRequestId, approve)) {
-        if (notification) onResolved?.(notification.id);
-      } else {
-        setLocalStatus(null); // roll back the optimistic flip; the request failed
-      }
+      const outcome = await approveRequest(approval.approvalRequestId, approve);
+      // Roll back the optimistic flip unless this click decided it.
+      if (outcome !== 'decided') setLocalStatus(null);
+      if (outcome !== 'failed' && notification) onResolved?.(notification.id);
     },
     [approval, approveRequest, onResolved, notification],
   );

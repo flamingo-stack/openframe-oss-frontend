@@ -13,7 +13,10 @@ import { APPROVAL_NOTIFICATIONS_QUERY_KEY } from './use-approval-sources';
 export interface ApprovalDecider {
   /** Cards decided here, kept on screen with their decision until the page is left. */
   kept: Readonly<Record<string, ApprovalCard>>;
-  /** The tile's Approve / Reject. Throws on failure, which is how the tile rolls its status back. */
+  /**
+   * The tile's Approve / Reject. Throws on failure, which is how the tile rolls its status
+   * back. A request the server says no longer waits leaves the list instead.
+   */
   decide: (card: ApprovalCard, approve: boolean) => Promise<void>;
   /** The tile's ✓, also called by the tile after a decision succeeded. */
   complete: (card: ApprovalCard) => void;
@@ -39,10 +42,14 @@ export function useApprovalDecider(): ApprovalDecider {
   const [kept, setKept] = useState<Readonly<Record<string, ApprovalCard>>>({});
 
   const decide = async (card: ApprovalCard, approve: boolean) => {
-    if (!(await approveRequest(card.approvalRequestId, approve))) throw new Error('approval request failed');
+    const outcome = await approveRequest(card.approvalRequestId, approve);
+    if (outcome === 'failed') throw new Error('approval request failed');
+    settleApprovalCaches(queryClient, card.approvalRequestId);
+    // No longer waiting, decided by nobody here: the card leaves the list (the hook recorded
+    // it), and the tile completes its notification as after a decision.
+    if (outcome === 'settled') return;
     const decision: ApprovalDecision = approve ? 'approved' : 'rejected';
     const resolvedByName = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email || null;
-    settleApprovalCaches(queryClient, card.approvalRequestId);
     if (card.dialogId) {
       const messages = useMingoMessagesStore.getState();
       if (messages.messagesByDialog.has(card.dialogId)) {
