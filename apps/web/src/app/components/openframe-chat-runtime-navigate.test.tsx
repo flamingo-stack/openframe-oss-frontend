@@ -137,7 +137,7 @@ describe('OpenframeChatRuntimeProvider navigate', () => {
     expect(mocks.push).toHaveBeenCalledWith(target);
   });
 
-  it("takes a doc path it was handed, the old hub's doc rows", async () => {
+  it('takes the doc path a link hands it', async () => {
     const navigate = await mount();
 
     expect(navigate({ href: 'https://www.flamingo.run/whatever', path: 'openframe-cli/README.md' })).toBe(true);

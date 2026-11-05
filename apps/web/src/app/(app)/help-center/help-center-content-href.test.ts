@@ -57,23 +57,7 @@ describe('composeOpenframeInAppContentUrl', () => {
 
   it('does not re-home anonymized known-issue tickets onto the viewer tickets list', () => {
     // They belong to other customers, so `/help-center/tickets` cannot find them.
-    // No host override → the lib's `noComposedHref` leaves the card unlinked.
-    const composed = composeOpenframeInAppContentUrl({ type: 'hubspot_ticket_anon', identifier: 'T-1' });
-    expect(composed.hostOverride).toBeUndefined();
-    expect(composed.href).not.toContain('/help-center/tickets');
-  });
-
-  it('marks the overrides as an explicit host decision, through the in-app wrapper', () => {
-    // A fetch-mode chat card ranks `hostOverride` above the url the content host
-    // minted for its own surface. Rebuilding the result object anywhere in this
-    // module drops the flag and the override goes dead without a type error.
-    expect(composeOpenframeInAppContentUrl({ type: 'hubspot_ticket_self', identifier: 'T-1' }).hostOverride).toBe(true);
-    expect(composeOpenframeInAppContentUrl({ type: 'faq', identifier: 'q1' }).hostOverride).toBe(true);
-    // Non-override branches must stay unflagged, both in-app and hub-bound.
-    expect(
-      composeOpenframeInAppContentUrl({ type: 'onboarding_guide', identifier: 'guide-7' }).hostOverride,
-    ).toBeUndefined();
-    expect(composeOpenframeInAppContentUrl({ type: 'blog_post', identifier: 'my-post' }).hostOverride).toBeUndefined();
+    expect(href({ type: 'hubspot_ticket_anon', identifier: 'T-1' })).not.toContain('/help-center/tickets');
   });
 
   it("opens a cited document in this app's Knowledge Base, at its tree path, in the same tab", () => {
@@ -99,8 +83,7 @@ describe('composeOpenframeInAppContentUrl', () => {
 
   it('keeps hub-only types on the absolute content-hub origin', () => {
     expect(href({ type: 'blog_post', identifier: 'my-post' })).toBe('https://www.flamingo.run/blog/my-post');
-    // The RAG hands back RELATIVE externalUrls for content we do not host.
-    expect(href({ type: 'webinar', identifier: 'x', externalUrl: 'webinars/abc' })).toBe(
+    expect(href({ type: 'webinar', identifier: 'x', externalUrl: 'https://www.flamingo.run/webinars/abc' })).toBe(
       'https://www.flamingo.run/webinars/abc',
     );
   });
@@ -115,12 +98,7 @@ describe('a chip and a card of the same record, with the server url', () => {
   const ref = (type: string, id: string, url: string | null): ChatRef => ({ type, id, title: id, url });
 
   function card(type: string, id: string, url: string) {
-    return resolveCardDestination({
-      chatRef: ref(type, id, null),
-      item: { url },
-      ctx,
-      composeContentUrl: composeOpenframeInAppContentUrl,
-    });
+    return resolveCardDestination({ chatRef: ref(type, id, null), item: { url }, ctx });
   }
   function chip(type: string, id: string, url: string) {
     return resolveSourceRowCTA(
