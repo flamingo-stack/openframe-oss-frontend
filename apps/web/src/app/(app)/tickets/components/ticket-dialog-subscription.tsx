@@ -1,11 +1,9 @@
 'use client';
 
-import { type ChunkData, useJetStreamDialogSubscription } from '@flamingo-stack/openframe-frontend-core';
-import { useCallback, useEffect, useRef } from 'react';
-import { useNatsAppConfig } from '@/lib/nats/nats-app-config';
+import type { ChunkData } from '@flamingo-stack/openframe-frontend-core';
+import { useEffect, useRef } from 'react';
+import { useAppLiveTail } from '@/lib/nats/use-app-live-tail';
 import { NATS_TOPICS } from '../constants';
-
-const CHAT_CHUNKS_STREAM = 'CHAT_CHUNKS';
 
 interface TicketDialogSubscriptionProps {
   dialogId: string | null;
@@ -15,11 +13,17 @@ interface TicketDialogSubscriptionProps {
   clientInitialOptStartSeq: number;
   /** Gates JetStream consumer creation until history has loaded. */
   isInitialOptStartSeqReady: boolean;
-  /** Fired when the CLIENT tail's `caughtUpCount` moves: the moment to refetch
-   *  persisted history after a gap (see `caughtUpCount`). */
+  /** The CLIENT tail came back after a gap and delivered what the stream held: the moment to refetch persisted
+   *  history. */
   onCaughtUp?: () => void;
 }
 
+const noop = () => {};
+
+/**
+ * A ticket's client chat, on the lib's JetStream tail (`jetStreamLiveTail`): the tail every chat runs, which drops a
+ * redelivered chunk by its stream sequence and reports a resync after a gap.
+ */
 export function TicketDialogSubscription({
   dialogId,
   dispatchChunk,
@@ -27,54 +31,20 @@ export function TicketDialogSubscription({
   isInitialOptStartSeqReady,
   onCaughtUp,
 }: TicketDialogSubscriptionProps) {
-  const { getWsUrl, onBeforeReconnect } = useNatsAppConfig();
-
-  const dispatchRef = useRef(dispatchChunk);
+  const latest = useRef({ dispatchChunk, onCaughtUp });
   useEffect(() => {
-    dispatchRef.current = dispatchChunk;
-  }, [dispatchChunk]);
-
-  // JetStream redeliveries may repeat a streamSeq during reconnect; drop any
-  // we've already applied.
-  const lastClientStreamSeqRef = useRef<number>(-1);
-
-  // dialogId change is the reset trigger
-  useEffect(() => {
-    lastClientStreamSeqRef.current = -1;
-  }, [dialogId]);
-
-  const handleClientJsEvent = useCallback((payload: unknown) => {
-    const chunk = payload as ChunkData;
-    if (typeof chunk.streamSeq === 'number') {
-      if (chunk.streamSeq <= lastClientStreamSeqRef.current) return;
-      lastClientStreamSeqRef.current = chunk.streamSeq;
-    }
-    dispatchRef.current(chunk);
-  }, []);
-
-  const { caughtUpCount } = useJetStreamDialogSubscription({
-    enabled: !!dialogId && isInitialOptStartSeqReady,
-    dialogId,
-    streamName: CHAT_CHUNKS_STREAM,
-    topic: NATS_TOPICS.MESSAGE,
-    optStartSeq: clientInitialOptStartSeq,
-    onEvent: handleClientJsEvent,
-    onBeforeReconnect,
-    getNatsWsUrl: getWsUrl,
+    latest.current = { dispatchChunk, onCaughtUp };
   });
 
-  const onCaughtUpRef = useRef(onCaughtUp);
-  useEffect(() => {
-    onCaughtUpRef.current = onCaughtUp;
-  }, [onCaughtUp]);
-
-  // The ref keeps a repeated read from re-notifying the parent.
-  const lastNotifiedCatchUpRef = useRef(0);
-  useEffect(() => {
-    if (caughtUpCount <= lastNotifiedCatchUpRef.current) return;
-    lastNotifiedCatchUpRef.current = caughtUpCount;
-    onCaughtUpRef.current?.();
-  }, [caughtUpCount]);
+  useAppLiveTail(NATS_TOPICS.MESSAGE, {
+    enabled: !!dialogId,
+    dialogId,
+    // Unknown until the history has loaded: the tail opens once it is.
+    fromSeq: isInitialOptStartSeqReady ? clientInitialOptStartSeq : undefined,
+    onEvent: payload => latest.current.dispatchChunk(payload as ChunkData),
+    onConnect: noop,
+    onResync: () => latest.current.onCaughtUp?.(),
+  });
 
   return null;
 }

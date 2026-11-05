@@ -1,16 +1,15 @@
 'use client';
 
-import { useJetStreamDialogSubscription } from '@flamingo-stack/openframe-frontend-core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NATS_TOPICS } from '@/app/(app)/tickets/constants';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { getFullImageUrl } from '@/lib/image-url';
-import { useNatsAppConfig } from '@/lib/nats/nats-app-config';
+import { useAppLiveTail } from '@/lib/nats/use-app-live-tail';
 import { useRemoteAccessSession } from '../components/remote-access/remote-access-session-context';
 import { decodeRemoteSessionChatChunk, remoteSessionChatApiService } from '../services/remote-session-chat-api-service';
 import type { RemoteSessionChatMessage, RemoteSessionChatTechnician } from '../types/remote-session-chat';
 
-const CHAT_CHUNKS_STREAM = 'CHAT_CHUNKS';
+const noop = () => {};
 
 /**
  * The chat dialog of the current remote session: the id the session record
@@ -146,33 +145,21 @@ export function useRemoteSessionChat(dialogId: string | null, panelOpen = false)
     };
   }, [dialogId, historyRevision]);
 
-  // The dialog's feed, from the page's tail once the page is in.
-  const { getWsUrl, onBeforeReconnect } = useNatsAppConfig();
+  // The dialog's feed (the lib's JetStream tail, `useAppLiveTail`), from the page's tail once the page is in; after a gap, once the
+  // replay is in, the page is read again.
   const current = store.dialogId === dialogId ? store : EMPTY_STORE;
-  const { caughtUpCount } = useJetStreamDialogSubscription({
-    enabled: dialogId !== null && current.historyLoaded,
+  useAppLiveTail(NATS_TOPICS.MESSAGE, {
+    enabled: dialogId !== null,
     dialogId,
-    streamName: CHAT_CHUNKS_STREAM,
-    topic: NATS_TOPICS.MESSAGE,
-    optStartSeq: current.lastSeq,
-    onEvent: useCallback(
-      (payload: unknown) => {
-        if (!dialogId) return;
-        const row = decodeRemoteSessionChatChunk(payload, technicianRef.current);
-        if (row) deliver(dialogId, row);
-      },
-      [dialogId, deliver],
-    ),
-    onBeforeReconnect,
-    getNatsWsUrl: getWsUrl,
+    fromSeq: current.historyLoaded ? current.lastSeq : undefined,
+    onEvent: payload => {
+      if (!dialogId) return;
+      const row = decodeRemoteSessionChatChunk(payload, technicianRef.current);
+      if (row) deliver(dialogId, row);
+    },
+    onConnect: noop,
+    onResync: () => setHistoryRevision(n => n + 1),
   });
-  // After a gap, once the replay is in (see `caughtUpCount`).
-  const lastCatchUpRef = useRef(0);
-  useEffect(() => {
-    if (caughtUpCount <= lastCatchUpRef.current) return;
-    lastCatchUpRef.current = caughtUpCount;
-    setHistoryRevision(n => n + 1);
-  }, [caughtUpCount]);
 
   const send = useCallback(
     async (body: string) => {

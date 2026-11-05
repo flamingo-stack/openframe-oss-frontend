@@ -16,10 +16,10 @@ const feed = vi.hoisted(() => ({
   history: vi.fn(),
 }));
 
-vi.mock('@flamingo-stack/openframe-frontend-core', () => ({
-  useJetStreamDialogSubscription: (options: { onEvent: (payload: unknown) => void }) => {
+// The lib's JetStream tail, as the hook calls it.
+vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({
+  jetStreamLiveTail: () => (options: { onEvent: (payload: unknown) => void }) => {
     feed.onEvent = options.onEvent;
-    return { caughtUpCount: 0 };
   },
 }));
 vi.mock('@/lib/nats/nats-app-config', () => ({
