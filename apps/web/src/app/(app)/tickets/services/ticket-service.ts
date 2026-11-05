@@ -1,15 +1,22 @@
+import {
+  MINGO_CREATE_DIALOG_MUTATION,
+  MINGO_RESOLVE_APPROVAL_REQUEST_MUTATION,
+  MINGO_SEND_MESSAGE_MUTATION,
+  MINGO_STOP_DIALOG_GENERATION_MUTATION,
+  MINGO_UPDATE_DIALOG_MODE_MUTATION,
+  type MingoCreateDialogInput,
+  type MingoResolveApprovalRequestInput,
+  type MingoSendMessageInput,
+  type MingoStopDialogGenerationInput,
+  type MingoUpdateDialogModeInput,
+  type MingoUserErrors,
+  throwOnUserErrors,
+} from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { noteApprovalDecision } from '@/app/components/approvals/approval-decisions';
 import { apiClient } from '@/lib/api-client';
 import { fetchDialogMessagesPage } from '@/lib/dialog-messages-page';
 import type { ChatType, DialogModeValue } from '../constants';
 import { API_ENDPOINTS } from '../constants';
-import {
-  CREATE_DIALOG_MUTATION,
-  RESOLVE_APPROVAL_REQUEST_MUTATION,
-  SEND_MESSAGE_MUTATION,
-  STOP_DIALOG_GENERATION_MUTATION,
-  UPDATE_DIALOG_MODE_MUTATION,
-} from '../queries/dialogs-queries';
 import {
   GET_TICKET_QUERY,
   GET_TICKET_STATUS_TRANSITION_RULES_QUERY,
@@ -142,11 +149,7 @@ interface StatusMutationPayload {
   userErrors: Array<{ field?: string[]; message: string }>;
 }
 
-interface CommandPayload {
-  userErrors: Array<{ field?: string[]; message: string }>;
-}
-
-interface CreateDialogPayload extends CommandPayload {
+interface CreateDialogPayload extends MingoUserErrors {
   dialog: { dialogId: string } | null;
 }
 
@@ -155,7 +158,8 @@ interface MarkDialogMessagesReadPayload {
   userErrors: Array<{ field?: string[]; message: string }>;
 }
 
-async function runCommand<P extends CommandPayload = CommandPayload>(
+/** One of the ai-agent's chat commands (the lib's documents): its payload, or the first user error it refused with. */
+async function runCommand<P extends MingoUserErrors = MingoUserErrors>(
   field: string,
   query: string,
   input: object,
@@ -166,9 +170,7 @@ async function runCommand<P extends CommandPayload = CommandPayload>(
   });
 
   const payload = extractGraphQlData(response)[field];
-  if (payload.userErrors?.length) {
-    throw new Error(payload.userErrors[0].message);
-  }
+  throwOnUserErrors(payload);
   return payload;
 }
 
@@ -443,7 +445,8 @@ export class TicketService implements TicketServiceInterface {
   }
 
   async createDialog(params: CreateDialogParams): Promise<string> {
-    const { dialog } = await runCommand<CreateDialogPayload>('createDialog', CREATE_DIALOG_MUTATION, params);
+    const input: MingoCreateDialogInput = params;
+    const { dialog } = await runCommand<CreateDialogPayload>('createDialog', MINGO_CREATE_DIALOG_MUTATION, input);
     if (!dialog?.dialogId) {
       throw new Error('Invalid response: dialog id not found');
     }
@@ -451,11 +454,13 @@ export class TicketService implements TicketServiceInterface {
   }
 
   async updateDialogMode(dialogId: string, mode: DialogModeValue): Promise<void> {
-    await runCommand('updateDialogMode', UPDATE_DIALOG_MODE_MUTATION, { id: dialogId, mode });
+    const input: MingoUpdateDialogModeInput = { id: dialogId, mode };
+    await runCommand('updateDialogMode', MINGO_UPDATE_DIALOG_MODE_MUTATION, input);
   }
 
   async stopDialogGeneration(dialogId: string, chatType: ChatType): Promise<void> {
-    await runCommand('stopDialogGeneration', STOP_DIALOG_GENERATION_MUTATION, { id: dialogId, chatType });
+    const input: MingoStopDialogGenerationInput = { id: dialogId, chatType };
+    await runCommand('stopDialogGeneration', MINGO_STOP_DIALOG_GENERATION_MUTATION, input);
   }
 
   async sendMessage(
@@ -465,7 +470,7 @@ export class TicketService implements TicketServiceInterface {
     context?: SendMessageContext,
   ): Promise<void> {
     const { contextItems, currentView, recentViews, currentPage, currentList } = context ?? {};
-    await runCommand('sendMessage', SEND_MESSAGE_MUTATION, {
+    const input: MingoSendMessageInput = {
       dialogId,
       content,
       chatType,
@@ -474,11 +479,13 @@ export class TicketService implements TicketServiceInterface {
       ...(recentViews?.length ? { recentViews } : {}),
       ...(currentPage ? { currentPage } : {}),
       ...(currentList ? { currentList } : {}),
-    });
+    };
+    await runCommand('sendMessage', MINGO_SEND_MESSAGE_MUTATION, input);
   }
 
   async resolveApprovalRequest(requestId: string, approve: boolean): Promise<void> {
-    await runCommand('resolveApprovalRequest', RESOLVE_APPROVAL_REQUEST_MUTATION, { id: requestId, approve });
+    const input: MingoResolveApprovalRequestInput = { id: requestId, approve };
+    await runCommand('resolveApprovalRequest', MINGO_RESOLVE_APPROVAL_REQUEST_MUTATION, input);
     // Every surface decides through here, so this is where the Needs approval page and its
     // badge learn that a request is settled, whichever surface settled it.
     noteApprovalDecision(requestId, approve);
