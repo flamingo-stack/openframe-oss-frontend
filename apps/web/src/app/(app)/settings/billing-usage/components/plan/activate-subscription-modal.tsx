@@ -135,9 +135,11 @@ function ActivateSubscriptionBody({ copy, query }: ActivateSubscriptionBodyProps
         )}
         <div className="flex flex-col items-stretch gap-[var(--spacing-system-mf)] sm:flex-row sm:items-center">
           <PlanTotalSummary
+            mode={form.deviceUpdates?.mode ?? null}
             total={form.selectionTotal}
             topUpUsd={form.tokenAmountUsd}
             showAiNote={form.showAiCard}
+            firstBillingDate={form.paygFirstBillingDate}
             loading={form.loading}
             className="flex-1"
           />

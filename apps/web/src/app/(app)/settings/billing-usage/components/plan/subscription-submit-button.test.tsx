@@ -128,3 +128,30 @@ describe('SubscriptionSubmitButton label', () => {
     expect(button.textContent).not.toContain('Proceed to Payment');
   });
 });
+
+describe('SubscriptionSubmitButton checkout input', () => {
+  const checkout = (tokenAmountUsd: number | null, autoTopUpEnabled: boolean) => {
+    const button = render(
+      <SubscriptionSubmitButton
+        needsCheckout
+        packageUpdates={[]}
+        checkoutProducts={CHECKOUT_PRODUCTS}
+        hasInvalidCustom={false}
+        tokenAmountUsd={tokenAmountUsd}
+        autoTopUpEnabled={autoTopUpEnabled}
+      />,
+    );
+    act(() => button.click());
+    return spies.createCheckout.mock.calls[0][0];
+  };
+
+  it('sends the top-up and its switch together', () => {
+    expect(checkout(50, true)).toEqual({ products: CHECKOUT_PRODUCTS, tokenAmountUsd: 50, autoTopUpEnabled: true });
+  });
+
+  it.each([null, 0])('never sends auto top-up on beside no amount (%s): "Don\'t top up"', amount => {
+    const input = checkout(amount, true);
+    expect(input.tokenAmountUsd).toBeUndefined();
+    expect(input.autoTopUpEnabled).toBeUndefined();
+  });
+});

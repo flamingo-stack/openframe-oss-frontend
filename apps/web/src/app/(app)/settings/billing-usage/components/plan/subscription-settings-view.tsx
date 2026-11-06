@@ -165,18 +165,22 @@ function PaywallBody({ copy, query }: PaywallBodyProps) {
       {/* The mobile submit bar is fixed to the viewport, so the total it applies
           to rides in the page flow above it rather than inside it. */}
       <PlanTotalSummary
+        mode={form.deviceUpdates?.mode ?? null}
         total={form.selectionTotal}
         topUpUsd={form.tokenAmountUsd}
         showAiNote={form.showAiCard}
+        firstBillingDate={form.paygFirstBillingDate}
         loading={form.loading}
         className="md:hidden"
       />
 
       <div className="hidden flex-row items-center gap-6 md:flex">
         <PlanTotalSummary
+          mode={form.deviceUpdates?.mode ?? null}
           total={form.selectionTotal}
           topUpUsd={form.tokenAmountUsd}
           showAiNote={form.showAiCard}
+          firstBillingDate={form.paygFirstBillingDate}
           loading={form.loading}
           className="max-w-[500px] flex-1"
         />
