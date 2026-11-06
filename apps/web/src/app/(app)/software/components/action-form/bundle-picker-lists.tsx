@@ -186,6 +186,8 @@ export function BundlePickerLists(props: BundlePickerListsProps) {
     return (
       <ServerDevicePickerLists
         {...lists}
+        // Design 1572:2004: specific devices, "by criteria" coming soon (bundles have no criteria yet).
+        showSelectionModeRadio
         loading
         available={NO_HALF}
         selected={NO_HALF}
@@ -255,6 +257,7 @@ function BundlePickerListsQuery({
   // without funnels instead of taking the picker down (see `BundleDeviceFacets`).
   const lists = (filterOptions: DeviceFilters) => (
     <ServerDevicePickerLists
+      showSelectionModeRadio
       available={{
         connection: (available.data as AvailableFragmentData | null)?.availableDevices,
         hasNext: available.hasNext,
