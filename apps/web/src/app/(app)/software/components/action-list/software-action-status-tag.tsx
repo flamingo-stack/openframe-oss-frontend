@@ -8,7 +8,7 @@ import { presentationFor } from '@/lib/exhaustive-map';
 interface ActionStatusPresentation {
   label: string;
   variant: 'warning' | 'success' | 'error' | 'outline';
-  /** Still running — drawn with the loader glyph. */
+  /** Not over yet (running, or on hold on a device) — drawn with the loader glyph. */
   inFlight?: boolean;
 }
 
@@ -16,8 +16,9 @@ interface ActionStatusPresentation {
 const SOFTWARE_ACTION_STATUS: Record<SoftwareActionStatus, ActionStatusPresentation> = {
   [SoftwareActionStatus.SCHEDULED]: { label: 'Scheduled', variant: 'warning' },
   [SoftwareActionStatus.IN_PROGRESS]: { label: 'In Progress', variant: 'outline', inFlight: true },
-  // An update on hold on a device: the user's prompt or an app still open.
-  [SoftwareActionStatus.WAITING]: { label: 'Waiting', variant: 'warning' },
+  // An update on hold on a device: the app is still open. Drawn with the loader glyph, as the design has it: it is
+  // not over yet.
+  [SoftwareActionStatus.WAITING]: { label: 'Waiting', variant: 'warning', inFlight: true },
   [SoftwareActionStatus.COMPLETED]: { label: 'Success', variant: 'success' },
   [SoftwareActionStatus.FAILED]: { label: 'Failed', variant: 'error' },
 };

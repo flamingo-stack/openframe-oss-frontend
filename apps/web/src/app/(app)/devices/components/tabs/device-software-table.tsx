@@ -74,7 +74,7 @@ export function DeviceSoftwareTable(props: DeviceSoftwareTableProps) {
  * fallback) it draws the table's own loading state and runs no query; otherwise the query below.
  */
 function DeviceSoftwareTableReader(props: DeviceSoftwareTableProps) {
-  if (useLoadingScope()) return <SoftwareTable stickyHeaderOffset={props.stickyHeaderOffset} />;
+  if (useLoadingScope()) return <SoftwareTable surface="device" stickyHeaderOffset={props.stickyHeaderOffset} />;
   return <DeviceSoftwareTableQuery {...props} />;
 }
 
@@ -107,6 +107,7 @@ function DeviceSoftwareTableQuery({
 
   return (
     <SoftwareTable
+      surface="device"
       rows={rows}
       totalCount={data.deviceSoftware.filteredCount}
       debouncedSearch={debouncedSearch}

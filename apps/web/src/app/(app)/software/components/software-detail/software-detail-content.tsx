@@ -8,6 +8,7 @@ import type { softwareDetailContentQuery as SoftwareDetailContentQueryType } fro
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
 import { useTrackOpenView } from '@/app/(app)/mingo/context/use-track-open-view';
 import { useRetryKey } from '@/app/components/shared';
+import { SoftwareAutoUpdateBanner } from './software-auto-update-banner';
 import { SoftwareDetailHeader } from './software-detail-header';
 import { SoftwareDetailSummary } from './software-detail-summary';
 
@@ -26,6 +27,7 @@ const softwareDetailContentQuery = graphql`
       # chosen by in the picker.
       name
       ...softwareDetailHeader_software
+      ...softwareAutoUpdateBanner_software
       ...softwareDetailSummary_software
     }
   }
@@ -82,7 +84,14 @@ function SoftwareDetailContentQuery({ softwareId }: { softwareId: string }) {
   return (
     <>
       <SoftwareDetailHeader software={software} />
-      {software ? <SoftwareDetailSummary software={software} /> : <NotFoundError message="Software not found" />}
+      {software ? (
+        <div className="flex flex-col gap-[var(--spacing-system-l)]">
+          <SoftwareAutoUpdateBanner software={software} />
+          <SoftwareDetailSummary software={software} />
+        </div>
+      ) : (
+        <NotFoundError message="Software not found" />
+      )}
     </>
   );
 }
