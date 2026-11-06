@@ -254,9 +254,9 @@ describe('usersCountLabel', () => {
   it('pluralises and renders the empty mark before the first read', () => {
     expect(usersCountLabel(null)).toBe(EMPTY_VALUE);
     expect(usersCountLabel(undefined)).toBe(EMPTY_VALUE);
-    expect(usersCountLabel(0)).toBe('0 users');
-    expect(usersCountLabel(1)).toBe('1 user');
-    expect(usersCountLabel(227)).toBe('227 users');
+    expect(usersCountLabel(0)).toBe('0 Users');
+    expect(usersCountLabel(1)).toBe('1 User');
+    expect(usersCountLabel(227)).toBe('227 Users');
   });
 });
 

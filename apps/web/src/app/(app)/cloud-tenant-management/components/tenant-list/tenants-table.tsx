@@ -2,7 +2,7 @@
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
-  type TenantRow,
+  type MultiCustomerTenantRow,
   type TenantsTableFilters,
   TenantsTableView,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
@@ -37,7 +37,7 @@ const tenantsTableQuery = graphql`
   }
 `;
 
-// The fields of a row are the core library's `TenantRow`: its cells take plain props, so the
+// The fields of a row are the core library's `MultiCustomerTenantRow`: its cells take plain props, so the
 // selection lives here. `access` is a (TTL-cached) provider probe per row; the list is where the
 // design shows it.
 const tenantsTableFragment = graphql`
@@ -84,7 +84,7 @@ const tenantsTableFragment = graphql`
   }
 `;
 
-const tenantRowHref = (row: TenantRow) => routes.cloudTenantManagement.details(row.id);
+const tenantRowHref = (row: MultiCustomerTenantRow) => routes.cloudTenantManagement.details(row.id);
 
 interface TenantsTableProps {
   search: string;
@@ -117,6 +117,7 @@ function TenantsTableReader(props: TenantsTableProps) {
     return (
       <TenantsTableView
         rows={NO_ITEMS}
+        variant="multi-customer"
         getHref={tenantRowHref}
         search={props.search}
         filters={props.filters}
@@ -152,7 +153,7 @@ function TenantsTableQuery({
   >(tenantsTableFragment, queryData);
 
   const { edges, totalCount } = data.directoryConnections;
-  const rows = useMemo<TenantRow[]>(
+  const rows = useMemo<MultiCustomerTenantRow[]>(
     () =>
       edges.map(({ node }) => ({
         id: node.id,
@@ -198,6 +199,7 @@ function TenantsTableQuery({
   return (
     <TenantsTableView
       rows={rows}
+      variant="multi-customer"
       getHref={tenantRowHref}
       search={search}
       filters={filters}

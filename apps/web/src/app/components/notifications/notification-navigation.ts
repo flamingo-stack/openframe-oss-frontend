@@ -13,9 +13,11 @@ import {
   readConnectionIds,
   readNotificationAttributes,
 } from '@/graphql/notifications/notification-attributes';
+import { featureFlags } from '@/lib/feature-flags';
 import { ensureGlobalIdForType } from '@/lib/relay-id';
 import { mingoDialogLink, routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
+import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 
 // Backend notification `type` discriminators (`TenantNotificationType`). GraphQL rows and NATS
 // payloads carry the same string, so it is the single source of truth for routing.
@@ -203,6 +205,15 @@ type NotificationFacts = Record<(typeof NOTIFICATION_ACTION_FIELDS)[number], str
   connections: string | null;
 };
 
+/**
+ * The two attribution notices are Tenant Management Phase 2's: with it off they take the unknown-type routing, as on
+ * main. Only an answered "off" counts as off: a cold desktop or push tap resolves once, before the flags answer, and an
+ * environment running phase 2 off never sends them.
+ */
+function routesDirectoryNotices(): boolean {
+  return !useFeatureFlagsStore.getState().isLoaded || featureFlags.tenantManagementV2.enabled();
+}
+
 function resolveAction(
   type: string | null,
   { ticketId, dialogId, insightId, recordingId, deviceId, link, connectionId, connections }: NotificationFacts,
@@ -236,13 +247,13 @@ function resolveAction(
   }
 
   // The deleted group or org unit was a rule of one tenant's: its page shows the rule and is where it is replaced.
-  if (type === DIRECTORY_RULE_VALUE_REMOVED_TYPE) {
+  if (type === DIRECTORY_RULE_VALUE_REMOVED_TYPE && routesDirectoryNotices()) {
     return connectionId ? tenantAction(connectionId) : TENANT_LIST_ACTION;
   }
 
   // The customer's rules matched users on these tenants: one opens its page, several (or a push that dropped the
   // list) the tenant list.
-  if (type === DIRECTORY_CUSTOMER_DEACTIVATED_TYPE) {
+  if (type === DIRECTORY_CUSTOMER_DEACTIVATED_TYPE && routesDirectoryNotices()) {
     const [only, ...others] = readConnectionIds(connections);
     return only && others.length === 0 ? tenantAction(only) : TENANT_LIST_ACTION;
   }

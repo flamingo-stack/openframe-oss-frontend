@@ -92,12 +92,12 @@ function ArticlesTab({ organizationId }: CustomerTabProps) {
 export const CUSTOM_AI_ASSISTANT_TAB_ID = 'custom-ai-assistant' satisfies CustomerDetailTab;
 export const CUSTOMER_GUARDRAILS_TAB_ID = 'customer-ai-guardrails' satisfies CustomerDetailTab;
 export const CUSTOMER_DEVICE_GUARDRAILS_TAB_ID = 'customer-device-guardrails' satisfies CustomerDetailTab;
-export const CUSTOMER_USERS_TAB_ID = 'users' satisfies CustomerDetailTab;
-export const CUSTOMER_GROUPS_TAB_ID = 'user-groups' satisfies CustomerDetailTab;
+const CUSTOMER_USERS_TAB_ID = 'users' satisfies CustomerDetailTab;
+const CUSTOMER_GROUPS_TAB_ID = 'user-groups' satisfies CustomerDetailTab;
 
 const DEVICES_TAB: TabItem = { id: 'devices', label: 'Devices', icon: MonitorIcon, component: DevicesTab };
 
-// After Devices (Figma 733:98943, 733:99271). Behind `tenant-management`, SaaS only.
+// After Devices (Figma 733:98943, 733:99271). Behind `tenant-management-v2`, SaaS only.
 const USERS_TAB: TabItem = { id: CUSTOMER_USERS_TAB_ID, label: 'Users', icon: UsersIcon, component: UsersTab };
 const GROUPS_TAB: TabItem = { id: CUSTOMER_GROUPS_TAB_ID, label: 'Groups', icon: UsersGroupIcon, component: GroupsTab };
 
@@ -149,7 +149,7 @@ const ALL_CUSTOMER_TABS: TabItem[] = [
 ];
 
 interface CustomerTabsVisibility {
-  /** The customer's directory users and groups (saas-tenant, `tenant-management` gate). */
+  /** The customer's directory users and groups (saas-tenant, `useTenantManagementV2Gate` on). */
   showDirectory: boolean;
   /** Customer AI configuration view (saas-tenant: per-org settings live in the saas-ai-agent). */
   showCustomAiAssistant: boolean;

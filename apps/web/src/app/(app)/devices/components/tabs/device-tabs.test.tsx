@@ -1,6 +1,9 @@
 /**
  * The Users tab swaps the machine's local accounts for directory users only where the tenant has a directory. A tenant
- * without one must keep its local accounts: "No users yet" there would hide accounts the machine really has.
+ * without one must keep its local accounts: "No users yet" there would hide accounts the machine really has. While the
+ * flags are read, the page is main's (stage and prod run without `tenant-management-v2`): local accounts in their loading
+ * form, and no Directory tab. Once phase 2 is on and only the synced-connection count is out, the directory tabs keep
+ * their place in their loading form.
  */
 
 import { act, type ComponentType } from 'react';
@@ -8,13 +11,26 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FeatureFlagGate } from '@/lib/feature-flags';
 
+const flags = vi.hoisted(() => ({ phase2: 'on' as FeatureFlagGate }));
+vi.mock('@/app/(app)/cloud-tenant-management/components/shared/use-tenant-management-gate', () => ({
+  useTenantManagementV2Gate: () => flags.phase2,
+}));
 vi.mock('../../hooks/use-session-recordings-gate', () => ({ useSessionRecordingsGate: () => 'on' }));
 vi.mock('@/app/(app)/incidents/hooks/use-incidents-gate', () => ({ useIncidentsGate: () => 'on' }));
 
 // The tabs are stand-ins: what is under test is which one each gate value picks, and the real ones need Relay.
-vi.mock('./users-tab', () => ({ UsersTab: () => <div>local accounts</div> }));
-vi.mock('./directory-users-tab', () => ({ DirectoryUsersTab: () => <div>directory users</div> }));
-vi.mock('./directory-tab', () => ({ DirectoryTab: () => <div>directory records</div> }));
+vi.mock('./users-tab', async () => {
+  const { useLoadingScope } = await import('@flamingo-stack/openframe-frontend-core/components/ui');
+  return { UsersTab: () => <div>{useLoadingScope() ? 'local accounts, loading' : 'local accounts'}</div> };
+});
+vi.mock('./directory-users-tab', async () => {
+  const { useLoadingScope } = await import('@flamingo-stack/openframe-frontend-core/components/ui');
+  return { DirectoryUsersTab: () => <div>{useLoadingScope() ? 'directory users, loading' : 'directory users'}</div> };
+});
+vi.mock('./directory-tab', async () => {
+  const { useLoadingScope } = await import('@flamingo-stack/openframe-frontend-core/components/ui');
+  return { DirectoryTab: () => <div>{useLoadingScope() ? 'directory records, loading' : 'directory records'}</div> };
+});
 vi.mock('./agents-tab', () => ({ AgentsTab: () => null }));
 vi.mock('./device-logs/device-logs-tab', () => ({ DeviceLogsTab: () => null }));
 vi.mock('./hardware-tab', () => ({ HardwareTab: () => null }));
@@ -65,6 +81,7 @@ function tabIds(gate: FeatureFlagGate) {
 
 describe('device tabs and the directory gate', () => {
   beforeEach(() => {
+    flags.phase2 = 'on';
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -86,8 +103,22 @@ describe('device tabs and the directory gate', () => {
     expect(tabIds('on')).toContain('directory');
   });
 
-  it('keeps the Directory tab in place while the gate is read, so a link to it survives', () => {
+  it("draws main's Users tab in its loading form, and no Directory tab, while the flags are read", () => {
+    flags.phase2 = 'loading';
+    expect(tabIds('loading')).not.toContain('directory');
+    expect(tabIds('loading')).toContain('users');
+    expect(renderTab('users', 'loading')).toBe('local accounts, loading');
+  });
+
+  it('keeps the directory tabs in place, loading, while phase 2 is on and the connection count is out', () => {
     expect(tabIds('loading')).toContain('directory');
-    expect(renderTab('users', 'loading')).not.toContain('local accounts');
+    expect(renderTab('users', 'loading')).toBe('directory users, loading');
+    expect(renderTab('directory', 'loading')).toBe('directory records, loading');
+  });
+
+  it("is main's page where phase 2 is off", () => {
+    flags.phase2 = 'off';
+    expect(tabIds('off')).not.toContain('directory');
+    expect(renderTab('users', 'off')).toBe('local accounts');
   });
 });

@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Notification } from '@flamingo-stack/openframe-frontend-core';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { toGlobalId } from '@/lib/relay-id';
+import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 import {
   followNotificationTap,
   natsNotificationRawId,
@@ -261,11 +262,18 @@ describe('re-consent notice', () => {
   });
 });
 
+const TM2_ON = { 'tenant-management': true, 'tenant-management-v2': true };
+const TM2_OFF = { 'tenant-management': true, 'tenant-management-v2': false };
+
 /**
  * The attribution notices: a group or org unit deleted in a directory opens the tenant whose rule it was; a customer
- * archived or deleted opens the one tenant its rules matched users on, or the list when there were several.
+ * archived or deleted opens the one tenant its rules matched users on, or the list when there were several. They are
+ * Tenant Management Phase 2's: with `tenant-management-v2` off they route as main does, as unknown types.
  */
 describe('attribution notices', () => {
+  beforeEach(() => useFeatureFlagsStore.setState({ flags: TM2_ON, isLoaded: true }));
+  afterEach(() => useFeatureFlagsStore.getState().reset());
+
   const tenantPage = (id: string) => `/cloud-tenant-management/details?id=${id}`;
   const twoConnections = JSON.stringify([
     { id: 'c-1', name: 'Acme', provider: 'MICROSOFT_365', userCount: 12 },
@@ -305,6 +313,36 @@ describe('attribution notices', () => {
     expect(
       resolvePushNotificationAction({ type: 'DIRECTORY_CUSTOMER_DEACTIVATED', organizationId: 'o-1' })?.route,
     ).toBe('/cloud-tenant-management');
+  });
+
+  // A cold desktop or push tap resolves once, before the flags answer; an environment running phase 2 off never
+  // sends these types.
+  it('routes them while the flags are unanswered', () => {
+    useFeatureFlagsStore.setState({ flags: {}, isLoaded: false });
+    expect(pushRoute({ type: 'DIRECTORY_RULE_VALUE_REMOVED', connectionId: 'c-1' })).toBe(tenantPage('c-1'));
+    expect(pushRoute({ type: 'DIRECTORY_CUSTOMER_DEACTIVATED', organizationId: 'o-1' })).toBe(
+      '/cloud-tenant-management',
+    );
+  });
+
+  it('resolves neither to anything on any transport while tenant-management-v2 is off', () => {
+    useFeatureFlagsStore.setState({ flags: TM2_OFF, isLoaded: true });
+    const one = JSON.stringify([{ id: 'c-1', name: 'Acme', provider: 'MICROSOFT_365', userCount: 12 }]);
+    expect(pushRoute({ type: 'DIRECTORY_RULE_VALUE_REMOVED', connectionId: 'c-1' })).toBeNull();
+    expect(
+      natsRoute({
+        type: 'DIRECTORY_RULE_VALUE_REMOVED',
+        attributes: { connectionId: 'c-1', valueId: 'g-1' },
+        category: 'INTEGRATIONS',
+      }),
+    ).toBeNull();
+    expect(
+      resolveNotificationAction({
+        meta: { notificationType: 'DIRECTORY_RULE_VALUE_REMOVED', connectionId: 'c-1' },
+      } as unknown as Notification),
+    ).toBeNull();
+    expect(natsRoute({ type: 'DIRECTORY_CUSTOMER_DEACTIVATED', attributes: { connections: one } })).toBeNull();
+    expect(pushRoute({ type: 'DIRECTORY_CUSTOMER_DEACTIVATED', organizationId: 'o-1' })).toBeNull();
   });
 });
 
@@ -555,7 +593,13 @@ describe('tappedNotificationId', () => {
  * mapping routes on is in some case and must come through the projection unchanged, so a
  * field added here fails until the shell keeps it there.
  */
-describe('the desktop click payload', () => {
+describe.each([
+  ['off', TM2_OFF],
+  ['on', TM2_ON],
+])('the desktop click payload, tenant-management-v2 %s', (_, flags) => {
+  beforeEach(() => useFeatureFlagsStore.setState({ flags, isLoaded: true }));
+  afterEach(() => useFeatureFlagsStore.getState().reset());
+
   type Click = {
     type?: string;
     category?: string;

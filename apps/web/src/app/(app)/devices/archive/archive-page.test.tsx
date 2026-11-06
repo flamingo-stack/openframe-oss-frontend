@@ -1,12 +1,14 @@
 /**
  * The archive is the only way to a deleted device, since no Status funnel offers DELETED. Opened from a customer's
- * Devices tab it must hold that customer's devices only, and lead back there.
+ * Devices tab it must hold that customer's devices only, and lead back there. That came with Tenant Management Phase 2,
+ * so without `tenant-management-v2` (and while the flags are out) the page is main's, which reads no customer.
  */
 
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DevicesPanelProps } from '@/app/components/shared';
+import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 
 const env = vi.hoisted(() => ({
   searchParams: new URLSearchParams(),
@@ -45,10 +47,18 @@ function render(search: string) {
   return env.panel as DevicesPanelProps;
 }
 
+const flags = (v2: boolean) =>
+  useFeatureFlagsStore.getState().setFlags([
+    { name: 'tenant-management', enabled: true },
+    { name: 'tenant-management-v2', enabled: v2 },
+  ]);
+
 describe('the devices archive', () => {
   beforeEach(() => {
     env.panel = null;
     env.back = [];
+    useFeatureFlagsStore.getState().reset();
+    flags(true);
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -74,5 +84,23 @@ describe('the devices archive', () => {
     expect(panel.hideFilters).toEqual(['status', 'organization']);
     expect(panel.backButton?.label).toBe('Back to Customer');
     expect(env.back.at(-1)).toBe('/customers/details?id=org-1&tab=devices');
+  });
+
+  it("is main's archive with tenant-management-v2 off: every customer's, whatever the address says", () => {
+    flags(false);
+    const panel = render('?organizationId=org-1');
+    expect(panel.lockedFilters).toEqual({ statuses: ['DELETED', 'ARCHIVED'] });
+    expect(panel.hideColumns).toBeUndefined();
+    expect(panel.hideFilters).toEqual(['status']);
+    expect(panel.backButton?.label).toBe('Back to Devices');
+    expect(env.back.at(-1)).toBe('/devices');
+  });
+
+  it("is main's archive while the flags are out", () => {
+    useFeatureFlagsStore.getState().reset();
+    const panel = render('?organizationId=org-1');
+    expect(panel.lockedFilters).toEqual({ statuses: ['DELETED', 'ARCHIVED'] });
+    expect(panel.hideColumns).toBeUndefined();
+    expect(panel.backButton?.label).toBe('Back to Devices');
   });
 });

@@ -21,6 +21,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { LoadingWhen, type TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { createContext, useContext } from 'react';
+import { useTenantManagementV2Gate } from '@/app/(app)/cloud-tenant-management/components/shared/use-tenant-management-gate';
 import { useIncidentsGate } from '@/app/(app)/incidents/hooks/use-incidents-gate';
 import { AssignedArticlesTab } from '@/app/(app)/knowledge-base/components/assigned-articles/assigned-articles-tab';
 import { deviceArticlesTarget } from '@/app/(app)/knowledge-base/components/assigned-articles/assigned-articles-target';
@@ -80,13 +81,25 @@ function GatedRemoteSessionsTab({ device }: { device: Device | null }) {
  */
 export const DeviceDirectoryGateContext = createContext<FeatureFlagGate>('off');
 
-/** Directory users where the tenant has directories (D30), the machine's local accounts where it has none. */
+/**
+ * Directory users where the tenant has directories (D30), the machine's local accounts where it has none. While the
+ * flags are read, the local accounts in their loading form: with `tenant-management-v2` off (stage, prod) that is the
+ * answer, and its tab is what main draws. Once phase 2 is on, the synced-connection count is what is out, and the
+ * directory users wait in their loading form, since most such tenants have a directory.
+ */
 function GatedUsersTab({ device }: { device: Device | null }) {
   const gate = useContext(DeviceDirectoryGateContext);
-  if (gate === 'off') return <UsersTab device={device} />;
+  const phase2 = useTenantManagementV2Gate();
+  if (phase2 === 'on' && gate !== 'off') {
+    return (
+      <LoadingWhen loading={gate === 'loading'}>
+        <DirectoryUsersTab device={device} />
+      </LoadingWhen>
+    );
+  }
   return (
     <LoadingWhen loading={gate === 'loading'}>
-      <DirectoryUsersTab device={device} />
+      <UsersTab device={device} />
     </LoadingWhen>
   );
 }
@@ -221,16 +234,19 @@ export const ALL_DEVICE_TABS: TabItem[] = [
  * Tabs shown for a device. Remote Sessions is gated on the session recordings
  * gate (same pattern as `getCustomerTabs`), Incidents on the Incidents page's gate.
  * Only 'off' hides a tab: while a gate is read the tab keeps its place (most
- * tenants have the feature) and its panel draws its loading form. Directory reads
- * the same way so that a link to it survives the read, though most tenants have none.
+ * tenants have the feature) and its panel draws its loading form. Directory is
+ * Tenant Management Phase 2's, which stage and prod run without: while the flags
+ * are read it is absent and a link to it falls back to Overview, and once phase 2
+ * is on it keeps its place while the synced-connection count is out.
  */
 export function useDeviceTabs(directoryGate: FeatureFlagGate): TabItem[] {
   const recordingsGate = useSessionRecordingsGate();
   const incidentsGate = useIncidentsGate();
+  const phase2 = useTenantManagementV2Gate();
   return ALL_DEVICE_TABS.filter(
     tab =>
       (tab.id !== REMOTE_SESSIONS_TAB_ID || recordingsGate !== 'off') &&
       (tab.id !== INCIDENTS_TAB_ID || incidentsGate !== 'off') &&
-      (tab.id !== DIRECTORY_TAB_ID || directoryGate !== 'off'),
+      (tab.id !== DIRECTORY_TAB_ID || (phase2 === 'on' && directoryGate !== 'off')),
   );
 }

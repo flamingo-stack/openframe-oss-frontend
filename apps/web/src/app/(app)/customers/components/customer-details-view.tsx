@@ -18,7 +18,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
-import { useTenantManagementGate } from '@/app/(app)/cloud-tenant-management/components/shared/use-tenant-management-gate';
+import { useTenantManagementV2Gate } from '@/app/(app)/cloud-tenant-management/components/shared/use-tenant-management-gate';
 import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remote-access-approval-gate';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { getFullImageUrl } from '@/lib/image-url';
@@ -34,8 +34,6 @@ import {
   CUSTOM_AI_ASSISTANT_TAB_ID,
   CUSTOMER_DEVICE_GUARDRAILS_TAB_ID,
   CUSTOMER_GUARDRAILS_TAB_ID,
-  CUSTOMER_GROUPS_TAB_ID,
-  CUSTOMER_USERS_TAB_ID,
   getCustomerTabComponent,
   getCustomerTabs,
 } from './details-tabs/customer-tabs';
@@ -84,11 +82,10 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
   const deviceGuardrailsGate = useRemoteAccessApprovalGate();
   const deviceGuardrailsGateLoading = deviceGuardrailsGate === 'loading';
   const showDeviceGuardrails = deviceGuardrailsGate !== 'off';
-  // Directory users and groups: the same tri-state treatment, and SaaS only — the flag is never on for an OSS tenant, which
-  // must not see the tabs while the flag reads.
-  const directoryGate = useTenantManagementGate();
-  const directoryGateLoading = directoryGate === 'loading';
-  const showDirectory = isSaasTenant && directoryGate !== 'off';
+  // Directory users and groups (Tenant Management Phase 2, SaaS only): only on a definitive "on". Stage and prod run
+  // the flag off, so drawing them while it reads would flash two tabs main never has.
+  const directoryGate = useTenantManagementV2Gate();
+  const showDirectory = isSaasTenant && directoryGate === 'on';
   const tabs = useMemo(
     () =>
       getCustomerTabs({
@@ -245,12 +242,7 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
         >
           <TabNavigation tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange} staticLabels>
             {tab => (
-              <LoadingWhen
-                loading={
-                  (tab === CUSTOMER_DEVICE_GUARDRAILS_TAB_ID && deviceGuardrailsGateLoading) ||
-                  ((tab === CUSTOMER_USERS_TAB_ID || tab === CUSTOMER_GROUPS_TAB_ID) && directoryGateLoading)
-                }
-              >
+              <LoadingWhen loading={tab === CUSTOMER_DEVICE_GUARDRAILS_TAB_ID && deviceGuardrailsGateLoading}>
                 <TabContent
                   activeTab={tab}
                   TabComponent={getCustomerTabComponent(tab)}

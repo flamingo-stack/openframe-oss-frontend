@@ -38,7 +38,11 @@ export function toRelayDeviceFilter(filter: DeviceFilterInput | undefined | null
     organizationIds: filter.organizationIds ?? null,
     tagKeys: filter.tagKeys ?? null,
     tagValues: filter.tagValues ?? null,
-    directorySources: knownOrNull(DirectorySource, filter.directorySources),
-    userLinks: knownOrNull(DirectoryUserLink, filter.userLinks),
+    // Absent, not null, when unset: with `tenant-management-v2` off the backend's DeviceFilterInput has neither field,
+    // and it refuses an unknown input key whatever its value, which would fail every device-filtered query.
+    ...(filter.directorySources != null && {
+      directorySources: knownValues(DirectorySource, filter.directorySources),
+    }),
+    ...(filter.userLinks != null && { userLinks: knownValues(DirectoryUserLink, filter.userLinks) }),
   };
 }

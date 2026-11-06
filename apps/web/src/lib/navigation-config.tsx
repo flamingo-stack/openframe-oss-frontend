@@ -72,6 +72,7 @@ export interface NavigationFlags {
   insights: boolean;
   softwareManagement: boolean;
   tenantManagement: boolean;
+  tenantManagementV2: boolean;
 }
 
 // --------------------------------------------------------------------------
@@ -192,13 +193,13 @@ const NAV_MODULES = {
     category: NotificationCategory.SOFTWARE,
     beta: true,
   },
-  // The users of every connected directory — behind `tenant-management`, like Integrations.
+  // The users of every connected directory: Tenant Management Phase 2, so behind both of its flags.
   users: {
     label: 'Users',
     icon: UsersIcon,
     path: routes.users.list,
     prefixes: ['/users'],
-    gates: ['tenantManagement'],
+    gates: ['tenantManagement', 'tenantManagementV2'],
     beta: true,
   },
   logs: {

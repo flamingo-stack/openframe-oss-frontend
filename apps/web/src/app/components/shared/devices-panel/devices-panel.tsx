@@ -14,6 +14,7 @@ import {
   type ColumnDef,
   type ColumnFiltersState,
   type OnChangeFn,
+  LoadingWhen,
   type PageActionButton,
   PageError,
   PageLayout,
@@ -23,7 +24,10 @@ import { useContentMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { type ReactNode, useCallback, useMemo, useState } from 'react';
-import { useTenantManagementGate } from '@/app/(app)/cloud-tenant-management/components/shared/use-tenant-management-gate';
+import {
+  useTenantManagementGate,
+  useTenantManagementV2Gate,
+} from '@/app/(app)/cloud-tenant-management/components/shared/use-tenant-management-gate';
 import { DeviceActionsDropdown } from '@/app/(app)/devices/components/device-actions-dropdown';
 import { DeviceFacets } from '@/app/(app)/devices/components/device-facets';
 import { type UseDevicesResult, useDevices } from '@/app/(app)/devices/hooks/use-devices';
@@ -42,6 +46,7 @@ import { ContentErrorBoundary } from '../content-error-boundary';
 import { EMBEDDED_PAGE_OFFSET } from '../embedded-page';
 import { NO_ITEMS } from '../no-next-page';
 import { devicesViewMode } from './devices-view-mode';
+import { DevicesPanelV1 } from './v1/devices-panel-v1';
 
 /** The loaded table's actions column, minus the actions: the loading panel's columns take the same widths. */
 const PENDING_ACTIONS_COLUMN = getDeviceActionsColumn<Device>();
@@ -156,11 +161,10 @@ function DevicesPanelContent(body: DevicesPanelBodyProps) {
   const list = useDevices(deferredFilters, deferredSearch);
   const epoch = useDeviceEpoch();
 
-  // Only a count that is out when the list first answers holds the rows: on a cold load the flag answers while the list
-  // is out, and the count goes after it. Read on the render that commits, as the ones that suspended on the list are
-  // thrown away. A flag that answers after the rows are drawn (its query failed, then a reconnect) adds the columns under
-  // them instead of pulling the rows, a typed search and an open modal away, and a flag that never answers (the session
-  // is failing) holds nothing.
+  // Only a synced-connection count that is out when the list first answers holds the rows, so the USER and SOURCES
+  // columns arrive with them. Read on the render that commits, as the ones that suspended on the list are thrown away. A
+  // count that answers after the rows are drawn adds the columns under them instead of pulling the rows, a typed search
+  // and an open modal away.
   const [countOutAtFirstDraw] = useState(directory.countOut);
   const holdRows = countOutAtFirstDraw && directory.countOut;
 
@@ -395,13 +399,29 @@ function DevicesPanelLoaded({
  * The device list, in every place it appears: the Devices page, the archive
  * page and the customer devices tab.
  *
+ * Tenant Management Phase 2's list (USER and SOURCES) only while
+ * `tenant-management-v2` is on: its list query selects fields main's schema has
+ * not. Off, and while the flags are out, main's panel, which draws its loading
+ * state in that scope.
+ */
+export function DevicesPanel(props: DevicesPanelProps) {
+  const gate = useTenantManagementV2Gate();
+  if (gate === 'on') return <DevicesPanelV2 {...props} />;
+  return (
+    <LoadingWhen loading={gate === 'loading'}>
+      <DevicesPanelV1 {...props} />
+    </LoadingWhen>
+  );
+}
+
+/**
  * The content suspends (its list and facet queries are Relay), so it is wrapped
  * here once rather than at each of the three call sites — they keep passing
  * plain props and stay unaware of the boundary. The error boundary sits OUTSIDE
  * the Suspense one so a failed query renders the panel's own error state instead
  * of escaping to the route-level `error.tsx`.
  */
-export function DevicesPanel(props: DevicesPanelProps) {
+function DevicesPanelV2(props: DevicesPanelProps) {
   // The list's whole query surface lives in the URL, so the query string is the
   // honest "the user asked for something different" signal — it clears a tripped
   // error boundary without the panel having to reach inside the content that threw.

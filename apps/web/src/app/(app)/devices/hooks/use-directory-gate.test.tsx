@@ -1,7 +1,8 @@
 /**
- * The flag says the module exists, and it is on for every tenant. What decides the device screens is whether a
+ * The flags say the module exists, and they are on for every tenant. What decides the device screens is whether a
  * connection of this tenant has synced: a tenant with none must keep its machines' local accounts, so "no answer" and
- * "failed" never read as "has one".
+ * "failed" never read as "has one". Both flags, `tenant-management-v2` included: off, the backend serves main's schema,
+ * which has no directory users to show.
  */
 
 import { act, useEffect } from 'react';
@@ -59,7 +60,11 @@ function answer(totalCount: number) {
   fetchFn.mockResolvedValue({ data: { directoryConnections: { totalCount } } });
 }
 
-const flagOn = () => useFeatureFlagsStore.getState().setFlags([{ name: 'tenant-management', enabled: true }]);
+const flagsOn = () =>
+  useFeatureFlagsStore.getState().setFlags([
+    { name: 'tenant-management', enabled: true },
+    { name: 'tenant-management-v2', enabled: true },
+  ]);
 
 describe('useDirectoryGate', () => {
   beforeEach(() => {
@@ -80,7 +85,7 @@ describe('useDirectoryGate', () => {
 
   it('is off in OSS whatever the flag says, and asks nothing', async () => {
     env.appMode = 'oss-tenant';
-    flagOn();
+    flagsOn();
     mount();
     await settle();
     expect(committed.at(-1)).toBe('off');
@@ -95,15 +100,28 @@ describe('useDirectoryGate', () => {
   });
 
   it('is off when the flag is off, and asks nothing', async () => {
-    useFeatureFlagsStore.getState().setFlags([{ name: 'tenant-management', enabled: false }]);
+    useFeatureFlagsStore.getState().setFlags([
+      { name: 'tenant-management', enabled: false },
+      { name: 'tenant-management-v2', enabled: true },
+    ]);
     mount();
     await settle();
     expect(committed.at(-1)).toBe('off');
     expect(fetchFn).not.toHaveBeenCalled();
   });
 
+  it('is off when tenant-management-v2 is off, though tenant-management is on, and asks nothing', async () => {
+    useFeatureFlagsStore.getState().setFlags([{ name: 'tenant-management', enabled: true }]);
+    answer(2);
+    mount();
+    await settle();
+    expect(committed).not.toContain('on');
+    expect(committed.at(-1)).toBe('off');
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
   it('is loading until the count answers, then on when a connection has synced', async () => {
-    flagOn();
+    flagsOn();
     answer(2);
     mount();
     expect(committed).toEqual(['loading']);
@@ -112,7 +130,7 @@ describe('useDirectoryGate', () => {
   });
 
   it('counts only connections that have synced: a generated link has nothing to show yet', async () => {
-    flagOn();
+    flagsOn();
     answer(1);
     mount();
     await settle();
@@ -122,7 +140,7 @@ describe('useDirectoryGate', () => {
   });
 
   it('is off for a tenant with no synced directory, though the flag is on', async () => {
-    flagOn();
+    flagsOn();
     answer(0);
     mount();
     await settle();
@@ -130,7 +148,7 @@ describe('useDirectoryGate', () => {
   });
 
   it('is off when the count fails', async () => {
-    flagOn();
+    flagsOn();
     fetchFn.mockRejectedValue(new Error('down'));
     mount();
     await settle();
@@ -138,7 +156,7 @@ describe('useDirectoryGate', () => {
   });
 
   it('answers from the store on the first frame of a later mount, with no second request', async () => {
-    flagOn();
+    flagsOn();
     answer(2);
     mount();
     await settle();

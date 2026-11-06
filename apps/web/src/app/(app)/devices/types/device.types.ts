@@ -229,7 +229,7 @@ export interface Device {
   organizationImageUrl?: string | null;
   organizationImageHash?: string | null;
 
-  // Directory: the USER and SOURCES columns (`deviceFields_machine`)
+  // Directory: the USER and SOURCES columns (`deviceDirectoryFields_machine`)
   directorySources?: readonly string[];
   directoryUserLink?: string;
   directoryUserName?: string | null;

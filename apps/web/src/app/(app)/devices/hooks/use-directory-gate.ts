@@ -2,7 +2,7 @@
 
 import { graphql } from 'react-relay';
 import type { useDirectoryGateQuery } from '@/__generated__/useDirectoryGateQuery.graphql';
-import { useTenantManagementGate } from '@/app/(app)/cloud-tenant-management/components/shared/use-tenant-management-gate';
+import { useTenantManagementV2Gate } from '@/app/(app)/cloud-tenant-management/components/shared/use-tenant-management-gate';
 import { useNonSuspendingQuery } from '@/app/hooks/use-non-suspending-query';
 import type { FeatureFlagGate } from '@/lib/feature-flags';
 import { runtimeEnv } from '@/lib/runtime-config';
@@ -19,9 +19,10 @@ const directoryGateQuery = graphql`
 `;
 
 /**
- * The tenant's directories on the device screens: SaaS only, behind `tenant-management` (contract §7), and only once a
- * connection has synced (D30). The flag says the module exists, which is every tenant; a tenant with no synced directory
- * has no directory users, USER or SOURCES to show, and keeps the machine's local accounts.
+ * The tenant's directories on the device screens: SaaS only, behind Tenant Management Phase 2 (`tenant-management` and
+ * `tenant-management-v2`, whose `'loading'` and `'off'` it returns as they are), and only once a connection has synced
+ * (D30). The flags say the module exists, which is every tenant; a tenant with no synced directory has no directory
+ * users, USER or SOURCES to show, and keeps the machine's local accounts.
  *
  * A failed count reads as `off`: the screens as they are without the module, which lose nothing a tenant relies on. A
  * first sync shows at the store's expiry.
@@ -30,7 +31,7 @@ const directoryGateQuery = graphql`
  * readers can disagree after a failed count: one read `off`, the next asks again and reads `on`.
  */
 export function useDirectoryGate(): FeatureFlagGate {
-  const flag = useTenantManagementGate();
+  const flag = useTenantManagementV2Gate();
   const isSaas = runtimeEnv.appMode() === 'saas-tenant';
   const { data, isLoading } = useNonSuspendingQuery<useDirectoryGateQuery>(
     directoryGateQuery,

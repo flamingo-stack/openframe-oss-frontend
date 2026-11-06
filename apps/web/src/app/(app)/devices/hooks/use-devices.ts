@@ -10,8 +10,8 @@ import { devicesListRelayFragment, devicesListRelayQuery } from '@/graphql/devic
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
 import { DEVICES_PAGE_SIZE } from '../queries/devices-api';
 import type { Device } from '../types/device.types';
+import { readDirectoryListedMachineEdges } from '../utils/device-directory-transform';
 import { useDeviceEpoch } from '../utils/device-refresh';
-import { readListedMachineEdges } from '../utils/read-machine';
 
 export interface UseDevicesResult {
   devices: Device[];
@@ -23,7 +23,8 @@ export interface UseDevicesResult {
 
 /**
  * The scrolled device list — the Devices page, the customer devices tab and the
- * archive page.
+ * archive page — with its USER and SOURCES cells, so only while
+ * `tenant-management-v2` is on: off, the panel reads `useDevicesV1`.
  *
  * **Suspends** on first load and on any filter/search change. Callers render it
  * inside a `<Suspense>`; to keep the previous page visible while a new filter
@@ -50,7 +51,7 @@ export function useDevices(filters?: DeviceFilterInput, search = ''): UseDevices
     devicesListRelay_query$key
   >(devicesListRelayFragment, root);
 
-  const devices = useMemo(() => readListedMachineEdges(data.devices?.edges), [data.devices?.edges]);
+  const devices = useMemo(() => readDirectoryListedMachineEdges(data.devices?.edges), [data.devices?.edges]);
 
   // KNOWN LIMITATION: this refetches from the head (`after: null`), and
   // `ConnectionHandler` REPLACES rather than merges on a head fetch, so a user

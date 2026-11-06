@@ -5,12 +5,12 @@ import { notFound } from 'next/navigation';
 import { useRequiredIdParam } from '@/app/hooks/use-required-id-param';
 import { routes } from '@/lib/routes';
 import { TenantPageShell } from '../../cloud-tenant-management/components/shared/tenant-page-shell';
-import { useTenantManagementGate } from '../../cloud-tenant-management/components/shared/use-tenant-management-gate';
+import { useTenantManagementV2Gate } from '../../cloud-tenant-management/components/shared/use-tenant-management-gate';
 import { EDIT_USER_TITLE } from '../components/user-edit/edit-user-form';
 import { EditUserView } from '../components/user-edit/edit-user-view';
 
 export default function EditUserPage() {
-  const gate = useTenantManagementGate();
+  const gate = useTenantManagementV2Gate();
   // `?id=` (an account id) missing → the list. Null while redirecting.
   const id = useRequiredIdParam(routes.users.list);
   if (gate === 'off') {

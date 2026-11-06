@@ -1,6 +1,8 @@
 /**
  * The panel's wiring of the directory gate, over the real gate and facet hooks and a fake network. What matters:
- * - the rows never depend on the directory: they are asked for at once and a failing session or count cannot strand them
+ * - Tenant Management Phase 2's panel only with `tenant-management-v2` on; off and while the flags are out, main's, which
+ *   never selects or asks for anything of the directory (the off backend has none of it)
+ * - the rows never depend on the directory: they are asked for at once and a failing count cannot strand them
  * - a table does not change shape under its rows on the common path, and rows are never pulled away once drawn
  * - USER and SOURCES filters in the address apply only where their columns are drawn, and can always be cleared there
  */
@@ -17,6 +19,8 @@ const env = vi.hoisted(() => ({
   searchParams: new URLSearchParams(),
   router: { push: () => undefined, replace: () => undefined, back: () => undefined },
   listFilters: [] as Record<string, unknown>[],
+  /** Which list each request went to: main's (`useDevicesV1`) or Tenant Management Phase 2's (`useDevices`). */
+  listsAsked: [] as ('main' | 'tm2')[],
   /** Set while the list is out: the list suspends on it, as its Relay query does. */
   listOut: null as Promise<void> | null,
   fleetFacets: {
@@ -55,19 +59,12 @@ vi.mock('react-relay', async importOriginal => {
   };
 });
 
-// The list and the fleet facets suspend through Relay; what is under test is what the panel does around them.
+// The lists and the fleet facets suspend through Relay; what is under test is what the panel does around them.
 vi.mock('@/app/(app)/devices/hooks/use-devices', () => ({
-  useDevices: (filters: Record<string, unknown>) => {
-    env.listFilters.push(filters);
-    if (env.listOut) throw env.listOut;
-    return {
-      devices: [{ id: 'd1', machineId: 'm1', status: 'ONLINE', hostname: 'host-1' }],
-      filteredCount: 1,
-      hasNextPage: false,
-      isFetchingNextPage: false,
-      fetchNextPage: () => undefined,
-    };
-  },
+  useDevices: (filters: Record<string, unknown>) => fakeList('tm2', filters),
+}));
+vi.mock('@/app/(app)/devices/hooks/v1/use-devices-v1', () => ({
+  useDevicesV1: (filters: Record<string, unknown>) => fakeList('main', filters),
 }));
 vi.mock('@/app/(app)/devices/hooks/use-device-filters', () => ({
   useDeviceFilters: () => env.fleetFacets,
@@ -76,6 +73,19 @@ vi.mock('@/app/(app)/devices/components/device-actions-dropdown', () => ({ Devic
 vi.mock('@/app/(app)/devices/hooks/use-remote-access-policy', () => ({ useRowRemoteAccessPolicies: () => undefined }));
 
 import { DevicesPanel, type DevicesPanelProps } from './devices-panel';
+
+function fakeList(list: 'main' | 'tm2', filters: Record<string, unknown>) {
+  env.listsAsked.push(list);
+  env.listFilters.push(filters);
+  if (env.listOut) throw env.listOut;
+  return {
+    devices: [{ id: 'd1', machineId: 'm1', status: 'ONLINE', hostname: 'host-1' }],
+    filteredCount: 1,
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    fetchNextPage: () => undefined,
+  };
+}
 
 const DIRECTORY_FACETS = {
   directorySources: [{ value: 'MICROSOFT_365', count: 1 }],
@@ -98,7 +108,11 @@ const funnels = () =>
   [...container.querySelectorAll('[aria-label^="Filter by"]')].map(node => node.getAttribute('aria-label'));
 const text = () => container.textContent ?? '';
 const countAsked = () => fetchFn.mock.calls.filter(call => call[0].name === 'useDirectoryGateQuery').length;
-const flagOn = () => useFeatureFlagsStore.getState().setFlags([{ name: 'tenant-management', enabled: true }]);
+const flagsOn = () =>
+  useFeatureFlagsStore.getState().setFlags([
+    { name: 'tenant-management', enabled: true },
+    { name: 'tenant-management-v2', enabled: true },
+  ]);
 const hasDirectory = (totalCount: number) => async () => ({ data: { directoryConnections: { totalCount } } });
 
 function setAddress(search: string) {
@@ -120,6 +134,7 @@ describe('DevicesPanel and the directory gate', () => {
   beforeEach(() => {
     setAddress('');
     env.listFilters = [];
+    env.listsAsked = [];
     env.listOut = null;
     const Observer = class {
       observe() {}
@@ -153,20 +168,20 @@ describe('DevicesPanel and the directory gate', () => {
     container.remove();
   });
 
-  it('draws the rows when the flag never answers: a failing session holds nothing', async () => {
+  it("draws main's panel in its loading form while the flags are out, and asks for nothing", async () => {
     render();
     await settle();
     expect(useFeatureFlagsStore.getState().isLoaded).toBe(false);
-    expect(env.listFilters.length).toBeGreaterThan(0);
-    expect(text()).toContain('host-1');
+    expect(env.listsAsked).toEqual([]);
+    expect(text()).not.toContain('host-1');
     expect(text()).not.toContain('USER');
-    expect(countAsked()).toBe(0);
+    expect(fetchFn).not.toHaveBeenCalled();
   });
 
   it('asks for the list at once, and draws it only when the count answers', async () => {
     let answerCount: (value: unknown) => void = () => undefined;
     countAnswer = () => new Promise(resolve => (answerCount = resolve));
-    flagOn();
+    flagsOn();
     render();
     await settle();
     expect(env.listFilters.length).toBeGreaterThan(0);
@@ -182,7 +197,7 @@ describe('DevicesPanel and the directory gate', () => {
     expect(countAsked()).toBe(1);
   });
 
-  it('holds the rows for the count when the flag answers while the list is out, as on a cold load', async () => {
+  it('holds the rows for the count when the flags answer during a cold load and the list is still out', async () => {
     setAddress('?userLinks=SHARED');
     let answerList = () => undefined as void;
     env.listOut = new Promise<void>(resolve => {
@@ -195,7 +210,7 @@ describe('DevicesPanel and the directory gate', () => {
     countAnswer = () => new Promise(resolve => (answerCount = resolve));
     render();
     await settle();
-    act(() => flagOn());
+    act(() => flagsOn());
     await settle();
     await act(async () => answerList());
     await settle();
@@ -212,7 +227,7 @@ describe('DevicesPanel and the directory gate', () => {
 
   it('draws USER and SOURCES only where a connection has synced', async () => {
     countAnswer = hasDirectory(0);
-    flagOn();
+    flagsOn();
     render();
     await settle();
     expect(text()).toContain('host-1');
@@ -225,7 +240,7 @@ describe('DevicesPanel and the directory gate', () => {
     countAnswer = async () => {
       throw new Error('down');
     };
-    flagOn();
+    flagsOn();
     render();
     await settle();
     expect(text()).toContain('host-1');
@@ -233,26 +248,24 @@ describe('DevicesPanel and the directory gate', () => {
     expect(countAsked()).toBe(1);
   });
 
-  it('keeps the rows and the search box mounted when the flag turns on after they are drawn', async () => {
+  it("swaps main's panel for Tenant Management Phase 2's when the flags turn on after main's rows are drawn", async () => {
     useFeatureFlagsStore.getState().setLoaded();
     let answerCount: (value: unknown) => void = () => undefined;
     countAnswer = () => new Promise(resolve => (answerCount = resolve));
     render();
     await settle();
-    const searchBox = container.querySelector('input');
-    expect(searchBox).not.toBeNull();
     expect(text()).toContain('host-1');
+    expect(env.listsAsked).not.toContain('tm2');
 
-    act(() => flagOn());
+    act(() => flagsOn());
     await settle();
-    expect(text()).toContain('host-1');
-    expect(container.querySelector('input')).toBe(searchBox);
+    expect(env.listsAsked).toContain('tm2');
 
     await act(async () => {
       answerCount({ data: { directoryConnections: { totalCount: 1 } } });
     });
     await settle();
-    expect(container.querySelector('input')).toBe(searchBox);
+    expect(text()).toContain('host-1');
     expect(text()).toContain('USER');
   });
 
@@ -260,7 +273,7 @@ describe('DevicesPanel and the directory gate', () => {
     facetsAnswer = async () => {
       throw new Error('PINOT_QUERY_ERROR');
     };
-    flagOn();
+    flagsOn();
     render();
     await settle();
     expect(text()).toContain('host-1');
@@ -269,7 +282,7 @@ describe('DevicesPanel and the directory gate', () => {
   });
 
   it('offers USER and SOURCES funnels once the facets answer', async () => {
-    flagOn();
+    flagsOn();
     render();
     await settle();
     expect(funnels()).toEqual(expect.arrayContaining(['Filter by USER', 'Filter by SOURCES', 'Filter by STATUS']));
@@ -280,7 +293,7 @@ describe('DevicesPanel and the directory gate', () => {
     facetsAnswer = async () => {
       throw new Error('PINOT_QUERY_ERROR');
     };
-    flagOn();
+    flagsOn();
     render();
     await settle();
     expect(env.listFilters.at(-1)).toMatchObject({ userLinks: ['SHARED'] });
@@ -290,7 +303,7 @@ describe('DevicesPanel and the directory gate', () => {
   it('ignores USER and SOURCES filters in the address where no connection has synced', async () => {
     setAddress('?userLinks=SHARED&directorySources=MICROSOFT_365');
     countAnswer = hasDirectory(0);
-    flagOn();
+    flagsOn();
     render();
     await settle();
     expect(text()).toContain('host-1');
@@ -309,7 +322,7 @@ describe('DevicesPanel and the directory gate', () => {
 
     it('keeps the header filters when Device Tags are applied', async () => {
       setAddress('?statuses=ONLINE');
-      flagOn();
+      flagsOn();
       render();
       await settle();
       openWindow();
@@ -335,7 +348,7 @@ describe('DevicesPanel and the directory gate', () => {
       const everyStep = window.matchMedia;
       // A 1280-1439px window: every step up to lg, not xl (1440px).
       window.matchMedia = ((query: string) => ({ ...everyStep(query), matches: !query.includes('1440px') })) as never;
-      flagOn();
+      flagsOn();
       render();
       await settle();
       openWindow();
@@ -344,7 +357,7 @@ describe('DevicesPanel and the directory gate', () => {
     });
 
     it('leaves SOURCES to the header from xl, where its funnel is back', async () => {
-      flagOn();
+      flagsOn();
       render();
       await settle();
       openWindow();
@@ -353,7 +366,7 @@ describe('DevicesPanel and the directory gate', () => {
     });
 
     it("leaves SOURCES to the header on one customer's list", async () => {
-      flagOn();
+      flagsOn();
       render({ hideColumns: ['organization'] });
       await settle();
       openWindow();
@@ -363,7 +376,7 @@ describe('DevicesPanel and the directory gate', () => {
 
     it('leaves SOURCES to the grid, which draws a dropdown of its own', async () => {
       setAddress('?viewMode=grid');
-      flagOn();
+      flagsOn();
       render();
       await settle();
       openWindow();
@@ -372,10 +385,54 @@ describe('DevicesPanel and the directory gate', () => {
     });
   });
 
+  describe("with tenant-management-v2 off: main's panel", () => {
+    const flagsOff = () =>
+      useFeatureFlagsStore.getState().setFlags([
+        { name: 'tenant-management', enabled: true },
+        { name: 'tenant-management-v2', enabled: false },
+      ]);
+
+    it("draws main's list with no USER or SOURCES, and asks nothing of the directory", async () => {
+      flagsOff();
+      render();
+      await settle();
+      expect(text()).toContain('host-1');
+      expect(env.listsAsked.length).toBeGreaterThan(0);
+      expect(env.listsAsked.every(list => list === 'main')).toBe(true);
+      expect(text()).not.toContain('USER');
+      expect(text()).not.toContain('SOURCES');
+      expect(funnels()).toEqual(expect.arrayContaining(['Filter by STATUS', 'Filter by OS', 'Filter by CUSTOMER']));
+      expect(funnels()).not.toContain('Filter by USER');
+      expect(funnels()).not.toContain('Filter by SOURCES');
+      expect(fetchFn).not.toHaveBeenCalled();
+    });
+
+    it('ignores USER and SOURCES filters in the address', async () => {
+      setAddress('?userLinks=SHARED&directorySources=MICROSOFT_365');
+      flagsOff();
+      render();
+      await settle();
+      expect(text()).toContain('host-1');
+      for (const filter of env.listFilters) {
+        expect(filter).not.toHaveProperty('userLinks');
+        expect(filter).not.toHaveProperty('directorySources');
+      }
+    });
+
+    it('is the panel when the flags fail, as they then read off', async () => {
+      useFeatureFlagsStore.getState().setLoaded();
+      render();
+      await settle();
+      expect(text()).toContain('host-1');
+      expect(env.listsAsked.every(list => list === 'main')).toBe(true);
+      expect(fetchFn).not.toHaveBeenCalled();
+    });
+  });
+
   it('holds nothing and ignores those filters on the archive, whatever the tenant has', async () => {
     setAddress('?userLinks=SHARED');
     countAnswer = () => new Promise(() => undefined);
-    flagOn();
+    flagsOn();
     render({ withoutDirectory: true });
     await settle();
     expect(text()).toContain('host-1');

@@ -28,7 +28,9 @@ const ALL_UNREAD: UnreadCountsByCategory = Object.fromEntries(
 
 const FLAG_COMBOS: NavigationFlags[] = [false, true].flatMap(insights =>
   [false, true].flatMap(softwareManagement =>
-    [false, true].map(tenantManagement => ({ insights, softwareManagement, tenantManagement })),
+    [false, true].flatMap(tenantManagement =>
+      [false, true].map(tenantManagementV2 => ({ insights, softwareManagement, tenantManagement, tenantManagementV2 })),
+    ),
   ),
 );
 
@@ -83,7 +85,12 @@ describe('flat navigation (classic shell)', () => {
 
   it('marks the same entry active for every route', () => {
     setAppMode('saas-tenant');
-    const allOn: NavigationFlags = { insights: true, softwareManagement: true, tenantManagement: true };
+    const allOn: NavigationFlags = {
+      insights: true,
+      softwareManagement: true,
+      tenantManagement: true,
+      tenantManagementV2: true,
+    };
     const pathnames = [
       '/',
       '/dashboard',
@@ -135,13 +142,28 @@ describe('flat navigation (classic shell)', () => {
 
   it('is empty in the auth-only app mode', () => {
     setAppMode('saas-shared');
-    const allOn: NavigationFlags = { insights: true, softwareManagement: true, tenantManagement: true };
+    const allOn: NavigationFlags = {
+      insights: true,
+      softwareManagement: true,
+      tenantManagement: true,
+      tenantManagementV2: true,
+    };
     expect(getNavigationItems('/devices', allOn, ALL_UNREAD, { inProgress: true, remaining: 2 })).toEqual([]);
   });
 });
 
-const ALL_ON: NavigationFlags = { insights: true, softwareManagement: true, tenantManagement: true };
-const ALL_OFF: NavigationFlags = { insights: false, softwareManagement: false, tenantManagement: false };
+const ALL_ON: NavigationFlags = {
+  insights: true,
+  softwareManagement: true,
+  tenantManagement: true,
+  tenantManagementV2: true,
+};
+const ALL_OFF: NavigationFlags = {
+  insights: false,
+  softwareManagement: false,
+  tenantManagement: false,
+  tenantManagementV2: false,
+};
 
 /** `group: child, child` per top-level entry; a leaf is its id alone, `[secondary]` marks the bottom block. */
 function outline(items: NavigationSidebarItem[]): string[] {
@@ -199,9 +221,10 @@ describe('grouped navigation (Mingo-first shell)', () => {
         expect(has(grouped, 'incidents'), context).toBe(saas && flags.insights);
         expect(has(grouped, 'software'), context).toBe(flags.softwareManagement);
         expect(has(grouped, 'integrations'), context).toBe(flags.tenantManagement);
+        expect(has(grouped, 'users'), context).toBe(flags.tenantManagement && flags.tenantManagementV2);
         expect(has(grouped, 'dashboard') || has(grouped, 'monitoring'), context).toBe(false);
         // Every module both sidebars show is gated the same way in both.
-        for (const id of ['tickets', 'incidents', 'software', 'integrations', 'organizations', 'logs']) {
+        for (const id of ['tickets', 'incidents', 'software', 'integrations', 'users', 'organizations', 'logs']) {
           expect(has(grouped, id), `${context} ${id}`).toBe(has(flat, id));
         }
       }
