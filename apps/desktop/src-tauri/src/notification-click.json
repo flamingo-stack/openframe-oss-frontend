@@ -1,0 +1,271 @@
+{
+  "cases": [
+    {
+      "name": "a ticket opens its dialog",
+      "envelope": {
+        "id": "6729a1f0c3b4d5e6f7a8b901",
+        "title": "Ticket assigned to you",
+        "description": "Printer offline",
+        "severity": "INFO",
+        "type": "TICKET_ASSIGNED",
+        "category": "TICKETS",
+        "attributes": {
+          "ticketId": "6729a1f0c3b4d5e6f7a8b902",
+          "actorName": "Ann"
+        }
+      },
+      "click": {
+        "type": "TICKET_ASSIGNED",
+        "category": "TICKETS",
+        "attributes": {
+          "ticketId": "6729a1f0c3b4d5e6f7a8b902"
+        }
+      }
+    },
+    {
+      "name": "a ticket approval keeps what its buttons resolve",
+      "envelope": {
+        "id": "6729a1f0c3b4d5e6f7a8b903",
+        "title": "Approval required",
+        "type": "TICKET_APPROVAL_REQUEST",
+        "category": "TICKETS",
+        "attributes": {
+          "ticketId": "6729a1f0c3b4d5e6f7a8b902",
+          "dialogId": "6729a1f0c3b4d5e6f7a8b904",
+          "approvalRequestId": "0a2a0b3c-9d1e-4f5a-8b7c-6d5e4f3a2b1c",
+          "toolCalls": "[{\"name\":\"run_script\"}]"
+        }
+      },
+      "click": {
+        "type": "TICKET_APPROVAL_REQUEST",
+        "category": "TICKETS",
+        "attributes": {
+          "ticketId": "6729a1f0c3b4d5e6f7a8b902",
+          "dialogId": "6729a1f0c3b4d5e6f7a8b904",
+          "approvalRequestId": "0a2a0b3c-9d1e-4f5a-8b7c-6d5e4f3a2b1c"
+        }
+      }
+    },
+    {
+      "name": "a Mingo message opens its chat",
+      "envelope": {
+        "id": "6729a1f0c3b4d5e6f7a8b905",
+        "title": "Mingo replied",
+        "type": "ADMIN_AI_MESSAGE",
+        "category": "MINGO",
+        "attributes": {
+          "dialogId": "6729a1f0c3b4d5e6f7a8b904"
+        }
+      },
+      "click": {
+        "type": "ADMIN_AI_MESSAGE",
+        "category": "MINGO",
+        "attributes": {
+          "dialogId": "6729a1f0c3b4d5e6f7a8b904"
+        }
+      }
+    },
+    {
+      "name": "an unknown type's dialog opens by its category",
+      "envelope": {
+        "id": "6729a1f0c3b4d5e6f7a8b906",
+        "title": "Something new",
+        "type": "SOMETHING_SHIPPED_LATER",
+        "category": "MINGO",
+        "attributes": {
+          "dialogId": "6729a1f0c3b4d5e6f7a8b904",
+          "somethingShippedLater": "y"
+        }
+      },
+      "click": {
+        "type": "SOMETHING_SHIPPED_LATER",
+        "category": "MINGO",
+        "attributes": {
+          "dialogId": "6729a1f0c3b4d5e6f7a8b904"
+        }
+      }
+    },
+    {
+      "name": "an incident opens its page",
+      "envelope": {
+        "id": "6729a1f0c3b4d5e6f7a8b907",
+        "title": "Incident detected",
+        "severity": "DANGER",
+        "type": "INCIDENT_DETECTED",
+        "category": "INCIDENTS",
+        "attributes": {
+          "insightId": "6729a1f0c3b4d5e6f7a8b908"
+        }
+      },
+      "click": {
+        "type": "INCIDENT_DETECTED",
+        "category": "INCIDENTS",
+        "attributes": {
+          "insightId": "6729a1f0c3b4d5e6f7a8b908"
+        }
+      }
+    },
+    {
+      "name": "a recording about to expire opens the recording",
+      "envelope": {
+        "id": "6729a1f0c3b4d5e6f7a8b909",
+        "title": "Recording expires in 7 days",
+        "type": "RECORDING_EXPIRES_IN_7_DAYS",
+        "category": "DEVICES",
+        "attributes": {
+          "recordingId": "6729a1f0c3b4d5e6f7a8b910",
+          "deviceId": "machine-6729a1f0",
+          "sessionId": "s-1"
+        }
+      },
+      "click": {
+        "type": "RECORDING_EXPIRES_IN_7_DAYS",
+        "category": "DEVICES",
+        "attributes": {
+          "recordingId": "6729a1f0c3b4d5e6f7a8b910",
+          "deviceId": "machine-6729a1f0"
+        }
+      }
+    },
+    {
+      "name": "a failed recording opens the device's sessions",
+      "envelope": {
+        "id": "6729a1f0c3b4d5e6f7a8b911",
+        "title": "Recording failed",
+        "type": "RECORDING_FAILED",
+        "category": "DEVICES",
+        "attributes": {
+          "deviceId": "machine-6729a1f0",
+          "sessionId": "s-2"
+        }
+      },
+      "click": {
+        "type": "RECORDING_FAILED",
+        "category": "DEVICES",
+        "attributes": {
+          "deviceId": "machine-6729a1f0"
+        }
+      }
+    },
+    {
+      "name": "an announcement opens its link and names itself by its id",
+      "envelope": {
+        "id": "6729a1f0c3b4d5e6f7a8b912",
+        "title": "New release",
+        "description": "What shipped",
+        "type": "ANNOUNCEMENT",
+        "category": "GENERIC",
+        "attributes": {
+          "link": "https://www.flamingo.run/releases/v1-5-81?utm_source=openframe#notes"
+        }
+      },
+      "click": {
+        "type": "ANNOUNCEMENT",
+        "category": "GENERIC",
+        "notificationId": "6729a1f0c3b4d5e6f7a8b912",
+        "attributes": {
+          "link": "https://www.flamingo.run/releases/v1-5-81?utm_source=openframe#notes"
+        }
+      }
+    },
+    {
+      "name": "an announcement's notificationId wins over its id, as the webview reads them",
+      "envelope": {
+        "id": "legacy-id",
+        "notificationId": "6729a1f0c3b4d5e6f7a8b913",
+        "title": "New release",
+        "type": "ANNOUNCEMENT",
+        "category": "GENERIC",
+        "attributes": {
+          "link": "https://www.flamingo.run/releases"
+        }
+      },
+      "click": {
+        "type": "ANNOUNCEMENT",
+        "category": "GENERIC",
+        "notificationId": "6729a1f0c3b4d5e6f7a8b913",
+        "attributes": {
+          "link": "https://www.flamingo.run/releases"
+        }
+      }
+    },
+    {
+      "name": "an announcement with a null notificationId names itself by its id",
+      "envelope": {
+        "id": "6729a1f0c3b4d5e6f7a8b916",
+        "notificationId": null,
+        "title": "New release",
+        "type": "ANNOUNCEMENT",
+        "category": "GENERIC",
+        "attributes": {
+          "link": "https://www.flamingo.run/releases"
+        }
+      },
+      "click": {
+        "type": "ANNOUNCEMENT",
+        "category": "GENERIC",
+        "notificationId": "6729a1f0c3b4d5e6f7a8b916",
+        "attributes": {
+          "link": "https://www.flamingo.run/releases"
+        }
+      }
+    },
+    {
+      "name": "an announcement without a link opens nothing and names nothing",
+      "envelope": {
+        "id": "6729a1f0c3b4d5e6f7a8b914",
+        "title": "Scheduled maintenance",
+        "type": "ANNOUNCEMENT",
+        "category": "GENERIC"
+      },
+      "click": {
+        "type": "ANNOUNCEMENT",
+        "category": "GENERIC"
+      }
+    },
+    {
+      "name": "a removed rule value opens its tenant",
+      "envelope": {
+        "id": "6729a1f0c3b4d5e6f7a8b917",
+        "title": "A rule lost its group",
+        "type": "DIRECTORY_RULE_VALUE_REMOVED",
+        "category": "INTEGRATIONS",
+        "attributes": {
+          "connectionId": "6729a1f0c3b4d5e6f7a8b918",
+          "valueId": "6729a1f0c3b4d5e6f7a8b919"
+        }
+      },
+      "click": {
+        "type": "DIRECTORY_RULE_VALUE_REMOVED",
+        "category": "INTEGRATIONS",
+        "attributes": {
+          "connectionId": "6729a1f0c3b4d5e6f7a8b918"
+        }
+      }
+    },
+    {
+      "name": "a deactivated customer's tenants are not carried, so the click opens the tenant list",
+      "envelope": {
+        "id": "6729a1f0c3b4d5e6f7a8b920",
+        "title": "Customer deactivated",
+        "type": "DIRECTORY_CUSTOMER_DEACTIVATED",
+        "category": "INTEGRATIONS",
+        "attributes": {
+          "connections": "[{\"id\":\"c-1\",\"name\":\"Acme\"},{\"id\":\"c-2\",\"name\":\"Acme Google\"}]"
+        }
+      },
+      "click": {
+        "type": "DIRECTORY_CUSTOMER_DEACTIVATED",
+        "category": "INTEGRATIONS"
+      }
+    },
+    {
+      "name": "an envelope with nothing to route on has no click",
+      "envelope": {
+        "id": "6729a1f0c3b4d5e6f7a8b915",
+        "title": "Hi"
+      },
+      "click": null
+    }
+  ]
+}

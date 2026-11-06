@@ -15,6 +15,7 @@ import {
 } from '@/graphql/notifications/notification-attributes';
 import { ensureGlobalIdForType } from '@/lib/relay-id';
 import { mingoDialogLink, routes } from '@/lib/routes';
+import { runtimeEnv } from '@/lib/runtime-config';
 
 // Backend notification `type` discriminators (`TenantNotificationType`). GraphQL rows and NATS
 // payloads carry the same string, so it is the single source of truth for routing.
@@ -31,6 +32,8 @@ export const CUSTOMER_MESSAGE_PUBLISHED_TYPE = 'CUSTOMER_MESSAGE_PUBLISHED';
 export const ADMIN_MESSAGE_PUBLISHED_TYPE = 'ADMIN_MESSAGE_PUBLISHED';
 // The spend limit paused auto top-up; names no entity, only the owner's billing page.
 export const AUTO_TOP_UP_PAUSED_TYPE = 'AUTO_TOP_UP_PAUSED';
+// Sent from the backoffice to every admin; names no entity, and opens its `link` when it has one.
+export const ANNOUNCEMENT_TYPE = 'ANNOUNCEMENT';
 // The incident family (the detection and its status transitions) is declared with the
 // attribute contract, Relay-free, because the mapper reads it too.
 export { INCIDENT_DETECTED_TYPE };
@@ -63,15 +66,44 @@ const TICKET_CHAT_TYPES = new Set<string>([
 ]);
 
 /**
- * A notification's primary action. Every action has a `route` — a URL the host can
- * push, and the only thing a transport that runs OUTSIDE React (a push tap, an OS
- * toast) can act on.
+ * A notification's primary action. An action inside the app has a `route` — a URL the
+ * host can push, and the only thing a transport that runs OUTSIDE React (a push tap, an
+ * OS toast) can act on.
  *
  * A Mingo dialog additionally carries `mingoDialogId`, for a caller that opens it
  * through the dialog-open seam (`openMingoDialog` in `./open-mingo-dialog`). Its
  * `route` is the canonical chat link.
+ *
+ * `readOnOpen` marks an action whose destination is not the notification's entity (an
+ * announcement's link, in the app or out of it): arriving there must not read it, and
+ * opening it must.
  */
-export type NotificationAction = { label: string; route: string; mingoDialogId?: string };
+export type NotificationRouteAction = {
+  label: string;
+  route: string;
+  mingoDialogId?: string;
+  readOnOpen?: true;
+  externalUrl?: never;
+};
+
+/**
+ * An announcement's link to a page outside the app. It has no `route`: pushed through the
+ * router, an absolute URL would navigate the app's own window away, which in a shell is the
+ * whole app. Opened with {@link openNotificationLink} instead.
+ */
+export type NotificationLinkAction = {
+  label: string;
+  externalUrl: string;
+  readOnOpen: true;
+  route?: never;
+  mingoDialogId?: never;
+};
+
+export type NotificationAction = NotificationLinkAction | NotificationRouteAction;
+
+export function isNotificationLinkAction(action: NotificationAction): action is NotificationLinkAction {
+  return action.externalUrl !== undefined;
+}
 
 // routes.* builders URL-encode values via URLSearchParams — no manual encodeURIComponent.
 const mingoDialogRoute = (dialogId: string) => mingoDialogLink(dialogId);
@@ -108,21 +140,72 @@ const nonEmptyString = (value: unknown): string | null => (typeof value === 'str
 /** Backend `NotificationCategory` for Mingo — the signal that an unknown type's dialog is an admin one. */
 const MINGO_CATEGORY = 'MINGO';
 
-/** The entity ids a notification can carry, read from `attributes` (or the flat push keys). */
-interface NotificationIds {
-  ticketId: string | null;
-  dialogId: string | null;
-  insightId: string | null;
-  recordingId: string | null;
-  deviceId: string | null;
-  connectionId: string | null;
-  /** The `connections` JSON list, read by `readConnectionIds`. */
-  connections: string | null;
+/** The app's own origin: the tenant host, which in a shell is not the page's origin. */
+function appOrigin(): string | null {
+  const host = runtimeEnv.tenantHostUrl() || (typeof window === 'undefined' ? '' : window.location.origin);
+  if (!host) return null;
+  try {
+    return new URL(host).origin;
+  } catch {
+    return null;
+  }
 }
+
+/**
+ * An announcement's link: a page on the app's own origin opens inside the app, any other
+ * outside it.
+ *
+ * This is the one destination a payload names rather than one built from its ids, so it is
+ * checked again here although management-api accepts absolute https URLs only: a forged or
+ * mangled payload must not open a `javascript:` or plain-http page.
+ */
+function linkAction(link: string): NotificationAction | null {
+  let url: URL;
+  try {
+    url = new URL(link);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'https:') return null;
+  const label = 'Open Link';
+  // The path of an absolute URL on our origin, not a hand-written one: the registry has no
+  // builder for a page the backoffice picked. A path starting `//` (backslashes and dot
+  // segments are already folded into it) would be protocol-relative to the router, which
+  // would take the app's window to another host, so that link opens outside the app.
+  if (url.origin === appOrigin() && !url.pathname.startsWith('//')) {
+    return { label, route: `${url.pathname}${url.search}${url.hash}`, readOnOpen: true };
+  }
+  return { label, externalUrl: url.href, readOnOpen: true };
+}
+
+/**
+ * What an action is resolved from besides `type` and `category`: the entity ids, and an
+ * announcement's link, read from `attributes` (or the flat push keys). A shell that forwards
+ * a notification's click has to keep every one: the desktop's `click_payload`, held to this
+ * list by the cases in `apps/desktop/src-tauri/src/notification-click.json`.
+ */
+export const NOTIFICATION_ACTION_FIELDS = [
+  'ticketId',
+  'dialogId',
+  'insightId',
+  'recordingId',
+  'deviceId',
+  'link',
+  'connectionId',
+] as const;
+
+type NotificationFacts = Record<(typeof NOTIFICATION_ACTION_FIELDS)[number], string | null> & {
+  /**
+   * A deactivated customer's tenants, a JSON list read by `readConnectionIds`. Not in the list above: it has no fixed
+   * size, and a Windows toast past its size cap is dropped, so no shell carries it. Without it the click opens the
+   * tenant list, as a push that dropped it does.
+   */
+  connections: string | null;
+};
 
 function resolveAction(
   type: string | null,
-  { ticketId, dialogId, insightId, recordingId, deviceId, connectionId, connections }: NotificationIds,
+  { ticketId, dialogId, insightId, recordingId, deviceId, link, connectionId, connections }: NotificationFacts,
   category: string | null,
 ): NotificationAction | null {
   // Approval requests live in their ticket when one exists, otherwise the mingo dialog.
@@ -188,6 +271,12 @@ function resolveAction(
     return { label: 'Remote Sessions', route: routes.devices.remoteSessions };
   }
 
+  // Only an announcement follows a link: on any other type the payload would be choosing
+  // where an entity's notification leads.
+  if (type === ANNOUNCEMENT_TYPE) {
+    return link ? linkAction(link) : null;
+  }
+
   // Unknown type. The contract requires new types to reach users without a client release —
   // "an unfamiliar string still routes by ids, never drops the message silently" — so route
   // by the entity ids rather than giving up.
@@ -218,6 +307,7 @@ export function resolveNotificationAction(notification: Notification): Notificat
       insightId: nonEmptyString(meta.insightId),
       recordingId: nonEmptyString(meta.recordingId),
       deviceId: nonEmptyString(meta.deviceId),
+      link: nonEmptyString(meta.link),
       connectionId: nonEmptyString(meta.connectionId),
       connections: nonEmptyString(meta.connections),
     },
@@ -225,50 +315,52 @@ export function resolveNotificationAction(notification: Notification): Notificat
   );
 }
 
+/** The action's route inside the app; `null` for no action, and for a link that opens outside it. */
 function actionRoute(action: NotificationAction | null): string | null {
   return action?.route ?? null;
 }
 
 /**
- * Route for a bag of wire fields, whatever transport carried them. Both shells hand over
+ * Action for a bag of wire fields, whatever transport carried them. Both shells hand over
  * untyped payloads, so every field is narrowed rather than trusted.
- * The returned route is always BUILT by a `routes.*` builder from those narrowed ids, never
- * echoed from the payload, so a forged push cannot name its own destination. That is what
- * replaced the old `startsWith('/')` check on a server-supplied route string.
+ * A returned route is BUILT by a `routes.*` builder from those narrowed ids, never echoed
+ * from the payload, so a forged push cannot name its own destination. That is what
+ * replaced the old `startsWith('/')` check on a server-supplied route string. The one
+ * exception is an announcement's link, whose destination is the payload's by design and
+ * is checked in `linkAction`.
  */
-function routeFromWireFields(fields: Record<string, unknown>): string | null {
+function actionFromWireFields(fields: Record<string, unknown>): NotificationAction | null {
   // `attributes` is the contract's home for the ids; the flat keys are where an FCM push
-  // puts them (see resolvePushNotificationRoute). Read the map first and fall back to the
+  // puts them (see resolvePushNotificationAction). Read the map first and fall back to the
   // flat keys.
   const attributes = readNotificationAttributes(fields.attributes);
-  const id = (key: keyof NotificationIds) => attributes[NOTIFICATION_ATTR[key]] ?? nonEmptyString(fields[key]);
-  return actionRoute(
-    resolveAction(
-      nonEmptyString(fields.type),
-      {
-        ticketId: id('ticketId'),
-        dialogId: id('dialogId'),
-        insightId: id('insightId'),
-        recordingId: id('recordingId'),
-        deviceId: id('deviceId'),
-        connectionId: id('connectionId'),
-        connections: id('connections'),
-      },
-      nonEmptyString(fields.category),
-    ),
+  const fact = (key: keyof NotificationFacts) => attributes[NOTIFICATION_ATTR[key]] ?? nonEmptyString(fields[key]);
+  return resolveAction(
+    nonEmptyString(fields.type),
+    {
+      ticketId: fact('ticketId'),
+      dialogId: fact('dialogId'),
+      insightId: fact('insightId'),
+      recordingId: fact('recordingId'),
+      deviceId: fact('deviceId'),
+      link: fact('link'),
+      connectionId: fact('connectionId'),
+      connections: fact('connections'),
+    },
+    nonEmptyString(fields.category),
   );
 }
 
 /**
- * Route for a NATS notification envelope (`type`/`attributes`/`category` at the top
+ * Action for a NATS notification envelope (`type`/`attributes`/`category` at the top
  * level), before it has been shaped into a store record — the desktop shell's OS-toast
  * click path (`notification:click` from the Rust notification plane) hands over the
- * envelope narrowed to `type` + `attributes` (its `click_payload`). Anything else on
- * the envelope is ignored.
+ * envelope narrowed to its routing fields (its `click_payload`). Anything else on the
+ * envelope is ignored.
  */
-export function resolveNatsNotificationRoute(payload: unknown): string | null {
+export function resolveNatsNotificationAction(payload: unknown): NotificationAction | null {
   const envelope = (payload ?? {}) as { type?: unknown; attributes?: unknown; category?: unknown };
-  return routeFromWireFields({
+  return actionFromWireFields({
     type: envelope.type,
     attributes: envelope.attributes,
     category: envelope.category,
@@ -276,16 +368,68 @@ export function resolveNatsNotificationRoute(payload: unknown): string | null {
 }
 
 /**
- * Route for a push notification's FCM `data` payload — a FLAT string map, not the nested NATS
+ * The stored id a NATS notification envelope names: `notificationId`, else `id`, which is
+ * what oss-lib's `NotificationMessage` carries. The desktop's `click_payload` reads the
+ * envelope in the same order.
+ */
+export function natsNotificationRawId(payload: unknown): string | null {
+  const envelope = (payload ?? {}) as { notificationId?: unknown; id?: unknown };
+  return nonEmptyString(envelope.notificationId) ?? nonEmptyString(envelope.id);
+}
+
+/**
+ * Action for a push notification's FCM `data` payload — a FLAT string map, not the nested NATS
  * envelope, and the mobile shell's tap path.
  *
  * Reads the top-level keys only: the backend (`FcmPushSender.buildData`) writes `type` plus
- * every attribute (`ticketId`/`dialogId`/`insightId`, …) as a flat key, and drops any larger blob
- * whole when the payload would exceed FCM's size budget — so the flat ids are the guaranteed
- * half of the payload and the only half worth routing on.
+ * every attribute (`ticketId`/`dialogId`/`insightId`/`link`, …) as a flat key, and drops any
+ * larger blob whole when the payload would exceed FCM's size budget — so the flat keys are the
+ * guaranteed half of the payload and the only half worth routing on.
  */
-export function resolvePushNotificationRoute(data: unknown): string | null {
-  return routeFromWireFields((data ?? {}) as Record<string, unknown>);
+export function resolvePushNotificationAction(data: unknown): NotificationAction | null {
+  return actionFromWireFields((data ?? {}) as Record<string, unknown>);
+}
+
+/** A stored notification id: an ObjectId, or a UUID. */
+const NOTIFICATION_ID = /^[\w-]{1,64}$/;
+
+/**
+ * The stored id of the notification a shell's tap opened: the push data's, and the desktop
+ * click's, top-level `notificationId`. Anything not shaped like an id is dropped: a desktop
+ * click can be forged, and the id is base64-encoded into a Relay id next, which throws on a
+ * character outside Latin-1.
+ */
+export function tappedNotificationId(payload: unknown): string | null {
+  const id = nonEmptyString(((payload ?? {}) as Record<string, unknown>).notificationId);
+  return id && NOTIFICATION_ID.test(id) ? id : null;
+}
+
+/**
+ * Open a link action's page outside the app: a new tab on the web. In the shells
+ * `window.open` is what hands an https page over to the system browser (desktop,
+ * `handle_new_window` in `src-tauri/src/lib.rs`) or the in-app browser (mobile,
+ * `ExternalLinksPlugin`).
+ */
+export function openNotificationLink(url: string): void {
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+/**
+ * Open what a notification's action names: the link outside the app, else the route, else
+ * the notifications page, so a tap on a type this build does not know still lands somewhere
+ * useful. A `readOnOpen` action is read here, since no arrival reads it; every other route
+ * is read where it lands (`EntityViewAutoReader`).
+ */
+export function followNotificationTap(
+  action: NotificationAction | null,
+  { navigate, markRead }: { navigate: (route: string) => void; markRead: () => void },
+): void {
+  if (action && isNotificationLinkAction(action)) {
+    openNotificationLink(action.externalUrl);
+  } else {
+    navigate(action?.route ?? routes.notifications());
+  }
+  if (action?.readOnOpen) markRead();
 }
 
 /** Convenience for callers that only need a router route. */
@@ -317,13 +461,17 @@ export function notificationTargetsDialog(notification: Notification, activeDial
  * over whatever route is showing (`?mingoDialog=` on an arbitrary path), so there the drawer's
  * auto-read runs through `notificationTargetsDialog` instead, off the set of dialogs actually
  * on screen.
+ *
+ * An announcement's link into the app never matches (`readOnOpen`): the page is the
+ * backoffice's pick, so being on it says nothing about having seen the announcement.
  */
 export function notificationTargetsLocation(
   notification: Notification,
   pathname: string,
   searchParams: URLSearchParams,
 ): boolean {
-  const route = resolveNotificationRoute(notification);
+  const action = resolveNotificationAction(notification);
+  const route = action?.readOnOpen ? null : actionRoute(action);
   if (!route) return false;
   const [routePath, routeQuery] = route.split('?');
   if (routePath !== pathname) return false;

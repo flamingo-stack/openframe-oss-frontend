@@ -11,12 +11,16 @@ import type ReactRelay from 'react-relay';
 import { RelayEnvironmentProvider } from 'react-relay';
 import { commitLocalUpdate, type Environment } from 'relay-runtime';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { runtimeEnv } from '@/lib/runtime-config';
 
 const h = vi.hoisted(() => ({
   mutations: [] as string[],
   mutationsFail: false,
   nats: null as null | ((payload: unknown) => void),
   refetchDrawer: vi.fn(),
+  markRead: vi.fn(),
+  push: vi.fn(),
+  tenantHost: '',
 }));
 
 // `graphql` tags are compiled away by the relay babel transform, which vitest doesn't run.
@@ -37,8 +41,12 @@ vi.mock('react-relay', async importOriginal => {
 vi.mock('next/navigation', () => ({
   usePathname: () => '/',
   useSearchParams: () => new URLSearchParams(),
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ push: h.push, replace: vi.fn() }),
 }));
+vi.mock('@/lib/runtime-config', async importOriginal => {
+  const actual = await importOriginal<{ runtimeEnv: typeof runtimeEnv }>();
+  return { ...actual, runtimeEnv: { ...actual.runtimeEnv, tenantHostUrl: () => h.tenantHost } };
+});
 vi.mock('@flamingo-stack/openframe-frontend-core/nats', () => ({
   useNatsJsonSubscription: (_subject: string, callback: (payload: unknown) => void) => {
     h.nats = callback;
@@ -62,7 +70,7 @@ vi.mock('@/graphql/notifications/notifications-drawer-relay', async importOrigin
 vi.mock('@/graphql/notifications/unread-counts-relay', () => ({ refreshUnreadCounts: vi.fn() }));
 vi.mock('@/graphql/notifications/use-notification-mutations', () => ({
   useNotificationMutations: () => ({
-    markRead: vi.fn(),
+    markRead: h.markRead,
     autoMarkRead: vi.fn(),
     markAllRead: vi.fn(),
     removeNotification: vi.fn(),
@@ -217,5 +225,97 @@ describe('a notification for a dialog on screen', () => {
       expect(outcome()).toEqual(ALERT);
       expect(h.mutations).toEqual([]);
     });
+  });
+});
+
+/**
+ * The web app's own OS banner (desktop popups on, the tab hidden). An announcement that links
+ * outside the app opens in a new tab on click and is read right there: no page in the app is
+ * arrived at, so nothing else would read it.
+ */
+describe('an announcement banner clicked in a hidden tab', () => {
+  const LINK = 'https://www.flamingo.run/releases/v1-5-81';
+  const banners: { onclick: (() => void) | null }[] = [];
+  let root: Root;
+  let container: HTMLElement;
+
+  const announce = (id: string, attributes: Record<string, string>) =>
+    act(async () => {
+      h.nats?.({ id, type: 'ANNOUNCEMENT', severity: 'INFO', title: 'New release', category: 'GENERIC', attributes });
+    });
+
+  beforeEach(async () => {
+    banners.length = 0;
+    h.markRead.mockClear();
+    h.push.mockClear();
+    localStorage.setItem('of.notifications:desktop', 'true');
+    vi.stubGlobal(
+      'Notification',
+      class {
+        static permission = 'granted';
+        onclick: (() => void) | null = null;
+        close = vi.fn();
+        constructor() {
+          banners.push(this);
+        }
+      },
+    );
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    // The banner raises the tab first, which jsdom does not implement.
+    vi.spyOn(window, 'focus').mockImplementation(() => {});
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root.render(
+        <RelayEnvironmentProvider environment={makeEnvironment()}>
+          <NotificationsDataProvider>{null}</NotificationsDataProvider>
+        </RelayEnvironmentProvider>,
+      );
+    });
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+    localStorage.clear();
+    h.tenantHost = '';
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('opens the link in a new tab and marks the notification read', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    await announce('n-9', { link: LINK });
+
+    expect(banners).toHaveLength(1);
+    act(() => banners[0].onclick?.());
+
+    expect(open).toHaveBeenCalledWith(LINK, '_blank', 'noopener,noreferrer');
+    expect(h.markRead).toHaveBeenCalledWith(notificationGlobalId('n-9'));
+  });
+
+  it('only raises the tab for an announcement without a link', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    await announce('n-10', {});
+
+    act(() => banners[0].onclick?.());
+
+    expect(open).not.toHaveBeenCalled();
+    expect(h.markRead).not.toHaveBeenCalled();
+    expect(h.push).not.toHaveBeenCalled();
+  });
+
+  // Its page is not the announcement's entity, so arriving there reads nothing: the click does.
+  it('navigates to a link on its own origin inside the app and marks it read', async () => {
+    h.tenantHost = 'https://acme.openframe.ai';
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    await announce('n-11', { link: 'https://acme.openframe.ai/devices?statuses=ONLINE' });
+
+    act(() => banners[0].onclick?.());
+
+    expect(h.push).toHaveBeenCalledWith('/devices?statuses=ONLINE');
+    expect(h.markRead).toHaveBeenCalledWith(notificationGlobalId('n-11'));
+    expect(open).not.toHaveBeenCalled();
   });
 });

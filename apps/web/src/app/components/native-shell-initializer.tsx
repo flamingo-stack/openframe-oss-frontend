@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { markNotificationReadById } from '@/graphql/notifications/mark-notification-read-mutation';
 import { primeShellVersion } from '@/lib/client-identity';
 import { initKeyboardInset } from '@/lib/keyboard-inset';
 import { initNativeBack } from '@/lib/native-back';
@@ -15,9 +16,12 @@ import {
 } from '@/lib/native-shell';
 import { isAppShell, isDesktopShell, isMobileShell, shellKind } from '@/lib/platform';
 import { storeDownloadId } from '@/lib/registration-attribution';
-import { routes } from '@/lib/routes';
 import { initTokenStore } from '@/lib/token-store';
-import { resolveNatsNotificationRoute } from './notifications/notification-navigation';
+import {
+  followNotificationTap,
+  resolveNatsNotificationAction,
+  tappedNotificationId,
+} from './notifications/notification-navigation';
 
 // The shell event transport outlives React lifecycles — register the listener
 // and drain the startup click exactly once per page, however many times the
@@ -35,9 +39,12 @@ let downloadLinkHandlingInitialized = false;
  *   path recovers (refresh awaits hydration).
  * - Mobile: status bar + safe-area insets, hardware back, splash hide.
  * - Desktop: OS-notification clicks forwarded by the Rust notification plane —
- *   the envelope context maps to the same route the in-app drawer would use,
- *   falling back to the notifications page. And the download id an "Open the app" link brought,
- *   stored for the signup (`registration-attribution.ts`).
+ *   the envelope's `type` + `attributes` resolve to the same action the in-app
+ *   drawer would take (`followNotificationTap`): an announcement's link in the
+ *   system browser, or in the app on the tenant's origin, read by the click's
+ *   `notificationId`; else the route; else the notifications page. And the
+ *   download id an "Open the app" link brought, stored for the signup
+ *   (`registration-attribution.ts`).
  *
  * The keyboard inset also runs on the touch web; every other step below is a
  * no-op outside a shell.
@@ -76,7 +83,13 @@ export function NativeShellInitializer() {
     if (isDesktopShell() && !nativeClickHandlingInitialized) {
       nativeClickHandlingInitialized = true;
       const openNotification = (payload: unknown) => {
-        router.push(resolveNatsNotificationRoute(payload) ?? routes.notifications());
+        const notificationId = tappedNotificationId(payload);
+        followNotificationTap(resolveNatsNotificationAction(payload), {
+          navigate: route => router.push(route),
+          markRead: () => {
+            if (notificationId) markNotificationReadById(notificationId);
+          },
+        });
       };
       void (async () => {
         let registered: boolean;

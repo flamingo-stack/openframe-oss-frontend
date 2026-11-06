@@ -20,8 +20,9 @@
 // do, and the session gate they do it under, is `notification_actions`.
 //
 // Unlike chat, the shell does not map notifications to routes: the payload
-// forwarded on `notification:click` is the envelope's `context` in wire shape,
-// which the webview resolves with the same mapping the in-app drawer uses.
+// forwarded on `notification:click` is the envelope narrowed to its routing
+// fields (`click_payload`), which the webview resolves with the same mapping the
+// in-app drawer uses.
 // Every click path funnels through `deliver_click`, which stashes the payload
 // until the webview signals readiness (`take_startup_click`), so a cold-start
 // click is not emitted into a listener that has not mounted yet.
@@ -302,29 +303,59 @@ fn delivery_of(envelope: &serde_json::Value) -> Delivery {
 // ---------------------------------------------------------------------------
 
 /// The webview's `notification:click` payload: the envelope narrowed to its
-/// routing fields, in the envelope's own shape — top-level `type` plus a flat
-/// `attributes` map — which the frontend's `resolveNatsNotificationRoute` maps
-/// to a route. Only the fields that mapping reads — plus `approvalRequestId`,
-/// which the Approve/Reject buttons resolve against the chat API — survive. The
-/// rest of the envelope can be arbitrarily large (an approval request carries
-/// the whole `toolCalls` JSON), and the payload has to fit both in a Windows
-/// activation URI and in a toast payload that repeats it once per button; every
-/// id kept here is a UUID. `None` when the envelope points at nothing openable;
-/// the click then only raises the window.
+/// routing fields, in the envelope's own shape — top-level `type` and
+/// `category` plus a flat `attributes` map — which the frontend's
+/// `resolveNatsNotificationAction` maps to a route or a link. Only the fields
+/// that mapping reads — plus `approvalRequestId`, which the Approve/Reject
+/// buttons resolve against the chat API — survive. The rest of the envelope can
+/// be arbitrarily large (an approval request carries the whole `toolCalls`
+/// JSON), and the payload has to fit both in a Windows activation URI and in a
+/// toast payload that repeats it once per button. Every id kept here is a UUID
+/// or an ObjectId; the one long field is an announcement's `link` (up to 1,024
+/// characters), which a Windows toast leaves out when it would not fit
+/// (`windows_toast::toast_xml`). A click that carries a link also names its
+/// notification (`notificationId`): no arrival reads an announcement, so the
+/// webview reads it when the click opens the link. Every other click is read
+/// where it lands, and an id would only grow the toast. `None` when the
+/// envelope points at nothing openable; the click then only raises the window.
+///
+/// `notification-click.json` holds the cases the webview's mapping is checked
+/// against too, so a field it starts routing on cannot go missing here.
 ///
 /// The typed `context` the backend used to nest beside `attributes` is retired
 /// and ignored if it still appears.
 fn click_payload(envelope: &serde_json::Value) -> Option<serde_json::Value> {
     let mut payload = serde_json::Map::new();
-    if let Some(kind) = envelope.get("type").filter(|value| !value.is_null()) {
-        payload.insert("type".to_string(), kind.clone());
+    // `category` tells an unknown type's bare dialog id apart: the webview opens
+    // it only as a Mingo chat.
+    for key in ["type", "category"] {
+        if let Some(value) = envelope.get(key).filter(|value| !value.is_null()) {
+            payload.insert(key.to_string(), value.clone());
+        }
     }
     let mut attributes = serde_json::Map::new();
     if let Some(source) = envelope.get("attributes") {
-        for key in ["ticketId", "dialogId", "approvalRequestId"] {
+        for key in [
+            "ticketId",
+            "dialogId",
+            "insightId",
+            "recordingId",
+            "deviceId",
+            "approvalRequestId",
+            "link",
+            "connectionId",
+        ] {
             if let Some(value) = source.get(key) {
                 attributes.insert(key.to_string(), value.clone());
             }
+        }
+    }
+    if attributes.contains_key("link") {
+        // The NATS message names it by `id`; `notificationId` first, as the
+        // webview reads it (`natsNotificationRawId`).
+        let id = string_field(envelope, "notificationId").or_else(|| string_field(envelope, "id"));
+        if let Some(id) = id {
+            payload.insert("notificationId".to_string(), serde_json::Value::String(id));
         }
     }
     if !attributes.is_empty() {
@@ -334,6 +365,34 @@ fn click_payload(envelope: &serde_json::Value) -> Option<serde_json::Value> {
         );
     }
     (!payload.is_empty()).then_some(serde_json::Value::Object(payload))
+}
+
+/// The cases in `notification-click.json`: an envelope and the click
+/// `click_payload` makes of it. The webview's tests read them too.
+#[cfg(test)]
+pub(crate) fn notification_click_cases() -> Vec<serde_json::Value> {
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("notification-click.json")).unwrap();
+    fixture["cases"].as_array().unwrap().clone()
+}
+
+/// The payload without an announcement's `link`, and without the
+/// `notificationId` that rides with it, or `None` when it carries no link. A
+/// Windows toast falls back to it when the link would push the toast past the
+/// platform's size cap: the click still raises the window and lands on the
+/// notifications page, one more click from the link.
+#[cfg(any(target_os = "windows", test))]
+pub(crate) fn without_link(click: &serde_json::Value) -> Option<serde_json::Value> {
+    click.pointer("/attributes/link")?;
+    let mut trimmed = click.clone();
+    let payload = trimmed.as_object_mut()?;
+    payload.remove("notificationId");
+    let attributes = payload.get_mut("attributes")?.as_object_mut()?;
+    attributes.remove("link");
+    if attributes.is_empty() {
+        payload.remove("attributes");
+    }
+    Some(trimmed)
 }
 
 /// `openframe-console://notify?payload=<percent-encoded JSON>`.
@@ -616,6 +675,71 @@ mod tests {
                     "approvalRequestId": "0a2a0b3c-9d1e-4f5a-8b7c-6d5e4f3a2b1c",
                 }
             })
+        );
+    }
+
+    /// The cases the webview's `notification-navigation.test.ts` reads too: there
+    /// each click resolves to the action its envelope does, and every field the
+    /// mapping routes on is in some case, so a field the webview starts reading
+    /// fails one side or the other until it survives here.
+    #[test]
+    fn click_payload_keeps_what_the_webview_routes_on() {
+        for case in notification_click_cases() {
+            let click = case
+                .get("click")
+                .unwrap_or_else(|| panic!("{} names no click (null for none)", case["name"]));
+            let expected = Some(click).filter(|click| !click.is_null());
+            assert_eq!(
+                click_payload(&case["envelope"]).as_ref(),
+                expected,
+                "{}",
+                case["name"]
+            );
+        }
+    }
+
+    #[test]
+    fn an_announcement_link_survives_the_click_uri() {
+        let envelope = serde_json::json!({
+            "type": "ANNOUNCEMENT",
+            "category": "GENERIC",
+            "attributes": { "link": "https://www.flamingo.run/releases/v1-5-81?utm=a&b=д#top" }
+        });
+        let payload = click_payload(&envelope).unwrap();
+        assert_eq!(
+            parse_click_uri(&click_uri(Some(&payload))).unwrap(),
+            payload
+        );
+    }
+
+    /// The fallback a Windows toast posts when the link does not fit: the same
+    /// payload minus the link and the `notificationId` that rides with it, and
+    /// no empty `attributes` left behind.
+    #[test]
+    fn without_link_drops_the_link_and_the_id_it_carries() {
+        let announcement = serde_json::json!({
+            "type": "ANNOUNCEMENT",
+            "category": "GENERIC",
+            "notificationId": "n-1",
+            "attributes": { "link": "https://www.flamingo.run/" }
+        });
+        assert_eq!(
+            without_link(&announcement).unwrap(),
+            serde_json::json!({ "type": "ANNOUNCEMENT", "category": "GENERIC" })
+        );
+
+        let with_ids = serde_json::json!({
+            "type": "ANNOUNCEMENT",
+            "attributes": { "link": "https://www.flamingo.run/", "ticketId": "t-1" }
+        });
+        assert_eq!(
+            without_link(&with_ids).unwrap(),
+            serde_json::json!({ "type": "ANNOUNCEMENT", "attributes": { "ticketId": "t-1" } })
+        );
+
+        assert!(without_link(&serde_json::json!({ "type": "TICKET_ASSIGNED" })).is_none());
+        assert!(
+            without_link(&serde_json::json!({ "attributes": { "ticketId": "t-1" } })).is_none()
         );
     }
 
