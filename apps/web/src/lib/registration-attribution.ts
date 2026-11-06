@@ -35,10 +35,9 @@ import {
  *   localStorage on every page load (`captureAttributionFromUrl`, mounted app-wide) and read back
  *   at submit. `visit-attribution.ts` keeps them, the same module flamingo.run runs byte for byte,
  *   and its header has the rules: what an arrival is, the first and the latest visit, each ad
- *   platform's latest click, the handoff the marketing sites send, the 90-day expiry. The flat
- *   fields (`utmSource` … `landingUrl`) are the first visit again, for a backend that reads only
- *   those. Inside the app shells there is no referrer and the page is a bundle URL, so no
- *   referrer or landing page is recorded there.
+ *   platform's latest click, the handoff the marketing sites send, the 90-day expiry. Inside the
+ *   app shells there is no referrer and the page is a bundle URL, so no referrer or landing page
+ *   is recorded there.
  *
  * - **The download id** (`downloadId`) exists in the desktop app only: the download page's
  *   "Open the app" link hands the shell the id the installer was downloaded with, and the page
@@ -69,40 +68,18 @@ import {
 export interface Touchpoint {
   /** Full `_fbc` value, this site's cookie or the marketing site's (`pickFbc`) — never truncate. */
   fbc?: string;
-  /** `fbclid` from the landing URL; the backend uses it only when `_fbc` is absent. */
-  fbclid?: string;
   /** `_fbp` cookie value — the Meta browser id, sent to Meta as `fbp`. */
   fbp?: string;
   /** HubSpot visitor token (utk): the marketing site's when the visitor came from there, else
    * the local `hubspotutk` cookie (see the header). The backend puts it in the registration
    * form submission, which is what gives the contact its real traffic source. */
   hutk?: string;
-  /** Google click id. */
-  gclid?: string;
-  /** Google's click id for iOS app traffic, used when there is no `gclid`. */
-  gbraid?: string;
-  /** Google's click id for iOS web traffic, used when there is no `gclid`. */
-  wbraid?: string;
-  /** Reddit click id. */
-  rdtCid?: string;
   /** `_rdt_uuid` cookie value: the Reddit pixel's browser id, sent to Reddit with the signup. */
   rdtUuid?: string;
-  /** LinkedIn click id. */
-  liFatId?: string;
-  utmSource?: string;
-  utmMedium?: string;
-  utmCampaign?: string;
-  utmContent?: string;
-  utmTerm?: string;
   /** Shared id for pixel/server deduplication; generated at form submit. */
   eventId?: string;
   /** Partner referral code from the `of_ref` cookie — see `referral-cookie.ts`. */
   ref?: string;
-  /** The page the visitor came from, `origin + pathname` (see the header). The backend reads the
-   * channel from its host: a search engine, an AI assistant, or another site. */
-  referrer?: string;
-  /** The first page of the visit, `origin + pathname` (see the header). */
-  landingUrl?: string;
   /** The id the desktop installer was downloaded with, handed to the app by its "Open the app" link. */
   downloadId?: string;
   /** The desktop app's "How did you hear about us?" answer: `search`, `ai`, `producthunt`,
@@ -131,7 +108,10 @@ export interface TouchpointVisit {
   wbraid?: string;
   rdtCid?: string;
   liFatId?: string;
+  /** The page the visitor came from, `origin + pathname` (see the header). The backend reads the
+   * channel from its host: a search engine, an AI assistant, or another site. */
   referrer?: string;
+  /** The first page of the visit, `origin + pathname` (see the header). */
   landingUrl?: string;
   /** Epoch milliseconds. */
   landedAt?: number;
@@ -447,8 +427,6 @@ function readTouchpoint(): Touchpoint {
   }
 
   return {
-    // The first visit again as the flat fields, for a backend that reads only those.
-    ...toTouchpointFields(firstVisit),
     // The live URL as for the HubSpot token: a handoff submitted before the capture effect ran.
     fbc: pickFbc([readCookie('_fbc'), readStored(FBC_PARAM), readHandoffFbc()], attribution),
     fbp: readCookie('_fbp'),

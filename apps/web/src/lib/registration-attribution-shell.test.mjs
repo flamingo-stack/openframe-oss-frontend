@@ -37,10 +37,7 @@ test('the desktop shell records no visit and sends none', () => {
   assert.equal(store.of_attr_landing_url, undefined);
 
   const got = A.collectRegistrationAttribution();
-  assert.equal(got.referrer, undefined);
-  assert.equal(got.landingUrl, undefined);
   assert.equal(got.firstVisit.referrer, undefined);
   assert.equal(got.firstVisit.landingUrl, undefined);
-  assert.equal(got.utmSource, 'desktop', 'the rest of the attribution still rides along');
-  assert.equal(got.firstVisit.utmSource, 'desktop');
+  assert.equal(got.firstVisit.utmSource, 'desktop', 'the rest of the attribution still rides along');
 });

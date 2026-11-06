@@ -91,18 +91,18 @@ test('collects cookies, URL params and a minted event id', () => {
   assert.equal(got.fbc, 'fb.1.170.FBID');
   assert.equal(got.fbp, 'fb.1.170.999');
   assert.equal(got.rdtUuid, '1700000000000.Ab-Cd', 'the Reddit pixel cookie, exactly as read');
-  assert.equal(got.gbraid, 'GbR');
-  assert.equal(got.wbraid, 'WbR');
+  assert.equal(got.firstVisit.gbraid, 'GbR');
+  assert.equal(got.firstVisit.wbraid, 'WbR');
   assert.equal(got.hutk, 'hutk-abc', 'the HubSpot cookie rides to the backend for the form submission');
-  assert.equal(got.fbclid, 'FBID');
-  assert.equal(got.gclid, 'GG');
-  assert.equal(got.rdtCid, 'RD');
-  assert.equal(got.liFatId, 'LI');
-  assert.equal(got.utmSource, 'facebook');
-  assert.equal(got.utmMedium, 'cpc');
-  assert.equal(got.utmCampaign, 'q3');
-  assert.equal(got.utmContent, 'v1');
-  assert.equal(got.utmTerm, 'msp');
+  assert.equal(got.firstVisit.fbclid, 'FBID');
+  assert.equal(got.firstVisit.gclid, 'GG');
+  assert.equal(got.firstVisit.rdtCid, 'RD');
+  assert.equal(got.firstVisit.liFatId, 'LI');
+  assert.equal(got.firstVisit.utmSource, 'facebook');
+  assert.equal(got.firstVisit.utmMedium, 'cpc');
+  assert.equal(got.firstVisit.utmCampaign, 'q3');
+  assert.equal(got.firstVisit.utmContent, 'v1');
+  assert.equal(got.firstVisit.utmTerm, 'msp');
   assert.equal(got.eventId, '11111111-2222-3333-4444-555555555555');
 });
 
@@ -121,7 +121,7 @@ test('first touch wins: a landing param is kept over a later URL param', () => {
   window.location.search = '?utm_source=later-should-not-win'; // a later, param-bearing page
   A.captureAttributionFromUrl(); // must not overwrite the stored landing value
 
-  assert.equal(A.collectRegistrationAttribution().utmSource, 'facebook');
+  assert.equal(A.collectRegistrationAttribution().firstVisit.utmSource, 'facebook');
 });
 
 // Google's click ids for iOS traffic stand in for a gclid; the backend sends them to Google Ads.
@@ -132,8 +132,8 @@ test("Google's iOS click ids are kept first touch, like gclid", () => {
   A.captureAttributionFromUrl();
 
   const got = A.collectRegistrationAttribution();
-  assert.equal(got.gbraid, 'FIRST-g');
-  assert.equal(got.wbraid, 'FIRST-w');
+  assert.equal(got.firstVisit.gbraid, 'FIRST-g');
+  assert.equal(got.firstVisit.wbraid, 'FIRST-w');
 });
 
 test('the ad conversion values ride exactly as read, case and all', () => {
@@ -141,14 +141,14 @@ test('the ad conversion values ride exactly as read, case and all', () => {
   window.location.search = '?gbraid=0AAAAA-MiXeD_case';
 
   const got = A.collectRegistrationAttribution();
-  assert.equal(got.gbraid, '0AAAAA-MiXeD_case');
+  assert.equal(got.firstVisit.gbraid, '0AAAAA-MiXeD_case');
   assert.equal(got.rdtUuid, '1700000000000.MiXeD-Case');
 });
 
 test('a direct landing on the signup page still captures its params', () => {
   // No prior capture; the live URL is the fallback source.
   window.location.search = '?utm_source=direct';
-  assert.equal(A.collectRegistrationAttribution().utmSource, 'direct');
+  assert.equal(A.collectRegistrationAttribution().firstVisit.utmSource, 'direct');
 });
 
 // The partner referral is the one signal that can predate this visit entirely — it rides a
@@ -232,13 +232,13 @@ test('hubspotUtkFromHstc reads the token slot and nothing else', () => {
 });
 
 // The visits: where the visitor came from and the first page they saw, from the page load they
-// arrived on, first and latest; the flat fields are the first visit. The rules themselves are
+// arrived on, first and latest. The rules themselves are
 // visit-attribution.ts's (MPH runs the same file under jest); this is what the signup sends.
 function visitOf(got) {
-  return { referrer: got.referrer, landingUrl: got.landingUrl };
+  return { referrer: got.firstVisit?.referrer, landingUrl: got.firstVisit?.landingUrl };
 }
 
-test('an arrival rides as the first and the latest visit, and the first one again as the flat fields', () => {
+test('an arrival rides as the first and the latest visit, and nowhere else', () => {
   pageLoad({ search: '?utm_source=chatgpt&token=secret', referrer: 'https://chatgpt.com/c/abc?model=x#top' });
   pageLoad({ pathname: '/auth/signup/', time: T0 + 1000 }); // the visitor moves on before signing up
 
@@ -251,12 +251,7 @@ test('an arrival rides as the first and the latest visit, and the first one agai
   };
   assert.deepEqual(got.firstVisit, visit);
   assert.deepEqual(got.lastVisit, visit);
-  assert.equal(got.utmSource, 'chatgpt');
-  assert.deepEqual(visitOf(got), {
-    referrer: 'https://chatgpt.com/c/abc',
-    landingUrl: 'https://auth.openframe.ai/auth/',
-  });
-  assert.equal(got.landedAt, undefined, 'the time belongs to the visits');
+  for (const flat of ['utmSource', 'referrer', 'landingUrl', 'landedAt']) assert.equal(got[flat], undefined, flat);
 });
 
 test('a later arrival is the latest visit, whole; the first stays', () => {
@@ -402,7 +397,6 @@ test('entries saved before visits become both visits and the clicks, then are go
   assert.deepEqual(got.firstVisit, visit);
   assert.deepEqual(got.lastVisit, visit);
   assert.deepEqual(got.latestClicks, { meta: { fbclid: 'FB1', clickedAt: T0 - 2 * DAY_MS } });
-  assert.equal(got.utmSource, 'facebook');
   assert.equal(store.of_attr_utm_source, undefined);
 });
 
@@ -412,7 +406,6 @@ test('a visit expires 90 days after its time', () => {
   document.referrer = 'https://openframe.ai/';
   const got = A.collectRegistrationAttribution();
   assert.equal(got.firstVisit, undefined);
-  assert.equal(got.utmSource, undefined);
 });
 
 // An SSO return carries the provider's sign-in page as its referrer; recorded, it would read as
@@ -511,7 +504,6 @@ test('the touchpoint carries every signal the registration does, without the eve
 test('with no signals at all, the touchpoint is this page as a direct visit', () => {
   const visit = { landingUrl: 'https://auth.openframe.ai/auth/', landedAt: T0 };
   assert.deepEqual(A.collectTouchpoint(), {
-    landingUrl: 'https://auth.openframe.ai/auth/',
     firstVisit: visit,
     lastVisit: visit,
   });
@@ -610,12 +602,10 @@ test('SSO query params carry every collected field, matching the password body',
   const params = new URLSearchParams({ tenantName: 'org', tenantDomain: 'org.openframe.example' });
   A.appendAttributionQueryParams(params, collected);
 
-  // 4 cookies + 11 URL params + eventId + referrer + landingUrl = 18 flat fields, the two visits'
-  // 14 each and the four clicks' 2 each with dots, beside the two tenant params the endpoint takes
-  // as @RequestParam.
-  assert.equal([...params.keys()].length, 18 + 2 * 14 + 4 * 2 + 2);
-  assert.equal(params.get('referrer'), 'https://www.facebook.com/');
-  assert.equal(params.get('landingUrl'), 'https://auth.openframe.ai/auth/');
+  // 4 cookies + eventId = 5 top-level fields, the two visits' 14 each and the four clicks' 2 each
+  // with dots, beside the two tenant params the endpoint takes as @RequestParam. No flat visit.
+  assert.equal([...params.keys()].length, 5 + 2 * 14 + 4 * 2 + 2);
+  assert.equal(params.has('utmSource'), false);
   assert.equal(params.get('firstVisit.utmSource'), 'facebook');
   assert.equal(params.get('lastVisit.landedAt'), String(T0));
   assert.equal(params.get('latestClicks.meta.fbclid'), 'FBID');
@@ -627,17 +617,17 @@ test('SSO query params carry every collected field, matching the password body',
 
 test('SSO query serialization skips blank values instead of sending empty strings', () => {
   const params = new URLSearchParams();
-  A.appendAttributionQueryParams(params, { fbp: 'fb.1.170.999', fbc: '', utmSource: '   ' });
+  A.appendAttributionQueryParams(params, { fbp: 'fb.1.170.999', fbc: '', hutk: '   ' });
   assert.deepEqual([...params.keys()], ['fbp']);
 });
 
 // The password-flow body runs explicit attribution through the same normalization, so a
 // caller-supplied `{ fbp: '' }` is omitted identically on both flows.
 test('normalizeAttribution drops blanks and collapses an all-blank object to undefined', () => {
-  assert.deepEqual(A.normalizeAttribution({ fbp: 'fb.1.170.999', fbc: '', utmSource: '   ' }), {
+  assert.deepEqual(A.normalizeAttribution({ fbp: 'fb.1.170.999', fbc: '', hutk: '   ' }), {
     fbp: 'fb.1.170.999',
   });
-  assert.equal(A.normalizeAttribution({ fbc: '', utmSource: '   ' }), undefined);
+  assert.equal(A.normalizeAttribution({ fbc: '', hutk: '   ' }), undefined);
 });
 
 test('normalizeAttribution keeps the times and drops a nested object that is all blank', () => {
