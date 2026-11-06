@@ -99,6 +99,8 @@ export function SoftwareActionView({
   const handleBack = useSafeBack(routes.software.actions);
   // Unanswered, the block stays out and nothing submits: a submit then could leave without the settings it shows.
   const updateSettingsGate = useFeatureFlagGate('software-update-settings');
+  // One flags answer for both: by the time the block shows, this one has answered too.
+  const updateNotificationsGate = useFeatureFlagGate('software-update-notifications');
   const { bundleId, deviceCount, createError, retryCreate, markSubmitted } = useDraftBundle({ enabled: !loading });
   const { submit, isSubmitting } = useSoftwareActionSubmit(action, { onSubmitted: markSubmitted });
 
@@ -133,6 +135,7 @@ export function SoftwareActionView({
       // The submit sends them as updateSettings + autoUpdate (use-software-action-submit); hidden, the form leaves
       // them undefined and the submit sends neither.
       showUpdateSettings={updateSettingsGate === 'on'}
+      updateUserNotifications={updateNotificationsGate === 'on'}
     />
   );
 }
