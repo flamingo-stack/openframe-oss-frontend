@@ -242,6 +242,99 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  # The mobile shells' over-the-air web bundle (apps/mobile/docs/ota.md): one export for every
+  # environment, carrying no env, since each phone gives it the env of its own built-in bundle.
+  # Built here with no secret in the job, signed in mobile_ota_sign with no npm install in it.
+  mobile_ota_build:
+    name: 'Build Mobile OTA Bundle'
+    needs: [version]
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      # Every environment's phones get this one build, so no environment's values may enter it from
+      # the job. (The committed apps/web/.env.local still loads, as for the desktop and store builds.)
+      - name: Build web export
+        working-directory: apps/web
+        env:
+          OPENFRAME_BUILD_TARGET: export
+          OPENFRAME_BUNDLE_VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          if env | grep -q '^NEXT_PUBLIC_'; then
+            echo "::error::NEXT_PUBLIC_* is set for the OTA build: $(env | grep -o '^NEXT_PUBLIC_[A-Z0-9_]*' | xargs)"
+            exit 1
+          fi
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Upload export
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-ota-export  # not openframe-*: the release attaches only the signed bundle
+          path: apps/web/dist/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7  # long enough to re-run a failed sign job without rebuilding
+
+  mobile_ota_sign:
+    name: 'Sign Mobile OTA Bundle'
+    needs: [version, mobile_ota_build]
+    runs-on: ubuntu-latest
+    # Holds MOBILE_OTA_SIGNING_KEY behind a deployment rule that admits main only.
+    environment: mobile-ota
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Download export
+        uses: actions/download-artifact@v4
+        with:
+          name: mobile-ota-export
+          path: ota-export
+
+      - name: Pack and sign
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          URL_BASE: ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ needs.version.outputs.version }}
+          MOBILE_OTA_SIGNING_KEY: ${{ secrets.MOBILE_OTA_SIGNING_KEY }}
+        run: node apps/mobile/scripts/ota-pack.mjs --dist ota-export --version "$VERSION" --url-base "$URL_BASE" --out ota-artifacts
+
+      - name: Verify against apps/mobile/ota/keys.json
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: node apps/mobile/scripts/ota-verify.mjs --manifest ota-artifacts/mobile.json --zip "ota-artifacts/openframe-mobile-${VERSION}.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openframe-mobile-ota
+          path: ota-artifacts/
+          if-no-files-found: error
+          retention-days: 30
+
   # Mobile builds disabled: to restore, uncomment both jobs, re-add them to release needs and the Mobile header section.
 #  # Signed store builds, attached to the release for manual upload to App Store Connect / Play.
 #  build_ios:
@@ -344,7 +437,7 @@ jobs:
   # A failed leg leaves the pushed image without a release; re-run the failed jobs.
   release:
     name: 'Create Release'
-    needs: [version, build_image, build_desktop]  # + build_ios, build_android
+    needs: [version, build_image, build_desktop, mobile_ota_sign]  # + build_ios, build_android
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
@@ -405,6 +498,10 @@ jobs:
           - **macOS** (Universal): \`.dmg\` to install, \`.app.tar.gz\` for the updater
           - **Windows** (x64, arm64): \`_x64-setup.exe\`, \`_arm64-setup.exe\`
           - Updater manifest: \`updater.json\`
+
+          ## Mobile (over the air)
+          - \`openframe-mobile-${VERSION}.zip\`: the web bundle, one for every environment
+          - \`mobile.json\`: its signed manifest, served to the phones of each environment that runs this release
 
           ---
           EOF
