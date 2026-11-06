@@ -63,11 +63,11 @@ const EMPTY_STATE: NoDataProps = {
   description: 'Each device reports here once the run reaches it',
 };
 
-/** One row per target device. */
-const getRowId = (row: LogRow) => row.machineId;
+/** One row per target device. A loading placeholder (`loadingPlaceholderRows`) has no device yet: it keys on its own id. */
+const getRowId = (row: LogRow) => row.machineId ?? (row as { id?: string }).id;
 
-/** The rows a loading scope draws: one page, the size the list skeletons use. */
-const PLACEHOLDER_ROW_COUNT = 20;
+/** The rows a loading scope draws: the list comes whole, so its typical size, not a page. */
+const LOGS_SKELETON_ROWS = 20;
 
 interface SoftwareLogsTableProps {
   /** The run (`SoftwareActionRun.id`), as `softwareActionExecutions` takes it. */
@@ -132,7 +132,7 @@ export function SoftwareLogsRows({ allRows, actionLabel, state }: SoftwareLogsRo
   // While the run is read the table holds one page of placeholder rows, drawn with their real cells (never narrowed:
   // a placeholder has nothing to match).
   const placeholderRows = useMemo(
-    () => (loading ? loadingPlaceholderRows<LogRow>(PLACEHOLDER_ROW_COUNT) : null),
+    () => (loading ? loadingPlaceholderRows<LogRow>(LOGS_SKELETON_ROWS) : null),
     [loading],
   );
   const needle = narrowSearch.trim().toLowerCase();
@@ -238,7 +238,7 @@ export function SoftwareLogsRows({ allRows, actionLabel, state }: SoftwareLogsRo
     <ResultPhasesContext.Provider value={{ phases, toggle }}>
       <LiveTable
         table={table}
-        pageSize={PLACEHOLDER_ROW_COUNT}
+        skeletonRows={LOGS_SKELETON_ROWS}
         loadingCells={loading}
         stickyHeaderOffset={stickyHeaderOffset}
         showHeader={showHeader}
