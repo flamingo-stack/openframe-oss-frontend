@@ -26,7 +26,13 @@ export function useNonSuspendingQuery<TQuery extends OperationType>(
   const environment = useRelayEnvironment();
   // A string, not an object: the effect and the answer compare it by value.
   const requestKey = enabled ? JSON.stringify(variables) : null;
-  const [answeredKey, setAnsweredKey] = useState<string | null>(null);
+  // Already in the store: shown from the first frame, not one frame after the effect finds the same answer.
+  const [answeredKey, setAnsweredKey] = useState<string | null>(() =>
+    requestKey !== null &&
+    environment.check(createOperationDescriptor(getRequest(query), JSON.parse(requestKey))).status === 'available'
+      ? requestKey
+      : null,
+  );
   const [failedKey, setFailedKey] = useState<string | null>(null);
 
   useEffect(() => {

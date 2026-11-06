@@ -1,10 +1,7 @@
-// What the New and Edit forms share: the record as they read it (one selection, spread by every
-// query and mutation that hands a connection to a form), the record → form mapping, the
-// changed-fields diff, the customer picker's options and the invalid-submit feedback (toast, then
-// scroll — Controllers pass no `ref`).
+// What the New, Connect, Edit and Reconnect forms share: the record as they read it (one selection,
+// spread by every query and mutation that hands a connection to a form), the record → form
+// mapping, the changed-fields diff and the customer picker's options.
 
-import type { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import type { FieldErrors } from 'react-hook-form';
 import { graphql, readInlineData } from 'react-relay';
 import type {
   tenantFormHelpers_connection$data,
@@ -12,11 +9,9 @@ import type {
 } from '@/__generated__/tenantFormHelpers_connection.graphql';
 import { DirectoryProvider } from '@/generated/schema-enums';
 import { knownValue } from '@/lib/exhaustive-map';
-import { scrollToFirstInvalidField } from '@/lib/scroll-to-first-invalid-field';
-import { type CustomerOption, toCustomerOption } from './customer-option';
+import { readAttribution, type StoredAttribution } from './attribution-helpers';
+import { readBoundCustomer } from './bound-customer';
 import type { TenantFormData } from './tenant-form.types';
-
-type Toast = ReturnType<typeof useToast>['toast'];
 
 // The connection as a form sees it. `@inline` so the create mutation can select it too: its
 // response then holds everything the connect step renders, and that step reads the store instead
@@ -28,19 +23,23 @@ const tenantFormHelpersFragment = graphql`
     provider
     domain
     name
-    organizationId
     consentUrl
     connectedAt
-    organization {
-      ...customerOption_organization
+    customers {
+      ...boundCustomer_customer
+      rules {
+        kind
+        values {
+          id
+          lastKnownName
+          deleted
+        }
+      }
     }
   }
 `;
 
-export type StoredConnectionFields = Pick<
-  tenantFormHelpers_connection$data,
-  'provider' | 'domain' | 'name' | 'organizationId'
->;
+export type StoredConnectionFields = Pick<tenantFormHelpers_connection$data, 'provider' | 'domain' | 'name'>;
 
 /** The record as form values; provider and domain are display-only on Edit, so a value this build cannot send stays harmless. */
 export function connectionToFormValues(connection: StoredConnectionFields): TenantFormData {
@@ -48,7 +47,6 @@ export function connectionToFormValues(connection: StoredConnectionFields): Tena
     provider: knownValue(DirectoryProvider, connection.provider) ?? DirectoryProvider.MICROSOFT_365,
     domain: connection.domain ?? '',
     name: connection.name,
-    organizationId: connection.organizationId,
   };
 }
 
@@ -60,13 +58,13 @@ export interface TenantFormRecord {
   /** Consent has completed at least once — the domain is fixed, and no link is expected. */
   connected: boolean;
   values: TenantFormData;
-  /** The customer already bound to this connection (see `CustomerSelect`). */
-  organization: CustomerOption;
+  /** The customers it serves, as the attribution form holds them. */
+  attribution: StoredAttribution;
 }
 
 /** Reads the shared selection into what a form needs — plain values, so the form owns no fragment. */
 export function readTenantFormRecord(ref: tenantFormHelpers_connection$key): TenantFormRecord {
-  const { id, provider, domain, name, organizationId, consentUrl, connectedAt, organization } = readInlineData(
+  const { id, provider, domain, name, consentUrl, connectedAt, customers } = readInlineData(
     tenantFormHelpersFragment,
     ref,
   );
@@ -75,12 +73,21 @@ export function readTenantFormRecord(ref: tenantFormHelpers_connection$key): Ten
     provider,
     consentUrl: consentUrl ?? null,
     connected: connectedAt != null,
-    values: connectionToFormValues({ provider, domain, name, organizationId }),
-    organization: toCustomerOption(organization),
+    values: connectionToFormValues({ provider, domain, name }),
+    attribution: readAttribution(
+      customers.map(customer => ({
+        ...readBoundCustomer(customer),
+        // Field by field: `relay/unused-fields` counts only the fields this file names.
+        rules: customer.rules.map(({ kind, values }) => ({
+          kind,
+          values: values.map(value => ({ id: value.id, lastKnownName: value.lastKnownName, deleted: value.deleted })),
+        })),
+      })),
+    ),
   };
 }
 
-export type EditableField = 'name' | 'organizationId' | 'domain';
+export type EditableField = 'name' | 'domain';
 
 /** The fields whose value differs from what is stored — the only ones an update sends. */
 export function changedFields(
@@ -95,7 +102,7 @@ export function changedFields(
   return changes;
 }
 
-/** The picker's options: the API lists only unbound customers, so the connection's own one is put back first. */
+/** A picker's options: its stored customer is put back first while the list has not paged to it yet. */
 export function withBoundOrganization<T extends { readonly organizationId: string }>(
   organizations: readonly T[],
   bound: T | null | undefined,
@@ -104,19 +111,4 @@ export function withBoundOrganization<T extends { readonly organizationId: strin
     return organizations;
   }
   return [bound, ...organizations];
-}
-
-/** The `handleSubmit` error branch: one destructive toast, then the page scrolls to the culprit. */
-export function invalidSubmitHandler(toast: Toast, title: string) {
-  return (errors: FieldErrors<TenantFormData>) => {
-    const messages = Object.values(errors)
-      .map(error => error?.message)
-      .filter((message): message is string => Boolean(message));
-    toast({
-      title,
-      description: messages.length > 0 ? messages.join(', ') : 'Please fill in all required fields.',
-      variant: 'destructive',
-    });
-    scrollToFirstInvalidField();
-  };
 }

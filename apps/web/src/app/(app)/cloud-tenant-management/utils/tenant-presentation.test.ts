@@ -14,23 +14,36 @@ import {
   DirectoryCapability,
   DirectoryConsentIssueKind,
   DirectoryConsentOutcome,
+  DirectoryLicenseFilter,
   DirectoryProvider,
+  DirectoryRuleKind,
 } from '@/generated/schema-enums';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDate } from '@/lib/format-date';
+import { asInstant } from '@/lib/graphql-scalars';
 import {
   accessStateHint,
+  attributionSummary,
   capabilityLabels,
   checkResultTag,
   consentAlert,
+  isSyncPaused,
+  syncPausedDescription,
   consentIssueCode,
   consentIssueReport,
   consentIssueTag,
   formatConnectedAt,
+  inactiveCustomerBadge,
   isReadable,
+  licenseFilterLabel,
+  deletedValuesBadge,
   PROVIDER_ORDER,
   providerErrorLookupUrl,
   providerPresentation,
+  ruleKindLabel,
+  ruleKindPlural,
+  ruleKindsFor,
+  ruleValueLabel,
 } from './tenant-presentation';
 
 const access = (state: DirectoryAccessState) => ({ state });
@@ -136,6 +149,76 @@ describe('capabilityLabels', () => {
   });
 });
 
+describe('licenseFilterLabel', () => {
+  it('labels every Licences funnel option and keeps unknown ones verbatim', () => {
+    expect(Object.values(DirectoryLicenseFilter).map(licenseFilterLabel)).toEqual([
+      'Has unused seats',
+      'No purchased total',
+      'Not read yet',
+    ]);
+    expect(licenseFilterLabel('OVER_ASSIGNED')).toBe('OVER_ASSIGNED');
+  });
+});
+
+describe('attribution rules', () => {
+  it('labels every rule kind and keeps unknown ones verbatim', () => {
+    expect(Object.values(DirectoryRuleKind).map(ruleKindLabel)).toEqual([
+      'All accounts',
+      'Domain',
+      'Group',
+      'Org unit',
+    ]);
+    expect(ruleKindLabel('TITLE')).toBe('TITLE');
+    expect(ruleKindsFor(DirectoryProvider.GOOGLE_WORKSPACE).map(ruleKindPlural)).toEqual([
+      'domains',
+      'groups',
+      'org units',
+    ]);
+  });
+
+  it('offers org units on Google Workspace only, and never ALL', () => {
+    expect(ruleKindsFor(DirectoryProvider.GOOGLE_WORKSPACE)).toEqual([
+      DirectoryRuleKind.DOMAIN,
+      DirectoryRuleKind.GROUP,
+      DirectoryRuleKind.ORG_UNIT,
+    ]);
+    expect(ruleKindsFor(DirectoryProvider.MICROSOFT_365)).toEqual([DirectoryRuleKind.DOMAIN, DirectoryRuleKind.GROUP]);
+  });
+
+  it('badges a bound customer that is no longer active; a legacy one with no status is active', () => {
+    expect(inactiveCustomerBadge({ status: 'ACTIVE' })).toBeNull();
+    expect(inactiveCustomerBadge({ status: null })).toBeNull();
+    expect(inactiveCustomerBadge({ status: 'ARCHIVED' })).toBe('Archived');
+    expect(inactiveCustomerBadge({ status: 'DELETED' })).toBe('Deleted');
+    // A missing document is broken data: deleting one keeps it, with the status above.
+    expect(inactiveCustomerBadge(null)).toBe('Deleted');
+  });
+
+  it('marks a deleted value by its last known name, or by its id when none was recorded', () => {
+    expect(ruleValueLabel({ id: 'g-1', name: 'Clinicians', deleted: false })).toBe('Clinicians');
+    expect(ruleValueLabel({ id: 'g-1', name: 'Clinicians' })).toBe('Clinicians');
+    expect(ruleValueLabel({ id: 'g-gone', name: 'Nurses', deleted: true })).toBe('Nurses (deleted)');
+    expect(ruleValueLabel({ id: 'g-gone', name: null, deleted: true })).toBe('g-gone (deleted)');
+  });
+
+  it('names a value with no name yet by its id, unmarked until a sync says it is gone', () => {
+    expect(ruleValueLabel({ id: 'g-new', name: null, deleted: false })).toBe('g-new');
+  });
+
+  it('badges a rule while some of its values are deleted', () => {
+    expect(deletedValuesBadge(0)).toBeNull();
+    expect(deletedValuesBadge(1)).toBe('Deleted value');
+    expect(deletedValuesBadge(3)).toBe('3 deleted values');
+  });
+
+  it('summarises attribution as the details card draws it', () => {
+    expect(attributionSummary(8, 96)).toEqual({ text: '8 of 96 unattributed', warning: true });
+    expect(attributionSummary(0, 257)).toEqual({ text: 'Fully attributed', warning: false });
+    expect(attributionSummary(null, 96)).toBeNull();
+    expect(attributionSummary(3, null)).toEqual({ text: '3 unattributed', warning: true });
+  });
+});
+
 describe('time formatting', () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -178,9 +261,13 @@ describe('usersCountLabel', () => {
 });
 
 describe('consentAlert', () => {
-  const attempt = (outcome: string, extra: { deniedTiers?: string[]; hasIssues?: boolean } = {}) => ({
+  const attempt = (
+    outcome: string,
+    extra: { deniedTiers?: string[]; unfinishedTiers?: string[]; hasIssues?: boolean } = {},
+  ) => ({
     outcome,
     deniedTiers: extra.deniedTiers ?? [],
+    unfinishedTiers: extra.unfinishedTiers ?? [],
     hasIssues: extra.hasIssues ?? false,
   });
   const NOT_CONNECTED = "Tenant is still not connected. Data aren't available yet.";
@@ -219,6 +306,26 @@ describe('consentAlert', () => {
     });
     expect(alert?.variant).toBe('warning');
     expect(alert?.message).toContain('declined some permissions: AUDIT, WRITE.');
+  });
+
+  it('names the tiers the admin has not answered yet, and how Reconnect finishes them', () => {
+    const alert = consentAlert(
+      attempt(DirectoryConsentOutcome.PARTIAL, { unfinishedTiers: ['AUDIT', 'WRITE'], hasIssues: true }),
+      { readable: true, domain: 'acme.com' },
+    );
+    expect(alert).toEqual({
+      variant: 'warning',
+      message:
+        "Connected with limited access. The admin hasn't finished approving: AUDIT, WRITE. Use Reconnect and have the admin approve every screen until Microsoft returns to OpenFrame.",
+    });
+  });
+
+  it('names declined and unanswered tiers apart in one PARTIAL', () => {
+    const alert = consentAlert(
+      attempt(DirectoryConsentOutcome.PARTIAL, { deniedTiers: ['AUDIT'], unfinishedTiers: ['WRITE'], hasIssues: true }),
+      { readable: true, domain: 'acme.com' },
+    );
+    expect(alert?.message).toContain("declined some permissions: AUDIT, and hasn't finished approving: WRITE.");
   });
 
   it('leaves a PARTIAL with nothing declined to its issues', () => {
@@ -277,6 +384,10 @@ describe('consent issues', () => {
       label: 'Pending',
       variant: 'grey',
     });
+    expect(consentIssueTag(DirectoryConsentIssueKind.NOT_FINISHED, DirectoryProvider.MICROSOFT_365)).toEqual({
+      label: 'Not finished',
+      variant: 'warning',
+    });
     expect(consentIssueTag('SOMETHING_NEW', DirectoryProvider.MICROSOFT_365)).toEqual({
       label: 'SOMETHING_NEW',
       variant: 'grey',
@@ -327,5 +438,29 @@ describe('consent issues', () => {
         message: 'Blocked.',
       }),
     ).toBe('Provider: Google Workspace\nDomain: acme.com\nError code: admin_policy_enforced\nMessage: Blocked.');
+  });
+});
+
+describe('isSyncPaused', () => {
+  it('is a disabled tenant OpenFrame can still read', () => {
+    expect(isSyncPaused({ enabled: false, access: { state: 'WRITE_ENABLED' } })).toBe(true);
+    expect(isSyncPaused({ enabled: true, access: { state: 'WRITE_ENABLED' } })).toBe(false);
+  });
+
+  it('is not a disconnected tenant, which says Disconnected', () => {
+    expect(isSyncPaused({ enabled: false, access: { state: 'DISCONNECTED' } })).toBe(false);
+  });
+});
+
+describe('syncPausedDescription', () => {
+  it('names who and when, as far as it is known', () => {
+    const at = asInstant('2026-05-01T10:00:00Z');
+    expect(syncPausedDescription('Roman Smith', at)).toMatch(/^Paused by Roman Smith on .+\.$/);
+    expect(syncPausedDescription(null, at)).toMatch(/^Paused on .+\.$/);
+    expect(syncPausedDescription('Roman Smith', null)).toBe('Paused by Roman Smith.');
+  });
+
+  it('says nothing about a tenant paused before this was recorded', () => {
+    expect(syncPausedDescription(null, null)).toBeNull();
   });
 });

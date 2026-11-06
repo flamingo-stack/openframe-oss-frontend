@@ -19,7 +19,14 @@ interface UseDevicesUrlParamsOptions {
    *   pair with `lockedFilters` to scope the query (e.g. the archive page).
    */
   defaultStatuses?: string[];
+  /**
+   * The list draws the USER and SOURCES columns. Without them `userLinks` and `directorySources` in the address narrow
+   * nothing: no funnel could show them or clear them, so the rows would just go missing.
+   */
+  directoryColumns?: boolean;
 }
+
+const NOT_APPLIED: string[] = [];
 
 export function useDevicesUrlParams(options: UseDevicesUrlParamsOptions = {}) {
   const defaultStatuses = options.defaultStatuses ?? DEFAULT_DEVICES_LIST_STATUSES;
@@ -29,6 +36,8 @@ export function useDevicesUrlParams(options: UseDevicesUrlParamsOptions = {}) {
     statuses: { type: 'array', default: [] },
     osTypes: { type: 'array', default: [] },
     organizationIds: { type: 'array', default: [] },
+    userLinks: { type: 'array', default: [] },
+    directorySources: { type: 'array', default: [] },
     tags: { type: 'array', default: [] },
     viewMode: { type: 'string', default: 'table' },
   });
@@ -63,7 +72,13 @@ export function useDevicesUrlParams(options: UseDevicesUrlParamsOptions = {}) {
 
   const selectedStatuses = useMemo(() => normalizeStatuses(params.statuses), [params.statuses, normalizeStatuses]);
 
-  const normalizedParams = useMemo(() => ({ ...params, statuses: selectedStatuses }), [params, selectedStatuses]);
+  const userLinks = options.directoryColumns ? params.userLinks : NOT_APPLIED;
+  const directorySources = options.directoryColumns ? params.directorySources : NOT_APPLIED;
+
+  const normalizedParams = useMemo(
+    () => ({ ...params, statuses: selectedStatuses, userLinks, directorySources }),
+    [params, selectedStatuses, userLinks, directorySources],
+  );
 
   const setParamsNormalized = useCallback(
     (next: Record<string, string[]>) =>
@@ -85,9 +100,11 @@ export function useDevicesUrlParams(options: UseDevicesUrlParamsOptions = {}) {
       ...(effectiveStatuses.length > 0 && { statuses: effectiveStatuses }),
       osTypes: params.osTypes,
       organizationIds: params.organizationIds,
+      ...(userLinks.length > 0 && { userLinks }),
+      ...(directorySources.length > 0 && { directorySources }),
       ...(tagValues.length > 0 && { tagValues }),
     }),
-    [effectiveStatuses, params.osTypes, params.organizationIds, tagValues],
+    [effectiveStatuses, params.osTypes, params.organizationIds, userLinks, directorySources, tagValues],
   );
 
   const tableFilters = useMemo(
@@ -95,8 +112,10 @@ export function useDevicesUrlParams(options: UseDevicesUrlParamsOptions = {}) {
       status: selectedStatuses,
       os: params.osTypes,
       organization: params.organizationIds,
+      user: userLinks,
+      sources: directorySources,
     }),
-    [selectedStatuses, params.osTypes, params.organizationIds],
+    [selectedStatuses, params.osTypes, params.organizationIds, userLinks, directorySources],
   );
 
   const tagOptions: TagSearchOption<string>[] = useMemo(
@@ -110,6 +129,8 @@ export function useDevicesUrlParams(options: UseDevicesUrlParamsOptions = {}) {
         statuses: columnFilters.status || [],
         osTypes: columnFilters.os || [],
         organizationIds: columnFilters.organization || [],
+        userLinks: columnFilters.user || [],
+        directorySources: columnFilters.sources || [],
       });
       document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
     },
