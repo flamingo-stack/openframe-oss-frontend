@@ -689,7 +689,8 @@ rebuild instead. WebView inspector: Safari → Develop.
 `docs/project-structure.md` (pipeline, committed-vs-generated) · `docs/using-native-apis.md`
 (plugin pattern) · `docs/run-on-iphone.md` (device/simulator/signing/live-reload/env) ·
 `docs/release-ios-prod.md` · `docs/release-android-prod.md` (store submission checklists) ·
-`docs/release-ios-stage.md` · `docs/release-android-stage.md`.
+`docs/release-ios-stage.md` · `docs/release-android-stage.md` · `docs/ota.md` (over-the-air
+bundle each release publishes, signing keys).
 
 **After structural changes** (new plugin, auth change, pipeline change, new platform), update
 the Obsidian note `OpenFrame/openframe-mobile.md` and bump its `updated` field.
