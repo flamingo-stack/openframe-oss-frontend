@@ -2,8 +2,8 @@
 
 import type { ApprovalLevel } from '@flamingo-stack/openframe-frontend-core';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo } from 'react';
 import { extractGraphQlData } from '@/app/(app)/tickets/utils/graphql';
 import { apiClient } from '@/lib/api-client';
 import { type GraphqlResponse, type MutationPayloadGql, throwOnErrors } from '../../hooks/chat-graphql';
@@ -144,9 +144,10 @@ export function useGuardrailsTemplates() {
   };
 }
 
-export function useGuardrailsTemplate(templateId: string | null) {
-  const result = useQuery({
-    queryKey: guardrailsQueryKeys.template(templateId ?? ''),
+/** One template with its rules: the query a template's page reads and the prefetch below warms. */
+function guardrailsTemplateQuery(templateId: string) {
+  return {
+    queryKey: guardrailsQueryKeys.template(templateId),
     queryFn: async (): Promise<PolicyTemplateDetail> => {
       const response = await apiClient.post<GraphqlResponse<{ guardrailPolicy: GuardrailPolicyDetailGql | null }>>(
         '/chat/graphql',
@@ -166,14 +167,37 @@ export function useGuardrailsTemplate(templateId: string | null) {
         active: policy.isActive,
       };
     },
+  };
+}
+
+/**
+ * A template's rules. On a switch to a template not read yet, the previous template's rules stay on screen until the
+ * new ones land (`isSwitching`) instead of the list dropping to a skeleton and back; `isLoading` is only the first
+ * read, with nothing to show.
+ */
+export function useGuardrailsTemplate(templateId: string | null) {
+  const result = useQuery({
+    ...guardrailsTemplateQuery(templateId ?? ''),
     enabled: !!templateId,
+    placeholderData: keepPreviousData,
   });
 
   return {
-    template: result.data ?? null,
+    template: templateId ? (result.data ?? null) : null,
     isLoading: !!templateId && result.isLoading,
+    isSwitching: !!templateId && result.isPlaceholderData,
     error: result.error,
   };
+}
+
+/** Reads every template's rules ahead, while a picker offers them, so a switch between them is instant. */
+export function usePrefetchGuardrailsTemplates(templateIds: readonly string[], enabled: boolean) {
+  const queryClient = useQueryClient();
+  const key = templateIds.join('|');
+  useEffect(() => {
+    if (!enabled) return;
+    for (const id of key.split('|').filter(Boolean)) void queryClient.prefetchQuery(guardrailsTemplateQuery(id));
+  }, [enabled, key, queryClient]);
 }
 
 export function useActivateGuardrailsTemplate() {

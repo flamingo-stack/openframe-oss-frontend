@@ -141,6 +141,30 @@ describe('composeApprovalInbox', () => {
     expect(inbox.pendingCount).toBe(2);
   });
 
+  it("takes the guardrail review from the chat's or the ticket's copy of a notified request", () => {
+    const review = { decision: 'ESCALATE', approvalLevel: 'ASK_USER', policyLevel: 'ALLOW', operationCodes: ['X'] };
+    const reviewed = { ...TOOL_CALL, policyReview: review };
+    const inbox = composeApprovalInbox(
+      sources({
+        notifications: [
+          approvalNotification('n-1', 'ar-1', { dialogId: 'd-1' }),
+          approvalNotification('n-2', 'ar-t1', { notificationType: 'TICKET_APPROVAL_REQUEST', ticketId: 't-1' }),
+        ],
+        dialogs: [chat('d-1', 'ar-1', { pendingApproval: { id: 'ar-1', toolCalls: [reviewed] } })],
+        tickets: [
+          ticket('t-1', 'ar-t1', {
+            pendingApproval: { id: 'ar-t1', toolCalls: [reviewed] } as unknown as Dialog['pendingApproval'],
+          }),
+        ],
+      }),
+    );
+
+    for (const card of inbox.cards) {
+      expect(card.notificationId).not.toBeNull();
+      expect(getApprovalMeta(card.notification)?.toolCalls[0].policyReview).toEqual(review);
+    }
+  });
+
   it('draws a waiting ticket as the request its notification would have been', () => {
     const [card] = composeApprovalInbox(sources({ tickets: [ticket('t-2', 'ar-t2')] })).cards;
 

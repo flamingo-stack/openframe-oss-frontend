@@ -158,6 +158,8 @@ export function normalizeToolCall(raw: unknown): ApprovalToolCallMeta {
       call.toolCallArguments && typeof call.toolCallArguments === 'object'
         ? (call.toolCallArguments as Record<string, unknown>)
         : null,
+    // Wire shape: the core lib normalizes it into the approval batch.
+    ...(call.policyReview ? { policyReview: call.policyReview } : {}),
   };
 }
 
