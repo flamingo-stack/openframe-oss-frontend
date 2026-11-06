@@ -66,4 +66,14 @@ describe('PlanTotalSummary', () => {
     expect(text()).toContain(`Devices are billed on ${formatDate(FIRST_BILLING_DATE)}.`);
     expect(text()).not.toContain('billed together at checkout');
   });
+
+  it('holds both lines until the picker reports its mode', () => {
+    act(() =>
+      root.render(
+        <PlanTotalSummary mode={null} total={null} topUpUsd={50} showAiNote firstBillingDate={FIRST_BILLING_DATE} />,
+      ),
+    );
+    expect(text()).not.toContain('Total due today');
+    expect(container.firstElementChild?.children).toHaveLength(2);
+  });
 });

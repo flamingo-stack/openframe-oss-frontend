@@ -8,7 +8,7 @@ import { formatDate } from '@/lib/format-date';
 import type { DevicePlanMode, SelectionTotal } from './plan-selection';
 
 interface PlanTotalSummaryProps {
-  /** How the devices are paid for; `null` until the picker reports (or with no device product). */
+  /** How the devices are paid for; `null` until the picker reports, which holds the lines as loading does. */
   mode: DevicePlanMode | null;
   /** Priced device selection: the prepaid year's figure; null on pay-as-you-go or while nothing priceable is selected. */
   total: SelectionTotal | null;
@@ -44,7 +44,8 @@ export function PlanTotalSummary({
   loading = false,
   className,
 }: PlanTotalSummaryProps) {
-  const isLoading = useLoadingScope() || loading;
+  // The picker reports its mode from an effect, a render after the catalog lands.
+  const isLoading = useLoadingScope() || loading || mode == null;
   const topUp = topUpUsd != null && topUpUsd > 0 ? topUpUsd : 0;
 
   const dueToday = (amount: number, note?: string) => (
@@ -69,12 +70,10 @@ export function PlanTotalSummary({
           {total && dueToday(total.amount + topUp)}
         </>
       ) : (
-        mode === 'PAYG' && (
-          <>
-            {dueToday(topUp, showAiNote ? ' (AI balance only)' : undefined)}
-            <p>Devices are billed on {formatDate(firstBillingDate)}.</p>
-          </>
-        )
+        <>
+          {dueToday(topUp, showAiNote ? ' (AI balance only)' : undefined)}
+          <p>Devices are billed on {formatDate(firstBillingDate)}.</p>
+        </>
       )}
     </div>
   );
