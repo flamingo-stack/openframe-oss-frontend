@@ -9,7 +9,6 @@ import { SOFTWARE_DETAIL_SUMMARY_LABELS as LABELS } from './software-detail-summ
 
 const softwareDetailSummaryFragment = graphql`
   fragment softwareDetailSummary_software on Software {
-    publisher
     type
     latestVersion
   }
@@ -24,16 +23,15 @@ const SOFTWARE_TYPE_LABEL: Record<SoftwareType, string> = {
 };
 
 /**
- * The summary card: publisher, type and latest version (design 1100:444, without its OS: the API has no platform for a
- * title). Null before the record answers (a loading scope: values are bars).
+ * The summary card: type and latest version (design 1100:444, without its publisher and OS: the API never fills the
+ * one and has no platform for a title). Null before the record answers (a loading scope: values are bars).
  */
 export function SoftwareDetailSummary({ software }: { software: softwareDetailSummary_software$key | null }) {
   const data = useFragment(softwareDetailSummaryFragment, software);
   return (
     <SummaryCard
-      columns={3}
+      columns={2}
       fields={[
-        { label: LABELS.publisher, value: data?.publisher },
         {
           label: LABELS.type,
           value: data?.type ? (presentationFor(SOFTWARE_TYPE_LABEL, data.type) ?? data.type) : null,

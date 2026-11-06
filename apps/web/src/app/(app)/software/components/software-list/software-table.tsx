@@ -17,7 +17,6 @@ import { LiveTable } from '@/app/components/shared/live-table';
 import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
-import { SoftwareAdoptionCell } from './software-adoption-cell';
 import { SoftwareAutoUpdateCell } from './software-auto-update-cell';
 import { SoftwareEngineCell } from './software-engine-cell';
 import { SOFTWARE_LIST_COLUMNS, SOFTWARE_LIST_PAGE_SIZE } from './software-list-columns';
@@ -40,7 +39,6 @@ const softwareTableFragment = graphql`
     ...softwareVulnerabilitiesCell_software
     ...softwareEngineCell_software
     ...softwareAutoUpdateCell_software
-    ...softwareAdoptionCell_software
   }
 `;
 
@@ -73,8 +71,9 @@ const OPEN_COLUMN: ColumnDef<SoftwareRow> = {
 
 /**
  * Which list the table is: the fleet-wide inventory (All Software, design 1076:16413) or a device's own. The fleet's
- * says how each title is managed — its engine, auto-update and how many copies can be adopted; a device's keeps the
- * CVE count of the copy it has.
+ * says how each title is managed — its engine and auto-update; a device's keeps the CVE count of the copy it has. The
+ * design's OS and Adoption columns are not drawn: the API has no platform for a title, and its adoption count is
+ * never filled.
  */
 export type SoftwareTableSurface = 'fleet' | 'device';
 
@@ -95,13 +94,6 @@ const COLUMNS: Record<SoftwareTableSurface, ColumnDef<SoftwareRow>[]> = {
       cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareAutoUpdateCell software={row.original} />,
       enableSorting: false,
       meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.autoUpdate),
-    },
-    {
-      id: SOFTWARE_LIST_COLUMNS.adoption.id,
-      header: SOFTWARE_LIST_COLUMNS.adoption.header,
-      cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareAdoptionCell software={row.original} />,
-      enableSorting: false,
-      meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.adoption),
     },
     OPEN_COLUMN,
   ],
