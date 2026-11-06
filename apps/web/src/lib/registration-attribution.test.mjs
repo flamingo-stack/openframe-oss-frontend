@@ -10,12 +10,23 @@ import assert from 'node:assert/strict';
 import { beforeEach, test } from 'node:test';
 import './test-module-resolve.mjs';
 
+// Import once; the modules read globals lazily at call time, so re-mocking per test is enough.
+const A = await import('./registration-attribution.ts');
+const V = await import('./visit-attribution.ts');
+
 let store = {};
 let cookies = [];
+
+const T0 = Date.UTC(2026, 9, 1);
+const DAY_MS = 24 * 60 * 60 * 1000;
+let now = T0;
+Date.now = () => now;
 
 function resetBrowser() {
   store = {};
   cookies = [];
+  now = T0;
+  V.startPageLoad();
   globalThis.window = {
     // `hostname`/`protocol` matter to the referral cookie writer and to which referrers count as
     // ours; the cookie-scope rules themselves are covered in referral-cookie.test.mjs, so this
@@ -55,8 +66,18 @@ function resetBrowser() {
   globalThis.crypto.randomUUID = () => '11111111-2222-3333-4444-555555555555';
 }
 
-// Import once; the modules read globals lazily at call time, so re-mocking per test is enough.
-const A = await import('./registration-attribution.ts');
+/**
+ * A new page load: this address, this referrer, at this time. Cookies and storage stay, as they
+ * do across page loads.
+ */
+function pageLoad({ pathname = '/auth/', search = '', referrer = '', time = now } = {}) {
+  V.startPageLoad();
+  now = time;
+  window.location.pathname = pathname;
+  window.location.search = search;
+  document.referrer = referrer;
+  A.captureAttributionFromUrl();
+}
 
 beforeEach(resetBrowser);
 
@@ -210,143 +231,188 @@ test('hubspotUtkFromHstc reads the token slot and nothing else', () => {
   assert.equal(A.hubspotUtkFromHstc(undefined), undefined);
 });
 
-// The visit: where the visitor came from and the first page they saw, from the page load they
-// arrived on. The backend reads the channel off the referrer's host.
+// The visits: where the visitor came from and the first page they saw, from the page load they
+// arrived on, first and latest; the flat fields are the first visit. The rules themselves are
+// visit-attribution.ts's (MPH runs the same file under jest); this is what the signup sends.
 function visitOf(got) {
   return { referrer: got.referrer, landingUrl: got.landingUrl };
 }
 
-test('an arrival records its referrer and landing page, both without query or fragment', () => {
-  document.referrer = 'https://chatgpt.com/c/abc?model=x#top';
-  window.location.search = '?utm_source=chatgpt&token=secret';
-  A.captureAttributionFromUrl();
+test('an arrival rides as the first and the latest visit, and the first one again as the flat fields', () => {
+  pageLoad({ search: '?utm_source=chatgpt&token=secret', referrer: 'https://chatgpt.com/c/abc?model=x#top' });
+  pageLoad({ pathname: '/auth/signup/', time: T0 + 1000 }); // the visitor moves on before signing up
 
-  window.location.pathname = '/auth/signup/'; // the visitor moves on before signing up
-  window.location.search = '';
-  assert.deepEqual(visitOf(A.collectRegistrationAttribution()), {
+  const got = A.collectRegistrationAttribution();
+  const visit = {
+    utmSource: 'chatgpt',
+    referrer: 'https://chatgpt.com/c/abc',
+    landingUrl: 'https://auth.openframe.ai/auth/',
+    landedAt: T0,
+  };
+  assert.deepEqual(got.firstVisit, visit);
+  assert.deepEqual(got.lastVisit, visit);
+  assert.equal(got.utmSource, 'chatgpt');
+  assert.deepEqual(visitOf(got), {
     referrer: 'https://chatgpt.com/c/abc',
     landingUrl: 'https://auth.openframe.ai/auth/',
   });
+  assert.equal(got.landedAt, undefined, 'the time belongs to the visits');
 });
 
-test('the first arrival wins: a later page load does not replace the visit', () => {
-  document.referrer = 'https://chatgpt.com/';
-  A.captureAttributionFromUrl();
+test('a later arrival is the latest visit, whole; the first stays', () => {
+  pageLoad({ search: '?utm_source=facebook&fbclid=FB1', referrer: 'https://www.facebook.com/' });
+  pageLoad({ pathname: '/auth/login/', referrer: 'https://www.bing.com/', time: T0 + DAY_MS });
 
-  document.referrer = 'https://www.bing.com/';
-  window.location.pathname = '/auth/login/';
-  A.captureAttributionFromUrl();
-
-  assert.deepEqual(visitOf(A.collectRegistrationAttribution()), {
-    referrer: 'https://chatgpt.com/',
+  const got = A.collectRegistrationAttribution();
+  assert.equal(got.firstVisit.utmSource, 'facebook');
+  assert.deepEqual(got.lastVisit, {
+    referrer: 'https://www.bing.com/',
+    landingUrl: 'https://auth.openframe.ai/auth/login/',
+    landedAt: T0 + DAY_MS,
+  });
+  assert.deepEqual(visitOf(got), {
+    referrer: 'https://www.facebook.com/',
     landingUrl: 'https://auth.openframe.ai/auth/',
   });
 });
 
-// "Direct" names no channel, so the first arrival that does name one replaces it, as a whole
-// pair, never its referrer next to the direct visit's landing page.
-test('a direct visit gives way to the first later arrival with a referrer', () => {
-  A.captureAttributionFromUrl(); // direct, on /auth/
+test("each platform's latest click rides with the time it was first seen", () => {
+  pageLoad({ search: '?fbclid=FB1&gclid=G1&rdt_cid=RD1&li_fat_id=LI1&gbraid=GB1' });
+  pageLoad({ search: '?fbclid=FB2', time: T0 + DAY_MS });
+  pageLoad({ search: '?fbclid=FB2', time: T0 + 2 * DAY_MS }); // a reload of the same link
 
-  document.referrer = 'https://chatgpt.com/';
-  window.location.pathname = '/auth/login/';
-  A.captureAttributionFromUrl();
+  assert.deepEqual(A.collectRegistrationAttribution().latestClicks, {
+    meta: { fbclid: 'FB2', clickedAt: T0 + DAY_MS },
+    google: { gclid: 'G1', clickedAt: T0 },
+    reddit: { rdtCid: 'RD1', clickedAt: T0 },
+    linkedin: { liFatId: 'LI1', clickedAt: T0 },
+  });
+});
 
-  document.referrer = 'https://www.bing.com/';
+test('a direct visit gives way to the first arrival, in both visits', () => {
+  pageLoad();
+  pageLoad({ pathname: '/auth/login/', time: T0 + 1000 });
+  assert.equal(A.collectTouchpoint().firstVisit.landingUrl, 'https://auth.openframe.ai/auth/');
+
+  pageLoad({ pathname: '/auth/signup/', referrer: 'https://www.perplexity.ai/', time: T0 + 2000 });
+  const got = A.collectTouchpoint();
+  const visit = {
+    referrer: 'https://www.perplexity.ai/',
+    landingUrl: 'https://auth.openframe.ai/auth/signup/',
+    landedAt: T0 + 2000,
+  };
+  assert.deepEqual(got.firstVisit, visit);
+  assert.deepEqual(got.lastVisit, visit);
+});
+
+test('a signup on a referred page load counts it, before the capture effect ran', () => {
+  pageLoad();
+  V.startPageLoad();
   window.location.pathname = '/auth/signup/';
-  A.captureAttributionFromUrl(); // the referred visit is final
-
-  assert.deepEqual(visitOf(A.collectRegistrationAttribution()), {
-    referrer: 'https://chatgpt.com/',
-    landingUrl: 'https://auth.openframe.ai/auth/login/',
-  });
-});
-
-test("a direct visit gives way to the marketing site's handoff", () => {
-  A.captureAttributionFromUrl(); // direct, on /auth/
-
-  window.location.search = `?referrer=${encodeURIComponent('https://www.google.com/')}&landing_url=${encodeURIComponent('https://flamingo.run/pricing')}`;
-  A.captureAttributionFromUrl();
-
-  window.location.search = '';
-  assert.deepEqual(visitOf(A.collectRegistrationAttribution()), {
-    referrer: 'https://www.google.com/',
-    landingUrl: 'https://flamingo.run/pricing',
-  });
-});
-
-test("the replacing visit takes the direct one's landing page with it", () => {
-  A.captureAttributionFromUrl(); // direct, on /auth/
-
-  window.location.search = `?referrer=${encodeURIComponent('https://www.google.com/')}`;
-  A.captureAttributionFromUrl(); // a handoff that names its source but not its landing page
-
-  window.location.search = '';
-  assert.deepEqual(visitOf(A.collectRegistrationAttribution()), {
-    referrer: 'https://www.google.com/',
-    landingUrl: undefined,
-  });
-});
-
-test('a later direct page load keeps the first direct visit', () => {
-  A.captureAttributionFromUrl(); // direct, on /auth/
-
-  window.location.pathname = '/auth/login/';
-  A.captureAttributionFromUrl();
-
-  assert.equal(A.collectRegistrationAttribution().landingUrl, 'https://auth.openframe.ai/auth/');
-});
-
-test('a signup on a referred page load counts it over a stored direct visit, before the capture effect ran', () => {
-  A.captureAttributionFromUrl(); // direct, on /auth/
-
   document.referrer = 'https://www.perplexity.ai/';
-  window.location.pathname = '/auth/signup/';
+
   assert.deepEqual(visitOf(A.collectRegistrationAttribution()), {
     referrer: 'https://www.perplexity.ai/',
     landingUrl: 'https://auth.openframe.ai/auth/signup/',
   });
 });
 
-test('a direct arrival records the landing page alone', () => {
-  A.captureAttributionFromUrl();
-
-  assert.deepEqual(visitOf(A.collectRegistrationAttribution()), {
-    referrer: undefined,
+test('a client-side navigation is not an arrival: the referrer was the page load', () => {
+  pageLoad({ referrer: 'https://www.google.com/' });
+  now = T0 + 1000;
+  window.location.pathname = '/auth/signup/';
+  assert.deepEqual(A.collectTouchpoint().lastVisit, {
+    referrer: 'https://www.google.com/',
     landingUrl: 'https://auth.openframe.ai/auth/',
+    landedAt: T0,
   });
 });
 
-test("the marketing site's handoff visit beats this page's own", () => {
-  document.referrer = 'https://flamingo.run/pricing';
-  window.location.search = `?referrer=${encodeURIComponent('https://www.google.com/')}&landing_url=${encodeURIComponent('https://flamingo.run/pricing?utm_source=x')}`;
-  A.captureAttributionFromUrl();
+test("the marketing site's handoff is merged by time, its flat parameters ignored", () => {
+  pageLoad({ search: '?utm_source=here&gclid=G_HERE', time: T0 });
+  const handoff = new URLSearchParams({
+    'first_visit.utm_source': 'facebook',
+    'first_visit.fbclid': 'FB1',
+    'first_visit.referrer': 'https://www.facebook.com/',
+    'first_visit.landing_url': 'https://flamingo.run/pricing',
+    'first_visit.landed_at': String(T0 - DAY_MS),
+    'last_visit.referrer': 'https://www.google.com/',
+    'last_visit.landing_url': 'https://flamingo.run/blog',
+    'last_visit.landed_at': String(T0 + 500),
+    'latest_clicks.meta.fbclid': 'FB1',
+    'latest_clicks.meta.clicked_at': String(T0 - DAY_MS),
+    'latest_clicks.google.gclid': 'G_THERE',
+    'latest_clicks.google.clicked_at': String(T0 - 1),
+    utm_source: 'facebook',
+    referrer: 'https://www.facebook.com/',
+  });
+  pageLoad({ search: `?${handoff}`, referrer: 'https://flamingo.run/blog', time: T0 + 1000 });
 
-  window.location.search = '';
-  assert.deepEqual(visitOf(A.collectRegistrationAttribution()), {
+  const got = A.collectRegistrationAttribution();
+  assert.deepEqual(got.firstVisit, {
+    utmSource: 'facebook',
+    fbclid: 'FB1',
+    referrer: 'https://www.facebook.com/',
+    landingUrl: 'https://flamingo.run/pricing',
+    landedAt: T0 - DAY_MS,
+  });
+  assert.deepEqual(got.lastVisit, {
+    referrer: 'https://www.google.com/',
+    landingUrl: 'https://flamingo.run/blog',
+    landedAt: T0 + 500,
+  });
+  assert.deepEqual(got.latestClicks, {
+    meta: { fbclid: 'FB1', clickedAt: T0 - DAY_MS },
+    google: { gclid: 'G_HERE', clickedAt: T0 },
+  });
+});
+
+test("an older marketing site's flat handoff is an arrival with the visit it saw", () => {
+  pageLoad({
+    search: `?utm_source=x&referrer=${encodeURIComponent('https://www.google.com/')}&landing_url=${encodeURIComponent('https://flamingo.run/pricing?utm_source=x')}`,
+    referrer: 'https://flamingo.run/pricing',
+  });
+  assert.deepEqual(A.collectRegistrationAttribution().firstVisit, {
+    utmSource: 'x',
     referrer: 'https://www.google.com/',
     landingUrl: 'https://flamingo.run/pricing',
+    landedAt: T0,
   });
 });
 
-test('a handoff without a referrer is a direct visit to the marketing site', () => {
-  document.referrer = 'https://flamingo.run/';
-  window.location.search = `?landing_url=${encodeURIComponent('https://flamingo.run/')}`;
-  A.captureAttributionFromUrl();
+test('entries saved before visits become both visits and the clicks, then are gone', () => {
+  for (const [param, value, t] of [
+    ['utm_source', 'facebook', T0 - 3 * DAY_MS],
+    ['fbclid', 'FB1', T0 - 2 * DAY_MS],
+    ['referrer', 'https://www.facebook.com/', T0 - 3 * DAY_MS],
+    ['landing_url', 'https://auth.openframe.ai/auth/', T0 - 3 * DAY_MS],
+  ]) {
+    store[`of_attr_${param}`] = JSON.stringify({ v: value, t });
+  }
+  document.referrer = 'https://openframe.ai/';
 
-  assert.deepEqual(visitOf(A.collectRegistrationAttribution()), {
-    referrer: undefined,
-    landingUrl: 'https://flamingo.run/',
-  });
+  const got = A.collectRegistrationAttribution();
+  const visit = {
+    utmSource: 'facebook',
+    fbclid: 'FB1',
+    referrer: 'https://www.facebook.com/',
+    landingUrl: 'https://auth.openframe.ai/auth/',
+    landedAt: T0 - 3 * DAY_MS,
+  };
+  assert.deepEqual(got.firstVisit, visit);
+  assert.deepEqual(got.lastVisit, visit);
+  assert.deepEqual(got.latestClicks, { meta: { fbclid: 'FB1', clickedAt: T0 - 2 * DAY_MS } });
+  assert.equal(got.utmSource, 'facebook');
+  assert.equal(store.of_attr_utm_source, undefined);
 });
 
-test('a handoff straight to the signup page counts its visit before the capture effect ran', () => {
-  window.location.search = `?referrer=${encodeURIComponent('https://www.reddit.com/r/msp/')}&landing_url=${encodeURIComponent('https://flamingo.run/')}`;
-
-  assert.deepEqual(visitOf(A.collectRegistrationAttribution()), {
-    referrer: 'https://www.reddit.com/r/msp/',
-    landingUrl: 'https://flamingo.run/',
-  });
+test('a visit expires 90 days after its time', () => {
+  pageLoad({ search: '?utm_source=old' });
+  now = T0 + 91 * DAY_MS;
+  document.referrer = 'https://openframe.ai/';
+  const got = A.collectRegistrationAttribution();
+  assert.equal(got.firstVisit, undefined);
+  assert.equal(got.utmSource, undefined);
 });
 
 // An SSO return carries the provider's sign-in page as its referrer; recorded, it would read as
@@ -358,32 +424,11 @@ test('coming back from a sign-in page is not an arrival', () => {
     'https://appleid.apple.com/',
   ]) {
     resetBrowser();
-    document.referrer = referrer;
-    window.location.pathname = '/auth/sso-continue/';
-    A.captureAttributionFromUrl();
-
-    assert.equal(store.of_attr_referrer, undefined, referrer);
-    assert.equal(store.of_attr_landing_url, undefined, referrer);
-    assert.deepEqual(
-      visitOf(A.collectRegistrationAttribution()),
-      { referrer: undefined, landingUrl: undefined },
-      referrer,
-    );
+    pageLoad({ pathname: '/auth/sso-continue/', referrer });
+    const got = A.collectRegistrationAttribution();
+    assert.equal(got.firstVisit, undefined, referrer);
+    assert.deepEqual(visitOf(got), { referrer: undefined, landingUrl: undefined }, referrer);
   }
-});
-
-test('a sign-in return keeps the visit of the real arrival', () => {
-  document.referrer = 'https://chatgpt.com/';
-  A.captureAttributionFromUrl();
-
-  document.referrer = 'https://accounts.google.com/';
-  window.location.pathname = '/auth/sso-continue/';
-  A.captureAttributionFromUrl();
-
-  assert.deepEqual(visitOf(A.collectRegistrationAttribution()), {
-    referrer: 'https://chatgpt.com/',
-    landingUrl: 'https://auth.openframe.ai/auth/',
-  });
 });
 
 // The marketing sites are ours: their own source is theirs to hand over (the handoff above).
@@ -395,45 +440,20 @@ test('a page load from one of our own sites is not an arrival', () => {
     'https://www.openmsp.ai/',
   ]) {
     resetBrowser();
-    document.referrer = referrer;
-    A.captureAttributionFromUrl();
-
-    assert.deepEqual(
-      visitOf(A.collectRegistrationAttribution()),
-      { referrer: undefined, landingUrl: undefined },
-      referrer,
-    );
+    pageLoad({ referrer });
+    assert.equal(A.collectRegistrationAttribution().firstVisit, undefined, referrer);
   }
 });
 
-test('a handoff referrer that is a sign-in page or ours is dropped, its landing page kept', () => {
-  window.location.search = `?referrer=${encodeURIComponent('https://accounts.google.com/')}&landing_url=${encodeURIComponent('https://flamingo.run/')}`;
-  A.captureAttributionFromUrl();
-
-  assert.deepEqual(visitOf(A.collectRegistrationAttribution()), {
-    referrer: undefined,
-    landingUrl: 'https://flamingo.run/',
-  });
-});
-
-test('a referrer that is not a web page counts as a direct arrival', () => {
-  document.referrer = 'android-app://com.google.android.gm/';
-  A.captureAttributionFromUrl();
-
-  assert.deepEqual(visitOf(A.collectRegistrationAttribution()), {
-    referrer: undefined,
-    landingUrl: 'https://auth.openframe.ai/auth/',
-  });
-});
-
-test('a referrer over the 2048-character cap is dropped, not cut', () => {
-  document.referrer = `https://example.com/${'a'.repeat(2048)}`;
-  A.captureAttributionFromUrl();
-
-  assert.deepEqual(visitOf(A.collectRegistrationAttribution()), {
-    referrer: undefined,
-    landingUrl: 'https://auth.openframe.ai/auth/',
-  });
+test('a referrer that is not a web page, or is over the cap, counts as a direct arrival', () => {
+  for (const referrer of ['android-app://com.google.android.gm/', `https://example.com/${'a'.repeat(2048)}`]) {
+    resetBrowser();
+    pageLoad({ referrer });
+    assert.deepEqual(visitOf(A.collectRegistrationAttribution()), {
+      referrer: undefined,
+      landingUrl: 'https://auth.openframe.ai/auth/',
+    });
+  }
 });
 
 // The desktop app's "Open the app" link: the shell hands the page the id the installer was
@@ -489,7 +509,57 @@ test('the touchpoint carries every signal the registration does, without the eve
 });
 
 test('with no signals at all, the touchpoint is this page as a direct visit', () => {
-  assert.deepEqual(A.collectTouchpoint(), { landingUrl: 'https://auth.openframe.ai/auth/' });
+  const visit = { landingUrl: 'https://auth.openframe.ai/auth/', landedAt: T0 };
+  assert.deepEqual(A.collectTouchpoint(), {
+    landingUrl: 'https://auth.openframe.ai/auth/',
+    firstVisit: visit,
+    lastVisit: visit,
+  });
+});
+
+// The marketing site's `_fbc` rides its links as `fbc`: it names the click with the time it was
+// made, while the pixel here mints its own when the handoff lands.
+test('a handoff fbc is kept for the signup made later', () => {
+  pageLoad({ search: '?fbc=fb.1.1700000000000.FB1' });
+  pageLoad({ search: '', time: T0 + DAY_MS });
+  assert.equal(A.collectTouchpoint().fbc, 'fb.1.1700000000000.FB1');
+});
+
+test('of the same click, the fbc made first wins: the handoff over the cookie the pixel minted here', () => {
+  pageLoad({ search: '?fbc=fb.1.1700000000000.FB1' });
+  cookies.push('_fbc=fb.1.1700000900000.FB1');
+  assert.equal(A.collectTouchpoint().fbc, 'fb.1.1700000000000.FB1');
+});
+
+test('of two clicks, the later fbc wins', () => {
+  pageLoad({ search: '?fbc=fb.1.1700000000000.FB1' });
+  cookies.push('_fbc=fb.1.1700000900000.FB2');
+  assert.equal(A.collectTouchpoint().fbc, 'fb.1.1700000900000.FB2');
+  cookies = ['_fbc=fb.1.1600000000000.FB0'];
+  assert.equal(A.collectTouchpoint().fbc, 'fb.1.1700000000000.FB1');
+});
+
+test('a later handoff of the same click keeps the earlier fbc; a new click replaces it', () => {
+  pageLoad({ search: '?fbc=fb.1.1700000000000.FB1' });
+  pageLoad({ search: '?fbc=fb.2.1700000500000.FB1', time: T0 + DAY_MS });
+  assert.equal(A.collectTouchpoint().fbc, 'fb.1.1700000000000.FB1');
+  pageLoad({ search: '?fbc=fb.1.1700000900000.FB2', time: T0 + 2 * DAY_MS });
+  assert.equal(A.collectTouchpoint().fbc, 'fb.1.1700000900000.FB2');
+});
+
+test('a handoff fbc counts before the capture ran, and a malformed one never', () => {
+  window.location.search = '?fbc=fb.1.1700000000000.FB1';
+  assert.equal(A.collectTouchpoint().fbc, 'fb.1.1700000000000.FB1');
+  resetBrowser();
+  pageLoad({ search: '?fbc=not-an-fbc' });
+  assert.equal(A.collectTouchpoint().fbc, undefined);
+  assert.equal(store.of_attr_fbc, undefined);
+});
+
+test('a handoff fbc expires after 90 days', () => {
+  pageLoad({ search: '?fbc=fb.1.1700000000000.FB1' });
+  pageLoad({ search: '', time: T0 + 91 * DAY_MS });
+  assert.equal(A.collectTouchpoint().fbc, undefined);
 });
 
 test('no signals present yields only the always-minted event id', () => {
@@ -512,13 +582,18 @@ test('SSO query params carry every collected field, matching the password body',
   const params = new URLSearchParams({ tenantName: 'org', tenantDomain: 'org.openframe.example' });
   A.appendAttributionQueryParams(params, collected);
 
-  // 4 cookies + 11 URL params + eventId + referrer + landingUrl = 18 fields, every one present as a
-  // bare key alongside the two tenant params the endpoint takes as @RequestParam.
-  assert.equal([...params.keys()].length, 18 + 2);
+  // 4 cookies + 11 URL params + eventId + referrer + landingUrl = 18 flat fields, the two visits'
+  // 14 each and the four clicks' 2 each with dots, beside the two tenant params the endpoint takes
+  // as @RequestParam.
+  assert.equal([...params.keys()].length, 18 + 2 * 14 + 4 * 2 + 2);
   assert.equal(params.get('referrer'), 'https://www.facebook.com/');
   assert.equal(params.get('landingUrl'), 'https://auth.openframe.ai/auth/');
+  assert.equal(params.get('firstVisit.utmSource'), 'facebook');
+  assert.equal(params.get('lastVisit.landedAt'), String(T0));
+  assert.equal(params.get('latestClicks.meta.fbclid'), 'FBID');
+  assert.equal(params.get('latestClicks.linkedin.clickedAt'), String(T0));
   for (const [field, value] of Object.entries(collected)) {
-    assert.equal(params.get(field), value, `${field} must ride the SSO continue URL`);
+    if (typeof value === 'string') assert.equal(params.get(field), value, `${field} must ride the SSO continue URL`);
   }
 });
 
@@ -535,4 +610,15 @@ test('normalizeAttribution drops blanks and collapses an all-blank object to und
     fbp: 'fb.1.170.999',
   });
   assert.equal(A.normalizeAttribution({ fbc: '', utmSource: '   ' }), undefined);
+});
+
+test('normalizeAttribution keeps the times and drops a nested object that is all blank', () => {
+  assert.deepEqual(
+    A.normalizeAttribution({
+      firstVisit: { utmSource: ' ', landedAt: T0 },
+      lastVisit: { utmSource: '' },
+      latestClicks: {},
+    }),
+    { firstVisit: { landedAt: T0 } },
+  );
 });
