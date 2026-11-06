@@ -82,13 +82,13 @@ function pageLoad({ pathname = '/auth/', search = '', referrer = '', time = now 
 beforeEach(resetBrowser);
 
 test('collects cookies, URL params and a minted event id', () => {
-  cookies.push('_fbc=fb.1.170.AbC', '_fbp=fb.1.170.999', 'hubspotutk=hutk-abc', '_rdt_uuid=1700000000000.Ab-Cd');
+  cookies.push('_fbc=fb.1.170.FBID', '_fbp=fb.1.170.999', 'hubspotutk=hutk-abc', '_rdt_uuid=1700000000000.Ab-Cd');
   window.location.search =
     '?fbclid=FBID&gclid=GG&gbraid=GbR&wbraid=WbR&rdt_cid=RD&li_fat_id=LI&utm_source=facebook&utm_medium=cpc&utm_campaign=q3&utm_content=v1&utm_term=msp';
   A.captureAttributionFromUrl();
 
   const got = A.collectRegistrationAttribution();
-  assert.equal(got.fbc, 'fb.1.170.AbC');
+  assert.equal(got.fbc, 'fb.1.170.FBID');
   assert.equal(got.fbp, 'fb.1.170.999');
   assert.equal(got.rdtUuid, '1700000000000.Ab-Cd', 'the Reddit pixel cookie, exactly as read');
   assert.equal(got.gbraid, 'GbR');
@@ -547,13 +547,41 @@ test('a later handoff of the same click keeps the earlier fbc; a new click repla
   assert.equal(A.collectTouchpoint().fbc, 'fb.1.1700000900000.FB2');
 });
 
-test('a handoff fbc counts before the capture ran, and a malformed one never', () => {
+test('a handoff fbc counts before the capture ran, and one the backend would refuse never', () => {
   window.location.search = '?fbc=fb.1.1700000000000.FB1';
   assert.equal(A.collectTouchpoint().fbc, 'fb.1.1700000000000.FB1');
+  for (const fbc of [
+    'not-an-fbc',
+    'fb.1.1700000000000.FB1/x',
+    'fb.1.1234567890123456789.FB1',
+    `fb.1.1700000000000.${'F'.repeat(500)}`,
+  ]) {
+    resetBrowser();
+    pageLoad({ search: `?fbc=${encodeURIComponent(fbc)}` });
+    assert.equal(A.collectTouchpoint().fbc, undefined, fbc);
+    assert.equal(store.of_attr_fbc, undefined, fbc);
+  }
+});
+
+test('a cookie that cannot be read gives way to a handoff fbc that can', () => {
+  pageLoad({ search: '?fbc=fb.1.1700000000000.FB1' });
+  cookies.push('_fbc=garbled');
+  assert.equal(A.collectTouchpoint().fbc, 'fb.1.1700000000000.FB1');
   resetBrowser();
-  pageLoad({ search: '?fbc=not-an-fbc' });
+  cookies.push('_fbc=garbled');
   assert.equal(A.collectTouchpoint().fbc, undefined);
-  assert.equal(store.of_attr_fbc, undefined);
+});
+
+// The gateway and the pixel mint `_fbc` from a link's `fbclid`, dated by that page load, and a
+// handoff's flat parameters are the first visit's: that click must not pass for the latest one.
+test('a cookie minted late from an older click never outranks the latest click', () => {
+  pageLoad({ search: '?fbclid=FB0' });
+  pageLoad({ search: '?fbclid=FB1', time: T0 + DAY_MS });
+  cookies.push(`_fbc=fb.1.${T0 + 2 * DAY_MS}.FB0`);
+  assert.equal(A.collectTouchpoint().fbc, undefined);
+  assert.deepEqual(A.collectTouchpoint().latestClicks.meta, { fbclid: 'FB1', clickedAt: T0 + DAY_MS });
+  pageLoad({ search: `?fbc=fb.1.${T0 + DAY_MS}.FB1`, time: T0 + 2 * DAY_MS });
+  assert.equal(A.collectTouchpoint().fbc, `fb.1.${T0 + DAY_MS}.FB1`);
 });
 
 test('a handoff fbc expires after 90 days', () => {
@@ -572,7 +600,7 @@ test('no signals present yields only the always-minted event id', () => {
 // collected but silently dropped from the query string is exactly the kind of gap behind the
 // low fbp coverage on one flow.
 test('SSO query params carry every collected field, matching the password body', () => {
-  cookies.push('_fbc=fb.1.170.AbC', '_fbp=fb.1.170.999', 'hubspotutk=hutk-abc', '_rdt_uuid=1700000000000.uuid');
+  cookies.push('_fbc=fb.1.170.FBID', '_fbp=fb.1.170.999', 'hubspotutk=hutk-abc', '_rdt_uuid=1700000000000.uuid');
   document.referrer = 'https://www.facebook.com/';
   window.location.search =
     '?fbclid=FBID&gclid=GG&gbraid=GB&wbraid=WB&rdt_cid=RD&li_fat_id=LI&utm_source=facebook&utm_medium=cpc&utm_campaign=q3&utm_content=v1&utm_term=msp';

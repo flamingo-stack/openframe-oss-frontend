@@ -26,7 +26,12 @@ import { sanitizeLandingUrl } from '@flamingo-stack/openframe-frontend-core/util
  *   direct one; the latest visit is replaced by every arrival.
  * - **A click** is a platform's click id with the time it was first seen: Meta's `fbclid`,
  *   Google's `gclid`, Reddit's `rdt_cid`, LinkedIn's `li_fat_id`. A different id of the same
- *   platform replaces it. Google's `gbraid` and `wbraid` stay in the visits only.
+ *   platform replaces it. Google's `gbraid` and `wbraid` stay in the visits only. Meta's click
+ *   cookie, `_fbc`, names a click too, with the time it was made (`parseFbc`, the backend's
+ *   format), and rides the links beside the visits as `fbc`. The one sent names the latest click
+ *   (`pickFbc`), each click dated by the earliest time this browser knows it by: the gateway and
+ *   the pixel mint `_fbc` from any `fbclid` on a link, dated by the page load, and a link's flat
+ *   parameters carry the first visit's.
  * - **A handoff** is a link from another of our sites carrying its visits and clicks as
  *   `first_visit.*`, `last_visit.*` and `latest_clicks.*` parameters. It is not an arrival: it is
  *   merged with what is stored by time (the older first visit, the newer latest visit, the newer
@@ -80,10 +85,43 @@ export interface Click {
   clickedAt: number;
 }
 
+/** Meta's click cookie, `fb.<subdomain index>.<click time>.<fbclid>`, as the backend accepts it. */
+const FBC_PATTERN = /^fb\.\d+\.(\d{1,18})\.([A-Za-z0-9._-]+)$/;
+const FBC_MAX_LENGTH = 512;
+
+/** The click a `_fbc` value names; `undefined` for one the backend would refuse. */
+export function parseFbc(value: string | undefined): Click | undefined {
+  const match = value && value.length <= FBC_MAX_LENGTH ? FBC_PATTERN.exec(value) : null;
+  return match ? { id: match[2], clickedAt: Number(match[1]) } : undefined;
+}
+
 export interface VisitAttribution {
   firstVisit?: Visit;
   lastVisit?: Visit;
   latestClicks: Partial<Record<ClickPlatform, Click>>;
+}
+
+/**
+ * Of these `_fbc` values, the one that names the latest Meta click, the earliest made of that
+ * click; `undefined` when none names it (the backend then builds one from `latestClicks.meta`).
+ */
+export function pickFbc(values: readonly (string | undefined)[], attribution: VisitAttribution): string | undefined {
+  const seenAt = new Map<string, number>();
+  const see = (id: string | undefined, at: number | undefined) => {
+    if (id && at !== undefined) seenAt.set(id, Math.min(seenAt.get(id) ?? at, at));
+  };
+  const { firstVisit, lastVisit, latestClicks } = attribution;
+  see(firstVisit?.fields.fbclid, firstVisit?.landedAt);
+  see(lastVisit?.fields.fbclid, lastVisit?.landedAt);
+  see(latestClicks.meta?.id, latestClicks.meta?.clickedAt);
+  const named = values.flatMap(value => {
+    const click = parseFbc(value);
+    return value && click ? [{ value, click }] : [];
+  });
+  for (const { click } of named) see(click.id, click.clickedAt);
+  const latest = [...seenAt].sort((a, b) => b[1] - a[1])[0]?.[0];
+  return named.filter(({ click }) => click.id === latest).sort((a, b) => a.click.clickedAt - b.click.clickedAt)[0]
+    ?.value;
 }
 
 const STORAGE_PREFIX = 'of_attr_';

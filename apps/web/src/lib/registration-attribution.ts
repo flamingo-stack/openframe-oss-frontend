@@ -5,6 +5,8 @@ import {
   CLICK_PLATFORMS,
   type ClickPlatform,
   captureVisit,
+  parseFbc,
+  pickFbc,
   readVisitAttribution,
   type Visit,
   VISIT_FIELDS,
@@ -22,9 +24,9 @@ import {
  *   are not HttpOnly, they live on the openframe.ai origin, and they are still there at submit
  *   time, so they are read directly when the form is submitted, and the register request does
  *   not need to be same-domain. The marketing site's links also carry its own `_fbc` as `fbc`:
- *   it names the ad click with the time the visitor clicked it, while the pixel here mints a
- *   cookie for the same click only when the handoff lands. It is kept like the HubSpot token
- *   below, and the two are compared at submit (`pickFbc`).
+ *   it names the ad click with the time the visitor clicked it, while the gateway and the pixel
+ *   here mint a cookie only when the handoff lands, from whatever `fbclid` it carries. It is kept
+ *   like the HubSpot token below, and the one sent is the one naming the latest click (`pickFbc`).
  *
  * - **The visits and clicks** (`firstVisit`, `lastVisit`, `latestClicks`): the URL parameters
  *   (`fbclid`, `gclid`, `gbraid`, `wbraid`, `rdt_cid`, `li_fat_id`, `utm_*`) and the visit's
@@ -174,9 +176,6 @@ const HUBSPOT_UTK_STORAGE_PARAM = 'hutk';
 /** The marketing site's `_fbc`, as its links carry it, and the localStorage entry (`of_attr_fbc`) it is kept in. */
 const FBC_PARAM = 'fbc';
 
-/** An `_fbc` value: `fb.<subdomain index>.<creation time, ms>.<fbclid>`. */
-const FBC_PATTERN = /^fb\.\d+\.(\d+)\.(.+)$/;
-
 /** localStorage entry (`of_attr_download_id`) for the id an "Open the app" link brought. */
 const DOWNLOAD_ID_STORAGE_PARAM = 'download_id';
 
@@ -273,24 +272,10 @@ function readHubspotHandoffUtk(): string | undefined {
   return utk && readUrlParam(HUBSPOT_HSFP_PARAM) ? utk : undefined;
 }
 
-/**
- * Which of two `_fbc` values names the visitor's ad click: of the same click, the one made
- * first (the pixel here mints its own when the handoff lands, after the click); of two clicks,
- * the later one. `own` wins whenever either cannot be read.
- */
-function pickFbc(own: string | undefined, handoff: string | undefined): string | undefined {
-  const ownMatch = own ? FBC_PATTERN.exec(own) : null;
-  const handoffMatch = handoff ? FBC_PATTERN.exec(handoff) : null;
-  if (!ownMatch || !handoffMatch) return own ?? (handoffMatch ? handoff : undefined);
-  const [ownTime, handoffTime] = [Number(ownMatch[1]), Number(handoffMatch[1])];
-  const sameClick = ownMatch[2] === handoffMatch[2];
-  return (sameClick ? handoffTime < ownTime : handoffTime > ownTime) ? handoff : own;
-}
-
 /** The marketing site's `_fbc` this page load carries, when it is well-formed. */
 function readHandoffFbc(): string | undefined {
   const fbc = readUrlParam(FBC_PARAM);
-  return fbc && FBC_PATTERN.test(fbc) ? fbc : undefined;
+  return parseFbc(fbc) ? fbc : undefined;
 }
 
 /** The visits and clicks of this page load, recorded (see `visit-attribution.ts`). Safe to call any number of times. */
@@ -316,7 +301,7 @@ export function captureAttributionFromUrl(): void {
 
   // The same rule as at submit, so a later handoff of the same click keeps the earlier time.
   const stored = readStored(FBC_PARAM);
-  const fbc = pickFbc(stored, readHandoffFbc());
+  const fbc = pickFbc([stored, readHandoffFbc()], readVisitAttribution());
   if (fbc && fbc !== stored) writeStored(FBC_PARAM, fbc);
 
   // `?ref=` is deliberately NOT part of that loop: it is cookie-backed, cross-subdomain and
@@ -450,7 +435,8 @@ function readTouchpoint(): Touchpoint {
   // This page load counts too: a visitor who lands straight on the signup page can submit before
   // the capture effect has run.
   captureVisitOfPage();
-  const { firstVisit, lastVisit, latestClicks } = readVisitAttribution();
+  const attribution = readVisitAttribution();
+  const { firstVisit, lastVisit, latestClicks } = attribution;
 
   const clicks: TouchpointClicks = {};
   for (const platform of Object.keys(CLICK_PLATFORMS) as ClickPlatform[]) {
@@ -464,7 +450,7 @@ function readTouchpoint(): Touchpoint {
     // The first visit again as the flat fields, for a backend that reads only those.
     ...toTouchpointFields(firstVisit),
     // The live URL as for the HubSpot token: a handoff submitted before the capture effect ran.
-    fbc: pickFbc(readCookie('_fbc'), pickFbc(readStored(FBC_PARAM), readHandoffFbc())),
+    fbc: pickFbc([readCookie('_fbc'), readStored(FBC_PARAM), readHandoffFbc()], attribution),
     fbp: readCookie('_fbp'),
     rdtUuid: readCookie('_rdt_uuid'),
     // The marketing site's token first, the local cookie only for a visitor who never came
