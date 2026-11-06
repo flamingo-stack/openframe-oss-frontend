@@ -73,6 +73,11 @@ export const FEATURE_FLAG_NAMES = [
   // fields. Off = the form as before, the submit sends neither. On for dev / qa,
   // absent elsewhere, which reads as off.
   'software-update-settings',
+  // Wait & notify, its deadline and the countdowns in those "Update Settings":
+  // they need the device to notify the user, which the client cannot do yet.
+  // Off = Force Update alone, and a Wait & notify is submitted as Force Update.
+  // Absent everywhere until the notifications ship, which reads as off.
+  'software-update-notifications',
   // "Compact chat memory" under the Mingo composer: summarizes a dialog's AI
   // context on demand. Off = the action is absent; auto-compaction is
   // unaffected either way.
