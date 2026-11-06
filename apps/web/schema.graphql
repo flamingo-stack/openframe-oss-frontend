@@ -2500,6 +2500,21 @@ type Mutation {
   Owner only: the new owner (an ACTIVE user) becomes OWNER, you become ADMIN.
   """
   transferOwnership(input: TransferOwnershipInput!): TransferOwnershipPayload!
+
+  """
+  Adopt a software title on devices that have it installed manually: reinstall it with a package manager,
+  so it can be updated. Runs now; an offline device starts when it comes online. The device picker lists
+  softwareDevices(softwareId, filter: {installedBy: [UNMANAGED]}). Returns one result per package manager used
+  (each its own execution, shown as an ADOPT row in Software Actions).
+  """
+  adoptSoftware(input: AdoptSoftwareInput!): [SoftwareDispatchResult!]!
+
+  """
+  Turn off auto-update for a software title on every device ("Turn Off Auto-Update"). Running updates
+  finish; no new version is installed automatically. Turned on again through Update Software (autoUpdate).
+  Idempotent: a title that has no auto-update is returned as it is. Unknown softwareId → NOT_FOUND.
+  """
+  turnOffSoftwareAutoUpdate(softwareId: ID!): Software!
 }
 
 input MutationDeleteInput {
@@ -5006,6 +5021,28 @@ type Software {
   — shown as "no CPE match" instead of a severity badge.
   """
   cpeMatched: Boolean
+
+  """
+  Kind of software — the Type field on the detail page (e.g. "Application").
+  """
+  type: SoftwareType
+
+  """
+  AUTO-UPDATE column and the detail page's "Turn Off Auto-Update" button (shown while ON).
+  Filterable with the same values (SoftwareFilterInput.autoUpdateStatuses). Null = unknown.
+  """
+  autoUpdate: SoftwareAutoUpdateStatus
+
+  """
+  Devices that have this title installed manually (installedBy UNMANAGED) and can be adopted — the
+  ADOPTION column and the "N devices have … installed manually" banner with Adopt. Null or 0 = "–", no banner;
+  always 0 when autoUpdate is NO_PACKAGE (nothing to adopt with).
+  Sortable as adoptionCount.
+  """
+  adoptionCount: Int
+
+  """Devices that have this title installed."""
+  devicesCount: Int
 }
 
 """
@@ -5025,6 +5062,17 @@ type SoftwareActionDevice {
   hostname: String
   organizationId: String
   organizationName: String
+
+  """
+  What ran on this device: UPDATE, or ADOPT for a device that had the title installed manually.
+  """
+  kind: SoftwareActionKind
+
+  """Device connectivity (ONLINE / OFFLINE / ...), for the online dot."""
+  deviceStatus: DeviceStatus
+
+  """Last time the device was seen, shown while it is offline."""
+  lastSeen: Instant
   status: SoftwareActionStatus!
   exitCode: Int
   stdout: String
@@ -5043,11 +5091,15 @@ organizationIds is the Customer filter.
 input SoftwareActionDeviceFilterInput {
   statuses: [SoftwareActionStatus!]
   organizationIds: [ID!]
+  deviceTagIds: [ID!]
 }
 
 input SoftwareActionFilterInput {
   statuses: [SoftwareActionStatus!]
   actions: [SoftwareAction!]
+
+  """The ACTION dropdown (Install / Update / Auto-update / Adopt)."""
+  kinds: [SoftwareActionKind!]
   engines: [PackageManagerType!]
 }
 
@@ -5058,6 +5110,7 @@ Faceted filter options (with live counts) for the "Software Actions" page. Reuse
 type SoftwareActionFilters {
   statuses: [ScriptFilterOption!]!
   actions: [ScriptFilterOption!]!
+  kinds: [ScriptFilterOption!]!
   engines: [ScriptFilterOption!]!
   filteredCount: Int!
 }
@@ -5070,8 +5123,14 @@ type SoftwareActionRun {
   """Package name (the SOFTWARE column)."""
   software: String!
 
+  """Version the action installs or updates to. Null = latest."""
+  version: String
+
   """INSTALL or UPDATE."""
   action: SoftwareAction!
+
+  """The ACTION column: Install / Update / Auto-update / Adopt."""
+  kind: SoftwareActionKind!
 
   """Package manager engine — BREW / WINGET / CHOCO."""
   engine: PackageManagerType!
@@ -5082,6 +5141,11 @@ type SoftwareActionRun {
 
   """Devices that have finished (X in X / Y)."""
   respondedMachineCount: Int!
+
+  """
+  Devices whose update waits on the device — a user prompt or an open app (the N WAITING chip).
+  """
+  waitingMachineCount: Int!
 
   """When a SCHEDULED action will fire. Null once dispatched / for NOW."""
   scheduledAt: Instant
@@ -5199,10 +5263,16 @@ type SoftwareBundlePackage {
   packageName: String!
   brewPackageType: BrewPackageType
   version: String
+
+  """
+  The Software (Fleet title) this package updates; null when it was picked from the package search.
+  """
+  softwareId: ID
 }
 
 """
-Same fields and rules as CreateSoftwareScheduleInput, minus action / packages / machineIds.
+Same fields and rules as CreateSoftwareScheduleInput, minus action / packages / machineIds / updateSettings /
+autoUpdate (those come with the submit itself).
 """
 input SoftwareBundleScheduleInput {
   """Null: the server names it, e.g. "Install jq, wget"."""
@@ -5255,6 +5325,7 @@ input SoftwareFilterInput {
   versionStatuses: [SoftwareVersionStatus!]
   minSeverity: SoftwareCveSeverity
   deviceTagIds: [ID!]
+  autoUpdateStatuses: [SoftwareAutoUpdateStatus!]
 }
 
 type SoftwareFilterOption {
@@ -5268,6 +5339,9 @@ type SoftwareFilters {
   sources: [SoftwareFilterOption!]!
   versionStatuses: [SoftwareFilterOption!]!
   severities: [SoftwareFilterOption!]!
+
+  """AUTO-UPDATE dropdown: ON / OFF / NO_PACKAGE / NEEDS_ADOPTION."""
+  autoUpdateStatuses: [SoftwareFilterOption!]!
 }
 
 """A set of catalog packages to install/update on a set of devices."""
@@ -5284,6 +5358,25 @@ type SoftwareOnDevice {
   device: Machine!
   softwareVersion: String
   status: SoftwareOnDeviceStatus
+
+  """
+  INSTALLED BY column: the package manager that installed it here (WINGET / CHOCOLATEY / BREW), or
+  UNMANAGED for "Manually". Null = unknown.
+  """
+  installedBy: SoftwareSource
+
+  """
+  Set while an adoption of this device runs or after it failed — the ADOPTING / ADOPTION FAILED chip that
+  replaces installedBy. ADOPTING on an offline device shows "Starts when online" (from device.status).
+  Null = no adoption.
+  """
+  adoption: SoftwareAdoption
+
+  """
+  AUTO-UPDATE column for this device. Filterable with the same values
+  (SoftwareOnDeviceFilterInput.autoUpdateStatuses). Null = unknown.
+  """
+  autoUpdate: SoftwareAutoUpdateStatus
 }
 
 type SoftwareOnDeviceConnection {
@@ -5300,10 +5393,36 @@ type SoftwareOnDeviceEdge {
 input SoftwareOnDeviceFilterInput {
   statuses: [SoftwareOnDeviceStatus!]
   deviceTagIds: [ID!]
+
+  """The CUSTOMER filter of the Adopt device picker."""
+  organizationIds: [ID!]
+
+  """
+  The STATUS filter of the Adopt device picker (the device's own status, e.g. ACTIVE = Managed).
+  """
+  deviceStatuses: [DeviceStatus!]
+  installedBy: [SoftwareSource!]
+  autoUpdateStatuses: [SoftwareAutoUpdateStatus!]
 }
 
 type SoftwareOnDeviceFilters {
   statuses: [SoftwareFilterOption!]!
+
+  """
+  INSTALLED BY dropdown: WINGET / CHOCOLATEY / BREW / UNMANAGED (Manually).
+  """
+  installedBy: [SoftwareFilterOption!]!
+
+  """AUTO-UPDATE dropdown: ON / OFF / NO_PACKAGE / NEEDS_ADOPTION."""
+  autoUpdateStatuses: [SoftwareFilterOption!]!
+
+  """
+  CUSTOMER dropdown of the Adopt device picker: value = organizationId, label = its name.
+  """
+  organizations: [SoftwareFilterOption!]!
+
+  """STATUS dropdown of the Adopt device picker: the device statuses."""
+  deviceStatuses: [SoftwareFilterOption!]!
 }
 
 """
@@ -5330,6 +5449,12 @@ input SoftwarePackageInput {
   """
   brewPackageType: BrewPackageType
   version: String
+
+  """
+  The Software (Fleet title) this package updates, when the update starts from a software page. Links an
+  auto-update this package turns on to that Software's autoUpdate and turnOffSoftwareAutoUpdate.
+  """
+  softwareId: ID
 }
 
 type SoftwareSchedule implements Node {
@@ -5434,6 +5559,11 @@ type SoftwareSchedulePackage {
   Brew-only sub-type (CASK/FORMULA); null for managers that do not distinguish.
   """
   brewPackageType: BrewPackageType
+
+  """
+  The Software (Fleet title) this package updates; null when it was picked from the package search.
+  """
+  softwareId: ID
 }
 
 input SoftwareSchedulePackageInput {
@@ -5444,6 +5574,11 @@ input SoftwareSchedulePackageInput {
   Brew-only sub-type (CASK/FORMULA). Required for brew (enforced server-side), ignored by other managers.
   """
   brewPackageType: BrewPackageType
+
+  """
+  The Software (Fleet title) this package updates, as on SoftwarePackageInput.
+  """
+  softwareId: ID
 }
 
 """ ────────── Enums ──────────"""
@@ -6678,7 +6813,7 @@ input PackageUpdateSettingsInput {
   """
   deadlineSeconds: Long
 
-  """Up to 3600 (1 hour)."""
+  """From 60 (1 minute) up to 1800 (30 minutes)."""
   countdownSeconds: Int!
 }
 
@@ -6701,4 +6836,109 @@ input SoftwareAutoUpdateInput {
   Null = the update's own settings ("Same settings for auto-update"). Ignored while enabled is false.
   """
   settings: PackageUpdateSettingsInput
+}
+
+
+"""Kind of software, from the inventory source."""
+enum SoftwareType {
+  """Desktop applications (Windows programs, macOS apps)."""
+  APPLICATION
+
+  """Browser extensions and add-ons."""
+  BROWSER_EXTENSION
+
+  """OS and package-manager packages (deb, rpm, Homebrew, Chocolatey, …)."""
+  PACKAGE
+  OTHER
+}
+
+"""
+Whether software can be and is kept updated automatically — the AUTO-UPDATE column and its filter.
+"""
+enum SoftwareAutoUpdateStatus {
+  """An auto-update policy keeps it updated (the ON tag)."""
+  ON
+
+  """
+  A package manager installed it, but no auto-update policy covers it (the OFF tag).
+  """
+  OFF
+
+  """
+  No package manager has a package for this app, so it can't be auto-updated or adopted ("No package found").
+  """
+  NO_PACKAGE
+
+  """Installed by hand: it needs adoption first ("–")."""
+  NEEDS_ADOPTION
+}
+
+"""Which package manager adopts the title on Windows devices."""
+enum SoftwareAdoptionWindowsManager {
+  """The manager each customer already uses for this app; Winget if none."""
+  MATCH_CUSTOMER
+  WINGET
+  CHOCOLATEY
+}
+
+enum SoftwareAdoptionStatus {
+  """
+  Reinstall with a package manager is queued or running; on an offline device it starts when it comes online.
+  """
+  ADOPTING
+
+  """The reinstall failed; the manually installed copy is left as it was."""
+  FAILED
+}
+
+"""
+An adoption of one device: the manually installed copy is reinstalled with a package manager, so it can be
+updated.
+"""
+type SoftwareAdoption {
+  status: SoftwareAdoptionStatus!
+
+  """The package manager the copy is reinstalled with."""
+  packageManager: PackageManagerType
+
+  """Why the adoption failed. FAILED only."""
+  error: String
+}
+
+"""What a software action did, as the ACTION column shows it."""
+enum SoftwareActionKind {
+  INSTALL
+
+  """An update an admin started (now or scheduled)."""
+  UPDATE
+
+  """
+  An update started by an auto-update policy when a new version came out.
+  """
+  AUTO_UPDATE
+
+  """A manually installed copy reinstalled with a package manager."""
+  ADOPT
+}
+
+""" ────────── Adopt ──────────"""
+input AdoptSoftwareInput {
+  """The software title (Software.id) to adopt."""
+  softwareId: ID!
+
+  """
+  Selected devices (Machine global ids), 1..100. Devices that do not have the title installed manually are
+  skipped. Null = every device matching filter + search ("Add All Devices").
+  """
+  machineIds: [ID!]
+
+  """
+  With machineIds null: the devices to adopt, as the picker's softwareDevices(softwareId, filter, search) lists
+  them. Always narrowed to installedBy UNMANAGED. Ignored when machineIds is set.
+  """
+  filter: SoftwareOnDeviceFilterInput
+  search: String
+
+  """Package Manager for Windows. macOS devices always adopt with Brew."""
+  windowsPackageManager: SoftwareAdoptionWindowsManager! = MATCH_CUSTOMER
 }
