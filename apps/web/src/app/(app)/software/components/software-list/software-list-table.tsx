@@ -73,7 +73,7 @@ export function SoftwareListTable(props: SoftwareListTableProps) {
 }
 
 function SoftwareListTableReader(props: SoftwareListTableProps) {
-  if (useLoadingScope()) return <SoftwareTable stickyHeaderOffset={props.stickyHeaderOffset} />;
+  if (useLoadingScope()) return <SoftwareTable surface="fleet" stickyHeaderOffset={props.stickyHeaderOffset} />;
   return <SoftwareListTableQuery {...props} />;
 }
 
@@ -105,6 +105,7 @@ function SoftwareListTableQuery({
 
   return (
     <SoftwareTable
+      surface="fleet"
       rows={rows}
       totalCount={data.softwares.filteredCount}
       debouncedSearch={debouncedSearch}

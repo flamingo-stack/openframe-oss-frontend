@@ -2,59 +2,32 @@
 
 import { EntityImage, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
-import type { softwareLogCustomerCell_machine$key } from '@/__generated__/softwareLogCustomerCell_machine.graphql';
-import { customerContactEmail } from '@/app/(app)/customers/utils/customer-contact-email';
+import type { softwareLogCustomerCell_device$key } from '@/__generated__/softwareLogCustomerCell_device.graphql';
 import { ValueText } from '@/app/components/shared';
-import { getFullImageUrl } from '@/lib/image-url';
 
 const softwareLogCustomerCellFragment = graphql`
-  fragment softwareLogCustomerCell_machine on Machine {
-    organization {
-      name
-      image {
-        imageUrl
-        hash
-      }
-      contactInformation {
-        contacts {
-          email
-        }
-      }
-    }
+  fragment softwareLogCustomerCell_device on SoftwareActionDevice {
+    organizationName
   }
 `;
 
-/** CUSTOMER column: the device's customer — logo, name, and a contact address. */
-export function SoftwareLogCustomerCell({
-  machine,
-}: {
-  machine: softwareLogCustomerCell_machine$key | null | undefined;
-}) {
-  // A row still being read (a loading scope) has no fragment to read: the logo, the name and the address draw their
-  // bars.
+/**
+ * CUSTOMER column: the device's customer. The run's device row carries the customer's name only, so the design's
+ * logo and contact address are not drawn: the tile stands for the logo.
+ */
+export function SoftwareLogCustomerCell({ device }: { device: softwareLogCustomerCell_device$key | null | undefined }) {
+  // A row still being read (a loading scope) has no fragment to read: the tile and the name draw their bars.
   const loading = useLoadingScope();
-  const data = useFragment(softwareLogCustomerCellFragment, loading ? null : machine);
-  const organization = data?.organization;
+  const data = useFragment(softwareLogCustomerCellFragment, loading ? null : device);
+  const name = data?.organizationName;
 
-  if (!loading && !organization?.name) return <ValueText value={null} />;
-
-  const email = customerContactEmail(organization?.contactInformation?.contacts?.map(contact => contact?.email));
+  if (!loading && !name) return <ValueText value={null} />;
 
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-mf)]">
-      <EntityImage
-        src={organization && getFullImageUrl(organization.image?.imageUrl, organization.image?.hash)}
-        alt={organization?.name ?? ''}
-        sizeClassName="size-12"
-        className="rounded-[4px]"
-      />
+      <EntityImage src={undefined} alt={name ?? ''} sizeClassName="size-12" className="rounded-[4px]" />
       <div className="flex min-w-0 flex-1 flex-col justify-center">
-        <TruncateText>{organization?.name ?? ''}</TruncateText>
-        {(loading || email) && (
-          <TruncateText variant="h6" tone="secondary">
-            {email ?? ''}
-          </TruncateText>
-        )}
+        <TruncateText>{name ?? ''}</TruncateText>
       </div>
     </div>
   );

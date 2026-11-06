@@ -17,6 +17,9 @@ import { LiveTable } from '@/app/components/shared/live-table';
 import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
+import { SoftwareAdoptionCell } from './software-adoption-cell';
+import { SoftwareAutoUpdateCell } from './software-auto-update-cell';
+import { SoftwareEngineCell } from './software-engine-cell';
 import { SOFTWARE_LIST_COLUMNS, SOFTWARE_LIST_PAGE_SIZE } from './software-list-columns';
 import { SoftwareNameCell } from './software-name-cell';
 import { SoftwareVersionCell } from './software-version-cell';
@@ -35,47 +38,92 @@ const softwareTableFragment = graphql`
     ...softwareNameCell_software
     ...softwareVersionCell_software
     ...softwareVulnerabilitiesCell_software
+    ...softwareEngineCell_software
+    ...softwareAutoUpdateCell_software
+    ...softwareAdoptionCell_software
   }
 `;
 
 type SoftwareRow = softwareTable_software$data[number];
 
-const COLUMNS: ColumnDef<SoftwareRow>[] = [
-  {
-    id: SOFTWARE_LIST_COLUMNS.name.id,
-    header: SOFTWARE_LIST_COLUMNS.name.header,
-    cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareNameCell software={row.original} />,
-    enableSorting: false,
-    meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.name),
-  },
-  {
-    id: SOFTWARE_LIST_COLUMNS.currentVersion.id,
-    header: SOFTWARE_LIST_COLUMNS.currentVersion.header,
-    cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareVersionCell software={row.original} />,
-    enableSorting: false,
-    meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.currentVersion),
-  },
-  {
-    id: SOFTWARE_LIST_COLUMNS.vulnerabilities.id,
-    header: SOFTWARE_LIST_COLUMNS.vulnerabilities.header,
-    cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareVulnerabilitiesCell software={row.original} />,
-    enableSorting: false,
-    meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.vulnerabilities),
-  },
-  {
-    id: SOFTWARE_LIST_COLUMNS.open.id,
-    cell: ({ row }: { row: Row<SoftwareRow> }) => (
-      <OpenRowButton label="Open in new tab" onClick={openInNewTab(routes.software.details(row.original.id))} />
-    ),
-    enableSorting: false,
-    meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.open),
-  },
-];
+const NAME_COLUMN: ColumnDef<SoftwareRow> = {
+  id: SOFTWARE_LIST_COLUMNS.name.id,
+  header: SOFTWARE_LIST_COLUMNS.name.header,
+  cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareNameCell software={row.original} />,
+  enableSorting: false,
+  meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.name),
+};
+
+const VERSION_COLUMN: ColumnDef<SoftwareRow> = {
+  id: SOFTWARE_LIST_COLUMNS.currentVersion.id,
+  header: SOFTWARE_LIST_COLUMNS.currentVersion.header,
+  cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareVersionCell software={row.original} />,
+  enableSorting: false,
+  meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.currentVersion),
+};
+
+const OPEN_COLUMN: ColumnDef<SoftwareRow> = {
+  id: SOFTWARE_LIST_COLUMNS.open.id,
+  cell: ({ row }: { row: Row<SoftwareRow> }) => (
+    <OpenRowButton label="Open in new tab" onClick={openInNewTab(routes.software.details(row.original.id))} />
+  ),
+  enableSorting: false,
+  meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.open),
+};
+
+/**
+ * Which list the table is: the fleet-wide inventory (All Software, design 1076:16413) or a device's own. The fleet's
+ * says how each title is managed — its engine, auto-update and how many copies can be adopted; a device's keeps the
+ * CVE count of the copy it has.
+ */
+export type SoftwareTableSurface = 'fleet' | 'device';
+
+const COLUMNS: Record<SoftwareTableSurface, ColumnDef<SoftwareRow>[]> = {
+  fleet: [
+    NAME_COLUMN,
+    VERSION_COLUMN,
+    {
+      id: SOFTWARE_LIST_COLUMNS.engine.id,
+      header: SOFTWARE_LIST_COLUMNS.engine.header,
+      cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareEngineCell software={row.original} />,
+      enableSorting: false,
+      meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.engine),
+    },
+    {
+      id: SOFTWARE_LIST_COLUMNS.autoUpdate.id,
+      header: SOFTWARE_LIST_COLUMNS.autoUpdate.header,
+      cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareAutoUpdateCell software={row.original} />,
+      enableSorting: false,
+      meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.autoUpdate),
+    },
+    {
+      id: SOFTWARE_LIST_COLUMNS.adoption.id,
+      header: SOFTWARE_LIST_COLUMNS.adoption.header,
+      cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareAdoptionCell software={row.original} />,
+      enableSorting: false,
+      meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.adoption),
+    },
+    OPEN_COLUMN,
+  ],
+  device: [
+    NAME_COLUMN,
+    VERSION_COLUMN,
+    {
+      id: SOFTWARE_LIST_COLUMNS.vulnerabilities.id,
+      header: SOFTWARE_LIST_COLUMNS.vulnerabilities.header,
+      cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareVulnerabilitiesCell software={row.original} />,
+      enableSorting: false,
+      meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.vulnerabilities),
+    },
+    OPEN_COLUMN,
+  ],
+};
 
 const getRowId = (row: SoftwareRow) => row.id;
 const rowHref = (row: SoftwareRow) => routes.software.details(row.id);
 
 export interface SoftwareTableProps {
+  surface: SoftwareTableSurface;
   /** The current page of nodes, whichever connection they came from. */
   rows: softwareTable_software$key;
   /** The server's total for the CURRENT narrowing (`filteredCount`), not the rows fetched so far. */
@@ -92,6 +140,7 @@ export interface SoftwareTableProps {
 }
 
 function LoadedSoftwareTable({
+  surface,
   rows: rowRefs,
   totalCount,
   debouncedSearch,
@@ -108,7 +157,7 @@ function LoadedSoftwareTable({
   const table = useDataTable<SoftwareRow>({
     // The fragment reads back a readonly page; the table only ever reads it too.
     data: rows as SoftwareRow[],
-    columns: COLUMNS,
+    columns: COLUMNS[surface],
     getRowId,
     enableSorting: false,
   });
@@ -145,10 +194,16 @@ function LoadedSoftwareTable({
   );
 }
 
-function SoftwareTableLoading({ stickyHeaderOffset }: { stickyHeaderOffset: string }) {
+function SoftwareTableLoading({
+  surface,
+  stickyHeaderOffset,
+}: {
+  surface: SoftwareTableSurface;
+  stickyHeaderOffset: string;
+}) {
   return (
     <LiveTable
-      columns={COLUMNS}
+      columns={COLUMNS[surface]}
       pageSize={SOFTWARE_LIST_PAGE_SIZE}
       stickyHeaderOffset={stickyHeaderOffset}
       itemName="result"
@@ -161,7 +216,9 @@ function SoftwareTableLoading({ stickyHeaderOffset }: { stickyHeaderOffset: stri
  * own loading form: the same table over one page of placeholder rows with their real cells, each in its own loading
  * form, and the count its own. Every surface that lists these renders this one component in both states.
  */
-export function SoftwareTable(props: SoftwareTableProps | { stickyHeaderOffset: string }) {
+export function SoftwareTable(
+  props: SoftwareTableProps | { surface: SoftwareTableSurface; stickyHeaderOffset: string },
+) {
   if (!('rows' in props)) return <SoftwareTableLoading {...props} />;
   return <LoadedSoftwareTable {...props} />;
 }

@@ -75,7 +75,7 @@ const softwareActionsTableFragment = graphql`
           # What the funnels narrow the rows on screen by, while the refetch
           # they triggered is still in flight. status also says whether a row
           # has anything to open yet (see detailsHref).
-          action
+          kind
           engine
           status
           ...softwareActionTypeCell_action
@@ -123,7 +123,7 @@ function buildColumns(options: SoftwareActionFilterOptions): ColumnDef<SoftwareA
     {
       id: SOFTWARE_ACTION_COLUMNS.action.id,
       header: SOFTWARE_ACTION_COLUMNS.action.header,
-      accessorFn: (row: SoftwareActionRow) => row.action,
+      accessorFn: (row: SoftwareActionRow) => row.kind,
       cell: ({ row }: { row: Row<SoftwareActionRow> }) => <SoftwareActionTypeCell action={row.original} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,
