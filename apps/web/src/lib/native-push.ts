@@ -116,7 +116,7 @@ async function attachListener(eventName: string, register: () => CapacitorListen
 
 /**
  * @param onNotificationTap receives the tapped notification's FCM `data` map
- *   verbatim (a flat string map; see resolvePushNotificationRoute). Fires for a
+ *   verbatim (a flat string map; see resolvePushNotificationAction). Fires for a
  *   cold-start tap too — the plugin retains the event until a listener consumes
  *   it, so mounting after launch does not lose it.
  */

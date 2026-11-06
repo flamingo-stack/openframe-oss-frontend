@@ -904,6 +904,9 @@ function RemoteDesktopSession() {
     <LoadingWhen loading={deviceLoading}>
       <PageLayout
         className="h-full overflow-hidden px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+        // Load-bearing: without it the content column grows to the side chat's full history, so the chat
+        // never scrolls and its message box is clipped below the page.
+        contentClassName="min-h-0"
         backButton={{ label: 'Back', onClick: handleBack }}
         showHeader={!isFullscreen}
       >

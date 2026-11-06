@@ -124,11 +124,12 @@ describe('authApiClient.requestDownloadLink', () => {
     const body = JSON.parse(String(init.body)) as {
       email: string;
       website: string;
-      attribution: Record<string, string>;
+      attribution: { firstVisit?: Record<string, unknown>; utmSource?: string; eventId?: string };
     };
     expect(body.email).toBe('kate@acme.com');
     expect(body.website).toBe('');
-    expect(body.attribution.utmSource).toBe('reddit');
+    expect(body.attribution.firstVisit?.utmSource).toBe('reddit');
+    expect(body.attribution.utmSource).toBeUndefined();
     // Not a registration: no event id to pair with Meta's pixel.
     expect(body.attribution.eventId).toBeUndefined();
     expect(result).toEqual({ ok: true, status: 204, data: undefined, error: undefined });
