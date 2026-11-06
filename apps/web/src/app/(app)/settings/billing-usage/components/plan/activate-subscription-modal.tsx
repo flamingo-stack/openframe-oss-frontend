@@ -139,6 +139,7 @@ function ActivateSubscriptionBody({ copy, query }: ActivateSubscriptionBodyProps
             total={form.selectionTotal}
             topUpUsd={form.tokenAmountUsd}
             showAiNote={form.showAiCard}
+            firstBillingDate={form.paygFirstBillingDate}
             loading={form.loading}
             className="flex-1"
           />

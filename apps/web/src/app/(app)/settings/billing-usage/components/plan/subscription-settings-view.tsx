@@ -169,6 +169,7 @@ function PaywallBody({ copy, query }: PaywallBodyProps) {
         total={form.selectionTotal}
         topUpUsd={form.tokenAmountUsd}
         showAiNote={form.showAiCard}
+        firstBillingDate={form.paygFirstBillingDate}
         loading={form.loading}
         className="md:hidden"
       />
@@ -179,6 +180,7 @@ function PaywallBody({ copy, query }: PaywallBodyProps) {
           total={form.selectionTotal}
           topUpUsd={form.tokenAmountUsd}
           showAiNote={form.showAiCard}
+          firstBillingDate={form.paygFirstBillingDate}
           loading={form.loading}
           className="max-w-[500px] flex-1"
         />
