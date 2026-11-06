@@ -576,6 +576,34 @@ test('a cookie minted late from an older click never outranks the latest click',
   assert.equal(A.collectTouchpoint().fbc, `fb.1.${T0 + DAY_MS}.FB1`);
 });
 
+test('parseFbc reads the backend format and nothing else', () => {
+  assert.deepEqual(V.parseFbc('fb.1.1700000000000.IwAR-x_y.z'), { id: 'IwAR-x_y.z', clickedAt: 1700000000000 });
+  for (const value of [
+    undefined,
+    '',
+    'fb.1.170',
+    'fb.x.170.FB1',
+    'fb.1.1234567890123456789.FB1',
+    'fb.1.170.FB1/x',
+    `fb.1.170.${'F'.repeat(512)}`,
+  ]) {
+    assert.equal(V.parseFbc(value), undefined, String(value));
+  }
+});
+
+test('pickFbc: the latest click, the earliest fbc of it, each click dated by when it was first seen', () => {
+  const nothingSeen = { latestClicks: {} };
+  assert.equal(V.pickFbc([undefined, 'garbled'], nothingSeen), undefined);
+  assert.equal(V.pickFbc(['fb.1.200.FB1', 'fb.1.100.FB1'], nothingSeen), 'fb.1.100.FB1');
+  assert.equal(V.pickFbc(['fb.1.100.FB1', 'fb.1.300.FB2'], nothingSeen), 'fb.1.300.FB2');
+  const seen = {
+    firstVisit: { fields: { fbclid: 'FB1' }, landedAt: 100 },
+    latestClicks: { meta: { id: 'FB2', clickedAt: 200 } },
+  };
+  assert.equal(V.pickFbc(['fb.1.900.FB1'], seen), undefined, 'FB1 minted late is still the older click');
+  assert.equal(V.pickFbc(['fb.1.900.FB1', 'fb.1.250.FB2'], seen), 'fb.1.250.FB2');
+});
+
 test('a handoff fbc expires after 90 days', () => {
   pageLoad({ search: '?fbc=fb.1.1700000000000.FB1' });
   pageLoad({ search: '', time: T0 + 91 * DAY_MS });
