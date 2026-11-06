@@ -37,14 +37,16 @@ interface DevicePlanPickerProps {
   subscriptionProductRef: devicePlanPickerSubscriptionFragment$key | null;
   onUpdatesChange: (updates: ProductUpdates) => void;
   /**
-   * Active devices, counted by billing (`usage.activeDevices`). Given, the
-   * pay-as-you-go panel can price the month it is actually about; `null` (the
-   * modal, and the wait) leaves it at the rate.
+   * What the pay-as-you-go panel says over its rate. The paywall says when a
+   * checkout's first month is invoiced; the modal, changing a running plan,
+   * keeps `DEFAULT_PAYG_DESCRIPTION`.
    */
-  deviceCount?: number | null;
+  paygDescription?: ReactNode;
   /** Small print under the panels. The paywall card explains overage here; the modal shows none. */
   footerNote?: ReactNode;
 }
+
+const DEFAULT_PAYG_DESCRIPTION = 'Billed monthly for exactly the devices under management. Scales up automatically.';
 
 /** Price with the cadence trailing in secondary text, as the rows are drawn in Figma. */
 function PriceValue({ amount, period }: { amount: number; period: string }) {
@@ -75,7 +77,7 @@ export function DevicePlanPicker({
   productRef,
   subscriptionProductRef,
   onUpdatesChange,
-  deviceCount = null,
+  paygDescription = DEFAULT_PAYG_DESCRIPTION,
   footerNote,
 }: DevicePlanPickerProps) {
   const product = useFragment(devicePlanPickerProductFragment, productRef) ?? null;
@@ -145,9 +147,7 @@ export function DevicePlanPicker({
         {shownMode === 'PAYG' ? (
           <div className="flex w-full flex-col overflow-hidden rounded-md border border-ods-border bg-ods-card">
             <div className="flex flex-col gap-1 border-b border-ods-border p-[var(--spacing-system-mf)]">
-              <p className="text-ods-text-primary text-h4">
-                Billed monthly for exactly the devices under management. Scales up automatically.
-              </p>
+              <p className="text-ods-text-primary text-h4">{paygDescription}</p>
               {/* The floor is a catalog figure, so it holds a line while it loads —
                   otherwise the block grows a sentence under the user's cursor. */}
               {loading ? (
@@ -161,38 +161,16 @@ export function DevicePlanPicker({
                 )
               )}
             </div>
-            {/* The count and the total come from billing's own `usage.activeDevices`
-                — NOT from the `devices()` query these rows were dropped with, which
-                a locked workspace has refused (see the paywall's query). Each row
-                appears once its own figure exists, and while one is on its way (most
-                subscriptions report a count), each row drawing its own bar. */}
+            {/* The rate alone: a month's device count is what is metered, so a
+                count or a total here would price a bill nobody has been sent. */}
             {(catalog.paygUnitPrice != null || loading) && (
               <div className="flex flex-col gap-3 p-[var(--spacing-system-mf)]">
-                {(deviceCount != null || loading) && (
-                  <BillingRow
-                    label="Active Devices Detected"
-                    loading={loading}
-                    value={deviceCount != null && formatCount(deviceCount)}
-                  />
-                )}
                 {/* The row draws its own bar while the rate is on its way. */}
                 <BillingRow
                   label="Rate per Device"
                   loading={loading || catalog.paygUnitPrice == null}
                   value={catalog.paygUnitPrice != null && <PriceValue amount={catalog.paygUnitPrice} period="month" />}
                 />
-                {((deviceCount != null && catalog.paygUnitPrice != null) || loading) && (
-                  <BillingRow
-                    label="Total"
-                    loading={loading}
-                    value={
-                      deviceCount != null &&
-                      catalog.paygUnitPrice != null && (
-                        <PriceValue amount={deviceCount * catalog.paygUnitPrice} period="month" />
-                      )
-                    }
-                  />
-                )}
               </div>
             )}
           </div>

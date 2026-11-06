@@ -4,6 +4,7 @@ import { Card } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { deviceManagementCard_product$key } from '@/__generated__/deviceManagementCard_product.graphql';
 import type { deviceManagementCard_subscriptionProduct$key } from '@/__generated__/deviceManagementCard_subscriptionProduct.graphql';
+import { formatDate } from '@/lib/format-date';
 import { DevicePlanPicker } from './device-plan-picker';
 import type { ProductUpdates } from './plan-selection';
 
@@ -36,13 +37,18 @@ interface DeviceManagementCardProps {
   /** `null` renders the loading state — the picker draws its own; see `DevicePlanPicker`. */
   product: deviceManagementCard_product$key | null;
   subscriptionProduct: deviceManagementCard_subscriptionProduct$key | null;
-  /** Managed devices, counted by billing — prices the pay-as-you-go month. */
-  deviceCount: number | null;
+  /** When a pay-as-you-go month bought here is first invoiced — `PlanCheckout.paygFirstBillingDate`. */
+  firstBillingDate: Date;
   onUpdatesChange: (updates: ProductUpdates) => void;
 }
 
 /**
  * The paywall's device plan card: a heading over `DevicePlanPicker`.
+ *
+ * Pay-as-you-go is metered, so a checkout charges nothing for devices today:
+ * the panel says so and names the day it does, in place of the picker's
+ * general description — the Upgrade Plan modal changes a running plan, whose
+ * billing day is not this one.
  *
  * Its own component rather than a variant of the AI card because the two no
  * longer share an interaction model — devices are a period toggle over two
@@ -51,7 +57,7 @@ interface DeviceManagementCardProps {
 export function DeviceManagementCard({
   product,
   subscriptionProduct,
-  deviceCount,
+  firstBillingDate,
   onUpdatesChange,
 }: DeviceManagementCardProps) {
   const productRef = useFragment(deviceManagementCardProductFragment, product);
@@ -69,7 +75,13 @@ export function DeviceManagementCard({
       <DevicePlanPicker
         productRef={productRef ?? null}
         subscriptionProductRef={subscriptionProductRef ?? null}
-        deviceCount={deviceCount}
+        paygDescription={
+          <>
+            <span className="text-h3">No device charge today.</span> On{' '}
+            <span className="text-h3">{formatDate(firstBillingDate)}</span> we'll bill you for the devices you actually
+            managed this month at the rate below. Scales automatically as devices come and go.
+          </>
+        }
         onUpdatesChange={onUpdatesChange}
         footerNote={ADDITIONAL_DEVICES_HELPER_TEXT}
       />

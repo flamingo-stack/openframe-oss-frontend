@@ -1,14 +1,22 @@
 'use client';
 
+import { addMonths } from 'date-fns';
 import { useState } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type { usePlanCheckout_query$key } from '@/__generated__/usePlanCheckout_query.graphql';
 import { OpenframeProduct } from '@/generated/schema-enums';
-import { type AiTopUp, useAiTopUp } from '../ai-balance/use-ai-top-up';
+import { type AiTopUp, TOP_UP_PRESETS_USD, useAiTopUp } from '../ai-balance/use-ai-top-up';
 import { aiTokenPrice } from '../shared/ai-token-price';
 import type { ProductUpdates, SelectionTotal } from './plan-selection';
 import type { ProductCheckoutInput } from './use-create-checkout-session';
 import type { PackageUpdateInput } from './use-update-subscription';
+
+/**
+ * The top-ups offered beside a prepaid year. The year is already a large charge
+ * today, so the grid opens with "Don't top up" and stops at $50; pay-as-you-go
+ * keeps the grid every other surface offers (`TOP_UP_PRESETS_USD`).
+ */
+const PREPAID_YEAR_TOP_UP_PRESETS_USD: readonly number[] = [20, 50];
 
 /**
  * What the form itself reads. Of the catalog: which products are for sale, and
@@ -65,6 +73,12 @@ export interface PlanCheckout {
    * it, and the pay-as-you-go panel prices it.
    */
   deviceCount: number | null;
+  /**
+   * When a pay-as-you-go month started by this checkout is first invoiced: a
+   * month from today, the period Stripe anchors on the day the checkout is paid.
+   * Read once per form, so the date the user read is the date they are shown.
+   */
+  paygFirstBillingDate: Date;
   /** What the device card has picked; `null` until it reports. */
   deviceUpdates: ProductUpdates | null;
   setDeviceUpdates: (updates: ProductUpdates) => void;
@@ -78,6 +92,12 @@ export interface PlanCheckout {
    */
   autoTopUp: boolean;
   setAutoTopUp: (enabled: boolean) => void;
+  /**
+   * Whether the switch can be offered: there is a top-up for it to repeat. Off
+   * on "Don't top up", where the card hides it — and the checkout never sends
+   * it on beside no amount.
+   */
+  canAutoTopUp: boolean;
   /** ADD/CANCEL diff, for an existing subscription. */
   packageUpdates: PackageUpdateInput[];
   /** The whole target plan, for a checkout. */
@@ -85,7 +105,10 @@ export interface PlanCheckout {
   /** The device card holds a quantity nobody can be billed for. */
   hasInvalidCustom: boolean;
   selectionTotal: SelectionTotal | null;
-  /** The top-up to charge on the checkout; `null` when the plan has no AI product. */
+  /**
+   * The top-up to charge on the checkout; `null` when the plan has no AI
+   * product, or when "Don't top up" is chosen.
+   */
   tokenAmountUsd: number | null;
 }
 
@@ -119,19 +142,26 @@ export function usePlanCheckout(query: usePlanCheckout_query$key | null): PlanCh
   // Only the device card takes a plan selection. AI has no package to choose —
   // its card picks a balance (see `AiTokenBalanceCard`).
   const [deviceUpdates, setDeviceUpdates] = useState<ProductUpdates | null>(null);
+  const [paygFirstBillingDate] = useState(() => addMonths(new Date(), 1));
+  // Until the picker reports, it shows pay-as-you-go, and so does the grid.
+  const prepaidYear = deviceUpdates?.mode === 'ANNUAL';
 
   /**
    * Held HERE rather than in the card that draws it: it is part of the same
    * form as the plan, and the form's one button is what sends it
    * (`CheckoutInput.tokenAmountUsd`). $50 is picked up front, as the mockup has
    * it — a checkout requires an amount, and a form that starts with nothing
-   * chosen would refuse its own default.
+   * chosen would refuse its own default. Both grids have it, so switching the
+   * plan keeps it.
    */
   const topUp = useAiTopUp({
     tokenPrice: aiTokenPrice(aiProduct),
     initial: 50,
+    presets: prepaidYear ? PREPAID_YEAR_TOP_UP_PRESETS_USD : TOP_UP_PRESETS_USD,
+    allowNone: prepaidYear,
   });
   const [autoTopUp, setAutoTopUp] = useState(false);
+  const topUpUsd = topUp.amountUsd != null && topUp.amountUsd > 0 ? topUp.amountUsd : null;
 
   /**
    * Every non-device product. A checkout session describes the WHOLE target
@@ -158,17 +188,19 @@ export function usePlanCheckout(query: usePlanCheckout_query$key | null): PlanCh
     showDeviceCard,
     showAiCard,
     deviceCount,
+    paygFirstBillingDate,
     deviceUpdates,
     setDeviceUpdates,
     topUp,
     autoTopUp,
     setAutoTopUp,
+    canAutoTopUp: topUp.amountUsd !== 0,
     packageUpdates: deviceUpdates?.packageUpdates ?? [],
     checkoutProducts: deviceUpdates?.checkout ? [deviceUpdates.checkout, ...otherProducts] : [],
     hasInvalidCustom: deviceUpdates != null && !deviceUpdates.valid,
     selectionTotal: deviceUpdates?.total ?? null,
     // Only when the AI product is for sale here: a catalog without it has no
     // balance to open, and the checkout must not carry an amount for it.
-    tokenAmountUsd: showAiCard ? topUp.amountUsd : null,
+    tokenAmountUsd: showAiCard ? topUpUsd : null,
   };
 }
