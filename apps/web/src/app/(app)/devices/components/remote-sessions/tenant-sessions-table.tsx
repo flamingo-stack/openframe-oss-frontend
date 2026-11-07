@@ -38,6 +38,7 @@ import { dateRangeFromParams, toDayParam } from '@/lib/date-filter-params';
 import { useLiveRows } from '../../hooks/use-remote-session-watch-gate';
 import { useDeleteRemoteSession } from '../../hooks/use-session-recordings';
 import { useTenantSessionFilterOptions } from '../../hooks/use-tenant-session-filter-options';
+import { useTenantSessionRows } from '../../hooks/use-tenant-session-rows';
 import { emptyDescription } from '../tabs/remote-sessions-tab';
 import { DeleteSessionDialog } from './delete-session-dialog';
 import { liveSessionRowClass } from './remote-session-columns';
@@ -255,6 +256,8 @@ function TenantSessionsTable({
 interface TenantSessionsContentProps extends Omit<TenantSessionsTableProps, 'rows' | 'totalCount' | 'infiniteScroll'> {
   variables: ReturnType<typeof tenantSessionsVariables>;
   refreshKey: number;
+  /** Reads the first page again, back from wherever the list was paged to. */
+  onRefresh: () => void;
 }
 
 /** The sessions table, with its own boundary: in its scope the reader draws its own loading form. */
@@ -285,7 +288,7 @@ function TenantSessionsContentReader(props: TenantSessionsContentProps) {
   return <TenantSessionsContentQuery {...props} />;
 }
 
-function TenantSessionsContentQuery({ variables, refreshKey, ...tableProps }: TenantSessionsContentProps) {
+function TenantSessionsContentQuery({ variables, refreshKey, onRefresh, ...tableProps }: TenantSessionsContentProps) {
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<TenantSessionsQuery>(
     tenantRemoteSessionsRelayQuery,
@@ -298,18 +301,27 @@ function TenantSessionsContentQuery({ variables, refreshKey, ...tableProps }: Te
     TenantSessionsKey
   >(tenantRemoteSessionsRelayFragment, queryData);
 
-  const rows = useMemo(
+  const pageRows = useMemo(
     () => data.remoteSessions.edges.flatMap(edge => (edge?.node ? [toTenantSessionRow(edge.node)] : [])),
     [data.remoteSessions.edges],
   );
+
+  // The running sessions polled and merged in, one row per session.
+  const { rows, totalCount, onLoadMoreComplete } = useTenantSessionRows({
+    pageRows,
+    totalCount: data.remoteSessions.totalCount,
+    filter: variables.filter,
+    onRefresh,
+  });
+
   const loadMore = useCallback(() => {
-    if (hasNext && !isLoadingNext) loadNext(PAGE_SIZE);
-  }, [hasNext, isLoadingNext, loadNext]);
+    if (hasNext && !isLoadingNext) loadNext(PAGE_SIZE, { onComplete: onLoadMoreComplete });
+  }, [hasNext, isLoadingNext, loadNext, onLoadMoreComplete]);
 
   return (
     <TenantSessionsTable
       rows={rows}
-      totalCount={data.remoteSessions.totalCount}
+      totalCount={totalCount}
       infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: loadMore }}
       {...tableProps}
     />
@@ -338,6 +350,9 @@ export function TenantSessionsShell() {
     sortDir: { type: 'string', default: 'desc' },
   });
   const [refreshKey, setRefreshKey] = useState(0);
+  // A delete marks the session stale in the store, so its refetch suspends; as a transition it keeps the rows on screen
+  // meanwhile instead of dropping the table to its skeleton. Stable, as the content's effect depends on it.
+  const refresh = useCallback(() => startTransition(() => setRefreshKey(key => key + 1)), []);
 
   const dateRange: DateRange | undefined = useMemo(
     () => dateRangeFromParams(params.dateFrom, params.dateTo),
@@ -408,10 +423,8 @@ export function TenantSessionsShell() {
         tableFilters={tableFilters}
         onFilterChange={handleFilterChange}
         dateFilter={dateFilter}
-        // The delete marked the session stale in the store, so the refetch
-        // suspends; as a transition it keeps the rows on screen meanwhile
-        // instead of dropping the table to its skeleton.
-        onDeleted={() => startTransition(() => setRefreshKey(key => key + 1))}
+        onDeleted={refresh}
+        onRefresh={refresh}
       />
     </div>
   );

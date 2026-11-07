@@ -3115,8 +3115,9 @@ type Query {
   remoteAccessRequest(requestId: String!): RemoteAccessRequest!
 
   """
-  The caller's own session, the read the Back / leave flow needs before ending it. A deleted session reads
-  REMOTE_SESSION_NOT_FOUND.
+  One session by id, the read of the live page and of the Back / leave flow. Another technician's ACTIVE session
+  reads REMOTE_ACCESS_FORBIDDEN unless the tenant flag remote-session-watch is on; an ended one always reads. A deleted
+  session reads REMOTE_SESSION_NOT_FOUND.
   """
   remoteSession(sessionId: String!): RemoteSession!
 
@@ -3134,6 +3135,11 @@ type Query {
   matching filter field when the filter leaves it empty, the filter wins otherwise.
   A session that ended as never connected is not listed and not counted; remoteSession(sessionId) and the request
   audit still return it. A deleted session is not listed and not counted.
+  ACTIVE sessions come first on the first page (no after), as a block of at most 100 ordered by startedAt desc then
+  sessionId desc under every sort, extra to first; the pages exclude them, totalCount counts them. The block appears
+  when recordingState is empty or LIVE; with LIVE it is the whole answer (hasNextPage false, no cursors in pageInfo).
+  pageInfo covers the paged rows only. Another technician's ACTIVE session is listed when the tenant flag
+  remote-session-watch is on; otherwise only the caller's own.
   """
   remoteSessions(
     deviceId: String @deprecated(reason: "use filter.deviceIds")
@@ -4011,6 +4017,11 @@ type RemoteSession {
   recordingSizeBytes: Long
 
   """
+  Join history, newest last; current viewers have leftAt null. One current entry per user across tabs. Empty until watching ships.
+  """
+  viewers: [RemoteSessionViewer!]!
+
+  """
   The session's timeline as a cursor connection, ascending by at. Rows at the same millisecond follow the session:
   REQUESTED, APPROVED, STARTED, the rows during the session, ENDED, then the rows after the end; id breaks what is
   left. first is clamped to 1..500, default 100;
@@ -4024,6 +4035,24 @@ type RemoteSession {
 
   """Active links, the session's own ticket first, then by link time. Same visibility as the session."""
   tickets: [RemoteSessionTicketLink!]!
+}
+
+"""A technician who watched the session."""
+type RemoteSessionViewer {
+  userId: String!
+
+  """Snapshot at join, like technician.name; null when the profile had no name."""
+  name: String
+  avatarUrl: String
+  joinedAt: Instant!
+  leftAt: Instant
+  leftReason: RemoteSessionViewerLeftReason
+}
+
+enum RemoteSessionViewerLeftReason {
+  LEFT
+  SESSION_ENDED
+  DISCONNECTED
 }
 
 """
@@ -4045,9 +4074,12 @@ enum RemoteSessionActionType {
   MONITOR_SWITCHED
 }
 
-"""The sessions list's recording-state filter. Each value is a query criterion matching the row's recordingState tag."""
+"""The sessions list's state filter. LIVE matches the status; the other values match the row's recordingState tag."""
 enum RemoteSessionListState {
-  """Recording on and no file yet: ACTIVE, or ended less than 30 min ago."""
+  """Status ACTIVE, whatever the recording says."""
+  LIVE
+
+  """Recording on, no file yet, ended less than 30 min ago."""
   PROCESSING
 
   """No file 30 min after the end (inside the listing window, or stamped by the detector)."""
@@ -4419,6 +4451,8 @@ type RemoteSessionRecording {
 
 type RemoteSessionEdge {
   node: RemoteSession!
+
+  """The row's cursor. On an ACTIVE row of the first page's live block it is not for paging: page with pageInfo.endCursor."""
   cursor: String!
 }
 
