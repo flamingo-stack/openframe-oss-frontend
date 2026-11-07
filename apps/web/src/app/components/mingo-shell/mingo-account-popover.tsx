@@ -26,6 +26,8 @@ interface MingoAccountPopoverProps {
    * sidebar's Settings and Help Center rows were not.
    */
   locked: boolean;
+  /** Where the rail's avatar sits (`AccountPopover` `collapsedAlign`); the Mingo-first rail keeps `start`. */
+  collapsedAlign?: 'start' | 'center';
 }
 
 /**
@@ -35,7 +37,7 @@ interface MingoAccountPopoverProps {
  * replies" with their count, opening the ticket with the newest one, and the unread dot
  * on the avatar. Also drawn at the foot of the phone drawer.
  */
-export function MingoAccountPopover({ collapsed, locked }: MingoAccountPopoverProps) {
+export function MingoAccountPopover({ collapsed, locked, collapsedAlign }: MingoAccountPopoverProps) {
   const firstName = useAuthStore(state => state.user?.firstName);
   const lastName = useAuthStore(state => state.user?.lastName);
   const email = useAuthStore(state => state.user?.email);
@@ -88,6 +90,7 @@ export function MingoAccountPopover({ collapsed, locked }: MingoAccountPopoverPr
   return (
     <AccountPopover
       collapsed={collapsed}
+      collapsedAlign={collapsedAlign}
       name={name}
       email={email}
       avatarUrl={getFullImageUrl(imageUrl, imageHash) ?? null}

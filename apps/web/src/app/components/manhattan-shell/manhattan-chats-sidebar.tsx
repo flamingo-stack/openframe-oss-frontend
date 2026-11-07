@@ -1,0 +1,151 @@
+'use client';
+
+import { TimeTrackerHeaderButton } from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
+  ListBulletIcon,
+  PlusCircleIcon,
+  SidebarIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  NavigationSidebarActionRow,
+  NotificationsBellButton,
+} from '@flamingo-stack/openframe-frontend-core/components/navigation';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
+import { MingoAccountPopover } from '@/app/components/mingo-shell/mingo-account-popover';
+import { MingoSidebarHistory } from '@/app/components/mingo-shell/mingo-sidebar-history';
+import { closeMobileMenu } from '@/app/components/mingo-shell/mobile-menu-store';
+
+/**
+ * The Manhattan v2 shell's left sidebar (flag `manhattan-v2`, Figma "mingo (Manhattan)"
+ * 1408:292998 / 1408:293116): "Start Work" over the chats, the user row at the foot.
+ * Built from the Mingo-first shell's own pieces — the launcher's new chat, the chat
+ * history section, the account popover, the time tracker and the bell — so every one
+ * of their actions works as it does today; only the arrangement is new.
+ */
+
+/**
+ * "Start Work": Mingo's home, a new chat. The same launcher action as the
+ * Mingo-first shell's "New chat" (the dock goes home and resets the chat there).
+ */
+export function ManhattanStartWorkRow({
+  minimized,
+  active,
+  disabled = false,
+}: {
+  minimized: boolean;
+  active: boolean;
+  /** Behind the paywall, as the Mingo-first rows are. */
+  disabled?: boolean;
+}) {
+  return (
+    <NavigationSidebarActionRow
+      size="sectioned"
+      icon={<PlusCircleIcon />}
+      label="Start Work"
+      active={active}
+      disabled={disabled}
+      minimized={minimized}
+      onClick={() => {
+        useMingoLauncherStore.getState().startNewChat();
+        closeMobileMenu();
+      }}
+    />
+  );
+}
+
+/**
+ * The chats: the history section ("Current chats", the day groups, search, ⋯, My / All)
+ * from 140px of width, and in the 56px rail a list icon that expands the sidebar.
+ */
+export function ManhattanChatsSection({ minimized, onExpand }: { minimized: boolean; onExpand: () => void }) {
+  if (minimized) {
+    return (
+      <NavigationSidebarActionRow
+        size="sectioned"
+        icon={<ListBulletIcon />}
+        label="Chats"
+        minimized
+        onClick={onExpand}
+      />
+    );
+  }
+  return (
+    <div className="flex flex-col duration-300 animate-in fade-in motion-reduce:animate-none">
+      <MingoSidebarHistory density="compact" />
+    </div>
+  );
+}
+
+interface ManhattanChatsFooterProps {
+  minimized: boolean;
+  /** The lock screen is up: the account keeps Log out only, the controls do nothing. */
+  locked: boolean;
+  /**
+   * From md up the sidebar owns the time tracker and the bell (one tracker instance: its
+   * popover follows a shared open state); below md the phone top bar does.
+   */
+  ownsHeaderCells: boolean;
+  /** Not in the phone drawer, which stays mounted from md up. */
+  inDrawer: boolean;
+  onToggleCollapsed: () => void;
+}
+
+/** One 32px square glyph button, as the Figma footer draws them. */
+const FOOTER_BUTTON_CLASS = cn(
+  'flex size-8 shrink-0 items-center justify-center rounded-md text-ods-text-panel-secondary transition-colors',
+  'hover:bg-ods-bg-hover hover:text-ods-text-primary active:bg-ods-bg-active',
+  'outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ods-focus',
+);
+
+/**
+ * The user row (Figma `user`): the account (avatar and name, its popover with Support
+ * replies, Settings, Help Center and Log out), then the time tracker, the bell and the
+ * collapse button — one 56px row, everything on one centre line. In the rail a column,
+ * each centred: avatar, Worktime, bell, collapse.
+ */
+export function ManhattanChatsFooter({
+  minimized,
+  locked,
+  ownsHeaderCells,
+  inDrawer,
+  onToggleCollapsed,
+}: ManhattanChatsFooterProps) {
+  const controls = ownsHeaderCells && !inDrawer && (
+    <>
+      <TimeTrackerHeaderButton variant="compact" disabled={locked} popoverSide="right" popoverAlign="end" />
+      <NotificationsBellButton variant="compact" disabled={locked} />
+    </>
+  );
+  const collapse = !inDrawer && (
+    <button
+      type="button"
+      className={FOOTER_BUTTON_CLASS}
+      aria-label={minimized ? 'Show chats' : 'Hide chats'}
+      title={minimized ? 'Show chats' : 'Hide chats'}
+      onClick={onToggleCollapsed}
+    >
+      <SidebarIcon size={20} />
+    </button>
+  );
+  return (
+    <div
+      className={cn(
+        // The lib's compact cells are row cells in the rail (left-aligned glyph): centred here.
+        'flex items-center [&_button]:justify-center',
+        minimized
+          ? 'flex-col gap-[var(--spacing-system-xxs)] py-[var(--spacing-system-sf)] [&_button]:px-0'
+          : 'h-14 gap-[var(--spacing-system-xsf)] pl-[var(--spacing-system-xsf)] pr-[var(--spacing-system-xsf)]',
+      )}
+    >
+      <div className={cn('min-w-0', minimized ? 'w-full' : 'flex-1')}>
+        {/* The rail centres its buttons, so the avatar is centred with them. */}
+        <MingoAccountPopover collapsed={minimized} locked={locked} collapsedAlign="center" />
+      </div>
+      <div className={cn('flex shrink-0 items-center', minimized && 'w-full flex-col gap-[var(--spacing-system-xxs)]')}>
+        {controls}
+        {collapse}
+      </div>
+    </div>
+  );
+}

@@ -36,8 +36,10 @@ import { isAuthOnlyMode, isOssTenantMode, isSaasTenantMode } from '../../lib/app
 import {
   getGroupedNavigationItems,
   getNavigationItems,
+  getSectionedNavigationItems,
   NAVIGATION_LOADING_ROWS,
   type NavigationFlags,
+  SECTIONED_NAVIGATION_LOADING_ROWS,
 } from '../../lib/navigation-config';
 import { GROUPED_SIDEBAR_EXPANDED_WIDTH, SIDEBAR_RESIZE } from '../../lib/navigation-sidebar-state';
 import { AnnouncementTopBar } from './announcement-top-bar';
@@ -50,6 +52,18 @@ import {
 } from './app-shell-chrome';
 import { AiBalanceBar, BillingBarsHydrator, type BillingBarsState, NO_BARS, TrialEndingBar } from './billing-bars';
 import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
+import {
+  ManhattanChatsFooter,
+  ManhattanChatsSection,
+  ManhattanStartWorkRow,
+} from './manhattan-shell/manhattan-chats-sidebar';
+import {
+  MANHATTAN_CHATS_EXPANDED_WIDTH,
+  MANHATTAN_NAVIGATION_EXPANDED_WIDTH,
+  MANHATTAN_NAVIGATION_FOLDS_KEY,
+  useManhattanNavCollapsed,
+  useManhattanShell,
+} from './manhattan-shell/use-manhattan-shell';
 import { useHistorySearchStore } from './mingo-shell/history-search-store';
 import { MingoAccountPopover } from './mingo-shell/mingo-account-popover';
 import { MingoComposerDock } from './mingo-shell/mingo-composer-dock';
@@ -144,6 +158,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // dashboard shell. App mode is known before the first paint, so the chrome never
   // waits for it.
   const mingoShell = isSaasTenantMode();
+  // Manhattan v2 (flag `manhattan-v2`): the chats on the left, the navigation on the right.
+  // Only an answered "on" switches it; otherwise the Mingo-first shell is drawn as before.
+  const manhattan = useManhattanShell(mingoShell);
 
   // The shell now mounts BEFORE the session resolves (see `AppLayoutInner`), so it
   // owns two things it used to get for free from being rendered only afterwards:
@@ -410,6 +427,8 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // Mingo-first only: the desktop collapse is the shell's (the classic sidebar keeps
   // its own persisted preference — the same one, under the same key).
   const [sidebarCollapsed, setSidebarCollapsed] = useSidebarCollapsed();
+  // Manhattan v2: the right navigation's own collapse.
+  const [navCollapsed, setNavCollapsed] = useManhattanNavCollapsed();
   // ⌘K's reveal command (`NavigationSidebarConfig.revealSignal`): every bump shows the
   // expanded sidebar at the current width — the tablet overlay too, which a change of
   // `collapsed` cannot open while the desktop preference is already "expanded".
@@ -513,6 +532,93 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       isMdUp,
       showLockContent,
     ],
+  );
+
+  // Manhattan v2: the left sidebar holds the chats (Start Work, the history, the user row);
+  // the navigation moves to the right (`endSidebarConfig`). The phone burger keeps the
+  // Mingo-first config above (navigation and chats) until the narrow layout lands.
+  const manhattanSidebarConfig = useMemo<NavigationSidebarConfig | undefined>(
+    () =>
+      manhattan
+        ? {
+            variant: 'grouped',
+            items: [],
+            surface: 'panel',
+            toggle: 'none',
+            footerInset: false,
+            sectionDivider: false,
+            currentPath,
+            expandedWidth: MANHATTAN_CHATS_EXPANDED_WIDTH,
+            resizable: SIDEBAR_RESIZE,
+            onNavigate: handleNavigate,
+            topSlot: ({ minimized }) => (
+              <>
+                <SidebarUpdateButton minimized={minimized} />
+                <ManhattanStartWorkRow
+                  minimized={minimized}
+                  active={composerRouteOf(pathname) === 'home'}
+                  disabled={!chatEnabled}
+                />
+              </>
+            ),
+            sectionSlot: chatEnabled
+              ? ({ minimized }) => (
+                  <ManhattanChatsSection minimized={minimized} onExpand={() => setSidebarCollapsed(false)} />
+                )
+              : undefined,
+            footerSlot: ({ minimized, inDrawer }) => (
+              <ManhattanChatsFooter
+                minimized={minimized}
+                locked={showLockContent}
+                ownsHeaderCells={isMdUp === true}
+                inDrawer={inDrawer}
+                onToggleCollapsed={() => setSidebarCollapsed(!sidebarCollapsed)}
+              />
+            ),
+            collapsed: sidebarCollapsed,
+            onCollapsedChange: setSidebarCollapsed,
+            revealSignal,
+            className: 'h-full',
+          }
+        : undefined,
+    [
+      manhattan,
+      currentPath,
+      handleNavigate,
+      pathname,
+      chatEnabled,
+      setSidebarCollapsed,
+      showLockContent,
+      isMdUp,
+      sidebarCollapsed,
+      revealSignal,
+    ],
+  );
+  const sectionedItems = useMemo(
+    () => (manhattan ? getSectionedNavigationItems(navigationFlags, unreadCounts) : []),
+    [manhattan, navigationFlags, unreadCounts],
+  );
+  const endSidebarConfig = useMemo<NavigationSidebarConfig | undefined>(
+    () =>
+      manhattan
+        ? {
+            variant: 'sectioned',
+            surface: 'panel',
+            header: false,
+            toggle: 'icon',
+            expandedWidth: MANHATTAN_NAVIGATION_EXPANDED_WIDTH,
+            items: sectionedItems,
+            currentPath,
+            loading: chromeLoading,
+            loadingRows: SECTIONED_NAVIGATION_LOADING_ROWS,
+            onNavigate: handleNavigate,
+            groupsStorageKey: MANHATTAN_NAVIGATION_FOLDS_KEY,
+            collapsed: navCollapsed,
+            onCollapsedChange: setNavCollapsed,
+            className: 'h-full',
+          }
+        : undefined,
+    [manhattan, sectionedItems, currentPath, chromeLoading, handleNavigate, navCollapsed, setNavCollapsed],
   );
 
   // Single `topBar` slot, one bar at a time: the billing bars first, since they
@@ -762,7 +868,12 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
                 // root owns the top inset (see `.app-shell-root`). Inert on the web.
                 className="app-shell-root"
                 mainClassName={mainClassName ?? APP_MAIN_CLASS_NAME}
-                sidebarConfig={sidebarConfig}
+                sidebarConfig={manhattanSidebarConfig ?? sidebarConfig}
+                // Manhattan v2: the navigation on the right, the phone burger on the full
+                // Mingo-first config, the sidebars' width animated.
+                endSidebarConfig={endSidebarConfig}
+                mobileMenuConfig={manhattan ? sidebarConfig : undefined}
+                animateSidebars={manhattan}
                 mobileBurgerMenuProps={mobileBurgerMenuProps}
                 headerProps={headerProps}
                 // The Mingo-first shell owns the phone drawer (see `useMobileMenuStore`); the

@@ -7,6 +7,7 @@ import { NotificationCategory } from '@/generated/schema-enums';
 import {
   getGroupedNavigationItems,
   getNavigationItems,
+  getSectionedNavigationItems,
   NAVIGATION_LOADING_ROWS,
   type NavigationFlags,
   type OnboardingNavState,
@@ -326,5 +327,54 @@ describe('grouped navigation (Mingo-first shell)', () => {
   it('is empty in the auth-only app mode', () => {
     setAppMode('saas-shared');
     expect(getGroupedNavigationItems(ALL_ON, ALL_UNREAD)).toEqual([]);
+  });
+});
+
+describe('sectioned navigation (Manhattan v2 shell)', () => {
+  it('lists the Figma sections and the bottom three, with the Figma names', () => {
+    setAppMode('saas-tenant');
+    const items = getSectionedNavigationItems(ALL_ON);
+    expect(items.map(item => [item.id, item.label, (item.children ?? []).map(child => child.label)])).toEqual([
+      ['service-desk', 'Service Desk', ['Tickets', 'Worktime']],
+      ['fleet', 'Fleet', ['Customers', 'Devices', 'Software', 'Users', 'Cloud Tenants']],
+      ['monitor', 'Monitor', ['Incidents', 'Logs']],
+      ['skills', 'Skills', ['Scripts', 'Scheduled Scripts', 'Policies', 'Queries']],
+      ['knowledge-base', 'Knowledge Base', []],
+      ['help-center', 'Help Center', []],
+      ['settings', 'Settings', []],
+    ]);
+    expect(items.filter(item => item.section === 'secondary').map(item => item.id)).toEqual([
+      'knowledge-base',
+      'help-center',
+      'settings',
+    ]);
+  });
+
+  it('has no Dashboard, no Needs approval and no Beta stamps', () => {
+    setAppMode('saas-tenant');
+    const all = getSectionedNavigationItems(ALL_ON).flatMap(item => [item, ...(item.children ?? [])]);
+    expect(all.map(item => item.id)).not.toContain('dashboard');
+    expect(all.some(item => item.badge)).toBe(false);
+  });
+
+  it('applies the same gates as the other shells', () => {
+    setAppMode('saas-tenant');
+    const off = getSectionedNavigationItems({ insights: false, softwareManagement: false, tenantManagement: false });
+    const ids = off.flatMap(item => [item.id, ...(item.children ?? []).map(child => child.id)]);
+    expect(ids).not.toContain('incidents');
+    expect(ids).not.toContain('software');
+    expect(ids).not.toContain('integrations');
+    expect(ids).toContain('devices');
+  });
+
+  it('lights Users on Settings → Employees and Settings elsewhere in Settings', () => {
+    setAppMode('saas-tenant');
+    const items = getSectionedNavigationItems(ALL_ON);
+    expect(resolveNavigationActive(items, { currentPath: '/settings/employees', includeChildren: true }).activeId).toBe(
+      'users',
+    );
+    expect(resolveNavigationActive(items, { currentPath: '/settings/api-keys', includeChildren: true }).activeId).toBe(
+      'settings',
+    );
   });
 });

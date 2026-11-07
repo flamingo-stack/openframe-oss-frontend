@@ -48,7 +48,12 @@ const onServer = () => false;
  * `MingoHistorySearch` below, drawn once by the shell; its open state is shared with
  * the shell, which opens it on ⌘K / Ctrl+K.
  */
-export function MingoSidebarHistory() {
+export function MingoSidebarHistory({
+  density = 'default',
+}: {
+  /** `'compact'`: the Manhattan v2 shell's chat list (32px rows, "Current chats"). */
+  density?: 'default' | 'compact';
+} = {}) {
   const { chat, error, enabled, copyDialogLink } = useMingoChat();
   const currentUserId = useAuthStore(s => s.user?.id ?? null);
   const searchOpen = useHistorySearchStore(s => s.open);
@@ -72,6 +77,7 @@ export function MingoSidebarHistory() {
     return (
       <MingoChatRail
         variant="section"
+        density={density}
         dialogs={NO_DIALOGS}
         isLoadingHistory={!error}
         loadError={!!error}
@@ -121,6 +127,7 @@ export function MingoSidebarHistory() {
     <>
       <MingoChatRail
         variant="section"
+        density={density}
         dialogs={state.dialogs}
         activeDialogId={state.activeDialogId ?? undefined}
         onSelectDialog={openChat}
