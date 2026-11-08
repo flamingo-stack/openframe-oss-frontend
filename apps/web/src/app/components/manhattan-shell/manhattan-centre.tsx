@@ -19,6 +19,8 @@ import { ManhattanDockContext } from './manhattan-dock-context';
 /** What the Manhattan v2 centre hands `AppLayout` (`chatColumn`, `workAreaMode`, `pageHeader`, the dock). */
 export interface ManhattanCentreSlots {
   mode: AppLayoutWorkAreaMode;
+  /** The chat covers the page (chat full screen): the page is not on screen. */
+  pageHidden: boolean;
   chatColumn: ReactNode;
   pageHeader: ReactNode;
   /** The composer dock as the v2 centre holds it: rendered once, in the dock under the page or at the column's foot. */
@@ -97,6 +99,7 @@ export function ManhattanCentre({
   const slots: ManhattanCentreSlots | null = enabled
     ? {
         mode,
+        pageHidden: mode === 'chat',
         chatColumn: <ManhattanChatColumn shown={mode !== 'page'} onScreen={mode !== 'page' && openDialogId !== null} />,
         // Only beside a chat column: in one column (compact) and on a phone the top bar is the
         // page's chrome, and there is no other column to go full screen over or close back to.
@@ -136,7 +139,8 @@ function ManhattanChatColumn({ shown, onScreen }: { shown: boolean; onScreen: bo
     <div className="flex h-full min-h-0 flex-1 flex-col bg-ods-bg">
       {onScreen && <ThreadOnScreen />}
       <div ref={setThreadNode} data-testid="manhattan-chat-thread" className="flex min-h-0 flex-1 flex-col" />
-      <ManhattanComposerSlot active={shown} className="shrink-0 px-[var(--spacing-system-lf)]" />
+      {/* The composer spans the column (the dock's max width is for under a page). */}
+      <ManhattanComposerSlot active={shown} className="shrink-0 px-[var(--spacing-system-lf)] [&_section]:max-w-none" />
     </div>
   );
 }

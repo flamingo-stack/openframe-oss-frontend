@@ -938,7 +938,13 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
                     sidebarConfig={manhattanSidebarConfig ?? sidebarConfig}
                     // Manhattan v2: the navigation on the right, the phone burger on the full
                     // Mingo-first config, the sidebars' width animated.
-                    endSidebarConfig={endSidebarConfig}
+                    // While the chat covers the page (chat full screen), no navigation entry is lit:
+                    // the active entry is the page on screen (plan AC10).
+                    endSidebarConfig={
+                      centre?.pageHidden && endSidebarConfig
+                        ? { ...endSidebarConfig, currentPath: '' }
+                        : endSidebarConfig
+                    }
                     mobileMenuConfig={manhattanMobileMenuConfig}
                     animateSidebars={manhattan}
                     mobileBurgerMenuProps={mobileBurgerMenuProps}
@@ -992,10 +998,12 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
                         : mingoShell && dockViewOf(composerRouteOf(pathname)).floats
                     }
                     // Manhattan v2: the chat column beside the page, the page column's header.
-                    chatColumn={centre?.chatColumn}
+                    // `null` on the Mingo-first shell: the same element tree as v2's, so the page does
+                    // not remount when the `manhattan-v2` flag answers on.
+                    chatColumn={mingoShell ? (centre?.chatColumn ?? null) : undefined}
                     workAreaMode={centre?.mode}
                     workAreaStorageKey={centre ? MANHATTAN_WORK_AREA_STORAGE_KEY : undefined}
-                    pageHeader={centre?.pageHeader}
+                    pageHeader={mingoShell ? (centre?.pageHeader ?? null) : undefined}
                     // A chat page: Mingo's background and glow from the top of the thread
                     // to the bottom of the window, under the docked composer too.
                     pageSurface={

@@ -207,6 +207,24 @@ describe('ManhattanCentre', () => {
     expect(container.querySelector('button')).toBeNull();
   });
 
+  it('says the page is hidden only while the chat covers it', () => {
+    chatState.activeDialogId = 'd-1';
+    let hidden: boolean | undefined;
+    const centre = () => (
+      <ManhattanCentre enabled>
+        {slots => {
+          hidden = slots?.pageHidden;
+          return null;
+        }}
+      </ManhattanCentre>
+    );
+    render(centre());
+    expect(hidden).toBe(false);
+    act(() => useManhattanCentreStore.setState({ chatView: 'full' }));
+    render(centre());
+    expect(hidden).toBe(true);
+  });
+
   it('titles Start Work with no buttons', () => {
     nav.pathname = '/mingo/';
     renderCentre();
