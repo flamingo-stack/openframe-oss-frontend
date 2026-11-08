@@ -517,6 +517,12 @@ export const SECTIONED_NAVIGATION_LOADING_ROWS = {
 /** The Figma names of the sectioned navigation, where they differ from the module's. */
 const SECTIONED_LABELS: Partial<Record<NavModuleId, string>> = { schedules: 'Scheduled Scripts' };
 
+/** A module's name as Manhattan v2's right navigation shows it (the page column's title too). */
+export function navModuleSectionedLabel(id: NavModuleId): string {
+  const entry: NavModule = NAV_MODULES[id];
+  return SECTIONED_LABELS[id] ?? entry.sectionedLabel ?? entry.label;
+}
+
 function sectionedEntry(
   id: NavModuleId,
   unreadCounts: UnreadCountsByCategory | undefined,
@@ -527,7 +533,7 @@ function sectionedEntry(
   const unreadCount = unreadOf(entry, unreadCounts, 'grouped');
   return {
     id,
-    label: SECTIONED_LABELS[id] ?? entry.sectionedLabel ?? entry.label,
+    label: navModuleSectionedLabel(id),
     icon: <Icon size={20} />,
     path: entry.path,
     match: entry.match ?? entry.prefixes,

@@ -52,6 +52,7 @@ import {
 } from './app-shell-chrome';
 import { AiBalanceBar, BillingBarsHydrator, type BillingBarsState, NO_BARS, TrialEndingBar } from './billing-bars';
 import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
+import { MANHATTAN_WORK_AREA_STORAGE_KEY, ManhattanCentre } from './manhattan-shell/manhattan-centre';
 import {
   ManhattanChatsFooter,
   ManhattanChatsSection,
@@ -769,18 +770,18 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // over the dock, so the dock holds its place in its loading form (`held`) rather than
   // arriving under the greeting and moving it.
   let composerDock: React.ReactNode;
+  // The dock itself: Manhattan v2 renders it once and moves it between the dock under the
+  // page and the chat column's foot (`ManhattanCentre`).
+  const dockShown = mingoShell && chatEnabled && (!dashboardHeld || composerRouteOf(pathname) === 'home');
+  const dockChat = <MingoComposerDock held={dashboardHeld} />;
   // Wrapped so the floating walkthrough card can rise above it (`COMPOSER_DOCK_ATTRIBUTE`
   // in walkthrough-video.tsx).
   if (mingoShell) {
-    composerDock =
-      chatEnabled && (!dashboardHeld || composerRouteOf(pathname) === 'home') ? (
-        <div data-composer-dock="">
-          <MingoComposerDock held={dashboardHeld} />
-        </div>
-      ) : null;
+    composerDock = dockShown ? <div data-composer-dock="">{dockChat}</div> : null;
   }
-  // The open chat over a page, raised from the dock: only with it.
-  const composerSheet = mingoShell && chatEnabled && !dashboardHeld ? <MingoComposerSheet /> : undefined;
+  // The open chat over a page, raised from the dock: only with it. Not in Manhattan v2,
+  // where the chat column beside the page holds it.
+  const composerSheet = mingoShell && chatEnabled && !dashboardHeld && !manhattan ? <MingoComposerSheet /> : undefined;
 
   // The page segment's boundary - what the chrome, bare or not, puts in its content
   // slot. Its placement rules are on the core layout below. Every page draws its own
@@ -860,56 +861,79 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
               can show it (the dock, the sidebar history, the page). It runs only
               while one of them is mounted. */}
           <MingoChatProvider enabled={chatMounted} identityEnabled={chatIdentityEnabled}>
-            {bareChrome ? (
-              <BareAppShell>{pageContent}</BareAppShell>
-            ) : (
-              <CoreAppLayout
-                // Hook for the native-shell safe-area CSS in globals.css: the layout
-                // root owns the top inset (see `.app-shell-root`). Inert on the web.
-                className="app-shell-root"
-                mainClassName={mainClassName ?? APP_MAIN_CLASS_NAME}
-                sidebarConfig={manhattanSidebarConfig ?? sidebarConfig}
-                // Manhattan v2: the navigation on the right, the phone burger on the full
-                // Mingo-first config, the sidebars' width animated.
-                endSidebarConfig={endSidebarConfig}
-                mobileMenuConfig={manhattan ? sidebarConfig : undefined}
-                animateSidebars={manhattan}
-                mobileBurgerMenuProps={mobileBurgerMenuProps}
-                headerProps={headerProps}
-                // The Mingo-first shell owns the phone drawer (see `useMobileMenuStore`); the
-                // layout still reports every open and close, and closes it on a change of
-                // `sidebarConfig.currentPath`. The OSS shell leaves it to the layout.
-                mobileMenuOpen={grouped ? mobileMenuOpen : undefined}
-                onMobileMenuOpenChange={grouped ? setMobileMenuOpen : undefined}
-                // Greys the header and nav rail out for the lock: they stay legible —
-                // the user can still see where they are and reach the account menu —
-                // but nothing they lead to is reachable until the workspace is paid for.
-                disabled={showLockContent}
-                // The super user strip is not one of the bars above: it is a
-                // statement about the session, not a notice, so it stacks over
-                // whichever bar won the slot (or none), lock screen included.
-                // Only once the session has answered, so a flag persisted from a
-                // previous session cannot flash it ahead of `/me`.
-                topBar={
-                  <>
-                    {sessionResolved && <SuperUserBanner />}
-                    {topBar}
-                  </>
-                }
-                // The Mingo-first shell: no desktop header (the phone top bar stays; the
-                // bell and the time tracker move into the sidebar footer); the composer is
-                // docked under every page — `null` behind the paywall, which keeps the slot
-                // (and the page's layout) while drawing nothing.
-                desktopHeader={!mingoShell}
-                composerDock={composerDock}
-                composerSheet={composerSheet}
-                // Over the page's end on plain pages and home: the page runs on under it.
-                composerDockFloats={mingoShell && dockViewOf(composerRouteOf(pathname)).floats}
-                // A chat page: Mingo's background and glow from the top of the thread
-                // to the bottom of the window, under the docked composer too.
-                pageSurface={mingoShell && chatEnabled && composerRouteOf(pathname) === 'chat' ? 'mingo' : undefined}
-              >
-                {/* The page segment's boundary. Core used to own it (`loadingFallback`,
+            {/* Manhattan v2's centre (chat column, page header, the dock's two places).
+                Mounted always, told through `enabled`: see the providers' rule above. */}
+            <ManhattanCentre enabled={manhattan && !bareChrome}>
+              {centre =>
+                bareChrome ? (
+                  <BareAppShell>{pageContent}</BareAppShell>
+                ) : (
+                  <CoreAppLayout
+                    // Hook for the native-shell safe-area CSS in globals.css: the layout
+                    // root owns the top inset (see `.app-shell-root`). Inert on the web.
+                    className="app-shell-root"
+                    mainClassName={mainClassName ?? APP_MAIN_CLASS_NAME}
+                    sidebarConfig={manhattanSidebarConfig ?? sidebarConfig}
+                    // Manhattan v2: the navigation on the right, the phone burger on the full
+                    // Mingo-first config, the sidebars' width animated.
+                    endSidebarConfig={endSidebarConfig}
+                    mobileMenuConfig={manhattan ? sidebarConfig : undefined}
+                    animateSidebars={manhattan}
+                    mobileBurgerMenuProps={mobileBurgerMenuProps}
+                    headerProps={headerProps}
+                    // The Mingo-first shell owns the phone drawer (see `useMobileMenuStore`); the
+                    // layout still reports every open and close, and closes it on a change of
+                    // `sidebarConfig.currentPath`. The OSS shell leaves it to the layout.
+                    mobileMenuOpen={grouped ? mobileMenuOpen : undefined}
+                    onMobileMenuOpenChange={grouped ? setMobileMenuOpen : undefined}
+                    // Greys the header and nav rail out for the lock: they stay legible —
+                    // the user can still see where they are and reach the account menu —
+                    // but nothing they lead to is reachable until the workspace is paid for.
+                    disabled={showLockContent}
+                    // The super user strip is not one of the bars above: it is a
+                    // statement about the session, not a notice, so it stacks over
+                    // whichever bar won the slot (or none), lock screen included.
+                    // Only once the session has answered, so a flag persisted from a
+                    // previous session cannot flash it ahead of `/me`.
+                    topBar={
+                      <>
+                        {sessionResolved && <SuperUserBanner />}
+                        {topBar}
+                      </>
+                    }
+                    // The Mingo-first shell: no desktop header (the phone top bar stays; the
+                    // bell and the time tracker move into the sidebar footer); the composer is
+                    // docked under every page — `null` behind the paywall, which keeps the slot
+                    // (and the page's layout) while drawing nothing.
+                    desktopHeader={!mingoShell}
+                    composerDock={
+                      centre && mingoShell ? (
+                        dockShown ? (
+                          <div data-composer-dock="">{centre.wrapDock(dockChat)}</div>
+                        ) : null
+                      ) : (
+                        composerDock
+                      )
+                    }
+                    composerSheet={composerSheet}
+                    // Over the page's end on plain pages and home: the page runs on under it.
+                    composerDockFloats={
+                      centre
+                        ? centre.dockFloats(dockViewOf(composerRouteOf(pathname)).floats)
+                        : mingoShell && dockViewOf(composerRouteOf(pathname)).floats
+                    }
+                    // Manhattan v2: the chat column beside the page, the page column's header.
+                    chatColumn={centre?.chatColumn}
+                    workAreaMode={centre?.mode}
+                    workAreaStorageKey={centre ? MANHATTAN_WORK_AREA_STORAGE_KEY : undefined}
+                    pageHeader={centre?.pageHeader}
+                    // A chat page: Mingo's background and glow from the top of the thread
+                    // to the bottom of the window, under the docked composer too.
+                    pageSurface={
+                      mingoShell && chatEnabled && composerRouteOf(pathname) === 'chat' ? 'mingo' : undefined
+                    }
+                  >
+                    {/* The page segment's boundary. Core used to own it (`loadingFallback`,
               dropped in 0.0.502 — `<main>` now renders `children` bare), so it
               lives here instead.
 
@@ -928,9 +952,11 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
               unmounts, so moving between them is a swap inside `<main>` and not
               a re-mount of the sidebar + header — which also means the lock
               arriving late costs a content swap, not a second chrome mount. */}
-                {pageContent}
-              </CoreAppLayout>
-            )}
+                    {pageContent}
+                  </CoreAppLayout>
+                )
+              }
+            </ManhattanCentre>
             {/* The chat history's search modal, once (the section is drawn twice). */}
             {grouped && chatEnabled && !bareChrome && <MingoHistorySearch />}
           </MingoChatProvider>
