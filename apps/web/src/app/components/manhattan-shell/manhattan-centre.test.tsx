@@ -146,6 +146,29 @@ describe('ManhattanCentre', () => {
     expect(currentMode()).toBe('off');
   });
 
+  it('floats the dock over Start Work and plain pages, never beside a chat', () => {
+    let floats: ((route: boolean) => boolean) | undefined;
+    const capture = () =>
+      render(
+        <ManhattanCentre enabled>
+          {centre => {
+            floats = centre?.dockFloats;
+            return null;
+          }}
+        </ManhattanCentre>,
+      );
+    nav.pathname = '/mingo/';
+    capture();
+    expect(floats?.(false)).toBe(true);
+
+    nav.pathname = '/devices';
+    capture();
+    expect(floats?.(true)).toBe(true);
+    chatState.activeDialogId = 'd-1';
+    capture();
+    expect(floats?.(true)).toBe(false);
+  });
+
   it('titles Start Work with no buttons', () => {
     nav.pathname = '/mingo/';
     renderCentre();

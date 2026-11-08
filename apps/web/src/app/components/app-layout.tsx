@@ -11,6 +11,7 @@ import type { NavigationSidebarConfig } from '@flamingo-stack/openframe-frontend
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DashboardOverviews } from '@/app/(app)/dashboard/components/dashboard-content';
+import { ManhattanStartWork } from '@/app/(app)/mingo/home/manhattan-start-work';
 import { MingoDashboard } from '@/app/(app)/mingo/home/mingo-dashboard';
 import { MingoNewChat } from '@/app/(app)/mingo/home/mingo-new-chat';
 import { MingoChatProvider } from '@/app/(app)/mingo/providers/mingo-chat-provider';
@@ -795,7 +796,12 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       ) : dashboardHeld ? (
         composerRouteOf(pathname) === 'home' ? (
           // A new chat: its greeting, nothing that loads.
-          <MingoNewChat />
+          manhattan ? (
+            // Manhattan v2: Start Work, its "Needs you" in its loading form.
+            <ManhattanStartWork live={false} />
+          ) : (
+            <MingoNewChat />
+          )
         ) : (
           <LoadingFallback label="Loading dashboard">
             {isSaasTenantMode() ? <MingoDashboard live={false} /> : <DashboardOverviews />}

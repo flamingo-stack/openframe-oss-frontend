@@ -22,7 +22,7 @@ export interface ManhattanCentreSlots {
   pageHeader: ReactNode;
   /** The composer dock as the v2 centre holds it: rendered once, in the dock under the page or at the column's foot. */
   wrapDock: (dock: ReactNode) => ReactNode;
-  /** The dock lies over the page's end (`composerDockFloats`): only while it is under the page. */
+  /** The dock lies over the page's end (`composerDockFloats`): only while it is under the page; always on Start Work. */
   dockFloats: (floats: boolean) => boolean;
 }
 
@@ -91,7 +91,9 @@ export function ManhattanCentre({
             <ManhattanComposerSlot active={mode === 'page'} />
           </>
         ),
-        dockFloats: floats => mode === 'page' && floats,
+        // Start Work is a page of blocks ("Needs you"), not a centred greeting: the dock lies
+        // over its end and the page fades out under it, as on the Mingo-first dashboard.
+        dockFloats: floats => mode === 'page' && (floats || route === 'home'),
       }
     : null;
 
