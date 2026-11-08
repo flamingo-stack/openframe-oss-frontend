@@ -7,19 +7,20 @@
 import { act, type ReactNode, useEffect, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { useMingoSheetStore } from '@/app/components/mingo-shell/mingo-sheet-store';
 import { ManhattanCentre } from './manhattan-centre';
 import { useManhattanCentreStore, workAreaModeOf } from './manhattan-centre-store';
 import { ManhattanComposerPortal, ManhattanComposerSlot } from './manhattan-composer-host';
 
 const { nav, chatState } = vi.hoisted(() => ({
-  nav: { pathname: '/devices', push: vi.fn() },
+  nav: { pathname: '/devices', search: '', push: vi.fn() },
   chatState: { activeDialogId: null as string | null },
 }));
 
 vi.mock('next/navigation', () => ({
   usePathname: () => nav.pathname,
   useRouter: () => ({ push: nav.push }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(nav.search),
 }));
 vi.mock('@/app/(app)/mingo/providers/mingo-chat-provider', () => ({
   useMingoChat: () => ({ chat: { state: chatState } }),
@@ -50,6 +51,7 @@ function click(name: string) {
 const currentMode = () => container.querySelector('[data-testid="mode"]')?.textContent;
 
 beforeEach(() => {
+  nav.search = '';
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -223,6 +225,22 @@ describe('ManhattanCentre', () => {
     act(() => useManhattanCentreStore.setState({ chatView: 'full' }));
     render(centre());
     expect(hidden).toBe(true);
+  });
+
+  it('remembers the page without a legacy mingoDialog param', () => {
+    nav.pathname = '/devices/';
+    nav.search = 'tab=all&mingoDialog=d-1';
+    render(<ManhattanCentre enabled>{() => null}</ManhattanCentre>);
+    expect(useMingoSheetStore.getState().outsidePage).toBe('/devices/?tab=all');
+  });
+
+  it.each([
+    ['/mingo/archive/', 'Chat Archive'],
+    ['/approvals/', 'Needs approval'],
+  ])('titles %s, a page outside the navigation, %s', (pathname, title) => {
+    nav.pathname = pathname;
+    render(<ManhattanCentre enabled>{slots => <>{slots?.pageHeader}</>}</ManhattanCentre>);
+    expect(container.textContent).toContain(title);
   });
 
   it('titles Start Work with no buttons', () => {

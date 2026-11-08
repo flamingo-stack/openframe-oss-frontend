@@ -11,7 +11,7 @@ import { useMingoChat, useMingoChatThreadOnScreen } from '@/app/(app)/mingo/prov
 import { type ComposerRoute, composerRouteOf, isSheetRoute } from '@/app/components/mingo-shell/mingo-dock-route';
 import { useMingoSheetStore } from '@/app/components/mingo-shell/mingo-sheet-store';
 import { navModuleOf, navModuleSectionedLabel } from '@/lib/navigation-config';
-import { routes } from '@/lib/routes';
+import { routes, withMingoDialog } from '@/lib/routes';
 import { shownChatViewOf, useManhattanCentreStore, workAreaModeOf } from './manhattan-centre-store';
 import { ManhattanComposerPortal, ManhattanComposerSlot } from './manhattan-composer-host';
 import { ManhattanDockContext } from './manhattan-dock-context';
@@ -91,7 +91,9 @@ export function ManhattanCentre({
   const rememberOutsidePage = useMingoSheetStore(s => s.rememberOutsidePage);
   useEffect(() => {
     if (!enabled) return;
-    const href = search ? `${pathname}?${search}` : pathname;
+    // Without a legacy `?mingoDialog=` (its bridge forwards to the chat page, so going
+    // back to the page with it would land on the chat again).
+    const href = withMingoDialog(search ? `${pathname}?${search}` : pathname, null);
     if (route !== 'chat') rememberPage(href);
     if (isSheetRoute(route)) rememberOutsidePage(href);
   }, [enabled, pathname, search, route, rememberPage, rememberOutsidePage]);
@@ -151,6 +153,21 @@ function ThreadOnScreen() {
   return null;
 }
 
+/**
+ * The title of a page the navigation has no entry for (reached from Start Work, the chat
+ * history's ⋯ or a notification). Path prefixes, compared as the sidebar's active checks are.
+ */
+const PAGES_OUTSIDE_NAV: ReadonlyArray<{ prefix: string; title: string }> = [
+  { prefix: routes.mingo.archive, title: 'Chat Archive' },
+  { prefix: routes.approvals, title: 'Needs approval' },
+  { prefix: '/notifications', title: 'Notifications' },
+];
+
+function pageTitleOutsideNav(pathname: string | null): string {
+  if (!pathname) return '';
+  return PAGES_OUTSIDE_NAV.find(page => pathname.startsWith(page.prefix))?.title ?? '';
+}
+
 interface ManhattanPageHeaderProps {
   route: ComposerRoute;
   pathname: string | null;
@@ -179,7 +196,7 @@ function ManhattanPageHeader({
   if (route === 'chat') return null;
   if (route === 'home') return <AppColumnHeader title="Start Work" />;
   const moduleId = pathname ? navModuleOf(pathname) : null;
-  const title = moduleId ? navModuleSectionedLabel(moduleId) : '';
+  const title = moduleId ? navModuleSectionedLabel(moduleId) : pageTitleOutsideNav(pathname);
   if (mode === 'split') {
     const closePage = () => router.push(openDialogId ? routes.mingo.chat(openDialogId) : routes.mingo.home);
     return (
