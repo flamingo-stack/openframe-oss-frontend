@@ -2,9 +2,11 @@
 
 import { ComposerSheet } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useEffect } from 'react';
 import { useMingoChatThreadOnScreen } from '@/app/(app)/mingo/providers/mingo-chat-provider';
+import { useManhattanDock } from '@/app/components/manhattan-shell/manhattan-dock-context';
 import { useNativeBackDismissible } from '@/lib/native-back';
 import { canShowSheet, composerRouteOf, isSheetRoute, SHEET_WIDTH_CLASS_NAME } from './mingo-dock-route';
 import { MingoPhoneChatList } from './mingo-phone-chat-list';
@@ -66,6 +68,7 @@ export function MingoComposerSheet() {
   const rememberPage = useMingoSheetStore(s => s.rememberPage);
   const rememberOutsidePage = useMingoSheetStore(s => s.rememberOutsidePage);
   const phone = useMdUp() === false;
+  const manhattan = useManhattanDock();
   const shown = up && canShowSheet(route);
   // A phone's chat list, over a page (not Mingo's own); the chat itself is never in it at
   // once (`showList`). Up on the first frame of a page it was asked to open on, as the sheet.
@@ -111,7 +114,8 @@ export function MingoComposerSheet() {
       aria-label="Mingo chat"
     >
       {listShown ? (
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        // v2: the chats on the sidebars' dark panel ground, as on a desktop.
+        <div className={cn('flex min-h-0 flex-1 flex-col overflow-y-auto', manhattan && 'bg-ods-panel')}>
           <MingoPhoneChatList />
         </div>
       ) : (

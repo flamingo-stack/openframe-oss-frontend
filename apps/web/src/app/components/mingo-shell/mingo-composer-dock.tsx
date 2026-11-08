@@ -500,6 +500,10 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
         }
         threadHeaderActions={threadHeaderActions}
         threadHeaderLook={manhattan ? 'column' : undefined}
+        // v2: the thread fades out into the composer under it, as a page under the dock; and
+        // in a narrow column the composer takes the column's own padding as its edge.
+        threadFadeEnd={manhattan}
+        composerInset={manhattan ? 'wide' : undefined}
         // On the chat page the thread is a column at the composer's width under a full-width
         // header; in the sheet it fills the sheet.
         threadContentClassName={route === 'chat' && !manhattan ? cn('mx-auto w-full', CHAT_COLUMN_WIDTH) : undefined}

@@ -5,6 +5,7 @@ import {
   OpenframeLogoIcon,
   OpenframeTextIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { HeaderMingoButton } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 
 /** One glyph button of the bar, as the sidebars' footer buttons. */
@@ -25,9 +26,9 @@ interface ManhattanCompactBarProps {
 
 /**
  * The Manhattan v2 top bar where the two rails and the centre's 800px do not fit
- * (`ManhattanSqueeze.compact`, plan D19): the OpenFrame logo opens the chats, the menu
- * button on the right opens the navigation, each as a drawer over the centre. From md
- * only: below it the phone top bar and its burger serve.
+ * (`ManhattanSqueeze.compact`): Mingo's button at the left opens the chats, the menu
+ * button at the right opens the navigation, each as a drawer over the centre — the phone
+ * top bar's order (`mobileMenuSide="end"`). From md only: below it the phone top bar serves.
  */
 export function ManhattanCompactBar({
   onOpenChats,
@@ -35,22 +36,22 @@ export function ManhattanCompactBar({
   chatsDisabled = false,
 }: ManhattanCompactBarProps) {
   return (
-    <div className="hidden h-14 shrink-0 items-stretch justify-between border-b border-ods-border-panel bg-ods-panel md:flex">
-      <button
-        type="button"
-        className={BAR_BUTTON_CLASS}
+    <div className="hidden h-14 shrink-0 items-stretch border-b border-ods-border-panel bg-ods-panel md:flex">
+      {/* The chats at the left, as the phone top bar has them: Mingo's button. */}
+      <HeaderMingoButton
         onClick={onOpenChats}
+        iconOnly
         disabled={chatsDisabled}
-        aria-label="Open chats"
-        title="Chats"
-      >
+        className="border-r border-ods-border-panel"
+      />
+      <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xsf)] px-[var(--spacing-system-mf)]">
         <OpenframeLogoIcon
           secondaryColor="var(--color-accent-primary)"
           className="h-6 w-6 shrink-0"
           color="var(--color-text-primary)"
         />
         <OpenframeTextIcon color="var(--color-text-primary)" className="h-4 w-[87px]" />
-      </button>
+      </div>
       <button
         type="button"
         className={cn(BAR_BUTTON_CLASS, 'border-l border-ods-border-panel')}

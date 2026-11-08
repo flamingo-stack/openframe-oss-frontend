@@ -658,6 +658,22 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     ],
   );
 
+  // Manhattan v2's phone burger: the desktop navigation (its sections), from the right, with
+  // the account row of the Mingo-first drawer at its foot (Log out stays one tap away).
+  const manhattanMobileMenuConfig = useMemo<NavigationSidebarConfig | undefined>(
+    () =>
+      manhattan && endSidebarConfig
+        ? {
+            ...endSidebarConfig,
+            side: 'right',
+            overlay: undefined,
+            revealSignal: undefined,
+            footerSlot: sidebarConfig.footerSlot,
+          }
+        : undefined,
+    [manhattan, endSidebarConfig, sidebarConfig.footerSlot],
+  );
+
   // Single `topBar` slot, one bar at a time: the billing bars first, since they
   // ask for an action; otherwise the hub announcement — informational and
   // dismissible, so it only ever fills an empty slot (never stacks, never bumps
@@ -765,10 +781,14 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
         isMingoAIActive: listOpen || sheetUp || onMingoPage,
         mingoAICloseWhenActive: true,
       }),
+      // Manhattan v2 on a phone: the chats at the left (Mingo), the navigation at the right
+      // (the burger, the desktop's sections), on the sidebars' dark panel ground.
+      ...(manhattan && { mobileMenuSide: 'end' as const, surface: 'panel' as const }),
     }),
     [
       chromeLoading,
       mingoShell,
+      manhattan,
       isMdUp,
       mingoButton,
       onMingoPage,
@@ -919,7 +939,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
                     // Manhattan v2: the navigation on the right, the phone burger on the full
                     // Mingo-first config, the sidebars' width animated.
                     endSidebarConfig={endSidebarConfig}
-                    mobileMenuConfig={manhattan ? sidebarConfig : undefined}
+                    mobileMenuConfig={manhattanMobileMenuConfig}
                     animateSidebars={manhattan}
                     mobileBurgerMenuProps={mobileBurgerMenuProps}
                     headerProps={headerProps}
