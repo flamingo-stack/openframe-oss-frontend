@@ -815,9 +815,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   if (mingoShell) {
     composerDock = dockShown ? <div data-composer-dock="">{dockChat}</div> : null;
   }
-  // The open chat over a page, raised from the dock: only with it. Not in Manhattan v2,
-  // where the chat column beside the page holds it.
-  const composerSheet = mingoShell && chatEnabled && !dashboardHeld && !manhattan ? <MingoComposerSheet /> : undefined;
+  // The open chat over a page, raised from the dock: only with it. Manhattan v2 raises no
+  // chat in it (the chat column holds the chat); it stays for a phone's chat list (the top
+  // bar's Mingo button).
+  const composerSheet = mingoShell && chatEnabled && !dashboardHeld ? <MingoComposerSheet /> : undefined;
 
   // The page segment's boundary - what the chrome, bare or not, puts in its content
   // slot. Its placement rules are on the core layout below. Every page draws its own

@@ -237,7 +237,9 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   const chatView = useManhattanCentreStore(s => s.chatView);
   const setChatView = useManhattanCentreStore(s => s.setChatView);
   const compact = useManhattanCentreStore(s => s.compact);
-  const columnMode = workAreaModeOf(route, (chat.state.activeDialogId ?? null) !== null, chatView, compact);
+  // Below md: the page alone (the chat takes its own page there).
+  const mdDown = useMdUp() === false;
+  const columnMode = workAreaModeOf(route, (chat.state.activeDialogId ?? null) !== null, chatView, compact, mdDown);
   const showColumn = () => setChatView(shownChatViewOf(route));
   const hideColumn = () => setChatView('hidden');
   // The chat over the page (`MingoComposerSheet`): over plain pages, and over home for
@@ -261,7 +263,6 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   const whatToAskPage = route === 'chat' && isMingoWhatToAsk(query);
   // A phone has no composer under its pages, and a chat there takes the screen: its page.
   // So does Start Work in v2: a chat with messages takes the centre, on its page (plan D8).
-  const mdDown = useMdUp() === false;
   const phone = mdDown || (manhattan && route === 'home');
   // State, not a ref: the chat module loads lazily, and the launcher drain waits for it.
   const [handle, setHandle] = useState<EmbeddableChatHandle | null>(null);

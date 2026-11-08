@@ -85,6 +85,11 @@ describe('workAreaModeOf', () => {
     expect(workAreaModeOf('full-width', true, 'split', true)).toBe('page');
     expect(workAreaModeOf('home', true, 'split', true)).toBe('page');
   });
+
+  it('phone: the page alone, whatever the chat', () => {
+    expect(workAreaModeOf('page', true, 'split', false, true)).toBe('page');
+    expect(workAreaModeOf('page', true, 'full', false, true)).toBe('page');
+  });
 });
 
 describe('the composer host', () => {
@@ -189,6 +194,17 @@ describe('ManhattanCentre', () => {
     render(centre());
     expect(useManhattanCentreStore.getState().chatView).toBe('hidden');
     expect(currentMode()).toBe('page');
+  });
+
+  it('draws no page header in one column (compact): the top bar is the chrome', () => {
+    chatState.activeDialogId = 'd-1';
+    render(
+      <ManhattanCentre enabled compact>
+        {slots => <>{slots?.pageHeader}</>}
+      </ManhattanCentre>,
+    );
+    expect(container.textContent).toBe('');
+    expect(container.querySelector('button')).toBeNull();
   });
 
   it('titles Start Work with no buttons', () => {

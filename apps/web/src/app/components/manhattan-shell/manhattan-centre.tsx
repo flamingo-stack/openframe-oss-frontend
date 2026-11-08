@@ -4,6 +4,7 @@ import {
   AppColumnHeader,
   type AppLayoutWorkAreaMode,
 } from '@flamingo-stack/openframe-frontend-core/components/navigation';
+import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { type ReactNode, useEffect, useRef } from 'react';
 import { useMingoChat, useMingoChatThreadOnScreen } from '@/app/(app)/mingo/providers/mingo-chat-provider';
@@ -54,7 +55,9 @@ export function ManhattanCentre({
   const chatView = useManhattanCentreStore(s => s.chatView);
   const setChatView = useManhattanCentreStore(s => s.setChatView);
   const oneColumn = enabled && compact;
-  const mode = workAreaModeOf(route, openDialogId !== null, chatView, oneColumn);
+  // A phone: the page alone (its chats are their pages, its list the top bar's Mingo button).
+  const phone = useMdUp() === false;
+  const mode = workAreaModeOf(route, openDialogId !== null, chatView, oneColumn, phone);
 
   // The dock reads it from the store (it is rendered elsewhere).
   const setCompact = useManhattanCentreStore(s => s.setCompact);
@@ -95,17 +98,19 @@ export function ManhattanCentre({
     ? {
         mode,
         chatColumn: <ManhattanChatColumn shown={mode !== 'page'} onScreen={mode !== 'page' && openDialogId !== null} />,
-        pageHeader: (
-          <ManhattanPageHeader
-            route={route}
-            pathname={pathname}
-            mode={mode}
-            openDialogId={openDialogId}
-            compact={oneColumn}
-            onFullScreen={() => setChatView('hidden')}
-            onRestoreSplit={() => setChatView(shownChatViewOf(route))}
-          />
-        ),
+        // Only beside a chat column: in one column (compact) and on a phone the top bar is the
+        // page's chrome, and there is no other column to go full screen over or close back to.
+        pageHeader:
+          oneColumn || phone ? null : (
+            <ManhattanPageHeader
+              route={route}
+              pathname={pathname}
+              mode={mode}
+              openDialogId={openDialogId}
+              onFullScreen={() => setChatView('hidden')}
+              onRestoreSplit={() => setChatView(shownChatViewOf(route))}
+            />
+          ),
         wrapDock: dock => (
           <>
             <ManhattanComposerPortal>{dock}</ManhattanComposerPortal>
@@ -147,7 +152,6 @@ interface ManhattanPageHeaderProps {
   pathname: string | null;
   mode: AppLayoutWorkAreaMode;
   openDialogId: string | null;
-  compact: boolean;
   onFullScreen: () => void;
   onRestoreSplit: () => void;
 }
@@ -164,7 +168,6 @@ function ManhattanPageHeader({
   pathname,
   mode,
   openDialogId,
-  compact,
   onFullScreen,
   onRestoreSplit,
 }: ManhattanPageHeaderProps) {
@@ -190,7 +193,7 @@ function ManhattanPageHeader({
     <AppColumnHeader
       title={title}
       layoutAction={openDialogId ? 'restore-split' : undefined}
-      layoutActionLabel={compact ? 'Show the chat' : 'Show the chat beside the page'}
+      layoutActionLabel="Show the chat beside the page"
       onLayoutAction={onRestoreSplit}
       onClose={() => router.push(routes.mingo.home)}
       closeLabel="Close page"

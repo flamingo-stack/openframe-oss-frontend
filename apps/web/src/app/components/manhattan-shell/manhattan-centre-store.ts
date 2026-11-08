@@ -69,15 +69,18 @@ export const useManhattanCentreStore = create<ManhattanCentreStore>()(set => ({
  *   (`hidden` → the page alone); with no open chat, the page alone;
  * - a full-height page (remote desktop / shell, file manager) never shares the centre
  *   (plan D9): the page alone, or the chat over it;
- * - `compact` (no room for two columns, plan D19): the chat over the page instead of beside it.
+ * - `compact` (no room for two columns, plan D19): the chat over the page instead of beside it;
+ * - `phone` (below md): the page alone, always — a chat there is its own page, as on the
+ *   Mingo-first shell.
  */
 export function workAreaModeOf(
   route: ComposerRoute,
   hasOpenChat: boolean,
   chatView: ManhattanChatView,
   compact = false,
+  phone = false,
 ): AppLayoutWorkAreaMode {
-  if (route === 'home' || route === 'chat') return 'page';
+  if (phone || route === 'home' || route === 'chat') return 'page';
   if (!hasOpenChat || chatView === 'hidden') return 'page';
   if (chatView === 'full') return 'chat';
   if (route === 'full-width') return 'page';
