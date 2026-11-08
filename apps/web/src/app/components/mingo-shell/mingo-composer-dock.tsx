@@ -236,7 +236,8 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   const columnNode = useManhattanCentreStore(s => s.threadNode);
   const chatView = useManhattanCentreStore(s => s.chatView);
   const setChatView = useManhattanCentreStore(s => s.setChatView);
-  const columnMode = workAreaModeOf(route, (chat.state.activeDialogId ?? null) !== null, chatView);
+  const compact = useManhattanCentreStore(s => s.compact);
+  const columnMode = workAreaModeOf(route, (chat.state.activeDialogId ?? null) !== null, chatView, compact);
   const showColumn = () => setChatView(shownChatViewOf(route));
   const hideColumn = () => setChatView('hidden');
   // The chat over the page (`MingoComposerSheet`): over plain pages, and over home for
@@ -348,6 +349,7 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
     threadHeaderActions = manhattanHeaderActions({
       route,
       columnMode,
+      compact,
       openDialogId,
       // The last page outside Mingo: the page the chat goes back beside (home is a new chat).
       lastPage: outsidePage,

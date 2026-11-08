@@ -39,6 +39,12 @@ interface ManhattanCentreStore {
   setThreadNode: (node: HTMLElement | null) => void;
   chatView: ManhattanChatView;
   setChatView: (view: ManhattanChatView) => void;
+  /** Below the two rails + 800px (`ManhattanSqueeze.compact`): one column, the sidebars as drawers. */
+  compact: boolean;
+  setCompact: (compact: boolean) => void;
+  /** Bumped when a chat opens in compact: the chats drawer it was picked from closes. */
+  chatsDismiss: number;
+  dismissChats: () => void;
 }
 
 export const useManhattanCentreStore = create<ManhattanCentreStore>()(set => ({
@@ -49,6 +55,10 @@ export const useManhattanCentreStore = create<ManhattanCentreStore>()(set => ({
     writeChatView(chatView);
     set({ chatView });
   },
+  compact: false,
+  setCompact: compact => set({ compact }),
+  chatsDismiss: 0,
+  dismissChats: () => set(state => ({ chatsDismiss: state.chatsDismiss + 1 })),
 }));
 
 /**
@@ -58,17 +68,20 @@ export const useManhattanCentreStore = create<ManhattanCentreStore>()(set => ({
  * - any other page: the open chat beside it (`split`), over it (`full`) or behind it
  *   (`hidden` → the page alone); with no open chat, the page alone;
  * - a full-height page (remote desktop / shell, file manager) never shares the centre
- *   (plan D9): the page alone, or the chat over it.
+ *   (plan D9): the page alone, or the chat over it;
+ * - `compact` (no room for two columns, plan D19): the chat over the page instead of beside it.
  */
 export function workAreaModeOf(
   route: ComposerRoute,
   hasOpenChat: boolean,
   chatView: ManhattanChatView,
+  compact = false,
 ): AppLayoutWorkAreaMode {
   if (route === 'home' || route === 'chat') return 'page';
   if (!hasOpenChat || chatView === 'hidden') return 'page';
   if (chatView === 'full') return 'chat';
-  return route === 'full-width' ? 'page' : 'split';
+  if (route === 'full-width') return 'page';
+  return compact ? 'chat' : 'split';
 }
 
 /** The view that brings the open chat on screen on `route`: beside the page, or over a full-height one. */

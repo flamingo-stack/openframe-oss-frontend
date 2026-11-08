@@ -7,6 +7,8 @@ interface ManhattanHeaderActionsOptions {
   columnMode: AppLayoutWorkAreaMode;
   openDialogId: string | null;
   lastPage: string | null;
+  /** One column (`ManhattanSqueeze.compact`): nothing goes side by side. */
+  compact?: boolean;
   showBesidePage: () => void;
   fullScreen: () => void;
   restoreSplit: () => void;
@@ -25,6 +27,7 @@ export function manhattanHeaderActions({
   columnMode,
   openDialogId,
   lastPage,
+  compact = false,
   showBesidePage,
   fullScreen,
   restoreSplit,
@@ -37,9 +40,9 @@ export function manhattanHeaderActions({
     icon: <Expand01Icon size={20} />,
     onClick,
   });
-  if (route === 'chat') return openDialogId && lastPage ? [sideBySide(showBesidePage), close] : [close];
+  if (route === 'chat') return openDialogId && lastPage && !compact ? [sideBySide(showBesidePage), close] : [close];
   if (columnMode === 'split')
     return [{ id: 'full-screen', label: 'Full screen', icon: <Expand01Icon size={20} />, onClick: fullScreen }, close];
-  if (columnMode === 'chat') return route === 'full-width' ? [close] : [sideBySide(restoreSplit), close];
+  if (columnMode === 'chat') return route === 'full-width' || compact ? [close] : [sideBySide(restoreSplit), close];
   return undefined;
 }

@@ -57,4 +57,9 @@ describe('manhattanHeaderActions', () => {
     expect(fullScreen).toHaveBeenCalledOnce();
     expect(closeChat).toHaveBeenCalledOnce();
   });
+
+  it('compact: nothing side by side, only close', () => {
+    expect(labels({ columnMode: 'chat', compact: true })).toEqual(['Close chat']);
+    expect(labels({ route: 'chat', columnMode: 'page', compact: true })).toEqual(['Close chat']);
+  });
 });

@@ -54,11 +54,13 @@ import {
 import { AiBalanceBar, BillingBarsHydrator, type BillingBarsState, NO_BARS, TrialEndingBar } from './billing-bars';
 import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
 import { MANHATTAN_WORK_AREA_STORAGE_KEY, ManhattanCentre } from './manhattan-shell/manhattan-centre';
+import { useManhattanCentreStore } from './manhattan-shell/manhattan-centre-store';
 import {
   ManhattanChatsFooter,
   ManhattanChatsSection,
   ManhattanStartWorkRow,
 } from './manhattan-shell/manhattan-chats-sidebar';
+import { ManhattanCompactBar } from './manhattan-shell/manhattan-compact-bar';
 import {
   MANHATTAN_CHATS_EXPANDED_WIDTH,
   MANHATTAN_NAVIGATION_EXPANDED_WIDTH,
@@ -66,6 +68,7 @@ import {
   useManhattanNavCollapsed,
   useManhattanShell,
 } from './manhattan-shell/use-manhattan-shell';
+import { useManhattanSqueeze } from './manhattan-shell/use-manhattan-squeeze';
 import { useHistorySearchStore } from './mingo-shell/history-search-store';
 import { MingoAccountPopover } from './mingo-shell/mingo-account-popover';
 import { MingoComposerDock } from './mingo-shell/mingo-composer-dock';
@@ -431,6 +434,14 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   const [sidebarCollapsed, setSidebarCollapsed] = useSidebarCollapsed();
   // Manhattan v2: the right navigation's own collapse.
   const [navCollapsed, setNavCollapsed] = useManhattanNavCollapsed();
+  // Manhattan v2: the centre keeps 800px on a desktop — the sidebars that would take it
+  // go to their rails and open over the centre instead (plan D19).
+  const squeeze = useManhattanSqueeze(manhattan, sidebarCollapsed, navCollapsed);
+  // Below two rails + 800px the v2 top bar opens the sidebars as drawers: its buttons' reveals,
+  // and the chats drawer closes once a chat opens from it (`ManhattanCentre`).
+  const [chatsReveal, setChatsReveal] = useState(0);
+  const [navReveal, setNavReveal] = useState(0);
+  const chatsDismiss = useManhattanCentreStore(s => s.chatsDismiss);
   // ⌘K's reveal command (`NavigationSidebarConfig.revealSignal`): every bump shows the
   // expanded sidebar at the current width — the tablet overlay too, which a change of
   // `collapsed` cannot open while the desktop preference is already "expanded".
@@ -563,23 +574,30 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
                 />
               </>
             ),
+            // The sidebar's own toggle: the preference on a desktop, the overlay on a
+            // tablet and while the centre needs the room (`overlay`).
             sectionSlot: chatEnabled
-              ? ({ minimized }) => (
-                  <ManhattanChatsSection minimized={minimized} onExpand={() => setSidebarCollapsed(false)} />
+              ? ({ minimized, toggle }) => (
+                  <ManhattanChatsSection
+                    minimized={minimized}
+                    onExpand={toggle ?? (() => setSidebarCollapsed(false))}
+                  />
                 )
               : undefined,
-            footerSlot: ({ minimized, inDrawer }) => (
+            footerSlot: ({ minimized, inDrawer, toggle }) => (
               <ManhattanChatsFooter
                 minimized={minimized}
                 locked={showLockContent}
                 ownsHeaderCells={isMdUp === true}
                 inDrawer={inDrawer}
-                onToggleCollapsed={() => setSidebarCollapsed(!sidebarCollapsed)}
+                onToggleCollapsed={toggle ?? (() => setSidebarCollapsed(!sidebarCollapsed))}
               />
             ),
             collapsed: sidebarCollapsed,
             onCollapsedChange: setSidebarCollapsed,
-            revealSignal,
+            overlay: squeeze.compact ? 'drawer' : squeeze.left,
+            revealSignal: revealSignal + chatsReveal,
+            dismissSignal: chatsDismiss,
             className: 'h-full',
           }
         : undefined,
@@ -594,6 +612,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       isMdUp,
       sidebarCollapsed,
       revealSignal,
+      squeeze.left,
+      squeeze.compact,
+      chatsReveal,
+      chatsDismiss,
     ],
   );
   const sectionedItems = useMemo(
@@ -617,10 +639,23 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             groupsStorageKey: MANHATTAN_NAVIGATION_FOLDS_KEY,
             collapsed: navCollapsed,
             onCollapsedChange: setNavCollapsed,
+            overlay: squeeze.compact ? 'drawer' : squeeze.right,
+            revealSignal: navReveal,
             className: 'h-full',
           }
         : undefined,
-    [manhattan, sectionedItems, currentPath, chromeLoading, handleNavigate, navCollapsed, setNavCollapsed],
+    [
+      manhattan,
+      sectionedItems,
+      currentPath,
+      chromeLoading,
+      handleNavigate,
+      navCollapsed,
+      setNavCollapsed,
+      squeeze.right,
+      squeeze.compact,
+      navReveal,
+    ],
   );
 
   // Single `topBar` slot, one bar at a time: the billing bars first, since they
@@ -869,7 +904,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           <MingoChatProvider enabled={chatMounted} identityEnabled={chatIdentityEnabled}>
             {/* Manhattan v2's centre (chat column, page header, the dock's two places).
                 Mounted always, told through `enabled`: see the providers' rule above. */}
-            <ManhattanCentre enabled={manhattan && !bareChrome}>
+            <ManhattanCentre enabled={manhattan && !bareChrome} compact={squeeze.compact}>
               {centre =>
                 bareChrome ? (
                   <BareAppShell>{pageContent}</BareAppShell>
@@ -905,6 +940,13 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
                       <>
                         {sessionResolved && <SuperUserBanner />}
                         {topBar}
+                        {centre && squeeze.compact && (
+                          <ManhattanCompactBar
+                            onOpenChats={() => setChatsReveal(n => n + 1)}
+                            onOpenNavigation={() => setNavReveal(n => n + 1)}
+                            chatsDisabled={showLockContent}
+                          />
+                        )}
                       </>
                     }
                     // The Mingo-first shell: no desktop header (the phone top bar stays; the

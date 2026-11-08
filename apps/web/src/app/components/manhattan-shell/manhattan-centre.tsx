@@ -38,9 +38,12 @@ export const MANHATTAN_WORK_AREA_STORAGE_KEY = 'of.manhattan.workArea';
  */
 export function ManhattanCentre({
   enabled,
+  compact = false,
   children,
 }: {
   enabled: boolean;
+  /** No room for two columns (`ManhattanSqueeze.compact`): one column, the sidebars as drawers. */
+  compact?: boolean;
   children: (centre: ManhattanCentreSlots | null) => ReactNode;
 }) {
   const pathname = usePathname();
@@ -50,15 +53,32 @@ export function ManhattanCentre({
   const openDialogId = chat?.state.activeDialogId ?? null;
   const chatView = useManhattanCentreStore(s => s.chatView);
   const setChatView = useManhattanCentreStore(s => s.setChatView);
-  const mode = workAreaModeOf(route, openDialogId !== null, chatView);
+  const oneColumn = enabled && compact;
+  const mode = workAreaModeOf(route, openDialogId !== null, chatView, oneColumn);
 
-  // A page picked while the chat was full over the last one is shown, beside the chat.
+  // The dock reads it from the store (it is rendered elsewhere).
+  const setCompact = useManhattanCentreStore(s => s.setCompact);
+  useEffect(() => setCompact(oneColumn), [oneColumn, setCompact]);
+  // A chat opened from the chats drawer: the drawer has done its job.
+  const dismissChats = useManhattanCentreStore(s => s.dismissChats);
+  const previousDialogRef = useRef(openDialogId);
+  useEffect(() => {
+    if (previousDialogRef.current === openDialogId) return;
+    previousDialogRef.current = openDialogId;
+    if (oneColumn && openDialogId !== null) dismissChats();
+  }, [oneColumn, openDialogId, dismissChats]);
+
+  // A page picked while the chat was full over the last one is shown, beside the chat; in
+  // one column (compact) the page is shown and the chat waits behind it.
   const previousPathRef = useRef(pathname);
   useEffect(() => {
     if (!enabled || previousPathRef.current === pathname) return;
     previousPathRef.current = pathname;
-    if (chatView === 'full' && route === 'page') setChatView('split');
-  }, [enabled, pathname, route, chatView, setChatView]);
+    if (route !== 'page' && route !== 'full-width') return;
+    if (oneColumn) {
+      if (chatView !== 'hidden') setChatView('hidden');
+    } else if (chatView === 'full' && route === 'page') setChatView('split');
+  }, [enabled, oneColumn, pathname, route, chatView, setChatView]);
 
   // The pages the chat goes back beside ("Show side by side" on a chat's page). The
   // Mingo-first shell records them in its sheet, which v2 does not draw.
@@ -81,6 +101,7 @@ export function ManhattanCentre({
             pathname={pathname}
             mode={mode}
             openDialogId={openDialogId}
+            compact={oneColumn}
             onFullScreen={() => setChatView('hidden')}
             onRestoreSplit={() => setChatView(shownChatViewOf(route))}
           />
@@ -126,6 +147,7 @@ interface ManhattanPageHeaderProps {
   pathname: string | null;
   mode: AppLayoutWorkAreaMode;
   openDialogId: string | null;
+  compact: boolean;
   onFullScreen: () => void;
   onRestoreSplit: () => void;
 }
@@ -142,6 +164,7 @@ function ManhattanPageHeader({
   pathname,
   mode,
   openDialogId,
+  compact,
   onFullScreen,
   onRestoreSplit,
 }: ManhattanPageHeaderProps) {
@@ -167,7 +190,7 @@ function ManhattanPageHeader({
     <AppColumnHeader
       title={title}
       layoutAction={openDialogId ? 'restore-split' : undefined}
-      layoutActionLabel="Show the chat beside the page"
+      layoutActionLabel={compact ? 'Show the chat' : 'Show the chat beside the page'}
       onLayoutAction={onRestoreSplit}
       onClose={() => router.push(routes.mingo.home)}
       closeLabel="Close page"

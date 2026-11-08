@@ -78,6 +78,13 @@ describe('workAreaModeOf', () => {
   ] as const)('%s, open chat %s, view %s → %s', (route, open, view, mode) => {
     expect(workAreaModeOf(route, open, view)).toBe(mode);
   });
+
+  it('compact: the chat over the page instead of beside it, never over a full-height page unasked', () => {
+    expect(workAreaModeOf('page', true, 'split', true)).toBe('chat');
+    expect(workAreaModeOf('page', true, 'hidden', true)).toBe('page');
+    expect(workAreaModeOf('full-width', true, 'split', true)).toBe('page');
+    expect(workAreaModeOf('home', true, 'split', true)).toBe('page');
+  });
 });
 
 describe('the composer host', () => {
@@ -167,6 +174,21 @@ describe('ManhattanCentre', () => {
     chatState.activeDialogId = 'd-1';
     capture();
     expect(floats?.(true)).toBe(false);
+  });
+
+  it('compact: a new page is shown, the chat waits behind it', () => {
+    chatState.activeDialogId = 'd-1';
+    const centre = () => (
+      <ManhattanCentre enabled compact>
+        {slots => <p data-testid="mode">{slots?.mode}</p>}
+      </ManhattanCentre>
+    );
+    render(centre());
+    expect(currentMode()).toBe('chat');
+    nav.pathname = '/software';
+    render(centre());
+    expect(useManhattanCentreStore.getState().chatView).toBe('hidden');
+    expect(currentMode()).toBe('page');
   });
 
   it('titles Start Work with no buttons', () => {
