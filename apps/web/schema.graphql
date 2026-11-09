@@ -1987,6 +1987,13 @@ type Mutation {
   """
   endRemoteSession(sessionId: String!): RemoteSessionPayload!
 
+  """
+  Creates or renews the caller's watch entry on an ACTIVE session for 30 s; call it before every dial and redial and
+  every 10 s while watching. Any technician of the tenant may watch, the host from a second tab included. Viewers
+  appear in RemoteSession.viewers once the watch socket is open.
+  """
+  watchRemoteSession(sessionId: String!): WatchRemoteSessionPayload!
+
   """new | snoozed -> acknowledged. Clears any snooze."""
   acknowledgeInsight(input: InsightIdInput!): Insight!
 
@@ -3265,8 +3272,9 @@ type Query {
   remoteAccessRequest(requestId: String!): RemoteAccessRequest!
 
   """
-  The caller's own session, the read the Back / leave flow needs before ending it. A deleted session reads
-  REMOTE_SESSION_NOT_FOUND.
+  One session by id, the read of the live page and of the Back / leave flow. Another technician's ACTIVE session
+  reads REMOTE_ACCESS_FORBIDDEN unless the tenant flag remote-session-watch is on; an ended one always reads. A deleted
+  session reads REMOTE_SESSION_NOT_FOUND. While openframe.remote-access-approval.session.live-read-enabled is off, only the caller's own session reads.
   """
   remoteSession(sessionId: String!): RemoteSession!
 
@@ -3284,6 +3292,13 @@ type Query {
   matching filter field when the filter leaves it empty, the filter wins otherwise.
   A session that ended as never connected is not listed and not counted; remoteSession(sessionId) and the request
   audit still return it. A deleted session is not listed and not counted.
+  ACTIVE sessions come first on the first page (no after), as a block of at most 100 ordered by startedAt desc then
+  sessionId desc under every sort, extra to first; the pages exclude them, totalCount counts them. The block appears
+  when recordingState is empty or LIVE; with LIVE it is the whole answer (hasNextPage false, no cursors in pageInfo).
+  pageInfo covers the paged rows only. Another technician's ACTIVE session is listed when the tenant flag
+  remote-session-watch is on; otherwise only the caller's own.
+  While openframe.remote-access-approval.session.live-read-enabled is off, the block appears only with LIVE, the caller's own ACTIVE session stays in the pages under the
+  requested sort, PROCESSING also matches it, and no other technician's ACTIVE session is listed.
   """
   remoteSessions(
     deviceId: String @deprecated(reason: "use filter.deviceIds")
@@ -4037,6 +4052,10 @@ enum RemoteSessionEventType {
   TICKET_UNASSIGNED
   """Someone opened the recording player; one row per user, session and hour."""
   REMOTE_RECORDING_PLAYED
+  """A technician started watching the session live."""
+  VIEWER_JOINED
+  """A technician stopped watching; leftReason says why."""
+  VIEWER_LEFT
 }
 
 enum RemoteSessionActorKind {
@@ -4091,6 +4110,8 @@ type RemoteSessionEvent {
   ticketNumber: String
   """CONNECTION_LOST: the leg that closed. RECONNECTED: the leg that opened; it matches the recording files' relayId."""
   relayId: String
+  """VIEWER_LEFT"""
+  leftReason: RemoteSessionViewerLeftReason
 }
 
 type RemoteSessionEventEdge {
@@ -4109,7 +4130,7 @@ type RemoteSessionAudience {
   technician: RemoteAccessTechnician!
   """The actor of the APPROVED row: END_USER when the end user allowed it, SYSTEM when a policy or a fallback did."""
   approvedBy: RemoteSessionEventActor
-  """Empty until live viewers are recorded."""
+  """Everyone who watched the session live, by first join."""
   watchers: [RemoteSessionEventActor!]!
   """Everyone who opened the recording player, by first playback."""
   replayedBy: [RemoteSessionEventActor!]!
@@ -4215,6 +4236,11 @@ type RemoteSession {
   recordingSizeBytes: Long
 
   """
+  Join history, newest last; current viewers have leftAt null. One current entry per user across tabs.
+  """
+  viewers: [RemoteSessionViewer!]!
+
+  """
   The session's timeline as a cursor connection, ascending by at. Rows at the same millisecond follow the session:
   REQUESTED, APPROVED, STARTED, the rows during the session, ENDED, then the rows after the end; id breaks what is
   left. first is clamped to 1..500, default 100;
@@ -4228,6 +4254,38 @@ type RemoteSession {
 
   """Active links, the session's own ticket first, then by link time. Same visibility as the session."""
   tickets: [RemoteSessionTicketLink!]!
+}
+
+"""A technician who watched the session."""
+type RemoteSessionViewer {
+  userId: String!
+
+  """Snapshot at join, like technician.name; null when the profile had no name."""
+  name: String
+  avatarUrl: String
+  joinedAt: Instant!
+  leftAt: Instant
+  leftReason: RemoteSessionViewerLeftReason
+}
+
+enum RemoteSessionViewerLeftReason {
+  LEFT
+  SESSION_ENDED
+  DISCONNECTED
+}
+
+"""
+watchRemoteSession payload. On success session is the watched session as remoteSession returns it, viewers included;
+requestId is the first token of the watch relay id (<requestId>.w.<nonce>) and nodeId the device node the relay URL
+carries. Refusals come back as userErrors with a stable code: REMOTE_ACCESS_DISABLED, REMOTE_SESSION_WATCH_DISABLED
+(the tenant flag remote-session-watch or openframe.remote-access-approval.session.live-read-enabled is off), REMOTE_SESSION_NOT_FOUND (unknown, deleted or another tenant's id),
+REMOTE_SESSION_ENDED (the session is over; the ended session is returned).
+"""
+type WatchRemoteSessionPayload {
+  session: RemoteSession
+  requestId: String
+  nodeId: String
+  userErrors: [UserError!]!
 }
 
 """
@@ -4249,9 +4307,12 @@ enum RemoteSessionActionType {
   MONITOR_SWITCHED
 }
 
-"""The sessions list's recording-state filter. Each value is a query criterion matching the row's recordingState tag."""
+"""The sessions list's state filter. LIVE matches the status; the other values match the row's recordingState tag."""
 enum RemoteSessionListState {
-  """Recording on and no file yet: ACTIVE, or ended less than 30 min ago."""
+  """Status ACTIVE, whatever the recording says."""
+  LIVE
+
+  """Recording on, no file yet, ended less than 30 min ago."""
   PROCESSING
 
   """No file 30 min after the end (inside the listing window, or stamped by the detector)."""
@@ -4623,6 +4684,8 @@ type RemoteSessionRecording {
 
 type RemoteSessionEdge {
   node: RemoteSession!
+
+  """The row's cursor. On an ACTIVE row of the first page's live block it is not for paging: page with pageInfo.endCursor."""
   cursor: String!
 }
 

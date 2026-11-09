@@ -4,6 +4,7 @@
  * 404 with no Retry; any other failed read stays the "couldn't load" error.
  * With a recording, the session's events are listed and a row seeks the player,
  * Assign Ticket is offered, and the linked tickets are listed when there are any.
+ * Fullscreen is the player's own element, never the document.
  */
 
 import { act } from 'react';
@@ -169,6 +170,18 @@ const RECORDING: RecordingDetail = {
   chat: [],
 };
 
+const TICKET: RecordingTicket = {
+  id: 't-1',
+  ticketNumber: 3891,
+  title: 'Page not found error',
+  statusName: 'TODO',
+  statusKind: 'CUSTOM',
+  statusColor: '#2890FA',
+  assignedName: 'Roman Smith',
+  assignedAvatarUrl: null,
+  createdAt: null,
+};
+
 describe('RemoteSessionView with a recording', () => {
   beforeEach(() => {
     recording.data = RECORDING;
@@ -211,6 +224,87 @@ describe('RemoteSessionView with a recording', () => {
   });
 });
 
+describe('RemoteSessionView fullscreen', () => {
+  // jsdom has no Fullscreen API: a stand-in that, like a browser, reports the element and fires the change.
+  let fullscreenElement: Element | null = null;
+  const setFullscreenElement = (element: Element | null) => {
+    fullscreenElement = element;
+    document.dispatchEvent(new Event('fullscreenchange'));
+    return Promise.resolve();
+  };
+  const requestFullscreen = vi.fn(function (this: HTMLElement) {
+    return setFullscreenElement(this);
+  });
+  const exitFullscreen = vi.fn(() => setFullscreenElement(null));
+
+  beforeEach(() => {
+    // The page around the player in full: the chat column beside it, the events and the linked tickets under it.
+    recording.data = {
+      ...RECORDING,
+      chat: [
+        { id: 'm-1', author: 'Roman Smith', fromTechnician: false, sentAt: '2026-10-14T08:00:10.000Z', body: 'Hi' },
+      ],
+    };
+    timeline.events = [{ id: 'input', atMs: T0 + 3000, offsetMs: 5500, title: 'Input enabled', detail: null }];
+    linked.tickets = [TICKET];
+    playback.state = 'paused';
+    fullscreenElement = null;
+    Object.defineProperty(document, 'fullscreenElement', { configurable: true, get: () => fullscreenElement });
+    Object.defineProperty(document, 'exitFullscreen', { configurable: true, value: exitFullscreen });
+    Object.defineProperty(HTMLElement.prototype, 'requestFullscreen', { configurable: true, value: requestFullscreen });
+  });
+
+  afterEach(() => {
+    Reflect.deleteProperty(document, 'fullscreenElement');
+    Reflect.deleteProperty(document, 'exitFullscreen');
+    Reflect.deleteProperty(HTMLElement.prototype, 'requestFullscreen');
+  });
+
+  const buttonByLabel = (label: string) => container.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+
+  it('fullscreens the player itself, screen and controls, and follows the browser out of it', () => {
+    render();
+    const sections = [
+      'Remote Session Recording',
+      'Video Session Recording',
+      'Session Chat',
+      'Session Events',
+      'Assigned Tickets',
+    ];
+    for (const section of sections) expect(container.textContent).toContain(section);
+    const enter = buttonByLabel('Enter fullscreen');
+    expect(enter).not.toBeNull();
+    const canvas = container.querySelector('canvas');
+    // The smallest box holding the screen and its controls: not the page, nor a wrapper around the player.
+    let player = canvas?.parentElement ?? null;
+    while (player && !player.contains(enter)) player = player.parentElement;
+    expect(player).not.toBeNull();
+
+    act(() => enter?.click());
+    expect(requestFullscreen).toHaveBeenCalledTimes(1);
+    expect(requestFullscreen.mock.contexts[0]).toBe(player);
+    // The page steps aside around the same nodes: a remounted player would drop the browser out of fullscreen.
+    for (const section of sections) expect(container.textContent).not.toContain(section);
+    expect(player?.isConnected).toBe(true);
+    expect(container.querySelector('canvas')).toBe(canvas);
+    expect(player?.contains(buttonByLabel('Exit fullscreen'))).toBe(true);
+
+    act(() => buttonByLabel('Exit fullscreen')?.click());
+    expect(exitFullscreen).toHaveBeenCalledTimes(1);
+    for (const section of sections) expect(container.textContent).toContain(section);
+    expect(player?.isConnected).toBe(true);
+    expect(container.querySelector('canvas')).toBe(canvas);
+
+    // Esc or the browser's own controls: no exit call from the page, only the change.
+    act(() => buttonByLabel('Enter fullscreen')?.click());
+    expect(requestFullscreen).toHaveBeenCalledTimes(2);
+    expect(buttonByLabel('Exit fullscreen')).not.toBeNull();
+    act(() => void setFullscreenElement(null));
+    expect(exitFullscreen).toHaveBeenCalledTimes(1);
+    expect(buttonByLabel('Enter fullscreen')).not.toBeNull();
+  });
+});
+
 describe('RemoteSessionView tickets', () => {
   beforeEach(() => {
     recording.data = RECORDING;
@@ -225,19 +319,7 @@ describe('RemoteSessionView tickets', () => {
   });
 
   it('lists the linked tickets', () => {
-    linked.tickets = [
-      {
-        id: 't-1',
-        ticketNumber: 3891,
-        title: 'Page not found error',
-        statusName: 'TODO',
-        statusKind: 'CUSTOM',
-        statusColor: '#2890FA',
-        assignedName: 'Roman Smith',
-        assignedAvatarUrl: null,
-        createdAt: null,
-      },
-    ];
+    linked.tickets = [TICKET];
     render();
     expect(container.textContent).toContain('Assigned Tickets');
     expect(container.textContent).toContain('Page not found error');

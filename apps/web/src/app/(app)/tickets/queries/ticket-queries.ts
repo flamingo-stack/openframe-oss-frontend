@@ -1,5 +1,7 @@
 // Ticket GraphQL queries and mutations (openframe-saas-ai-agent service via /chat/graphql)
 
+import { POLICY_REVIEW_SELECTION } from '../../mingo/queries/policy-review-selection';
+
 export const CREATE_TICKET_MUTATION = `
   mutation CreateTicket($input: CreateTicketInput!) {
     createTicket(input: $input) {
@@ -379,6 +381,7 @@ const BOARD_CARD_TICKET_FRAGMENT = `
         requiresApproval
         approvalType
         toolCallArguments
+        ${POLICY_REVIEW_SELECTION}
       }
     }
     createdAt

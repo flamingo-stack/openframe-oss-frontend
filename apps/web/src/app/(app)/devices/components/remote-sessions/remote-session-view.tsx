@@ -23,9 +23,9 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { LoadError, LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import { cn, FullscreenSwitchController } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useEffectEvent, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { useTicketSearchOptions } from '@/app/(app)/tickets/hooks/use-ticket-options';
 import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
 import { formatDate, formatDateTime } from '@/lib/format-date';
@@ -73,9 +73,15 @@ interface RemoteSessionViewProps {
  * Session Events list (the events also mark the player's track, and both
  * seek), then the tickets linked to the session.
  *
- * Fullscreen lives here rather than in the player so the canvas never
- * remounts: the wrapper swaps to `fixed inset-0` and PageLayout hides its
- * header, same pattern as the live remote-desktop page.
+ * Fullscreen is the player element's own (`requestFullscreen` on it, not on the
+ * document): the browser lifts it into the top layer, above the app's chrome. A
+ * `fixed inset-0` overlay inside the page could not get there - on a page the
+ * Mingo dock floats over, `<main>` carries the dock's fade mask, which clips
+ * everything inside it to `<main>`'s box, and the dock and the sidebar stayed
+ * over the video. The element is not moved, so the canvas never remounts.
+ * The page still drops its header and other sections while the player is
+ * fullscreen: element fullscreen does not make the rest of the page inert, and
+ * their buttons would open dialogs under the player.
  */
 export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   const handleBack = useSafeBack(routes.devices.list);
@@ -98,6 +104,8 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   const showMockTools = useRemoteAccessMockTools();
   const showDevLoader = showMockTools && searchParams.get('dev') === '1';
 
+  const playerRef = useRef<HTMLDivElement>(null);
+  const fullscreenControllerRef = useRef<FullscreenSwitchController | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -184,21 +192,19 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
     });
   }
 
+  // A denied request (iframe, permissions) is swallowed by the controller: not worth an error state.
   useEffect(() => {
-    const onFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
-    onFullscreenChange();
-    document.addEventListener('fullscreenchange', onFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+    const controller = new FullscreenSwitchController({
+      target: () => playerRef.current,
+      onFullscreenChange: setIsFullscreen,
+    });
+    fullscreenControllerRef.current = controller;
+    controller.attach();
+    return () => {
+      fullscreenControllerRef.current = null;
+      controller.detach();
+    };
   }, []);
-
-  const toggleFullscreen = async () => {
-    try {
-      if (document.fullscreenElement) await document.exitFullscreen();
-      else await document.documentElement.requestFullscreen();
-    } catch {
-      // Denied fullscreen (iframe/permissions) is not worth an error state.
-    }
-  };
 
   // Load the session's files once the detail arrives, oldest first: playback
   // starts on the first while the rest download one by one. When no file can
@@ -271,12 +277,7 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
           {...loadErrorProps(isOffline, "Couldn't load this recording.", () => void recordingQuery.refetch())}
         />
       )}
-      <div
-        className={cn(
-          isFullscreen ? 'fixed inset-0 z-50 flex flex-col gap-0 bg-black' : 'contents',
-          (failedToLoad || notFound) && 'hidden',
-        )}
-      >
+      <div className={cn('contents', (failedToLoad || notFound) && 'hidden')}>
         {!isFullscreen && (isLoading || recording) && (
           <LoadingWhen loading={isLoading}>
             <RecordingMetaCard recording={recording ?? null} />
@@ -294,9 +295,10 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
             {/* The player is ONE element per the mockup: the playback screen and
                 the controls strip share a single bordered container. */}
             <div
+              ref={playerRef}
               className={cn(
                 'flex flex-col',
-                isFullscreen ? 'min-h-0 flex-1' : 'overflow-hidden rounded-[6px] border border-ods-border',
+                isFullscreen ? 'ods-viewport-layer' : 'overflow-hidden rounded-[6px] border border-ods-border',
               )}
             >
               <RecordingPlayer
@@ -330,7 +332,7 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
                       onStepBack={player.stepBack}
                       onStepForward={player.stepForward}
                       onSetSpeed={player.setSpeed}
-                      onToggleFullscreen={() => void toggleFullscreen()}
+                      onToggleFullscreen={() => fullscreenControllerRef.current?.toggle()}
                     />
                   </LoadingWhen>
                 </div>

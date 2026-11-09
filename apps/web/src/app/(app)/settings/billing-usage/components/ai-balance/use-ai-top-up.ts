@@ -9,15 +9,20 @@ import { FALLBACK_MIN_TOP_UP_USD } from './auto-top-up-status';
  * The amounts offered as one click each, in whole dollars — the unit
  * `purchaseTokens`, `updateAutoTopUp` and `CheckoutInput.tokenAmountUsd` take.
  * The tokens under each are derived from the catalog rate, never the other way
- * round.
+ * round. A surface may offer its own (`UseAiTopUpOptions.presets`); these are
+ * the ones every surface offered before the paywall's prepaid year had its own.
  */
-export const TOP_UP_PRESETS_USD = [20, 50, 100] as const;
-
-export type TopUpPresetUsd = (typeof TOP_UP_PRESETS_USD)[number];
+export const TOP_UP_PRESETS_USD: readonly number[] = [20, 50, 100];
 
 export const CUSTOM_TOP_UP = 'custom';
 
-export type TopUpSelection = number | typeof CUSTOM_TOP_UP | null;
+/**
+ * "Don't top up": a choice of nothing, where a surface allows one
+ * (`UseAiTopUpOptions.allowNone`). It is complete, and its amount is 0.
+ */
+export const NO_TOP_UP = 'none';
+
+export type TopUpSelection = number | typeof CUSTOM_TOP_UP | typeof NO_TOP_UP | null;
 
 /** What the user has picked, before it means anything in tokens. */
 interface TopUpChoice {
@@ -27,7 +32,11 @@ interface TopUpChoice {
 }
 
 export interface AiTopUp extends TopUpChoice {
-  /** Dollars the current choice means; `null` while nothing valid is chosen. */
+  /** The amounts this surface offers as tiles, in the order drawn. */
+  presets: readonly number[];
+  /** Whether "Don't top up" is one of the tiles, before the presets. */
+  allowNone: boolean;
+  /** Dollars the current choice means: 0 for "Don't top up", `null` while nothing valid is chosen. */
   amountUsd: number | null;
   /** What that buys at the catalog rate; `null` without a rate or an amount. */
   tokens: number | null;
@@ -46,7 +55,8 @@ export interface AiTopUp extends TopUpChoice {
    */
   error: string | null;
   tokensForUsd: (usd: number) => number | null;
-  selectPreset: (usd: TopUpPresetUsd) => void;
+  selectPreset: (usd: number) => void;
+  selectNone: () => void;
   selectCustom: () => void;
   setCustomUsd: (next: string) => void;
   /**
@@ -72,16 +82,23 @@ interface UseAiTopUpOptions {
    * else the floor every surface shares today.
    */
   minimumUsd?: number;
+  /** The tiles, `TOP_UP_PRESETS_USD` unless given. May change between renders — see the hook. */
+  presets?: readonly number[];
+  /** Offer "Don't top up" before the presets. May change between renders, as `presets` may. */
+  allowNone?: boolean;
 }
 
-function isPreset(usd: number): usd is TopUpPresetUsd {
-  return (TOP_UP_PRESETS_USD as readonly number[]).includes(usd);
-}
-
-function initialChoice(initial: number | null | undefined): TopUpChoice {
+function initialChoice(initial: number | null | undefined, presets: readonly number[]): TopUpChoice {
   if (initial == null) return { selection: null, customUsd: '' };
-  if (isPreset(initial)) return { selection: initial, customUsd: '' };
+  if (presets.includes(initial)) return { selection: initial, customUsd: '' };
   return { selection: CUSTOM_TOP_UP, customUsd: String(initial) };
+}
+
+/** Whether the grid drawn now has a tile for `selection`. */
+function isOffered(selection: TopUpSelection, presets: readonly number[], allowNone: boolean): boolean {
+  if (selection === NO_TOP_UP) return allowNone;
+  if (typeof selection === 'number') return presets.includes(selection);
+  return true;
 }
 
 /**
@@ -93,6 +110,7 @@ function initialChoice(initial: number | null | undefined): TopUpChoice {
  */
 function resolveChoice(choice: TopUpChoice, minimumUsd: number): { amountUsd: number | null; problem: string | null } {
   if (choice.selection == null) return { amountUsd: null, problem: 'Choose a top-up amount.' };
+  if (choice.selection === NO_TOP_UP) return { amountUsd: 0, problem: null };
 
   const usd = choice.selection === CUSTOM_TOP_UP ? Number.parseInt(choice.customUsd, 10) : choice.selection;
   if (!Number.isFinite(usd)) return { amountUsd: null, problem: 'Enter a top-up amount.' };
@@ -110,29 +128,47 @@ function resolveChoice(choice: TopUpChoice, minimumUsd: number): { amountUsd: nu
  * they do with the answer: an invoice now, a refill arrangement, or a line on
  * the checkout. So the state and the dollar-to-token arithmetic live here, and
  * neither surface owns them.
+ *
+ * The grid may change under a choice: the paywall offers one set of tiles for a
+ * prepaid year and another for pay-as-you-go. A choice the grid drawn now has no
+ * tile for reads as the opening choice, without being forgotten — so switching
+ * back to the plan it was made on brings it back.
  */
 export function useAiTopUp({
   tokenPrice,
   initial = null,
   minimumUsd = FALLBACK_MIN_TOP_UP_USD,
+  presets = TOP_UP_PRESETS_USD,
+  allowNone = false,
 }: UseAiTopUpOptions): AiTopUp {
-  const [choice, setChoice] = useState<TopUpChoice>(() => initialChoice(initial));
+  const [stored, setChoice] = useState<TopUpChoice>(() => initialChoice(initial, presets));
   // Set by the first submit and kept: from then on the fields answer every edit
   // at once, which is the moment the user is looking at them.
   const [attempted, setAttempted] = useState(false);
+
+  const opening = initialChoice(initial, presets);
+  const choice: TopUpChoice = isOffered(stored.selection, presets, allowNone)
+    ? stored
+    : {
+        ...stored,
+        selection: isOffered(opening.selection, presets, allowNone) ? opening.selection : null,
+      };
 
   const { amountUsd, problem } = resolveChoice(choice, minimumUsd);
   const forUsd = (usd: number): number | null => tokensForUsd(usd, tokenPrice);
 
   return {
     ...choice,
+    presets,
+    allowNone,
     amountUsd,
-    tokens: amountUsd == null ? null : forUsd(amountUsd),
+    tokens: amountUsd == null || amountUsd === 0 ? null : forUsd(amountUsd),
     hasRate: tokenPrice != null && tokenPrice > 0,
     isComplete: problem == null,
     error: attempted ? problem : null,
     tokensForUsd: forUsd,
     selectPreset: usd => setChoice(current => ({ ...current, selection: usd })),
+    selectNone: () => setChoice(current => ({ ...current, selection: NO_TOP_UP })),
     selectCustom: () => setChoice(current => ({ ...current, selection: CUSTOM_TOP_UP })),
     // Digits only, so a pasted "$50" or "50.00" lands as the whole dollars it meant.
     setCustomUsd: next => setChoice(current => ({ ...current, customUsd: next.replace(/\D/g, '') })),
@@ -141,7 +177,7 @@ export function useAiTopUp({
       return problem;
     },
     reset: () => {
-      setChoice(initialChoice(initial));
+      setChoice(initialChoice(initial, presets));
       setAttempted(false);
     },
   };
