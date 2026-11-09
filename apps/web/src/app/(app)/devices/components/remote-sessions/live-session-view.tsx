@@ -1,17 +1,33 @@
 'use client';
 
 import { NotFoundError, PageLayout } from '@flamingo-stack/openframe-frontend-core';
-import { RemoteSessionStatusTag } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { MonitorOffIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { LoadError, LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  RemoteSessionStatusTag,
+  type RemoteSessionViewer,
+  RemoteSessionViewers,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
+  Collapse02Icon,
+  Expand02Icon,
+  MonitorIcon,
+  MonitorOffIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  Button,
+  LIVE_PULSE_CLASS,
+  LoadError,
+  LoadingWhen,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useNow } from '@/app/hooks/use-now';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { formatDateTime } from '@/lib/format-date';
 import { loadErrorProps, queryState } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
+import { type UseRemoteSessionWatchResult, useRemoteSessionWatch } from '../../hooks/use-remote-session-watch';
 import { useLiveSession } from '../../hooks/use-session-recordings';
 import { SessionNotFoundError } from '../../services/session-recordings-service';
 import type { LiveSessionDetail } from '../../types/session-recording';
@@ -20,6 +36,7 @@ import { LiveSessionMetaCard } from './recording-meta-card';
 import { RecordingWarningAlert } from './recording-storage-banner';
 import { SessionChat } from './session-chat';
 import { isAwaitingRecording } from './session-status';
+import { sessionViewers } from './session-viewers';
 
 interface LiveSessionViewProps {
   /** Null until the page knows it may ask (the Watch live gate and the id): the view draws its loading state. */
@@ -38,22 +55,108 @@ function SectionLabel({ children }: { children: string }) {
   return <span className="text-ods-text-secondary text-h5">{children}</span>;
 }
 
+/** The agent reports display ids only, no monitor names: the same label Remote Control and the timeline use. */
+function displayLabel(displayId: number): string {
+  return `Display ${displayId}`;
+}
+
+/** While the watch socket pairs, or comes back after a drop: the three-dot pulse Remote Control shows. */
+function ConnectingOverlay() {
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-[var(--spacing-system-sf)]">
+      <span className="flex items-center gap-[var(--spacing-system-xxs)]">
+        {[0, 1, 2].map(i => (
+          <span
+            key={i}
+            className={cn('size-1 rounded-full bg-ods-text-secondary', LIVE_PULSE_CLASS)}
+            style={{ animationDelay: `${i * 250}ms` }}
+          />
+        ))}
+      </span>
+      <span className="text-ods-text-secondary text-h6">Connecting to the live session</span>
+    </div>
+  );
+}
+
+/** The page stopped trying (failed dials in a row, or watching is off): the ended screen's look, with a retry. */
+function UnavailableOverlay({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-[var(--spacing-system-xsf)] bg-ods-bg p-[var(--spacing-system-m)] text-center">
+      <MonitorOffIcon className="h-6 w-6 text-ods-text-secondary" />
+      <span className="text-ods-text-secondary text-h4">Live view unavailable</span>
+      <span className="text-ods-text-secondary text-h6">Couldn&apos;t show this session&apos;s screen.</span>
+      <Button variant="outline" onClick={onRetry} className="mt-[var(--spacing-system-xsf)]">
+        Retry
+      </Button>
+    </div>
+  );
+}
+
+/** Whether `element` is the page's fullscreen element, kept current. */
+function useIsFullscreen(element: HTMLElement | null): boolean {
+  const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    const onChange = () => setFullscreen(element !== null && document.fullscreenElement === element);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, [element]);
+  return fullscreen;
+}
+
+interface LiveStreamFrameProps extends Pick<UseRemoteSessionWatchResult, 'state' | 'display' | 'retry'> {
+  session: LiveSessionDetail;
+  viewers: RemoteSessionViewer[];
+  /** The watch's canvas callback ref. */
+  attachCanvas: UseRemoteSessionWatchResult['attachCanvas'];
+}
+
 /**
- * The stream's frame (Figma 1656-12080): the black screen with the host's bar along its top edge, and the strip under
- * it counting the session's time up. The picture itself joins it with the watch connection.
+ * The stream's frame (Figma 1656-12080, 1755-95212): the host's screen as the watch socket draws it, with the host's
+ * bar along its top edge (the host, the display shown, who is watching) and the strip under it counting the session's
+ * time up, with fullscreen. Nothing in it reaches the device: no input, no display or quality control.
  */
-function LiveStreamFrame({ session }: { session: LiveSessionDetail }) {
+function LiveStreamFrame({ session, state, display, retry, viewers, attachCanvas }: LiveStreamFrameProps) {
   const now = useNow(1000);
   const elapsedMs = Math.max(0, now - Date.parse(session.startedAt));
+  const [frame, setFrame] = useState<HTMLDivElement | null>(null);
+  const fullscreen = useIsFullscreen(frame);
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void frame?.requestFullscreen?.();
+  };
   return (
-    <div className="flex flex-col overflow-hidden rounded-[6px] border border-ods-border">
-      <div className="relative aspect-video w-full bg-black">
+    <div
+      ref={setFrame}
+      className={cn('flex flex-col overflow-hidden border border-ods-border bg-black', !fullscreen && 'rounded-[6px]')}
+    >
+      <div className={cn('relative w-full bg-black', fullscreen ? 'min-h-0 flex-1' : 'aspect-video')}>
+        <canvas
+          ref={attachCanvas}
+          aria-label={`${session.employee.name}'s screen`}
+          className={cn('absolute inset-0 h-full w-full object-contain', state !== 'streaming' && 'invisible')}
+        />
+        {state === 'connecting' && <ConnectingOverlay />}
+        {state === 'unavailable' && <UnavailableOverlay onRetry={retry} />}
         <div className="absolute inset-x-[var(--spacing-system-l)] top-0 flex min-w-0 items-center gap-[var(--spacing-system-xsf)] rounded-b-[6px] border border-t-0 border-ods-border bg-ods-overlay px-[var(--spacing-system-sf)] py-[var(--spacing-system-xsf)]">
           <span className="min-w-0 truncate text-ods-text-primary text-h6">{`${session.employee.name} (host)`}</span>
+          {display !== null && (
+            <span className="flex shrink-0 items-center gap-[var(--spacing-system-xxs)] rounded-[6px] border border-ods-border bg-ods-card px-[var(--spacing-system-xsf)] py-[var(--spacing-system-xxs)] text-ods-text-primary text-code">
+              <MonitorIcon className="h-4 w-4 text-ods-text-secondary" />
+              {displayLabel(display)}
+            </span>
+          )}
+          <RemoteSessionViewers viewers={viewers} className="ml-auto" />
         </div>
       </div>
-      <div className="flex items-center bg-ods-card px-[var(--spacing-system-sf)] py-[var(--spacing-system-s)]">
+      <div className="flex items-center justify-between bg-ods-card px-[var(--spacing-system-sf)] py-[var(--spacing-system-s)]">
         <span className="tabular-nums text-ods-text-primary text-h4">{formatDurationMs(elapsedMs)}</span>
+        <Button
+          variant="transparent"
+          size="icon"
+          aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+          onClick={toggleFullscreen}
+          leftIcon={fullscreen ? <Collapse02Icon /> : <Expand02Icon />}
+        />
       </div>
     </div>
   );
@@ -103,6 +206,11 @@ export function LiveSessionView({ sessionId }: LiveSessionViewProps) {
   const tag = session ? titleTag(session) : null;
   const showChat = !!session && session.chat.length > 0;
 
+  const userId = useAuthStore(s => s.user?.id ?? null);
+  const watch = useRemoteSessionWatch(sessionId, !!session?.live);
+  const viewers = session ? sessionViewers(session, watch.viewers, userId) : [];
+  const resolution = watch.resolution ? `${watch.resolution.width} × ${watch.resolution.height}` : undefined;
+
   return (
     <PageLayout
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
@@ -126,7 +234,7 @@ export function LiveSessionView({ sessionId }: LiveSessionViewProps) {
             </RecordingWarningAlert>
           )}
           <LoadingWhen loading={isLoading}>
-            <LiveSessionMetaCard session={session ?? null} />
+            <LiveSessionMetaCard session={session ?? null} resolution={resolution} />
           </LoadingWhen>
           {session && (
             <div
@@ -145,7 +253,14 @@ export function LiveSessionView({ sessionId }: LiveSessionViewProps) {
                 ) : (
                   <>
                     {showChat && <SectionLabel>Live Session</SectionLabel>}
-                    <LiveStreamFrame session={session} />
+                    <LiveStreamFrame
+                      session={session}
+                      state={watch.state}
+                      display={watch.display}
+                      retry={watch.retry}
+                      viewers={viewers}
+                      attachCanvas={watch.attachCanvas}
+                    />
                   </>
                 )}
               </div>
