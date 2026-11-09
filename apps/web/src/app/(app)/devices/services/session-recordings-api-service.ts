@@ -29,6 +29,7 @@ import { getRelayEnvironment } from '@/lib/relay';
 import { commitMutationPromise } from '@/lib/relay/commit-mutation';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { getAccessTokenSync, isBearerAuthMode } from '@/lib/token-store';
+import { uniqueSessions } from '../components/remote-sessions/live-session-rows';
 import type {
   LiveSessionDetail,
   RecordingChatMessage,
@@ -413,7 +414,8 @@ export class SessionRecordingsApiService implements ISessionRecordingsService {
       if (!connection.pageInfo.hasNextPage || !connection.pageInfo.endCursor) break;
       after = connection.pageInfo.endCursor;
     }
-    return rows;
+    // A session running when the first page came may have ended by a later one, which then lists it again.
+    return uniqueSessions(rows);
   }
 
   async get(recordingId: string): Promise<RecordingDetail> {
