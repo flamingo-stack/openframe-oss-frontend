@@ -9,7 +9,6 @@ import { createDevice } from './use-device-details';
 
 // The real modules carry graphql tags, which need the Relay babel plugin vitest does not run.
 vi.mock('../queries/devices-api', () => ({ fetchDeviceNode: vi.fn() }));
-vi.mock('../utils/device-transform', () => ({ toDeviceTags: () => [] }));
 vi.mock('@/lib/fleet-api-client', () => ({ fleetApiClient: {} }));
 vi.mock('@/lib/meshcentral/meshcentral-api', () => ({
   getMeshCentralDeviceInfo: vi.fn(),

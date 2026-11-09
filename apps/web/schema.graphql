@@ -1827,7 +1827,9 @@ type Machine implements Node & AssignableTarget {
   timezone: String
   registeredAt: Instant
   updatedAt: Instant
-  tags: [Tag]
+  tags: [Tag] @deprecated(reason: "Use tagAssignments: per-device values under the tag's id collide in Relay caches.")
+  """One node per tag assignment of this device; id is unique per (device, tag)."""
+  tagAssignments: [MachineTag!]!
   toolConnections: [ToolConnection]
   installedAgents: [InstalledAgent]
 
@@ -5786,6 +5788,15 @@ type Tag implements Node {
   values: [String!]
   entityType: TagEntityType
   createdAt: Instant
+}
+
+"""A tag assigned to one device. id is the tag assignment's, unique per (device, tag); tag is the stored definition."""
+type MachineTag implements Node {
+  id: ID!
+  tag: Tag!
+  values: [String!]!
+  taggedAt: Instant
+  taggedBy: String
 }
 
 enum TagEntityType {
