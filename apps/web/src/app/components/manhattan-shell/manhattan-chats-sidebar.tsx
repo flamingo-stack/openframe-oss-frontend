@@ -11,22 +11,27 @@ import {
   NotificationsBellButton,
 } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import { useNeedsYouCount } from '@/app/(app)/mingo/home/needs-you/needs-you-card';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { MingoAccountPopover } from '@/app/components/mingo-shell/mingo-account-popover';
 import { MingoSidebarHistory } from '@/app/components/mingo-shell/mingo-sidebar-history';
 import { closeMobileMenu } from '@/app/components/mingo-shell/mobile-menu-store';
+import { useSubscriptionOpen } from '@/app/components/subscription-lock/subscription-guard';
 
 /**
  * The Manhattan v2 shell's left sidebar (flag `manhattan-v2`, Figma "mingo (Manhattan)"
- * 1408:292998 / 1408:293116): "Start Work" over the chats, the user row at the foot.
+ * 1408:292998 / 1408:293116): "New Chat" over the chats, the user row at the foot.
  * Built from the Mingo-first shell's own pieces — the launcher's new chat, the chat
  * history section, the account popover, the time tracker and the bell — so every one
  * of their actions works as it does today; only the arrangement is new.
  */
 
 /**
- * "Start Work": Mingo's home, a new chat. The same launcher action as the
- * Mingo-first shell's "New chat" (the dock goes home and resets the chat there).
+ * "New Chat" (Figma `start-work`, 1366:93304): Mingo's home, Start Work, where a new chat
+ * starts. The same launcher action as the Mingo-first shell's "New chat" (the dock goes
+ * home and resets the chat there). Its counter is how many rows Start Work's "Needs you"
+ * shows, read from the same sources (no request of its own once the page has read them);
+ * none while they load, behind the paywall or behind the lock screen.
  */
 export function ManhattanStartWorkRow({
   minimized,
@@ -38,19 +43,26 @@ export function ManhattanStartWorkRow({
   /** Behind the paywall, as the Mingo-first rows are. */
   disabled?: boolean;
 }) {
+  const open = useSubscriptionOpen();
+  const { count, sources } = useNeedsYouCount(open && !disabled);
   return (
-    <NavigationSidebarActionRow
-      size="sectioned"
-      icon={<PlusCircleIcon />}
-      label="Start Work"
-      active={active}
-      disabled={disabled}
-      minimized={minimized}
-      onClick={() => {
-        useMingoLauncherStore.getState().startNewChat();
-        closeMobileMenu();
-      }}
-    />
+    <>
+      {sources}
+      <NavigationSidebarActionRow
+        size="sectioned"
+        icon={<PlusCircleIcon />}
+        label="New Chat"
+        count={disabled ? 0 : count}
+        countTone="warning"
+        active={active}
+        disabled={disabled}
+        minimized={minimized}
+        onClick={() => {
+          useMingoLauncherStore.getState().startNewChat();
+          closeMobileMenu();
+        }}
+      />
+    </>
   );
 }
 
@@ -71,7 +83,8 @@ export function ManhattanChatsSection({ minimized, onExpand }: { minimized: bool
     );
   }
   return (
-    <div className="flex flex-col duration-300 animate-in fade-in motion-reduce:animate-none">
+    // `flex-1`: the sidebar's spare height, where an empty list centres (Figma 1409:305752).
+    <div className="flex flex-1 flex-col duration-300 animate-in fade-in motion-reduce:animate-none">
       <MingoSidebarHistory density="compact" />
     </div>
   );

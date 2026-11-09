@@ -560,6 +560,8 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             toggle: 'none',
             footerInset: false,
             sectionDivider: false,
+            // The chats take the sidebar's spare height: an empty list centres in it (Figma 1409:305752).
+            sectionFill: true,
             currentPath,
             expandedWidth: MANHATTAN_CHATS_EXPANDED_WIDTH,
             resizable: SIDEBAR_RESIZE,

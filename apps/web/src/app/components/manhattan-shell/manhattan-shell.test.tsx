@@ -35,6 +35,11 @@ vi.mock('@/app/components/mingo-shell/mingo-account-popover', () => ({
   },
 }));
 vi.mock('@/app/components/mingo-shell/mingo-sidebar-history', () => ({ MingoSidebarHistory: () => null }));
+// The "New Chat" row's count reads the Relay-backed "Needs you" sources: not what this file tests.
+vi.mock('@/app/(app)/mingo/home/needs-you/needs-you-card', () => ({
+  useNeedsYouCount: () => ({ count: 0, sources: null }),
+}));
+vi.mock('@/app/components/subscription-lock/subscription-guard', () => ({ useSubscriptionOpen: () => true }));
 
 let container: HTMLDivElement;
 let root: Root;
