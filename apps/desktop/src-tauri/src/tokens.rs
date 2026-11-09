@@ -33,10 +33,10 @@ pub const TOKEN_UPDATE_EVENT: &str = "native-auth:token-update";
 ///   only two. Cost: the access token dies — recoverable, the refresh token is
 ///   still there.
 /// - too large and the token rotates more often than it needs to, and **every
-///   rotation is a chance to lose the session**: the gateway rotates refresh
-///   tokens without a grace window, so a rotation whose response never arrives
-///   leaves this side holding a token the server has already retired. Cost:
-///   unrecoverable, a real sign-in.
+///   rotation is a chance to lose the session**: a rotation whose response never
+///   arrives leaves this side holding a token the server has already retired,
+///   which it honours for only [`REFRESH_GRACE_SECS`] more — a window a machine
+///   asleep through it misses. Cost: unrecoverable, a real sign-in.
 ///
 /// The second cost is the higher one, so this stays close to the floor: four
 /// poll ticks of slack, which moves rotation from every 840s to every 780s.
@@ -134,18 +134,36 @@ const DEADLINE_TICK: Duration = Duration::from_secs(1);
 /// other and each floors to a whole second, so a pair can differ by two with the
 /// machine fully awake. Everything above that is real suspend.
 const SLEEP_DETECT_SECS: u64 = 3;
-/// After a rotation whose answer was lost, how long before the refresh token may
-/// be presented again.
+/// After a refresh POST whose answer was lost, when the shell presents the same
+/// refresh token again, counted from the moment that POST went out. The shell
+/// does it on its own ([`schedule_lost_rotation_retry`]); every caller before
+/// then is held back.
 ///
-/// Without this the single-flight lock serializes callers but does not coalesce
-/// them: the losing caller finds the tokens unchanged, `needs_refresh` still
-/// true, and POSTs the same refresh token the moment the lock frees — which is
-/// how 02:05:20 turned an ambiguous outcome into a cleared session inside one
-/// second. Waiting cannot save a rotation that really did land, but it is the
-/// difference between "we asked again once the network was back" and "we
-/// re-presented it 200ms later on the same dead link", and it gives the case
-/// where the request died before reaching the auth service a chance to recover.
-const LOST_ROTATION_COOLDOWN_SECS: u64 = 60;
+/// The auth server honours a rotated-away refresh token for
+/// [`REFRESH_GRACE_SECS`] after the rotation, and the rotation came after the
+/// send, so a presentation at this mark lands inside that window whether or not
+/// the lost POST rotated. Not sooner: the gateway gives the auth server
+/// [`GATEWAY_AUTH_WAIT_SECS`] to answer, and a re-presentation that rotates
+/// while the lost POST is still being served gets rotated over by it, leaving
+/// this side holding a token the server has retired. Not later: the 60-second
+/// hold this replaced was counted from giving up (up to the send plus the
+/// 10-second budget) and then waited for a caller, so for any rotation before
+/// the give-up — an answer lost on its way back — the next presentation came
+/// after the window had closed, and its 401 signed the user out.
+///
+/// The hold itself is older than the window. The single-flight lock serializes
+/// callers but does not coalesce them: without it the losing caller finds the
+/// tokens unchanged, `needs_refresh` still true, and re-presents the token the
+/// moment the lock frees, on the same dead link — which is how 02:05:20 on
+/// 2026-08-01 turned an ambiguous outcome into a cleared session inside one
+/// second.
+const LOST_ROTATION_RETRY_AFTER_SECS: u64 = 35;
+/// How long the auth server accepts a refresh token after rotating it away
+/// (`openframe.authz.refresh-token-grace-seconds`, oss-lib #2919).
+const REFRESH_GRACE_SECS: u64 = 60;
+/// How long the gateway waits on the auth server to answer a refresh
+/// (`WebClientConfig`'s `responseTimeout` in oss-lib's gateway-service-core).
+const GATEWAY_AUTH_WAIT_SECS: u64 = 30;
 /// Why a refresh was refused without a request going out. Shared by the settle
 /// gates so a post-mortem sees one reason, not a spelling of it per site.
 const UNSETTLED: &str = "the machine has not been awake long enough to rotate";
@@ -159,6 +177,14 @@ const TENANT_GONE: &str = "the tenant is gone (the gateway answered 410)";
 const _: () = {
     assert!(WAKE_SETTLE_SECS > LONGEST_DARKWAKE_SECS);
     assert!(SLEEP_DETECT_SECS >= WAKE_TICK.as_secs() + 2);
+};
+
+/// The two bounds a lost POST's re-presentation has to land between: after the
+/// gateway has stopped waiting on the lost POST, and before the server stops
+/// honouring the token that POST may have retired.
+const _: () = {
+    assert!(LOST_ROTATION_RETRY_AFTER_SECS > GATEWAY_AUTH_WAIT_SECS);
+    assert!(LOST_ROTATION_RETRY_AFTER_SECS < REFRESH_GRACE_SECS);
 };
 
 /// First wait between probes of a tenant the gateway reports gone, doubling up
@@ -230,16 +256,18 @@ impl From<NativeAuthTokens> for PageTokens {
 #[derive(Default)]
 pub struct TokenLifecycle {
     refresh_lock: tokio::sync::Mutex<()>,
-    /// `now_secs` of the last refresh POST that went out and got no answer back,
+    /// `now_secs` when the last refresh POST that got no answer back went out,
     /// so whether the server rotated is unknown; zero once nothing is in doubt.
     ///
-    /// Gates how soon the token may be presented again, and tells the next
-    /// rejection that it is very likely that lost rotation surfacing rather than
-    /// a revoked session — a distinction no status code carries, and the
-    /// difference between a bug and a known hazard when someone reads the log
-    /// later. One field rather than a flag beside a timestamp, because the two
-    /// can then never disagree about whether anything is in doubt.
-    lost_rotation_at: AtomicU64,
+    /// Gates how soon the token may be presented again, keys the re-presentation
+    /// [`schedule_lost_rotation_retry`] arms (which stands down once the mark
+    /// is no longer its own), and tells the next rejection that it is very
+    /// likely that lost rotation surfacing rather than a revoked session — a
+    /// distinction no status code carries, and the difference between a bug and
+    /// a known hazard when someone reads the log later. One field rather than a
+    /// flag beside a timestamp, because the two can then never disagree about
+    /// whether anything is in doubt.
+    lost_rotation_sent_at: AtomicU64,
     /// Refresh attempts that settled without an answer, in a row. Drives one
     /// backoff for both things that ask for a refresh — the poll and
     /// [`refresh_soon`] — so a nudging caller cannot outrun it.
@@ -477,12 +505,13 @@ pub async fn merge_and_save(
         refresh_token,
     };
     // A refresh token this side has never presented settles any doubt exactly as
-    // a rotation does. Without this, a sign-in within the cooldown of an earlier
-    // session's lost rotation is held back and its first rejection is blamed on
-    // that old loss. Conditional on the value actually changing, because the
-    // webview re-saving the set it just read must not clear a doubt that stands.
+    // a rotation does, and the re-presentation scheduled for it stands down.
+    // Without this, a sign-in within the hold of an earlier session's lost
+    // rotation is held back and its first rejection is blamed on that old loss.
+    // Conditional on the value actually changing, because the webview re-saving
+    // the set it just read must not clear a doubt that stands.
     if incoming.refresh_token.is_some() && incoming.refresh_token != stored.refresh_token {
-        lifecycle.lost_rotation_at.store(0, Ordering::Relaxed);
+        lifecycle.lost_rotation_sent_at.store(0, Ordering::Relaxed);
         // A new session, not a re-save: whatever the gateway said about the last
         // one's tenant is no answer for this one's.
         clear_gone(&lifecycle, "a different session signed in");
@@ -504,8 +533,8 @@ pub async fn merge_and_save(
 pub fn clear_tokens(app: &AppHandle) -> Result<(), String> {
     let lifecycle = app.state::<TokenLifecycle>();
     // The doubt belonged to the token being deleted; whatever arrives next is
-    // not the one that was in question.
-    lifecycle.lost_rotation_at.store(0, Ordering::Relaxed);
+    // not the one that was in question, and nothing is re-presented.
+    lifecycle.lost_rotation_sent_at.store(0, Ordering::Relaxed);
     set_access_clock(&lifecycle, None);
     clear_gone(&lifecycle, "tokens were cleared");
     let removed = match std::fs::remove_file(tokens_path(app)) {
@@ -751,17 +780,20 @@ fn settle_left_secs(awake_since_mono: u64, mono_now: u64) -> Option<u64> {
         .filter(|left| *left > 0)
 }
 
-/// How much of the lost-rotation cooldown is left, or None once it has run out —
-/// which is also the answer for the zero mark that means nothing is in doubt.
+/// How much longer a token whose last POST went out at `sent_at` with no answer
+/// back is held, or None once the hold is over — which is also the answer for
+/// the zero mark that means nothing is in doubt. The moment it turns None is the
+/// moment [`schedule_lost_rotation_retry`] re-presents the token.
 ///
 /// On the wall clock, because unlike a resume the doubt is about a token rather
-/// than about this process's uptime. The zero mark carries the opposite meaning
-/// to the one in [`settle_left_secs`] — there it means "no resume recorded, so
-/// gate nothing", here "nothing in doubt, so hold nothing back" — which is why
-/// the two windows stay separate functions despite the shared arithmetic.
-fn cooldown_left_secs(lost_at: u64, now: u64) -> Option<u64> {
-    LOST_ROTATION_COOLDOWN_SECS
-        .checked_sub(now.saturating_sub(lost_at))
+/// than about this process's uptime, and the window it races is the server's.
+/// The zero mark carries the opposite meaning to the one in [`settle_left_secs`]
+/// — there it means "no resume recorded, so gate nothing", here "nothing in
+/// doubt, so hold nothing back" — which is why the two windows stay separate
+/// functions despite the shared arithmetic.
+fn lost_rotation_hold_secs(sent_at: u64, now: u64) -> Option<u64> {
+    LOST_ROTATION_RETRY_AFTER_SECS
+        .checked_sub(now.saturating_sub(sent_at))
         .filter(|left| *left > 0)
 }
 
@@ -971,7 +1003,8 @@ enum Outcome {
     /// The gateway never saw it — DNS, connect, or TLS. Safe to retry.
     Unreached(String),
     /// The request went out and the outcome is unknown: a broken or timed-out
-    /// response, or a success carrying no tokens. Not retried.
+    /// response, or a success carrying no tokens. Not retried within the
+    /// refresh; re-presented at [`LOST_ROTATION_RETRY_AFTER_SECS`].
     Unknown(String),
 }
 
@@ -1064,13 +1097,14 @@ pub async fn refresh(
 
     // A rotation is already out there with an unknown fate, so the token about
     // to be presented may have been retired by it. Presenting it now is how an
-    // ambiguous outcome becomes a cleared session; wait instead.
-    let lost_at = lifecycle.lost_rotation_at.load(Ordering::Relaxed);
-    if let Some(left) = cooldown_left_secs(lost_at, now_secs()) {
+    // ambiguous outcome becomes a cleared session; the shell presents it itself
+    // once the gateway can no longer be serving the lost POST.
+    let lost_sent_at = lifecycle.lost_rotation_sent_at.load(Ordering::Relaxed);
+    if let Some(left) = lost_rotation_hold_secs(lost_sent_at, now_secs()) {
         log::warn!(
             "[tokens] refresh held back for {left}s — a rotation's fate is still unknown (trigger: {trigger})"
         );
-        return Err("a rotation with an unknown outcome is still cooling down".into());
+        return Err("a rotation with an unknown outcome is still being settled".into());
     }
 
     let Some(refresh_token) = current.refresh_token.clone() else {
@@ -1084,7 +1118,7 @@ pub async fn refresh(
     // — and setting both would leave two mechanisms racing to report the same
     // condition under different names. Bounding the connect separately still
     // matters: a connect that hangs while Wi-Fi reassociates would otherwise
-    // blow the total budget and be classed `Unknown`, arming the cooldown and
+    // blow the total budget and be classed `Unknown`, arming the hold and
     // mislabelling the next rejection, when nothing ever left the machine. Only
     // for an awake machine, mind — this timer is monotonic too, so a suspend
     // still lands on the wall-clock deadline and the conservative `Unknown`.
@@ -1096,7 +1130,7 @@ pub async fn refresh(
     // Taken before the POST, not after the answer: latency then shortens the lead
     // rather than the token's life, as in the agent.
     let sent_boot = boot_secs();
-    let outcome = attempt_refresh(app, &client, &base, &refresh_token).await;
+    let (outcome, sent_at) = attempt_refresh(app, &client, &base, &refresh_token).await;
     match &outcome {
         // Settled, either way: whatever the answer was, the gateway is reachable
         // and there is nothing left to back off from.
@@ -1154,8 +1188,9 @@ pub async fn refresh(
             // Whatever an earlier lost rotation did or didn't do, the token now
             // on disk is one the gateway just issued. Nothing is in doubt any
             // more, so a later rejection is a real revocation and must not be
-            // reported — or held back — as that old loss resurfacing.
-            lifecycle.lost_rotation_at.store(0, Ordering::Relaxed);
+            // reported — or held back — as that old loss resurfacing, and the
+            // re-presentation scheduled for it stands down.
+            lifecycle.lost_rotation_sent_at.store(0, Ordering::Relaxed);
             if let Some(access) = new_access {
                 note_access_received(&lifecycle, &access, sent_boot);
             }
@@ -1167,13 +1202,15 @@ pub async fn refresh(
             Ok(merged)
         }
         Outcome::Rejected => {
-            let why = if lifecycle.lost_rotation_at.swap(0, Ordering::Relaxed) != 0 {
-                // An earlier refresh went out and never came back. The gateway
-                // rotates refresh tokens with no grace window, so that rotation
-                // most likely did land and retired the value just presented —
-                // this rejection is that lost rotation surfacing, not a session
-                // someone revoked. Custody goes either way (the token is dead),
-                // but the log has to say which, or it gets debugged twice.
+            let why = if lifecycle.lost_rotation_sent_at.swap(0, Ordering::Relaxed) != 0 {
+                // An earlier refresh went out and never came back, and this
+                // presentation came after the grace window its rotation opened —
+                // the machine slept through it, or the re-presentation was lost
+                // too. That rotation most likely did land and retired the value
+                // just presented: this rejection is that lost rotation
+                // surfacing, not a session someone revoked. Custody goes either
+                // way (the token is dead), but the log has to say which, or it
+                // gets debugged twice.
                 "a refresh whose response was lost had already rotated it"
             } else {
                 "the gateway rejected the refresh token"
@@ -1187,29 +1224,78 @@ pub async fn refresh(
         Outcome::Unreached(e) => Err(e),
         Outcome::Unknown(e) => {
             // Stamped on every loss, not just the first: each unanswered POST is
-            // itself newly in doubt, and pacing from the original one would let
-            // the cooldown lapse permanently after a single window while the
-            // token was still being re-presented.
-            lifecycle
-                .lost_rotation_at
-                .store(now_secs(), Ordering::Relaxed);
+            // itself newly in doubt, and its re-presentation has to land inside
+            // the window its own rotation would have opened. Not for a session
+            // signed out while this was on the wire: the doubt belonged to a
+            // token that is gone, and there is nothing left to present.
+            if lifecycle.custody_epoch.load(Ordering::Acquire) == custody {
+                lifecycle
+                    .lost_rotation_sent_at
+                    .store(sent_at, Ordering::Relaxed);
+                log::warn!(
+                    "[tokens] refresh went out with no usable answer — presenting the token again {LOST_ROTATION_RETRY_AFTER_SECS}s after it went out (trigger: {trigger})"
+                );
+                schedule_lost_rotation_retry(app, sent_at);
+            }
             Err(e)
         }
     }
 }
 
+/// Present the refresh token again once the hold on a POST that went out at
+/// `sent_at` is over, without waiting for a caller. Waiting for one is what the
+/// old rule did, and nothing guarantees one inside the grace window: the poll
+/// backs off on the very failure that armed this, and a forced refresh (an
+/// upstream 401) may leave nothing due on the schedule at all. After the window
+/// the token is dead if the lost POST rotated.
+///
+/// Forced for that second case, against the access token stored when it fires,
+/// so a rotation that lands first leaves it nothing to do. Stands down at any
+/// tick that finds the mark no longer its own: a rotation, a sign-in or a
+/// sign-out cleared it, or a later loss armed a re-presentation of its own.
+///
+/// Ticks on the wall clock, for the reason in [`wait_until_settled`]. A machine
+/// that slept past the mark presents at once (behind the settle gate in
+/// [`refresh`]): the window may be gone by then, but that is all that is left to
+/// try, and the poll would present the same token anyway.
+fn schedule_lost_rotation_retry(app: &AppHandle, sent_at: u64) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let lifecycle = app.state::<TokenLifecycle>();
+        let still_ours = || lifecycle.lost_rotation_sent_at.load(Ordering::Relaxed) == sent_at;
+        while still_ours() && lost_rotation_hold_secs(sent_at, now_secs()).is_some() {
+            tokio::time::sleep(DEADLINE_TICK).await;
+        }
+        // Read before the last look at the mark, so a rotation that lands after
+        // that look has moved the access token by the time the forced refresh
+        // compares it under the lock.
+        let access = load_tokens(&app).access_token;
+        if !still_ours() {
+            return;
+        }
+        if let Err(e) = refresh(&app, true, access, "a refresh whose answer was lost").await {
+            log::warn!("[tokens] re-presenting a refresh whose answer was lost failed: {e}");
+        }
+    });
+}
+
 /// One refresh, retried only while the gateway has not seen it. A rejection is
 /// final on the first occurrence — re-presenting the same token cannot change
-/// that answer — and an unknown outcome is never retried, because the retry is
-/// what would turn it into a rejection.
+/// that answer — and an unknown outcome is not retried here, because a retry on
+/// the heels of the lost POST is what would turn it into a rejection (see
+/// [`LOST_ROTATION_RETRY_AFTER_SECS`] for when it is).
+///
+/// Also returns when the attempt that settled went out, on the wall clock: the
+/// only one of them the gateway can have seen, if any did.
 async fn attempt_refresh(
     app: &AppHandle,
     client: &reqwest::Client,
     base: &str,
     refresh_token: &str,
-) -> Outcome {
+) -> (Outcome, u64) {
     let mut delays = REFRESH_RETRY_DELAYS.iter();
     loop {
+        let sent_at = now_secs();
         let attempt = post_refresh(client, base, refresh_token);
         // Blowing the wall-clock budget means the request went out and its fate
         // is unknown — the same standing as a broken response, and for the same
@@ -1220,13 +1306,16 @@ async fn attempt_refresh(
                 "[tokens] refresh to {base} outlived its {}s wall-clock budget — treating the outcome as unknown",
                 REFRESH_WALL_CLOCK_BUDGET.as_secs()
             );
-            return Outcome::Unknown("refresh outlived its wall-clock budget".into());
+            return (
+                Outcome::Unknown("refresh outlived its wall-clock budget".into()),
+                sent_at,
+            );
         };
         let Outcome::Unreached(ref reason) = outcome else {
-            return outcome;
+            return (outcome, sent_at);
         };
         let Some(delay) = delays.next() else {
-            return outcome;
+            return (outcome, sent_at);
         };
         log::warn!(
             "[tokens] refresh never reached {base} ({reason}) — retrying in {}s",
@@ -1240,7 +1329,7 @@ async fn attempt_refresh(
             log::warn!(
                 "[tokens] not retrying yet — {left}s of the settle window left ({UNSETTLED})"
             );
-            return outcome;
+            return (outcome, sent_at);
         }
     }
 }
@@ -1699,19 +1788,31 @@ mod tests {
         assert_eq!(settle_left_secs(0, 5), None);
     }
 
-    /// The window that stops a lost rotation's ambiguity from being cashed in
-    /// as a cleared session by whoever holds the lock next.
+    /// A lost POST is re-presented inside the grace window its rotation opened.
+    /// The hold is counted from the send, so the time spent waiting for an
+    /// answer that never came comes out of it: counted from giving up, as it
+    /// was, a POST that ran out its budget was re-presented 70 seconds at the
+    /// earliest after a rotation at its send, which the server honours for 60.
     #[test]
-    fn a_lost_rotation_holds_the_token_back_until_it_cools_down() {
-        let lost_at = 10_000;
+    fn a_lost_answer_is_re_presented_inside_the_grace_window() {
+        let sent_at = 10_000;
+        let budget = REFRESH_WALL_CLOCK_BUDGET.as_secs();
         assert_eq!(
-            cooldown_left_secs(lost_at, lost_at + 1),
-            Some(LOST_ROTATION_COOLDOWN_SECS - 1)
+            lost_rotation_hold_secs(sent_at, sent_at + budget),
+            Some(LOST_ROTATION_RETRY_AFTER_SECS - budget)
         );
-        assert_eq!(
-            cooldown_left_secs(lost_at, lost_at + LOST_ROTATION_COOLDOWN_SECS),
-            None
-        );
+        // Held while the gateway may still be waiting on the lost POST, so that
+        // POST cannot rotate over the re-presentation.
+        assert!(lost_rotation_hold_secs(sent_at, sent_at + GATEWAY_AUTH_WAIT_SECS).is_some());
+        // Released, which is when the shell re-presents, before the window of
+        // the earliest possible rotation — at the send itself — closes.
+        let released = sent_at + LOST_ROTATION_RETRY_AFTER_SECS;
+        assert_eq!(lost_rotation_hold_secs(sent_at, released - 1), Some(1));
+        assert_eq!(lost_rotation_hold_secs(sent_at, released), None);
+        assert!(released < sent_at + REFRESH_GRACE_SECS);
+        // A POST the machine slept through settles long after its send, and is
+        // re-presented at once: late, but all that is left to try.
+        assert_eq!(lost_rotation_hold_secs(sent_at, sent_at + 900), None);
     }
 
     /// A rotation response may carry one token or both, and the half that did
@@ -1733,18 +1834,18 @@ mod tests {
     /// what lets the flag and the timestamp be one field.
     #[test]
     fn nothing_in_doubt_holds_nothing_back() {
-        assert_eq!(cooldown_left_secs(0, now_secs()), None);
+        assert_eq!(lost_rotation_hold_secs(0, now_secs()), None);
     }
 
-    /// The cooldown errs the other way from the settle gate on an unreadable
-    /// age: holding a token back costs a delayed refresh, presenting a retired
-    /// one costs the session.
+    /// The hold errs the other way from the settle gate on an unreadable age:
+    /// holding a token back costs a delayed refresh, presenting it while the
+    /// lost POST may still be rotating it costs the session.
     #[test]
-    fn a_cooldown_mark_ahead_of_the_clock_still_holds() {
+    fn a_lost_rotation_mark_ahead_of_the_clock_still_holds() {
         let now = 10_000;
         assert_eq!(
-            cooldown_left_secs(now + 3_600, now),
-            Some(LOST_ROTATION_COOLDOWN_SECS)
+            lost_rotation_hold_secs(now + 3_600, now),
+            Some(LOST_ROTATION_RETRY_AFTER_SECS)
         );
     }
 
@@ -1945,7 +2046,7 @@ mod tests {
     }
 
     /// 410 is its own outcome: not a rejection, which ends the session, and not
-    /// an unknown, which arms the lost-rotation cooldown for a request that never
+    /// an unknown, which arms the lost-rotation hold for a request that never
     /// got as far as the auth service.
     #[test]
     fn a_410_is_neither_a_rejection_nor_an_unknown() {

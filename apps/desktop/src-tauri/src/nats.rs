@@ -92,8 +92,9 @@ async fn read_server_url(app: &AppHandle) -> Option<String> {
 /// Reads what is stored and asks for a rotation in the background rather than
 /// awaiting one. Awaiting it put a token rotation inside this reconnect loop,
 /// which is the worst place for one: a reconnect means the network just broke,
-/// and a rotation whose response is lost costs the whole session (the gateway
-/// retires the presented refresh token with no grace window). A rejected dial is
+/// and a rotation whose response is lost can cost the whole session (the server
+/// honours the refresh token it retired for only a minute, see
+/// `tokens::LOST_ROTATION_RETRY_AFTER_SECS`). A rejected dial is
 /// cheap by comparison — it backs off and retries, by which time the rotation
 /// this kicked off has landed.
 async fn read_token(app: &AppHandle) -> Option<String> {

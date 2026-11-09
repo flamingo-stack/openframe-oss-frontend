@@ -70,10 +70,11 @@ what must survive idle:
   gateway never saw it) is retried after 1s and 3s; *rejected* (401/403) is final
   on the first answer, since re-presenting the same token cannot change it; and
   *unknown* (a broken or timed-out response, a 5xx, a 200 with no token headers)
-  is never retried, because a retry can only turn "maybe rotated" into a
-  rejection. A fourth, *gone* (410), is settled by the gateway's routing filter
-  before anything can rotate, so it is neither a rejection nor an unknown — see
-  **Tenant gone**.
+  is not retried on the spot, because a retry on the heels of the lost POST can
+  only turn "maybe rotated" into a rejection; the shell re-presents it 35 seconds
+  after the send instead (see the note below). A fourth, *gone* (410), is settled
+  by the gateway's routing filter before anything can rotate, so it is neither a
+  rejection nor an unknown — see **Tenant gone**.
 - **Outcome contract**, consumed by the frontend's delegation: rotated → tokens;
   session over (rejected, or a rotation that could not be written to disk) →
   tokens cleared, empty set returned; unreached/unknown → error, stored tokens
@@ -134,11 +135,13 @@ what must survive idle:
 
 > **Every rotation is a chance to lose the session.** The authorization server
 > issues rotating refresh tokens (`reuseRefreshTokens(false)`) and retires the
-> presented one the moment it mints the next, with no grace window. So a refresh
-> whose *response* is lost — connection broken mid-answer, which is what a Wi-Fi
-> transition looks like — leaves this side holding a token the server has already
-> retired. There is no client-side recovery: the next refresh is rejected and the
-> user signs in again.
+> presented one the moment it mints the next, honouring it for only 60 seconds
+> after that (`openframe.authz.refresh-token-grace-seconds`, oss-lib #2919,
+> shipped 2026-11). So a refresh whose *response* is lost — connection broken
+> mid-answer, which is what a Wi-Fi transition looks like — leaves this side
+> holding a token the server has already retired, and the only recovery is to
+> present it again inside that minute. Any later and the refresh is rejected and
+> the user signs in again.
 >
 > Observed end to end on 2026-08-01. The machine was idling on battery in
 > maintenance DarkWake, awake 2-9 seconds every ~15 minutes. The access token died
@@ -150,19 +153,27 @@ what must survive idle:
 > rotations out of.
 >
 > What the shell can do, and does: refuse to rotate until the machine has been
-> awake long enough for an answer to come back (`spawn_wake_watch`), hold the
-> token back for a cooldown after a rotation whose fate is unknown rather than
-> letting the next caller cash the ambiguity in as a 401, bound the request on the
-> wall clock so a POST the machine sleeps through cannot hold the single-flight
-> lock for fifteen minutes, never retry an unknown outcome, keep rotations as
-> infrequent as the margin allows, and name both the case and the caller in the
-> log when a rejection follows a lost answer.
+> awake long enough for an answer to come back (`spawn_wake_watch`), bound the
+> request on the wall clock so a POST the machine sleeps through cannot hold the
+> single-flight lock for fifteen minutes, keep rotations as infrequent as the
+> margin allows, and name both the case and the caller in the log when a
+> rejection follows a lost answer. And it settles a lost answer inside the grace
+> window: after an unknown outcome every caller is held back, and the shell
+> presents the same refresh token again **on its own, 35 seconds after the lost
+> POST went out** (`LOST_ROTATION_RETRY_AFTER_SECS`,
+> `schedule_lost_rotation_retry`). 35 seconds is past the gateway's 30-second wait
+> on the auth server, so the lost POST cannot rotate over the re-presentation,
+> and inside the 60 seconds the server honours the token, counted from a
+> rotation that came after the send. A rotation, a sign-in or a sign-out cancels
+> it. The rule it replaced held the token for 60 seconds counted from giving up
+> (the send plus the 10-second budget), then waited for a caller, so the next
+> presentation always came after the window had closed and its 401 signed the
+> user out (CU-17tkuw64r3v).
 >
-> What it cannot do is make a lost rotation recoverable. That needs the
-> authorization server to accept the previous refresh token for a few seconds
-> after rotation and re-issue the same pair — the standard mitigation for this
-> hazard, and the only fix that removes it. Everything above only narrows the
-> window.
+> What is still lost: a machine that sleeps through the window, which is the
+> 2026-08-01 case above (it re-presents the moment it runs again, the best left
+> to try), and a re-presentation whose own answer is lost too (the next one is
+> past the first rotation's window).
 
 > **The refresh POST sends a body on purpose.** reqwest/hyper omit
 > `Content-Length` for bodyless POSTs — *and* for an explicit zero-length body.
@@ -333,7 +344,7 @@ dials with a fresh bearer.
   rather than awaiting one. Awaiting it put a rotation inside this loop, which
   runs precisely when the network has just broken — the one condition under which
   a rotation's answer goes missing and the session is unrecoverable. A rejected
-  dial costs a backoff; a lost rotation costs the login.
+  dial costs a backoff; a lost rotation can cost the login.
 - With nobody signed in, the callback **parks** instead of returning an error.
   Returning one does not stop the fork — it logs and re-enters its connect loop,
   which is how one overnight logout produced a full TLS+WS handshake every 30
