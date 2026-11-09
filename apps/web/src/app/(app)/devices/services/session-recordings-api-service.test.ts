@@ -17,7 +17,9 @@ const auth = vi.hoisted(() => ({ bearer: null as string | null }));
 const tenant = vi.hoisted(() => ({ host: 'https://tenant.example/' }));
 
 vi.mock('react-relay', () => ({
-  graphql: () => ({}),
+  graphql: (text: TemplateStringsArray) => ({
+    operation: /(?:query|mutation|fragment)\s+(\w+)/.exec(text.join(''))?.[1],
+  }),
   fetchQuery: relay.fetchQuery,
   commitLocalUpdate: relay.commitLocalUpdate,
 }));
@@ -86,6 +88,13 @@ function queriesAnswer(...payloads: unknown[]) {
   for (const payload of payloads) {
     relay.fetchQuery.mockReturnValueOnce({ toPromise: () => Promise.resolve(payload) });
   }
+}
+
+/** The variables each query of `operation` was sent with, in order. */
+function variablesSent(operation: string): unknown[] {
+  return relay.fetchQuery.mock.calls
+    .filter(([, query]) => (query as { operation?: string }).operation === operation)
+    .map(([, , variables]) => variables);
 }
 
 const fetchMock = vi.fn();
@@ -347,7 +356,7 @@ describe('SessionRecordingsApiService', () => {
     expect(relay.fetchQuery.mock.calls.map(call => (call[2] as { after: string | null }).after)).toEqual([null, 'c1']);
   });
 
-  it('opens the requested file with its session, every file of it, hostname and transcript', async () => {
+  it("opens the requested file with its session, every file of it, its device's hostname and transcript", async () => {
     queriesAnswer(
       { remoteSessionRecording: { recordingId: 'rec-2', session: session() } },
       { device: { hostname: 'Romans-MacBook-Pro.local' } },
@@ -376,6 +385,7 @@ describe('SessionRecordingsApiService', () => {
       ['User', false],
     ]);
     expect(chat.history).toHaveBeenCalledWith('dialog-1');
+    expect(variablesSent('sessionRecordingsApiServiceDeviceQuery')).toEqual([{ machineId: 'machine-1' }]);
   });
 
   it('reads a recording the server has not got as not found, and any other failure as itself', async () => {
@@ -393,7 +403,7 @@ describe('SessionRecordingsApiService', () => {
     await expect(service.get('rec-1')).rejects.toBe(timeout);
   });
 
-  it('reads a live session by its id with the hostname, the customer, the chat so far and whether it is recorded', async () => {
+  it("reads a live session by its id with its device's hostname, the customer, the chat so far and whether it is recorded", async () => {
     queriesAnswer(
       { remoteSession: { ...session({ status: 'ACTIVE', recordings: [] }), recordingSuppressed: null } },
       { device: { hostname: 'Romans-MacBook-Pro.local' } },
@@ -414,6 +424,7 @@ describe('SessionRecordingsApiService', () => {
     });
     expect(detail.chat.map(message => message.body)).toEqual(['Hello']);
     expect(relay.fetchQuery.mock.calls[0][2]).toEqual({ sessionId: 'session-1' });
+    expect(variablesSent('sessionRecordingsApiServiceDeviceQuery')).toEqual([{ machineId: 'machine-1' }]);
   });
 
   it('reads a live session started while the recording storage was full as not recorded', async () => {

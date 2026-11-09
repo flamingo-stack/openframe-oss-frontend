@@ -9,6 +9,8 @@ const shell = vi.hoisted(() => ({
   pushTokens: null as ((tokens: Pair) => void) | null,
 }));
 
+const platform = vi.hoisted(() => ({ appShell: true }));
+
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', () => ({ clearAuthedImageCache: vi.fn() }));
 vi.mock('./client-identity', () => ({ clientBundleVersion: () => '0.0.0' }));
 vi.mock('./native-biometrics', () => ({
@@ -27,7 +29,7 @@ vi.mock('./native-shell', () => ({
     shell.pushTokens = listener;
   },
 }));
-vi.mock('./platform', () => ({ isAppShell: () => true }));
+vi.mock('./platform', () => ({ isAppShell: () => platform.appShell }));
 vi.mock('./runtime-config', () => ({
   runtimeEnv: { sharedHostUrl: () => '', enableDevTicketObserver: () => false },
 }));
@@ -72,6 +74,8 @@ beforeEach(() => {
   shell.setTenantHost.mockReset().mockResolvedValue(undefined);
   shell.storedHost = null;
   shell.pushTokens = null;
+  platform.appShell = true;
+  localStorage.clear();
 });
 
 describe('cold-start hydration in a native shell', () => {
@@ -199,5 +203,54 @@ describe('cold-start hydration in a native shell', () => {
 
     expect(store.getAccessTokenSync()).toBe('pushed');
     expect(store.getBiometricLockState()).toBeNull();
+  });
+});
+
+describe('a lock raised at launch, then a push from the shell', () => {
+  async function lockedAtLaunch() {
+    const { store, hydration, fail } = await startHydration();
+    fail({ code: 'DEVICE_LOCKED' });
+    await hydration;
+    expect(store.getBiometricLockState()).toBe('locked');
+    return store;
+  }
+
+  it('lifts the lock when the shell pushes a pair after the device is unlocked', async () => {
+    const store = await lockedAtLaunch();
+    const lockChanges = vi.fn();
+    store.subscribeToBiometricLock(lockChanges);
+
+    shell.pushTokens?.({ accessToken: 'a1', refreshToken: 'r1' });
+
+    expect(store.getAccessTokenSync()).toBe('a1');
+    expect(store.getBiometricLockState()).toBeNull();
+    expect(lockChanges).toHaveBeenCalledWith(null);
+  });
+
+  it('stays locked when the shell pushes an empty pair', async () => {
+    const store = await lockedAtLaunch();
+
+    shell.pushTokens?.({});
+
+    expect(store.getBiometricLockState()).toBe('locked');
+  });
+});
+
+describe('the bearer token for request headers', () => {
+  it('is the access token the shell hydrated', async () => {
+    shell.getTokens.mockResolvedValue({ accessToken: 'a1', refreshToken: 'r1' });
+    const store = await loadStore();
+
+    await store.initTokenStore();
+
+    expect(store.getBearerTokenSync()).toBe('a1');
+  });
+
+  it('is none on cookie-auth web, even with an access token left in localStorage', async () => {
+    platform.appShell = false;
+    const store = await loadStore();
+    localStorage.setItem(store.ACCESS_TOKEN_KEY, 'leftover');
+
+    expect(store.getBearerTokenSync()).toBeNull();
   });
 });

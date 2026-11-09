@@ -1,9 +1,22 @@
+import type { AuthedAsset } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { act, createElement } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { runtimeEnv } from '@/lib/runtime-config';
 
 const mocks = vi.hoisted(() => ({
   mobile: true,
   refreshAccessToken: vi.fn(),
 }));
+
+const TENANT_HOST = vi.hoisted(() => 'https://tenant.example.com');
+
+// One gateway for both ends of a picture: the origin the adapter sanctions for the bearer (read at module load) and
+// the host a backend image path resolves to.
+vi.mock('@/lib/runtime-config', async importOriginal => {
+  const actual = await importOriginal<{ runtimeEnv: typeof runtimeEnv }>();
+  return { ...actual, runtimeEnv: { ...actual.runtimeEnv, tenantHostUrl: () => TENANT_HOST } };
+});
 
 vi.mock('@/lib/platform', async importOriginal => ({
   ...(await importOriginal<Record<string, unknown>>()),
@@ -96,5 +109,52 @@ describe('embedded chat on 426', () => {
     const response = await embedAuthedFetch('/content/api/docs/commands');
     expect(response.status).toBe(426);
     expect(versionCheck.isUpdateRequired()).toBe(false);
+  });
+});
+
+describe('chat auth adapter in bearer mode', () => {
+  const BLOB_URL = 'blob:avatar';
+  const withBearer = expect.objectContaining({
+    headers: expect.objectContaining({ Authorization: 'Bearer token' }),
+  });
+  let root: Root | null = null;
+
+  beforeEach(() => {
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(new Response(new Uint8Array([137, 80, 78, 71]), { headers: { 'Content-Type': 'image/png' } })),
+    );
+    URL.createObjectURL = vi.fn(() => BLOB_URL);
+    URL.revokeObjectURL = vi.fn();
+  });
+
+  afterEach(() => {
+    act(() => root?.unmount());
+    root = null;
+  });
+
+  it('sends the stored bearer with a chat request', async () => {
+    const { embedAuthedFetch } = await load();
+    await embedAuthedFetch('/content/api/docs/commands');
+    expect(fetchMock).toHaveBeenCalledWith('/content/api/docs/commands', withBearer);
+  });
+
+  it("draws an avatar's backend path from the gateway, fetched with the bearer", async () => {
+    await load();
+    const { useAuthedImage } = await import('@flamingo-stack/openframe-frontend-core/hooks');
+    let avatar: AuthedAsset | undefined;
+    function Avatar() {
+      avatar = useAuthedImage('/images/user/1');
+      return null;
+    }
+    root = createRoot(document.createElement('div'));
+    act(() => root?.render(createElement(Avatar)));
+
+    await vi.waitFor(async () => {
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      });
+      expect(avatar).toMatchObject({ status: 'ready', src: BLOB_URL });
+    });
+    expect(fetchMock).toHaveBeenCalledWith(`${TENANT_HOST}/api/images/user/1`, withBearer);
   });
 });
