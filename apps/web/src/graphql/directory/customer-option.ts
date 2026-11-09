@@ -4,7 +4,8 @@ import type {
   customerOption_organization$key,
 } from '@/__generated__/customerOption_organization.graphql';
 
-// One selection for every customer the picker shows: the listed ones and a connection's bound one.
+// A customer with its logo, one selection for every place that names one: the customer picker's options, a
+// connection's bound customers, the customers that claim a directory account, and a directory device's customers.
 const customerOptionFragment = graphql`
   fragment customerOption_organization on Organization @inline {
     organizationId

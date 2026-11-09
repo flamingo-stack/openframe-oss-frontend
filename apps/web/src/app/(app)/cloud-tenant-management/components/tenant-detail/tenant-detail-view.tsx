@@ -1,26 +1,6 @@
 'use client';
 
-import { PenEditIcon, Refresh02VrIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { routes } from '@/lib/routes';
 import { TenantDetailContent } from './tenant-detail-content';
-
-function manageActions(id: string): PageActionButton[] {
-  return [
-    {
-      label: 'Reconnect',
-      icon: <Refresh02VrIcon className="h-5 w-5 text-ods-text-secondary" />,
-      variant: 'outline',
-      href: routes.cloudTenantManagement.reconnect(id),
-    },
-    {
-      label: 'Edit Integration',
-      icon: <PenEditIcon className="h-5 w-5 text-ods-text-secondary" />,
-      variant: 'outline',
-      href: routes.cloudTenantManagement.edit(id),
-    },
-  ];
-}
 
 interface TenantDetailViewProps {
   id: string;
@@ -35,7 +15,7 @@ interface TenantDetailViewProps {
 export function TenantDetailView({ id, loading = false }: TenantDetailViewProps) {
   return (
     <div className="flex w-full flex-col">
-      <TenantDetailContent id={id} actions={manageActions(id)} loading={loading} />
+      <TenantDetailContent id={id} loading={loading} />
     </div>
   );
 }

@@ -4,14 +4,13 @@
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
-import { useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { graphql, useMutation } from 'react-relay';
 import type { useNewTenantFormCreateMutation as CreateMutationType } from '@/__generated__/useNewTenantFormCreateMutation.graphql';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
-import { invalidSubmitHandler } from '../tenant-form/tenant-form-helpers';
 import { TENANT_FORM_DEFAULT_VALUES, type TenantFormData, tenantFormSchema } from '../tenant-form/tenant-form.types';
+import { useSubmitWithAttribution } from '../tenant-form/use-save-integration';
 
 // Selects what the connect step renders, so the page it navigates to reads the store instead of
 // fetching the record it just created; the updater links it under the id lookup that page runs.
@@ -33,7 +32,7 @@ const createMutation = graphql`
 const CREATE_FAILED = 'Could not generate the link';
 
 /**
- * The New page's form (Figma 2097-122192): provider, domain, name and customer, submitted by
+ * The New page's form (Figma 2097-122192): provider, domain and name, submitted by
  * "Generate Connection Link". The API persists the connection and mints its link in that one call,
  * so success is a hand-off to the connect step on the new id — there is nothing to hold here.
  */
@@ -41,9 +40,7 @@ export function useNewTenantForm() {
   const { toast } = useToast();
   const router = useRouter();
   const [commitCreate, isCreating] = useMutation<CreateMutationType>(createMutation);
-  // Set on the click: `handleSubmit` awaits the resolver, so a second click can land before
-  // `isCreating` disables the button (canon `use-customer-form`). Cleared once the write starts.
-  const inFlightRef = useRef(false);
+  const submit = useSubmitWithAttribution();
 
   const form = useForm<TenantFormData>({
     resolver: zodResolver(tenantFormSchema),
@@ -54,7 +51,6 @@ export function useNewTenantForm() {
   });
 
   const onValid = (values: TenantFormData) => {
-    inFlightRef.current = false;
     commitCreate({
       variables: { input: values },
       updater: store => {
@@ -86,15 +82,8 @@ export function useNewTenantForm() {
     });
   };
 
-  const generateLink = () => {
-    if (inFlightRef.current) return;
-    inFlightRef.current = true;
-    const onInvalid = invalidSubmitHandler(toast, 'Cannot generate the link yet');
-    void form.handleSubmit(onValid, errors => {
-      inFlightRef.current = false;
-      onInvalid(errors);
-    })();
-  };
+  // The page holds no customers yet: Connect asks for them once the directory answers.
+  const generateLink = () => submit(form, null, 'Cannot generate the link yet', onValid);
 
   return { form, isCreating, generateLink };
 }

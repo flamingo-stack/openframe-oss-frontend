@@ -25,10 +25,11 @@ import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
 import { useDeviceActionsMenu } from '../hooks/use-device-actions-menu';
 import { useDeviceDetails } from '../hooks/use-device-details';
+import { useDirectoryGate } from '../hooks/use-directory-gate';
 import { isDeviceStillConnecting } from '../utils/tool-connection-status';
 import { RecordingStorageBanner } from './remote-sessions/recording-storage-banner';
 import { RunScriptModal } from './run-script/run-script-modal';
-import { useDeviceTabs } from './tabs/device-tabs';
+import { DeviceDirectoryGateContext, useDeviceTabs } from './tabs/device-tabs';
 
 // Icon size for the "…" dropdown items only. The same registry feeds the header
 // buttons, but there this class never applies: every button variant styles its glyphs
@@ -66,7 +67,8 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
   // disabled tabs (e.g. the commented-out `queries`) and flag-gated tabs the tenant
   // doesn't have are excluded automatically. Otherwise a URL like `?tab=queries`
   // would pass validation but render a blank panel (no component).
-  const deviceTabs = useDeviceTabs();
+  const directoryGate = useDirectoryGate();
+  const deviceTabs = useDeviceTabs(directoryGate);
   const deviceTabIds = deviceTabs.map(tab => tab.id);
 
   const requestedTab = searchParams.get('tab') ?? DEFAULT_DEVICE_TAB;
@@ -238,15 +240,17 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
         <RecordingStorageBanner data-loading-optional />
 
         {/* Tab Navigation */}
-        <TabNavigation tabs={deviceTabs} activeTab={activeTab} onTabChange={handleTabChange} staticLabels>
-          {tabId => (
-            <TabContent
-              activeTab={tabId}
-              TabComponent={getTabComponent(deviceTabs, tabId) ?? null}
-              componentProps={{ device: normalizedDevice }}
-            />
-          )}
-        </TabNavigation>
+        <DeviceDirectoryGateContext.Provider value={directoryGate}>
+          <TabNavigation tabs={deviceTabs} activeTab={activeTab} onTabChange={handleTabChange} staticLabels>
+            {tabId => (
+              <TabContent
+                activeTab={tabId}
+                TabComponent={getTabComponent(deviceTabs, tabId) ?? null}
+                componentProps={{ device: normalizedDevice }}
+              />
+            )}
+          </TabNavigation>
+        </DeviceDirectoryGateContext.Provider>
 
         {/* Run Script — native Scripts modal (GraphQL run API). The legacy Tactical
           ScriptsModal was removed together with the Tactical RMM integration. */}

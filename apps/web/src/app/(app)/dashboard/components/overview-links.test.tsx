@@ -95,7 +95,7 @@ describe('DevicesOverviewSection', () => {
       routes.devices.filtered({ statuses: ['ONLINE'] }),
       routes.devices.filtered({ statuses: ['OFFLINE'] }),
       routes.devices.filtered({ statuses: ['PENDING'] }),
-      routes.devices.archive,
+      routes.devices.archive(),
     ]);
     expect(container.textContent).toContain('Pending Devices');
   });

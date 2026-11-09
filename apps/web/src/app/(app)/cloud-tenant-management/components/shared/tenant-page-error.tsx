@@ -7,11 +7,12 @@ import { loadErrorProps } from '@/lib/query-state';
 /**
  * Failed-load state for a Cloud Tenant Management page: the title redrawn over the error card, since the
  * layout that carries it is inside what threw. The negative margin cancels core `ErrorState`'s 24px padding.
+ * `className` is the layout's own, e.g. `EMBEDDED_PAGE_OFFSET` for a view drawn inside another page's tab.
  */
-export function tenantPageErrorFallback(title: string, message: string) {
+export function tenantPageErrorFallback(title: string, message: string, className?: string) {
   return function TenantPageError(retry: () => void, state: { isOffline: boolean }): ReactNode {
     return (
-      <PageLayout title={title}>
+      <PageLayout title={title} className={className}>
         <div className="-m-[var(--spacing-system-lf)]">
           <LoadError {...loadErrorProps(state.isOffline, message, retry)} />
         </div>

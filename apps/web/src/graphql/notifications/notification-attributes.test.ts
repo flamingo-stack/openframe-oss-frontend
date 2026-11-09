@@ -9,8 +9,26 @@ import {
   NEW_PERMISSIONS_REQUIRED_TYPE,
   NOTIFICATION_ATTR,
   RECORDING_NOTIFICATION_TYPES,
+  readConnectionIds,
   readNotificationAttributes,
 } from './notification-attributes';
+
+describe('readConnectionIds', () => {
+  it("reads a deactivated customer's connection ids in order", () => {
+    const connections = JSON.stringify([
+      { id: 'c-1', name: 'Acme', provider: 'MICROSOFT_365', userCount: 12 },
+      { id: 'c-2', name: 'Acme Google', provider: 'GOOGLE_WORKSPACE', userCount: 3 },
+    ]);
+    expect(readConnectionIds(connections)).toEqual(['c-1', 'c-2']);
+  });
+
+  it('reads no ids from a missing, malformed or foreign value', () => {
+    expect(readConnectionIds(undefined)).toEqual([]);
+    expect(readConnectionIds('not json')).toEqual([]);
+    expect(readConnectionIds('{"id":"c-1"}')).toEqual([]);
+    expect(readConnectionIds('[{"name":"no id"},{"id":""},null,{"id":"c-3"}]')).toEqual(['c-3']);
+  });
+});
 
 describe('the recording notification family', () => {
   it('tells the cards about one recording from the storage ones', () => {

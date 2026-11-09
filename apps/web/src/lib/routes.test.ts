@@ -92,6 +92,11 @@ describe('filtered lists', () => {
     expect(routes.devices.filtered({ organizationIds: ['org 1'] })).toBe('/devices?organizationIds=org+1');
   });
 
+  it("opens the archive, or one customer's", () => {
+    expect(routes.devices.archive()).toBe('/devices/archive');
+    expect(routes.devices.archive({ organizationId: 'org-1' })).toBe('/devices/archive?organizationId=org-1');
+  });
+
   it('drops an empty filter, leaving the bare list', () => {
     expect(routes.devices.filtered({ organizationIds: [], statuses: [] })).toBe(routes.devices.list);
     expect(routes.devices.filtered({ statuses: [] })).toBe(routes.devices.list);
@@ -144,11 +149,35 @@ describe('cloudTenantManagement', () => {
   });
 });
 
+describe('customer groups', () => {
+  it('opens a group, with the customer it came from when there is one', () => {
+    expect(routes.customers.group('g-1')).toBe('/customers/group?id=g-1');
+    expect(routes.customers.group('g-1', { customerId: 'o-1' })).toBe('/customers/group?id=g-1&customerId=o-1');
+    expect(routes.customers.details('o-1', { tab: 'user-groups' })).toBe('/customers/details?id=o-1&tab=user-groups');
+  });
+});
+
+describe('users', () => {
+  it('builds the list and puts the account id in `?id=` on the user page', () => {
+    expect(routes.users.list).toBe('/users');
+    expect(routes.users.details('acc-1')).toBe('/users/details?id=acc-1');
+    expect(routes.users.details('acc-1', { tab: 'details' })).toBe('/users/details?id=acc-1&tab=details');
+    expect(routes.users.edit('acc-1')).toBe('/users/edit?id=acc-1');
+  });
+});
+
 describe('auth.error', () => {
   it('carries the reference as `ref` and nothing else', () => {
     // The page resolves `ref` through the auth server; there is no `error=<text>` form any more.
     expect(routes.auth.error()).toBe('/auth/error');
     expect(routes.auth.error({ ref: 'VERIFICATION_LINK_INVALID' })).toBe('/auth/error?ref=VERIFICATION_LINK_INVALID');
     expect(routes.auth.error({ ref: '7KQ2M9XD' })).toBe('/auth/error?ref=7KQ2M9XD');
+  });
+});
+
+describe('ending a connection', () => {
+  it('has a page per level', () => {
+    expect(routes.cloudTenantManagement.disconnect('c-1')).toBe('/cloud-tenant-management/disconnect?id=c-1');
+    expect(routes.cloudTenantManagement.delete('c-1')).toBe('/cloud-tenant-management/delete?id=c-1');
   });
 });

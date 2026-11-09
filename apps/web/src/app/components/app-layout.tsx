@@ -274,6 +274,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   const insightsEnabled = useFeatureFlag('insights');
   const softwareManagementEnabled = useFeatureFlag('software-management');
   const tenantManagementEnabled = useFeatureFlag('tenant-management');
+  const tenantManagementV2Enabled = useFeatureFlag('tenant-management-v2');
   const billingsEnabled = useFeatureFlag('billings');
   /**
    * What the app-wide billing banners have to say, reported by the hydrator
@@ -384,8 +385,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       insights: insightsEnabled,
       softwareManagement: softwareManagementEnabled,
       tenantManagement: tenantManagementEnabled,
+      tenantManagementV2: tenantManagementV2Enabled,
     }),
-    [insightsEnabled, softwareManagementEnabled, tenantManagementEnabled],
+    [insightsEnabled, softwareManagementEnabled, tenantManagementEnabled, tenantManagementV2Enabled],
   );
 
   const grouped = mingoShell;

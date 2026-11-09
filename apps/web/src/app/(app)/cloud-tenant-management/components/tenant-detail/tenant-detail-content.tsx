@@ -1,25 +1,25 @@
 'use client';
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
-import {
-  LoadingScope,
-  NotFoundError,
-  type PageActionButton,
-  useLoadingScope,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingScope, NotFoundError, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { tenantDetailContentQuery as TenantDetailContentQueryType } from '@/__generated__/tenantDetailContentQuery.graphql';
-import { ContentErrorBoundary, SectionLoadError, useRetryKey } from '@/app/components/shared';
+import { ContentErrorBoundary, noop, SectionLoadError, useRetryKey } from '@/app/components/shared';
 import { routes } from '@/lib/routes';
-import { isReadable } from '../../utils/tenant-presentation';
+import { isReadable, isSyncPaused } from '../../utils/tenant-presentation';
 import { ConsentBlock } from '../consent/consent-block';
 import { useCheckConnection } from '../consent/use-check-connection';
+import { TenantAttributionRules } from './tenant-attribution-rules';
 import { TenantConsentAlert } from './tenant-consent-alert';
 import { TenantConsentIssues } from './tenant-consent-issues';
+import { editAction, reconnectAction, tenantMenuGroups } from './tenant-detail-actions';
 import { TENANT_DETAIL_TITLE, TenantDetailTitle } from './tenant-detail-title';
 import { TenantIntegrationSection } from './tenant-integration-section';
+import { TenantLicensesSection } from './tenant-licenses-section';
 import { TenantSummaryCard } from './tenant-summary-card';
+import { TenantSyncPausedNotice } from './tenant-sync-paused-notice';
+import { useTenantSync } from './use-tenant-sync';
 
 // `directoryConnection` is nullable: an unknown id is a field error, which reaches the page as null.
 // The integration rows are not here — they are `TenantIntegrationSection`'s own island (see there).
@@ -30,9 +30,11 @@ const tenantDetailContentQuery = graphql`
       name
       provider
       consentUrl
+      enabled
       access {
         state
       }
+      ...tenantSyncPausedNotice_connection
       ...tenantSummaryCard_connection
       ...tenantConsentAlert_connection
       ...tenantConsentIssues_connection
@@ -42,12 +44,15 @@ const tenantDetailContentQuery = graphql`
 
 interface TenantDetailContentProps {
   id: string;
-  actions: PageActionButton[];
   /** The module's flag has not answered yet: the content draws in a loading scope and nothing fetches. */
   loading?: boolean;
 }
 
 const BODY_CLASS = 'flex flex-1 flex-col gap-[var(--spacing-system-l)]';
+
+/** The "…" of a tenant still being read: the trigger is drawn, inert. */
+const loadingMenu = (id: string) =>
+  tenantMenuGroups({ id, readable: true, paused: false, onPause: noop, onResume: noop, busy: true });
 
 /**
  * Everything on the details page that waits for the record, with its own boundary: in its scope (while the record
@@ -66,18 +71,26 @@ export function TenantDetailContent({ loading = false, ...props }: TenantDetailC
  * both states share, and does not fetch. Under the card it draws the integration section of a connected tenant (the
  * typical record); a tenant still to connect replaces it with the consent hand-off on arrival.
  *
- * The actions are the page's own, inert: Reconnect and Edit are links to a record the query has not confirmed yet —
- * an unknown id settles into "Tenant not found" with no actions.
+ * The actions are a connected tenant's, inert: they are links to a record the query has not confirmed yet, and which of
+ * them it gets depends on it. An unknown id settles into "Tenant not found" with no actions.
  */
 function TenantDetailContentReader(props: TenantDetailContentProps) {
   if (useLoadingScope()) {
     return (
       <>
-        <TenantDetailTitle title={TENANT_DETAIL_TITLE} loading actions={props.actions} loadingActions />
+        <TenantDetailTitle
+          title={TENANT_DETAIL_TITLE}
+          loading
+          actions={[editAction(props.id)]}
+          menuActions={loadingMenu(props.id)}
+          loadingActions
+        />
         <LoadingScope className={BODY_CLASS}>
           <TenantSummaryCard connection={null} />
-          {/* The connected tenant's section: most records on this page are connected. */}
+          {/* The connected tenant's sections: most records on this page are connected. */}
           <TenantIntegrationSection id={props.id} provider={null} />
+          <TenantAttributionRules id={props.id} />
+          <TenantLicensesSection id={props.id} provider={null} />
         </LoadingScope>
       </>
     );
@@ -85,7 +98,7 @@ function TenantDetailContentReader(props: TenantDetailContentProps) {
   return <TenantDetailContentQuery {...props} />;
 }
 
-function TenantDetailContentQuery({ id, actions }: TenantDetailContentProps) {
+function TenantDetailContentQuery({ id }: TenantDetailContentProps) {
   const router = useRouter();
   const retryKey = useRetryKey();
   const { directoryConnection: connection } = useLazyLoadQuery<TenantDetailContentQueryType>(
@@ -96,6 +109,7 @@ function TenantDetailContentQuery({ id, actions }: TenantDetailContentProps) {
   // A probe that finds the tenant connected flips `access.state` in the store; the integration
   // section below then mounts and reads its own rows.
   const { check, isChecking, verdict } = useCheckConnection(connection?.id ?? null);
+  const { pause, resume, isBusy } = useTenantSync(connection?.id ?? null);
 
   if (!connection) {
     return (
@@ -106,21 +120,47 @@ function TenantDetailContentQuery({ id, actions }: TenantDetailContentProps) {
     );
   }
 
+  const readable = isReadable(connection.access.state);
+
   return (
     <>
-      <TenantDetailTitle title={connection.name} actions={actions} />
+      <TenantDetailTitle
+        title={connection.name}
+        actions={readable ? [editAction(id)] : [reconnectAction(id), editAction(id)]}
+        menuActions={tenantMenuGroups({
+          id,
+          readable,
+          paused: isSyncPaused(connection),
+          onPause: pause,
+          onResume: resume,
+          busy: isBusy,
+        })}
+      />
       <div className={BODY_CLASS}>
+        <TenantSyncPausedNotice connection={connection} />
         <TenantSummaryCard connection={connection} />
         {/* Parts only some tenants have (`data-loading-optional`), read right under the summary they qualify. */}
         <TenantConsentAlert connection={connection} />
         <TenantConsentIssues connection={connection} />
-        {isReadable(connection.access.state) ? (
-          // Its own boundary: a failed live read from the provider loses this section, not the page.
-          <ContentErrorBoundary
-            fallback={retry => <SectionLoadError message="Couldn't load the integration details." onRetry={retry} />}
-          >
-            <TenantIntegrationSection id={connection.id} provider={connection.provider} />
-          </ContentErrorBoundary>
+        {readable ? (
+          <>
+            {/* Each its own error boundary: a failed read loses that section, not the page. */}
+            <ContentErrorBoundary
+              fallback={retry => <SectionLoadError message="Couldn't load the integration details." onRetry={retry} />}
+            >
+              <TenantIntegrationSection id={connection.id} provider={connection.provider} />
+            </ContentErrorBoundary>
+            <ContentErrorBoundary
+              fallback={retry => <SectionLoadError message="Couldn't load the attribution rules." onRetry={retry} />}
+            >
+              <TenantAttributionRules id={connection.id} />
+            </ContentErrorBoundary>
+            <ContentErrorBoundary
+              fallback={retry => <SectionLoadError message="Couldn't load the licences." onRetry={retry} />}
+            >
+              <TenantLicensesSection id={connection.id} provider={connection.provider} />
+            </ContentErrorBoundary>
+          </>
         ) : (
           <ConsentBlock
             mode="details"

@@ -63,9 +63,3 @@ export const ARCHIVED_INCIDENT_STATUSES: readonly InsightStatus[] = [InsightStat
 
 /** Every status — what a list that is not a status tab (the device page's) may filter by. */
 export const ALL_INCIDENT_STATUSES: readonly InsightStatus[] = Object.values(InsightStatus);
-
-/** Keeps only the members of `values` that are values of the enum object `of` — URL params are untyped. */
-export function enumMembers<T extends string>(values: readonly string[], enumObject: Record<string, T>): T[] {
-  const members = new Set<string>(Object.values(enumObject));
-  return values.filter((value): value is T => members.has(value));
-}
