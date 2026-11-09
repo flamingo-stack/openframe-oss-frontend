@@ -294,6 +294,29 @@ describe('SessionRecordingsApiService', () => {
     expect(relay.fetchQuery.mock.calls.map(call => (call[2] as { after: string | null }).after)).toEqual([null, 'c1']);
   });
 
+  it('lists a session once when it was running on the first page and ended by a later one', async () => {
+    queriesAnswer(
+      {
+        remoteSessions: {
+          edges: [{ node: session({ sessionId: 'long', status: 'ACTIVE' }) }, { node: session() }],
+          pageInfo: { hasNextPage: true, endCursor: 'c1' },
+        },
+      },
+      {
+        remoteSessions: {
+          edges: [{ node: session({ sessionId: 'long' }) }, { node: session({ sessionId: 'session-2' }) }],
+          pageInfo: { hasNextPage: false, endCursor: 'c2' },
+        },
+      },
+    );
+    const rows = await service.list('machine-1');
+    expect(rows.map(row => [row.id, row.live])).toEqual([
+      ['long', true],
+      ['session-1', false],
+      ['session-2', false],
+    ]);
+  });
+
   it('opens the requested file with its session, every file of it, hostname and transcript', async () => {
     queriesAnswer(
       { remoteSessionRecording: { recordingId: 'rec-2', session: session() } },
