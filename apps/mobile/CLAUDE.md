@@ -145,8 +145,9 @@ key), so a gated read shows **one** prompt and writes stay silent.
 
 Both plugins implement `refreshTokens`, and **its presence is the switch**: frontend
 `token-refresh-manager.ts` delegates every refresh to it and stops POSTing `/oauth/refresh`
-itself, and `refreshIfStale()` (the resume refresh) becomes a no-op. Refresh tokens rotate
-with no grace window, so there must be exactly one refresher — the shell, which also keeps
+itself, and `refreshIfStale()` (the resume refresh) becomes a no-op. Refresh tokens rotate,
+and the auth server honours a rotated-away token for only 60s
+(`openframe.authz.refresh-token-grace-seconds`), so there must be exactly one refresher — the shell, which also keeps
 the session alive while the WebView is idle. Mirrors desktop `tokens.rs`. Consequence: a
 misconfigured native refresher is a dead session in ~15 min; the device log tags every
 step `[TokenLifecycle]`.
@@ -157,10 +158,21 @@ step `[TokenLifecycle]`.
   Without it every background rotation would drive a gated `SecItemCopyMatching`.
 - **Outcome taxonomy** per POST: rotated / rejected (401 only) / unreached (never left the
   device: no path, DNS, connect, TLS — retried at 1s, 3s) / unknown (went out, no usable
-  answer: timeout, broken response, 5xx, **403**, 2xx with no token headers — never retried,
-  and the token is held back for a 60s cooldown so the next caller can't cash the ambiguity
-  in as a 401). A 403 is deliberately not a rejection: the BFF never answers one here, so it
-  is the WAF's, and says nothing about the credential.
+  answer: timeout, broken response, 5xx, **403**, 2xx with no token headers — not retried
+  within the flight). A 403 is deliberately not a rejection: the BFF never answers one here,
+  so it is the WAF's, and says nothing about the credential.
+- **A lost answer is settled inside the grace window.** After an unknown outcome the shell
+  presents the same refresh token again **on its own, 35s after the lost POST went out**
+  (`lostRotationRetryAfter` / `LOST_ROTATION_RETRY_AFTER_MS`); every caller before that gets
+  `REFRESH_HELD`. 35s is past the gateway's 30s wait on the auth server, so the lost POST
+  cannot rotate over the re-presentation, and inside the 60s the server honours the
+  rotated-away token, counted from a rotation that came after the send — so it gets a fresh
+  pair whether or not the lost POST rotated. The old rule (hold 60s from the moment the shell
+  gave up, then wait for a caller) always landed outside the window, and its 401 signed the
+  user out (CU-17tkuw64r3v; the window shipped server-side 2026-11, oss-lib #2919). iOS holds
+  a background-task assertion over the wait. Still lost: a second lost answer in a row, and a
+  flight that only settles on a resume more than ~60s after its send — a suspended process
+  re-presents the moment it runs, which is all that is left to try.
 - **Bridge mapping — reject, never resolve empty.** The frontend maps an empty resolve to
   session-over → `clearStoredTokens()` → `clearTokens`, which also turns biometric login
   off. So only a 401, or a store that is provably **absent**, resolves empty. A store the

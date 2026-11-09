@@ -81,7 +81,15 @@ final class TokenLifecycle {
     private static final long POLL_INTERVAL_MS = 30_000;
     private static final long[] RETRY_DELAYS_MS = {1_000, 3_000};
     private static final long WALL_CLOCK_BUDGET_MS = 10_000;
-    private static final long LOST_ROTATION_COOLDOWN_MS = 60_000;
+    /**
+     * After a POST whose answer was lost, when — counted from the moment it
+     * went out — the shell presents the same refresh token again, on its own;
+     * every caller before that is held back. Inside the auth server's 60s grace
+     * window for a rotated-away token, and past the gateway's 30s wait on the
+     * auth server, so the lost POST cannot rotate over the re-presentation:
+     * the iOS constant {@code lostRotationRetryAfter} has the full why.
+     */
+    private static final long LOST_ROTATION_RETRY_AFTER_MS = 35_000;
     /** The claim carrying the user UUID in our own access token ({@code sub} is the email). */
     static final String CLAIM_USER_ID = "userId";
     /** The web bundle's own acceptance rule for a header version (client-identity.ts). */
@@ -151,27 +159,30 @@ final class TokenLifecycle {
         final Kind kind;
         final TokenPair pair;
         final String reason;
+        /** UNKNOWN only: when the POST went out (elapsedRealtime). */
+        final long sentAt;
 
-        private Outcome(Kind kind, TokenPair pair, String reason) {
+        private Outcome(Kind kind, TokenPair pair, String reason, long sentAt) {
             this.kind = kind;
             this.pair = pair;
             this.reason = reason;
+            this.sentAt = sentAt;
         }
 
         static Outcome rotated(TokenPair pair) {
-            return new Outcome(Kind.ROTATED, pair, null);
+            return new Outcome(Kind.ROTATED, pair, null, 0);
         }
 
         static Outcome rejected() {
-            return new Outcome(Kind.REJECTED, null, null);
+            return new Outcome(Kind.REJECTED, null, null, 0);
         }
 
         static Outcome unreached(String reason) {
-            return new Outcome(Kind.UNREACHED, null, reason);
+            return new Outcome(Kind.UNREACHED, null, reason, 0);
         }
 
-        static Outcome unknown(String reason) {
-            return new Outcome(Kind.UNKNOWN, null, reason);
+        static Outcome unknown(String reason, long sentAt) {
+            return new Outcome(Kind.UNKNOWN, null, reason, sentAt);
         }
     }
 
@@ -241,8 +252,10 @@ final class TokenLifecycle {
      * belongs to a session that no longer exists.
      */
     private long sessionEpoch;
-    /** When the last refresh went out and got no answer back (elapsedRealtime); null once nothing is in doubt. */
-    private Long lostRotationAt;
+    /** When the last refresh that got no answer back went out (elapsedRealtime); null once nothing is in doubt. */
+    private Long lostRotationSentAt;
+    /** The re-presentation scheduled for LOST_ROTATION_RETRY_AFTER_MS. */
+    private ScheduledFuture<?> lostRotationRetry;
     /** Callers waiting on the refresh in flight; null when none is. */
     private List<Waiter> waiters;
     /** A rotation whose pair could not be written down; memory is the truth meanwhile. */
@@ -471,7 +484,7 @@ final class TokenLifecycle {
             // web view re-saving the pair it just read cannot clear a doubt that
             // stands.
             if (replacedRefresh) {
-                lostRotationAt = null;
+                clearLostRotationLocked();
             }
             cache = merged;
             boolean written = writeLocked(merged, store.isBiometricEnabled());
@@ -541,7 +554,7 @@ final class TokenLifecycle {
         cache = null;
         pendingWrite = false;
         // The doubt belonged to the token being deleted.
-        lostRotationAt = null;
+        clearLostRotationLocked();
         store.delete(SecureTokenStore.COMBINED);
         store.deleteGated(SecureTokenStore.COMBINED);
         store.deleteLegacy();
@@ -746,12 +759,12 @@ final class TokenLifecycle {
             completion.accept(RefreshResult.tokens(current));
             return;
         }
-        if (lostRotationAt != null) {
-            long left = LOST_ROTATION_COOLDOWN_MS - (SystemClock.elapsedRealtime() - lostRotationAt);
+        if (lostRotationSentAt != null) {
+            long left = LOST_ROTATION_RETRY_AFTER_MS - (SystemClock.elapsedRealtime() - lostRotationSentAt);
             if (left > 0) {
                 ShellLog.auth.notice("refresh held back for " + ((left + 999) / 1000)
                     + "s — a rotation's fate is still unknown (trigger: " + trigger + ")");
-                completion.accept(RefreshResult.failed(Code.HELD, "a rotation with an unknown outcome is still cooling down"));
+                completion.accept(RefreshResult.failed(Code.HELD, "a rotation with an unknown outcome is still being settled"));
                 return;
             }
         }
@@ -845,7 +858,7 @@ final class TokenLifecycle {
                 cache = merged;
                 // Whatever an earlier lost rotation did, the pair now held is one
                 // the gateway just issued: nothing is in doubt any more.
-                lostRotationAt = null;
+                clearLostRotationLocked();
                 // The gateway has already rotated, so the refresh token on disk is
                 // spent whether or not this write lands. Memory is the truth; a
                 // failed write is retried on the next foreground.
@@ -857,7 +870,7 @@ final class TokenLifecycle {
             }
             case REJECTED: {
                 ShellLog.auth.error("the gateway answered 401 to the refresh (trigger: " + trigger + ")");
-                String why = lostRotationAt != null
+                String why = lostRotationSentAt != null
                     ? "a refresh whose response was lost had already rotated it"
                     : "the gateway rejected the refresh token";
                 ShellLog.auth.notice("session over (" + why + ") on a refresh (trigger: " + trigger + ") — clearing stored tokens");
@@ -871,10 +884,43 @@ final class TokenLifecycle {
             default:
                 // Stamped on every loss, not just the first: each unanswered POST
                 // is itself newly in doubt.
-                lostRotationAt = SystemClock.elapsedRealtime();
-                ShellLog.auth.notice("refresh went out with no usable answer (" + outcome.reason + ") — holding the token back for "
-                    + (LOST_ROTATION_COOLDOWN_MS / 1000) + "s (trigger: " + trigger + ")");
+                noteLostRotationLocked(outcome.sentAt);
+                ShellLog.auth.notice("refresh went out with no usable answer (" + outcome.reason + ") — presenting the token again "
+                    + (LOST_ROTATION_RETRY_AFTER_MS / 1000) + "s after it went out (trigger: " + trigger + ")");
                 return RefreshResult.failed(Code.UNKNOWN, outcome.reason);
+        }
+    }
+
+    /**
+     * Hold the token back until LOST_ROTATION_RETRY_AFTER_MS past {@code sentAt},
+     * then present it again without waiting for a caller: a caller may not come
+     * before the grace window closes, and after it the token is dead if the
+     * lost POST rotated. A process frozen past that moment re-presents as soon
+     * as it runs again — the best left to try.
+     */
+    private void noteLostRotationLocked(long sentAt) {
+        clearLostRotationLocked();
+        lostRotationSentAt = sentAt;
+        // Half a second late on purpose: the hold in refreshLocked reads the
+        // clock again, and a task firing a hair early would be held back by it.
+        long delay = Math.max(0, LOST_ROTATION_RETRY_AFTER_MS - (SystemClock.elapsedRealtime() - sentAt)) + 500;
+        lostRotationRetry = queue.schedule(() -> {
+            lostRotationRetry = null;
+            // A throw here is swallowed by the executor, and with it the retry.
+            try {
+                refreshLocked(true, null, "a refresh whose answer was lost", ignored -> { });
+            } catch (RuntimeException e) {
+                ShellLog.auth.error("the lost-rotation retry failed: " + e);
+            }
+        }, delay, TimeUnit.MILLISECONDS);
+    }
+
+    /** Nothing is in doubt any more: a rotation landed, a login stored a new pair, or the session ended. */
+    private void clearLostRotationLocked() {
+        lostRotationSentAt = null;
+        if (lostRotationRetry != null) {
+            lostRotationRetry.cancel(false);
+            lostRotationRetry = null;
         }
     }
 
@@ -991,8 +1037,7 @@ final class TokenLifecycle {
                 .post(jsonBody("{}"))
                 .build();
             Call call = client.newCall(request);
-            Flight flight = new Flight(completion);
-            long startedAt = SystemClock.elapsedRealtime();
+            Flight flight = new Flight(completion, SystemClock.elapsedRealtime());
             call.enqueue(new Callback() {
                 @Override
                 public void onFailure(@NonNull Call call, @NonNull IOException e) {
@@ -1002,14 +1047,14 @@ final class TokenLifecycle {
                 @Override
                 public void onResponse(@NonNull Call call, @NonNull Response response) {
                     try (response) {
-                        flight.settle(classifyResponse(response));
+                        flight.settle(classifyResponse(response, flight));
                     }
                 }
             });
             // The wall-clock deadline. Fires late after a sleep — which is fine:
             // whichever of it and the completion settles the flight first wins.
             queue.schedule(() -> {
-                if (SystemClock.elapsedRealtime() - startedAt < WALL_CLOCK_BUDGET_MS) {
+                if (SystemClock.elapsedRealtime() - flight.startedAt < WALL_CLOCK_BUDGET_MS) {
                     return;
                 }
                 if (flight.markCancelled("refresh outlived its " + (WALL_CLOCK_BUDGET_MS / 1000) + "s wall-clock budget")) {
@@ -1021,7 +1066,7 @@ final class TokenLifecycle {
         private Outcome classifyFailure(IOException e, Flight flight) {
             String cancelReason = flight.cancelReason();
             if (cancelReason != null) {
-                return Outcome.unknown(cancelReason);
+                return Outcome.unknown(cancelReason, flight.startedAt);
             }
             // Everything that ends before the request is on the wire: DNS, the
             // connect, the TLS handshake. Anything else — a connection lost
@@ -1042,19 +1087,19 @@ final class TokenLifecycle {
                 return Outcome.unreached(describe(e));
             }
             if (e instanceof InterruptedIOException) {
-                return Outcome.unknown("refresh timed out");
+                return Outcome.unknown("refresh timed out", flight.startedAt);
             }
-            return Outcome.unknown(describe(e));
+            return Outcome.unknown(describe(e), flight.startedAt);
         }
 
-        private Outcome classifyResponse(Response response) {
+        private Outcome classifyResponse(Response response, Flight flight) {
             int status = response.code();
             if (response.isSuccessful()) {
                 TokenPair rotated = rotatedPair(response);
                 if (rotated != null) {
                     return Outcome.rotated(rotated);
                 }
-                return Outcome.unknown("refresh returned no token headers — is mobile auth enabled on the gateway?");
+                return Outcome.unknown("refresh returned no token headers — is mobile auth enabled on the gateway?", flight.startedAt);
             }
             if (status == 401) {
                 return Outcome.rejected();
@@ -1063,7 +1108,7 @@ final class TokenLifecycle {
             // can sit in front of a gateway that already did the work. A 403 is
             // deliberately NOT a rejection — the BFF never answers one on this
             // endpoint, so it is the WAF's, and says nothing about the credential.
-            return Outcome.unknown("refresh failed: HTTP " + status);
+            return Outcome.unknown("refresh failed: HTTP " + status, flight.startedAt);
         }
 
         /**
@@ -1101,11 +1146,14 @@ final class TokenLifecycle {
     /** One POST's bookkeeping: settled exactly once, by the response, the failure, or the deadline. */
     private static final class Flight {
         private final Consumer<Outcome> completion;
+        /** When the POST was handed to OkHttp (elapsedRealtime). */
+        final long startedAt;
         private boolean settled;
         private String cancelReason;
 
-        Flight(Consumer<Outcome> completion) {
+        Flight(Consumer<Outcome> completion, long startedAt) {
             this.completion = completion;
+            this.startedAt = startedAt;
         }
 
         synchronized boolean markCancelled(String reason) {

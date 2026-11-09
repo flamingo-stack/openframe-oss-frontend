@@ -7,8 +7,9 @@ import UIKit
  * against the gateway BFF, and the push of every change to the web view.
  *
  * The shell owns refresh so that exactly ONE refresher exists. Refresh tokens
- * rotate (`reuseRefreshTokens(false)`) with no grace window, so two refreshers
- * sharing a credential retire each other's tokens — the frontend's
+ * rotate (`reuseRefreshTokens(false)`), and the auth server honours a rotated-
+ * away token for only 60s, so two refreshers sharing a credential retire each
+ * other's tokens — the frontend's
  * token-refresh-manager delegates to `NativeAuth.refreshTokens` wherever the
  * shell implements it and stops calling /oauth/refresh itself. This mirrors
  * openframe-desktop's `tokens.rs`, minus its sleep detection (a suspended iOS
@@ -47,12 +48,19 @@ final class TokenLifecycle {
     /// as long as the suspension lasted. The session's own timeouts are set to
     /// the same value as a belt to these braces.
     static let wallClockBudget: TimeInterval = 10
-    /// After a rotation whose answer was lost, how long before the refresh
-    /// token may be presented again. The single flight serializes callers but
-    /// does not coalesce them: without this the next caller re-presents the
-    /// same token the instant the flight ends, which is how an ambiguous
-    /// outcome becomes a rejection — and a rejection is a logout.
-    static let lostRotationCooldown: TimeInterval = 60
+    /// After a POST whose answer was lost, when — counted from the moment it
+    /// went out — the shell presents the same refresh token again, on its own;
+    /// every caller before that is held back. The auth server honours a
+    /// rotated-away token for 60s after the rotation
+    /// (`openframe.authz.refresh-token-grace-seconds`), and the rotation came
+    /// after the send, so this lands inside that window whether or not the lost
+    /// POST rotated. Not sooner: the gateway gives the auth server 30s to answer,
+    /// and a re-presentation that rotates while the lost POST is still being
+    /// served gets rotated over by it, leaving this side holding a token the
+    /// server has retired (the web refresher waits 35s for the same reason). Not
+    /// later: a 60s hold from the moment of giving up always missed the window,
+    /// and the 401 that followed signed the user out.
+    static let lostRotationRetryAfter: TimeInterval = 35
 
     /// Info.plist key carrying the shared auth host, expanded from the
     /// `OPENFRAME_SHARED_HOST_URL` build setting. The release lanes pass it from
@@ -104,10 +112,11 @@ final class TokenLifecycle {
         case rejected
         /// The gateway never saw it — no network path, DNS, connect, TLS. Safe to retry.
         case unreached(String)
-        /// The request went out and its fate is unknown: a broken or timed-out
-        /// response, a non-401 error status, or a success carrying no tokens.
-        /// Never retried.
-        case unknown(String)
+        /// The request went out at `sentAt` and its fate is unknown: a broken or
+        /// timed-out response, a non-401 error status, or a success carrying no
+        /// tokens. Never retried within the flight; re-presented at
+        /// `lostRotationRetryAfter`.
+        case unknown(String, sentAt: Date)
     }
 
     // MARK: - State (on TokenStore.queue)
@@ -122,9 +131,13 @@ final class TokenLifecycle {
     /// a pair), so a rotation that was in flight can tell the answer it holds
     /// belongs to a session that no longer exists.
     private var sessionEpoch: UInt64 = 0
-    /// When the last refresh went out and got no answer back; nil once nothing
+    /// When the last refresh that got no answer back went out; nil once nothing
     /// is in doubt.
-    private var lostRotationAt: Date?
+    private var lostRotationSentAt: Date?
+    /// The re-presentation scheduled for `lostRotationRetryAfter`, and the
+    /// background time that keeps a process leaving the foreground alive for it.
+    private var lostRotationRetry: DispatchWorkItem?
+    private var lostRotationAssertion: UIBackgroundTaskIdentifier = .invalid
     /// Callers waiting on the refresh in flight; nil when none is. Each records
     /// the session epoch it joined under — see `finish`.
     private var waiters: [Waiter]?
@@ -324,7 +337,7 @@ final class TokenLifecycle {
             // web view re-saving the pair it just read cannot clear a doubt that
             // stands.
             if incoming.refresh != nil, incoming.refresh != previousRefresh {
-                lostRotationAt = nil
+                clearLostRotationLocked()
             }
             cache = merged
             let status = writeLocked(merged)
@@ -385,7 +398,7 @@ final class TokenLifecycle {
         cache = nil
         pendingWrite = false
         // The doubt belonged to the token being deleted.
-        lostRotationAt = nil
+        clearLostRotationLocked()
         TokenStore.delete(account: TokenStore.tokensAccount)
         TokenStore.setBiometricGated(false)
         // After the delete, never before: a rotation already past its own
@@ -598,11 +611,11 @@ final class TokenLifecycle {
             completion(.tokens(current))
             return
         }
-        if let lostRotationAt {
-            let left = Self.lostRotationCooldown - Date().timeIntervalSince(lostRotationAt)
+        if let lostRotationSentAt {
+            let left = Self.lostRotationRetryAfter - Date().timeIntervalSince(lostRotationSentAt)
             if left > 0 {
                 ShellLog.auth.notice("refresh held back for \(Int(left.rounded(.up)))s — a rotation's fate is still unknown (trigger: \(trigger))")
-                completion(.failed(code: Code.held, message: "a rotation with an unknown outcome is still cooling down"))
+                completion(.failed(code: Code.held, message: "a rotation with an unknown outcome is still being settled"))
                 return
             }
         }
@@ -723,7 +736,7 @@ final class TokenLifecycle {
             cache = merged
             // Whatever an earlier lost rotation did, the pair now held is one the
             // gateway just issued: nothing is in doubt any more.
-            lostRotationAt = nil
+            clearLostRotationLocked()
             // The gateway has already rotated, so the refresh token on disk is
             // spent whether or not this write lands. Memory is the truth; a
             // failed write is retried when protected data returns.
@@ -733,7 +746,7 @@ final class TokenLifecycle {
             return .tokens(merged)
         case .rejected:
             ShellLog.auth.error("the gateway answered 401 to the refresh (trigger: \(trigger))")
-            let why = lostRotationAt != nil
+            let why = lostRotationSentAt != nil
                 ? "a refresh whose response was lost had already rotated it"
                 : "the gateway rejected the refresh token"
             ShellLog.auth.notice("session over (\(why)) on a refresh (trigger: \(trigger)) — clearing stored tokens")
@@ -742,13 +755,57 @@ final class TokenLifecycle {
             return .sessionOver
         case .unreached(let reason):
             return .failed(code: Code.unreached, message: reason)
-        case .unknown(let reason):
+        case .unknown(let reason, let sentAt):
             // Stamped on every loss, not just the first: each unanswered POST is
             // itself newly in doubt.
-            lostRotationAt = Date()
-            ShellLog.auth.notice("refresh went out with no usable answer (\(reason)) — holding the token back for \(Int(Self.lostRotationCooldown))s (trigger: \(trigger))")
+            noteLostRotationLocked(sentAt: sentAt)
+            ShellLog.auth.notice("refresh went out with no usable answer (\(reason)) — presenting the token again \(Int(Self.lostRotationRetryAfter))s after it went out (trigger: \(trigger))")
             return .failed(code: Code.unknown, message: reason)
         }
+    }
+
+    /// Hold the token back until `lostRotationRetryAfter` past `sentAt`, then
+    /// present it again without waiting for a caller: a caller may not come
+    /// before the grace window closes, and after it the token is dead if the
+    /// lost POST rotated. A flight that settles on a resume long after the send
+    /// re-presents at once — the best left to try.
+    private func noteLostRotationLocked(sentAt: Date) {
+        clearLostRotationLocked()
+        lostRotationSentAt = sentAt
+        var assertion = UIBackgroundTaskIdentifier.invalid
+        assertion = UIApplication.shared.beginBackgroundTask(withName: "ai.openframe.mobile.token-refresh.lost") { [weak self] in
+            guard let self else { return }
+            // Out of background time: the retry stays scheduled and runs on the resume.
+            queue.sync { self.endLostRotationAssertionLocked(assertion) }
+        }
+        lostRotationAssertion = assertion
+        let retry = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.lostRotationRetry = nil
+            // The flight takes its own assertion before this one ends.
+            self.refreshLocked(force: true, rejectedAccessToken: nil, trigger: "a refresh whose answer was lost") { _ in }
+            self.endLostRotationAssertionLocked(assertion)
+        }
+        lostRotationRetry = retry
+        // Half a second late on purpose: the hold in `refreshLocked` reads
+        // `Date()`, and a timer firing a hair early would be held back by it.
+        let delay = max(0, Self.lostRotationRetryAfter - Date().timeIntervalSince(sentAt)) + 0.5
+        queue.asyncAfter(wallDeadline: .now() + delay, execute: retry)
+    }
+
+    /// Nothing is in doubt any more: a rotation landed, a login stored a new
+    /// pair, or the session ended.
+    private func clearLostRotationLocked() {
+        lostRotationSentAt = nil
+        lostRotationRetry?.cancel()
+        lostRotationRetry = nil
+        endLostRotationAssertionLocked(lostRotationAssertion)
+    }
+
+    private func endLostRotationAssertionLocked(_ assertion: UIBackgroundTaskIdentifier) {
+        guard assertion != .invalid, assertion == lostRotationAssertion else { return }
+        lostRotationAssertion = .invalid
+        UIApplication.shared.endBackgroundTask(assertion)
     }
 
     /// Push the stored set to the web view — the full pair after a rotation, an
@@ -918,29 +975,29 @@ final class TokenLifecycle {
             }
             if let error {
                 if let cancelReason = flight.cancelReason {
-                    return .unknown(cancelReason)
+                    return .unknown(cancelReason, sentAt: flight.startedAt)
                 }
                 let urlError = error as? URLError
                 if let urlError, unreachedCodes.contains(urlError.code) {
                     return .unreached(error.localizedDescription)
                 }
-                return .unknown(error.localizedDescription)
+                return .unknown(error.localizedDescription, sentAt: flight.startedAt)
             }
             guard let response else {
-                return .unknown("no HTTP response")
+                return .unknown("no HTTP response", sentAt: flight.startedAt)
             }
             switch response.statusCode {
             case 401:
                 return .rejected
             case 200..<300:
-                return .unknown("refresh returned no token headers — is mobile auth enabled on the gateway?")
+                return .unknown("refresh returned no token headers — is mobile auth enabled on the gateway?", sentAt: flight.startedAt)
             default:
                 // Answered, so a rotation is not ruled out: a 5xx from a front end
                 // can sit in front of a gateway that already did the work. A 403
                 // is deliberately NOT a rejection — the BFF never answers one on
                 // this endpoint, so it is the WAF's, and a WAF verdict says
                 // nothing about the credential.
-                return .unknown("refresh failed: HTTP \(response.statusCode)")
+                return .unknown("refresh failed: HTTP \(response.statusCode)", sentAt: flight.startedAt)
             }
         }
 
