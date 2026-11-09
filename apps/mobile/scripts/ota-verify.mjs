@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 // Checks an over-the-air bundle the way the shells will (docs/ota.md): the
 // signature of mobile.json against apps/mobile/ota/keys.json, its payload, and
-// the zip it names. With no --manifest, checks keys.json alone.
+// the tar.xz it names. With no --manifest, checks keys.json alone.
 //
 //   node apps/mobile/scripts/ota-verify.mjs [--keys <keys.json>]
-//   node apps/mobile/scripts/ota-verify.mjs --manifest <mobile.json> [--zip <bundle.zip>] [--keys <keys.json>]
+//   node apps/mobile/scripts/ota-verify.mjs --manifest <mobile.json> [--bundle <bundle.tar.xz>] [--keys <keys.json>]
 import { createHash, createPublicKey, verify } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
-import { isRegularFile, isSafeEntryName, readZip } from './ota-zip.mjs';
+import { isRegularFile, isSafeEntryName, readTar, xzDecompress } from './ota-tar.mjs';
 
 export const KEYS_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', 'ota', 'keys.json');
 export const KEY_SLOTS = ['current', 'next'];
@@ -24,7 +24,7 @@ const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 const PAYLOAD_KEYS = ['bridgeLevel', 'format', 'sha256', 'size', 'url', 'version'];
 
-export const zipName = version => `openframe-mobile-${version}.zip`;
+export const bundleName = version => `openframe-mobile-${version}.tar.xz`;
 
 /** The id a manifest names its key by: the first 16 hex digits of SHA-256 over the key's SPKI DER. */
 export function keyIdOf(key) {
@@ -40,12 +40,17 @@ export function assertP256(key, what) {
   }
 }
 
-/** keys.json as `keyId -> public key`; both slots must hold distinct P-256 keys. */
+/** keys.json as `keyId -> public key`; both slots must hold distinct P-256 public keys. */
 export function loadKeys(path = KEYS_PATH) {
   const json = JSON.parse(readFileSync(path, 'utf8'));
   const keys = new Map();
   for (const slot of KEY_SLOTS) {
     if (typeof json[slot] !== 'string') throw new Error(`${path}: no "${slot}" key`);
+    // createPublicKey also takes a private key and derives its public half, so a private key
+    // pasted in by mistake would pass and be published with the repository.
+    if (!json[slot].trimStart().startsWith('-----BEGIN PUBLIC KEY-----') || json[slot].includes('PRIVATE')) {
+      throw new Error(`${path}: "${slot}" is not a PEM public key; never commit a private key`);
+    }
     const key = createPublicKey(json[slot]);
     assertP256(key, `${path} "${slot}"`);
     keys.set(keyIdOf(key), key);
@@ -74,8 +79,11 @@ export function verifyManifest(text, keys) {
     throw new Error(`signature does not verify with key ${envelope.keyId}`);
   }
   const payload = JSON.parse(payloadBytes.toString('utf8'));
-  const keysPresent = Object.keys(payload).sort();
-  if (keysPresent.join() !== PAYLOAD_KEYS.join()) throw new Error(`payload fields are ${keysPresent.join(', ')}`);
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) throw new Error('payload is not an object');
+  // Fields this version does not know are ignored, as the shells ignore them: optional additions
+  // (delta archives, for one) can then join format 1 without breaking installed shells.
+  const missing = PAYLOAD_KEYS.filter(key => !Object.hasOwn(payload, key));
+  if (missing.length) throw new Error(`payload has no ${missing.join(', ')}`);
   if (payload.format !== FORMAT) throw new Error(`payload format ${payload.format}`);
   if (typeof payload.version !== 'string' || !VERSION.test(payload.version)) {
     throw new Error(`payload version ${JSON.stringify(payload.version)} is not x.y.z`);
@@ -88,22 +96,22 @@ export function verifyManifest(text, keys) {
   if (
     typeof payload.url !== 'string' ||
     !payload.url.startsWith('https://') ||
-    !payload.url.endsWith(`/${zipName(payload.version)}`)
+    !payload.url.endsWith(`/${bundleName(payload.version)}`)
   ) {
-    throw new Error(`payload url ${JSON.stringify(payload.url)} does not name ${zipName(payload.version)}`);
+    throw new Error(`payload url ${JSON.stringify(payload.url)} does not name ${bundleName(payload.version)}`);
   }
   return payload;
 }
 
 /**
  * The checks a shell makes on a downloaded bundle once its bytes match the manifest:
- * regular files with safe names, intact contents, an `index.html` at the root, and no
- * `window.__ENV` in it. Returns the number of files.
+ * a single xz stream holding a well-formed ustar archive of regular files with safe names,
+ * an `index.html` at the root, and no `window.__ENV` in it. Returns the number of files.
  */
-export function checkBundleContents(zip) {
+export function checkBundleContents(archive) {
   const names = new Set();
   let index = null;
-  for (const entry of readZip(zip)) {
+  for (const entry of readTar(xzDecompress(archive))) {
     if (!isSafeEntryName(entry.name)) throw new Error(`unsafe file name ${JSON.stringify(entry.name)}`);
     if (!isRegularFile(entry)) throw new Error(`${entry.name} is not a regular file`);
     if (names.has(entry.name)) throw new Error(`${entry.name} appears twice`);
@@ -116,16 +124,18 @@ export function checkBundleContents(zip) {
 }
 
 /** Size and SHA-256 against the payload, then `checkBundleContents`. */
-export function verifyBundle(zip, payload) {
-  if (zip.length !== payload.size) throw new Error(`bundle is ${zip.length} bytes, the manifest says ${payload.size}`);
-  const sha256 = createHash('sha256').update(zip).digest('hex');
+export function verifyBundle(archive, payload) {
+  if (archive.length !== payload.size) {
+    throw new Error(`bundle is ${archive.length} bytes, the manifest says ${payload.size}`);
+  }
+  const sha256 = createHash('sha256').update(archive).digest('hex');
   if (sha256 !== payload.sha256) throw new Error(`bundle SHA-256 is ${sha256}, the manifest says ${payload.sha256}`);
-  return checkBundleContents(zip);
+  return checkBundleContents(archive);
 }
 
 function main() {
   const { values } = parseArgs({
-    options: { manifest: { type: 'string' }, zip: { type: 'string' }, keys: { type: 'string', default: KEYS_PATH } },
+    options: { manifest: { type: 'string' }, bundle: { type: 'string' }, keys: { type: 'string', default: KEYS_PATH } },
   });
   const keys = loadKeys(values.keys);
   if (!values.manifest) {
@@ -134,9 +144,9 @@ function main() {
   }
   const payload = verifyManifest(readFileSync(values.manifest, 'utf8'), keys);
   console.log(`✓ ${values.manifest}: ${JSON.stringify(payload)}`);
-  if (values.zip) {
-    const files = verifyBundle(readFileSync(values.zip), payload);
-    console.log(`✓ ${values.zip}: ${files} files`);
+  if (values.bundle) {
+    const files = verifyBundle(readFileSync(values.bundle), payload);
+    console.log(`✓ ${values.bundle}: ${files} files`);
   }
 }
 

@@ -25,7 +25,7 @@ lockfile without its `libc` fields.
   bundle are always one commit.
 - **Release** is one `.github/workflows/release.yml` (version from `version.yml`): a dispatch
   publishes one `x.y.z` release, the web image plus the desktop installers and `updater.json`, and
-  the mobile over-the-air bundle (`openframe-mobile-<x.y.z>.zip` + signed `mobile.json`,
+  the mobile over-the-air bundle (`openframe-mobile-<x.y.z>.tar.xz` + signed `mobile.json`,
   `apps/mobile/docs/ota.md`); a push to `main` builds the `latest` image when the web side
   changed, and the desktop bundles as workflow artifacts (no release) when `apps/desktop` changed.
   Installed desktop apps update through the tenant gateway, which serves the release that

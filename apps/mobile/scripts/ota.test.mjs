@@ -1,4 +1,4 @@
-// node --test apps/mobile/scripts/ota.test.mjs
+// node --test apps/mobile/scripts/ota.test.mjs   (needs the xz and tar tools)
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { generateKeyPairSync, sign } from 'node:crypto';
@@ -8,16 +8,19 @@ import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { pack, readBridgeLevel } from './ota-pack.mjs';
+import { LEFT_OUT, pack, readBridgeLevel } from './ota-pack.mjs';
+import { readTar, writeTar, xzDecompress } from './ota-tar.mjs';
 import { checkBundleContents, keyIdOf, loadKeys, verifyBundle, verifyManifest } from './ota-verify.mjs';
-import { readZip, writeZip } from './ota-zip.mjs';
 
 const SCRIPTS = dirname(fileURLToPath(import.meta.url));
 const VERSION = '1.2.3';
 const URL_BASE = `https://github.com/flamingo-stack/openframe-oss-frontend/releases/download/${VERSION}`;
+// Longer than ustar's 100-byte name field, so it goes through the 155-byte prefix.
+const LONG_PATH = `_next/static/chunks/app/(app)/${'d'.repeat(80)}/${'f'.repeat(60)}.js`;
 
 const p256 = () => generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
 const pem = key => key.export(key.type === 'private' ? { type: 'pkcs8', format: 'pem' } : { type: 'spki', format: 'pem' });
+const xzCompress = data => execFileSync('xz', ['-6', '-T1', '-c'], { input: data, maxBuffer: 2 ** 30 });
 
 function fixture() {
   const dir = mkdtempSync(join(tmpdir(), 'ota-test-'));
@@ -28,8 +31,10 @@ function fixture() {
     '_next/static/chunks/app/(app)/help-center/legal/[docType]/page-0a1b.js': 'console.log(1);'.repeat(500),
     '_next/static/media/logo.svg': '<svg/>',
     'devices/details/index.txt': '',
+    [LONG_PATH]: 'export {};',
   };
-  for (const [name, content] of Object.entries(files)) {
+  const leftOut = Object.fromEntries([...LEFT_OUT].map(name => [name, 'PNG']));
+  for (const [name, content] of Object.entries({ ...files, ...leftOut })) {
     mkdirSync(dirname(join(dist, name)), { recursive: true });
     writeFileSync(join(dist, name), content);
   }
@@ -62,36 +67,44 @@ function envelope(payload, privateKey) {
   });
 }
 
+/** Rewrites a ustar header's checksum after a test has edited the header. */
+function fixChecksum(tar, offset) {
+  let sum = 0;
+  for (let i = 0; i < 512; i++) sum += i >= 148 && i < 156 ? 0x20 : tar[offset + i];
+  tar.write(`${sum.toString(8).padStart(6, '0')}\0 `, offset + 148, 'ascii');
+}
+
 test('pack writes a bundle and a manifest that verify against keys.json', () => {
   const f = fixture();
-  const { zipPath, manifestPath, payload } = packFixture(f);
+  const { bundlePath, manifestPath, payload } = packFixture(f);
   const verified = verifyManifest(readFileSync(manifestPath, 'utf8'), loadKeys(f.keysPath));
   assert.deepEqual(verified, payload);
-  assert.equal(verified.url, `${URL_BASE}/openframe-mobile-${VERSION}.zip`);
+  assert.equal(verified.url, `${URL_BASE}/openframe-mobile-${VERSION}.tar.xz`);
   assert.equal(verified.bridgeLevel, 1);
-  assert.equal(verifyBundle(readFileSync(zipPath), verified), Object.keys(f.files).length);
+  assert.equal(verifyBundle(readFileSync(bundlePath), verified), Object.keys(f.files).length);
 });
 
-test('the bundle holds every file of the export, byte for byte, and nothing else', () => {
+test('the bundle holds every file of the export byte for byte, minus the social preview images', () => {
   const f = fixture();
-  const entries = readZip(readFileSync(packFixture(f).zipPath));
+  const entries = readTar(xzDecompress(readFileSync(packFixture(f).bundlePath)));
   assert.deepEqual(entries.map(e => e.name), Object.keys(f.files).sort());
   for (const entry of entries) assert.equal(entry.data.toString('utf8'), f.files[entry.name]);
 });
 
 test('the same export packs to the same bytes', () => {
   const f = fixture();
-  const first = readFileSync(packFixture(f).zipPath);
-  const second = readFileSync(packFixture(f, { outDir: join(f.dir, 'again') }).zipPath);
+  const first = readFileSync(packFixture(f).bundlePath);
+  const second = readFileSync(packFixture(f, { outDir: join(f.dir, 'again') }).bundlePath);
   assert.ok(first.equals(second));
 });
 
-test('a standard unzip reads the bundle', { skip: spawnSync('unzip', ['-v']).error && 'no unzip on this machine' }, () => {
+test('the system xz and tar read the bundle', () => {
   const f = fixture();
-  const { zipPath } = packFixture(f);
-  execFileSync('unzip', ['-tq', zipPath]);
-  const out = join(f.dir, 'unzipped');
-  execFileSync('unzip', ['-q', zipPath, '-d', out]);
+  const { bundlePath } = packFixture(f);
+  execFileSync('xz', ['-t', bundlePath]);
+  const out = join(f.dir, 'extracted');
+  mkdirSync(out);
+  execFileSync('tar', ['-xJf', bundlePath, '-C', out]);
   for (const [name, content] of Object.entries(f.files)) assert.equal(readFileSync(join(out, name), 'utf8'), content);
 });
 
@@ -126,19 +139,35 @@ test('a payload with a bad field is refused even when signed', () => {
     [{ ...payload, bridgeLevel: 0 }, /bridgeLevel/],
     [{ ...payload, url: payload.url.replace('https:', 'http:') }, /url/],
     [{ ...payload, url: payload.url.replace(`openframe-mobile-${VERSION}`, 'openframe-mobile-1.2.4') }, /url/],
+    [{ ...payload, url: payload.url.replace('.tar.xz', '.zip') }, /url/],
     [{ ...payload, sha256: 'abc' }, /sha256/],
-    [{ ...payload, extra: true }, /fields/],
+    [{ ...payload, size: undefined }, /payload has no size/],
   ];
   for (const [bad, error] of cases) assert.throws(() => verifyManifest(envelope(bad, f.current.privateKey), keys), error);
 });
 
+test('a payload field this version does not know is ignored, as the shells will ignore it', () => {
+  const f = fixture();
+  const { payload } = packFixture(f);
+  const extended = { ...payload, deltas: { '1.2.2': { url: 'https://example.test/d.tar.xz' } } };
+  assert.deepEqual(verifyManifest(envelope(extended, f.current.privateKey), loadKeys(f.keysPath)), extended);
+});
+
 test('a bundle that differs from its manifest is refused', () => {
   const f = fixture();
-  const { zipPath, payload } = packFixture(f);
-  const zip = readFileSync(zipPath);
-  zip[100] ^= 0xff;
-  assert.throws(() => verifyBundle(zip, payload), /SHA-256/);
-  assert.throws(() => verifyBundle(Buffer.concat([zip, Buffer.from([0])]), payload), /bytes/);
+  const { bundlePath, payload } = packFixture(f);
+  const archive = readFileSync(bundlePath);
+  archive[100] ^= 0xff;
+  assert.throws(() => verifyBundle(archive, payload), /SHA-256/);
+  assert.throws(() => verifyBundle(Buffer.concat([archive, Buffer.from([0])]), payload), /bytes/);
+});
+
+test('a bundle that is not a single intact xz stream is refused', () => {
+  const tar = writeTar([{ name: 'index.html', data: Buffer.from('<html></html>') }]);
+  const archive = xzCompress(tar);
+  archive[archive.length - 20] ^= 0xff;
+  assert.throws(() => checkBundleContents(archive), /xz/);
+  assert.throws(() => checkBundleContents(tar), /xz/);
 });
 
 test('pack refuses an export that carries window.__ENV', () => {
@@ -171,27 +200,46 @@ test('pack refuses a version the shells cannot compare', () => {
   assert.throws(() => packFixture(f, { version: 'main-46fad6b' }), /not x\.y\.z/);
 });
 
-test('writeZip refuses names a shell must not write', () => {
-  for (const name of ['../evil', '/etc/passwd', 'a//b', 'a/./b', 'dir/', 'a\\b', 'with space', 'ü.txt']) {
-    assert.throws(() => writeZip([{ name, data: Buffer.from('x') }]), /unsafe file name/, name);
+test('writeTar refuses names a shell must not write, and paths ustar cannot hold', () => {
+  for (const name of ['../evil', '/etc/passwd', 'a//b', 'a/./b', 'dir/', 'a\\b', 'with space', 'ü.txt', 'a/'.repeat(128) + 'b']) {
+    assert.throws(() => writeTar([{ name, data: Buffer.from('x') }]), /unsafe file name/, name);
   }
-  assert.throws(() => writeZip([{ name: 'index.html', data: Buffer.alloc(0) }, { name: 'index.html', data: Buffer.alloc(0) }]), /duplicate/);
+  assert.throws(() => writeTar([{ name: 'x'.repeat(101), data: Buffer.from('x') }]), /too long for the bundle's ustar format/);
+  // A Next RSC payload file named after a long route: the path fits in 255 bytes, its name not in 100.
+  assert.throws(() => writeTar([{ name: `route/__next.${'r'.repeat(90)}.txt`, data: Buffer.from('x') }]), /too long/);
+  assert.throws(
+    () => writeTar([{ name: 'index.html', data: Buffer.alloc(0) }, { name: 'index.html', data: Buffer.alloc(0) }]),
+    /duplicate/,
+  );
 });
 
 test('a bundle entry that is not a regular file is refused', () => {
-  const zip = writeZip([{ name: 'index.html', data: Buffer.from('<html></html>') }]);
-  const central = zip.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
-  zip.writeUInt32LE((0o120777 << 16) >>> 0, central + 38);
-  assert.throws(() => checkBundleContents(zip), /not a regular file/);
+  const tar = writeTar([{ name: 'index.html', data: Buffer.from('<html></html>') }]);
+  tar.write('2', 156, 'ascii');
+  fixChecksum(tar, 0);
+  assert.throws(() => checkBundleContents(xzCompress(tar)), /not a regular file/);
 });
 
-test('a local header naming another file than the central directory is refused', () => {
-  const zip = writeZip([{ name: 'index.html', data: Buffer.from('<html></html>') }]);
-  zip.write('INDEX', 30, 'ascii');
-  assert.throws(() => readZip(zip), /local header names another file/);
+test('readTar refuses a bad header checksum and anything after the end blocks', () => {
+  const tar = writeTar([{ name: 'index.html', data: Buffer.from('<html></html>') }]);
+  const corrupt = Buffer.from(tar);
+  corrupt.write('X', 0, 'ascii');
+  assert.throws(() => readTar(corrupt), /checksum/);
+  assert.throws(() => readTar(Buffer.concat([tar, Buffer.from('trailing')])), /after the last entry/);
+  assert.throws(() => readTar(tar.subarray(0, 1024)), /end-of-archive|after the last entry/);
 });
 
-test('loadKeys needs both slots, distinct, on P-256', () => {
+test('readTar refuses a size field that is not plain octal instead of looping on it', () => {
+  for (const size of ['-0001750\0', '00000001x8\0', '\0']) {
+    const tar = writeTar([{ name: 'index.html', data: Buffer.from('<html></html>') }]);
+    tar.fill(0, 124, 136);
+    tar.write(size, 124, 'ascii');
+    fixChecksum(tar, 0);
+    assert.throws(() => readTar(tar), /not octal/, JSON.stringify(size));
+  }
+});
+
+test('loadKeys needs both slots, distinct, on P-256, and public halves only', () => {
   const f = fixture();
   const write = json => {
     writeFileSync(f.keysPath, JSON.stringify(json));
@@ -201,6 +249,10 @@ test('loadKeys needs both slots, distinct, on P-256', () => {
   assert.throws(() => loadKeys(write({ current: pem(f.current.publicKey), next: pem(f.current.publicKey) })), /same key/);
   const ed25519 = generateKeyPairSync('ed25519').publicKey;
   assert.throws(() => loadKeys(write({ current: pem(ed25519), next: pem(f.next.publicKey) })), /not a P-256 key/);
+  assert.throws(
+    () => loadKeys(write({ current: pem(f.current.privateKey), next: pem(f.next.publicKey) })),
+    /never commit a private key/,
+  );
 });
 
 test('REQUIRED_BRIDGE_LEVEL is readable from native-shell.ts', () => {

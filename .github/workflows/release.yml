@@ -325,7 +325,7 @@ jobs:
       - name: Verify against apps/mobile/ota/keys.json
         env:
           VERSION: ${{ needs.version.outputs.version }}
-        run: node apps/mobile/scripts/ota-verify.mjs --manifest ota-artifacts/mobile.json --zip "ota-artifacts/openframe-mobile-${VERSION}.zip"
+        run: node apps/mobile/scripts/ota-verify.mjs --manifest ota-artifacts/mobile.json --bundle "ota-artifacts/openframe-mobile-${VERSION}.tar.xz"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -500,7 +500,7 @@ jobs:
           - Updater manifest: \`updater.json\`
 
           ## Mobile (over the air)
-          - \`openframe-mobile-${VERSION}.zip\`: the web bundle, one for every environment
+          - \`openframe-mobile-${VERSION}.tar.xz\`: the web bundle, one for every environment
           - \`mobile.json\`: its signed manifest, served to the phones of each environment that runs this release
 
           ---
