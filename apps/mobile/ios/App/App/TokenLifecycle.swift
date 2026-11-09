@@ -7,11 +7,11 @@ import UIKit
  * against the gateway BFF, and the push of every change to the web view.
  *
  * The shell owns refresh so that exactly ONE refresher exists. Refresh tokens
- * rotate (`reuseRefreshTokens(false)`), and the auth server honours a rotated-
- * away token for only 60s, so two refreshers sharing a credential retire each
- * other's tokens — the frontend's
- * token-refresh-manager delegates to `NativeAuth.refreshTokens` wherever the
- * shell implements it and stops calling /oauth/refresh itself. This mirrors
+ * rotate (`reuseRefreshTokens(false)`), and the auth server honours a
+ * rotated-away token for only 60s, so two refreshers sharing a credential
+ * retire each other's tokens — the frontend's token-refresh-manager delegates
+ * to `NativeAuth.refreshTokens` wherever the shell implements it and stops
+ * calling /oauth/refresh itself. This mirrors
  * openframe-desktop's `tokens.rs`, minus its sleep detection (a suspended iOS
  * process is not scheduled, so there is nothing to detect from inside it) and
  * plus what a phone needs: a Keychain that cannot be written while the device is
@@ -54,13 +54,25 @@ final class TokenLifecycle {
     /// rotated-away token for 60s after the rotation
     /// (`openframe.authz.refresh-token-grace-seconds`), and the rotation came
     /// after the send, so this lands inside that window whether or not the lost
-    /// POST rotated. Not sooner: the gateway gives the auth server 30s to answer,
+    /// POST rotated. Not sooner: the gateway gives the auth server 30s to answer
+    /// (`WebClientConfig`'s `responseTimeout` in oss-lib's gateway-service-core),
     /// and a re-presentation that rotates while the lost POST is still being
     /// served gets rotated over by it, leaving this side holding a token the
-    /// server has retired (the web refresher waits 35s for the same reason). Not
-    /// later: a 60s hold from the moment of giving up always missed the window,
-    /// and the 401 that followed signed the user out.
+    /// server has retired (the web's `REFRESH_TIMEOUT_MS` is 35s for the same
+    /// reason). That still happens if the lost POST reached the gateway late in
+    /// its `wallClockBudget` and the auth server spent the rest of this on it.
+    /// Not later: a 60s hold from the moment of giving up always missed the
+    /// window, and the 401 that followed signed the user out.
     static let lostRotationRetryAfter: TimeInterval = 35
+    /// How long after a lost POST the shell may still re-present on its own: a
+    /// few seconds inside the 60s grace, for the POST to reach the server. The
+    /// shell's own re-presentation keeps this window, so if its answer is lost
+    /// too the hold ends past it and the shell stops; a persistent 5xx or 403 is
+    /// not re-posted forever, and callers carry on.
+    static let lostRotationRetryWithin: TimeInterval = 55
+    /// The trigger the shell's own re-presentation runs under; a loss on its
+    /// flight keeps the window of the loss it retries.
+    private static let lostRotationRetryTrigger = "a refresh whose answer was lost"
 
     /// Info.plist key carrying the shared auth host, expanded from the
     /// `OPENFRAME_SHARED_HOST_URL` build setting. The release lanes pass it from
@@ -131,12 +143,16 @@ final class TokenLifecycle {
     /// a pair), so a rotation that was in flight can tell the answer it holds
     /// belongs to a session that no longer exists.
     private var sessionEpoch: UInt64 = 0
-    /// When the last refresh that got no answer back went out; nil once nothing
-    /// is in doubt.
-    private var lostRotationSentAt: Date?
-    /// The re-presentation scheduled for `lostRotationRetryAfter`, and the
-    /// background time that keeps a process leaving the foreground alive for it.
+    /// Until when callers are held back: `lostRotationRetryAfter` past the last
+    /// refresh that went out and got no answer back. Nil once nothing is in doubt.
+    private var lostRotationHoldUntil: Date?
+    /// After when the shell no longer re-presents on its own:
+    /// `lostRotationRetryWithin` past the lost POST it is re-presenting for.
+    private var lostRotationRetryDeadline: Date?
+    /// The scheduled re-presentation.
     private var lostRotationRetry: DispatchWorkItem?
+    /// Background time that keeps a process leaving the foreground alive until
+    /// the scheduled re-presentation (`lostRotationRetry`) has gone out.
     private var lostRotationAssertion: UIBackgroundTaskIdentifier = .invalid
     /// Callers waiting on the refresh in flight; nil when none is. Each records
     /// the session epoch it joined under — see `finish`.
@@ -611,8 +627,8 @@ final class TokenLifecycle {
             completion(.tokens(current))
             return
         }
-        if let lostRotationSentAt {
-            let left = Self.lostRotationRetryAfter - Date().timeIntervalSince(lostRotationSentAt)
+        if let lostRotationHoldUntil {
+            let left = lostRotationHoldUntil.timeIntervalSinceNow
             if left > 0 {
                 ShellLog.auth.notice("refresh held back for \(Int(left.rounded(.up)))s — a rotation's fate is still unknown (trigger: \(trigger))")
                 completion(.failed(code: Code.held, message: "a rotation with an unknown outcome is still being settled"))
@@ -746,7 +762,7 @@ final class TokenLifecycle {
             return .tokens(merged)
         case .rejected:
             ShellLog.auth.error("the gateway answered 401 to the refresh (trigger: \(trigger))")
-            let why = lostRotationSentAt != nil
+            let why = lostRotationHoldUntil != nil
                 ? "a refresh whose response was lost had already rotated it"
                 : "the gateway rejected the refresh token"
             ShellLog.auth.notice("session over (\(why)) on a refresh (trigger: \(trigger)) — clearing stored tokens")
@@ -758,45 +774,68 @@ final class TokenLifecycle {
         case .unknown(let reason, let sentAt):
             // Stamped on every loss, not just the first: each unanswered POST is
             // itself newly in doubt.
-            noteLostRotationLocked(sentAt: sentAt)
-            ShellLog.auth.notice("refresh went out with no usable answer (\(reason)) — presenting the token again \(Int(Self.lostRotationRetryAfter))s after it went out (trigger: \(trigger))")
+            ShellLog.auth.notice("refresh went out with no usable answer (\(reason)) — holding the token back until \(Int(Self.lostRotationRetryAfter))s after it went out (trigger: \(trigger))")
+            noteLostRotationLocked(sentAt: sentAt, onOwnRetry: trigger == Self.lostRotationRetryTrigger)
             return .failed(code: Code.unknown, message: reason)
         }
     }
 
-    /// Hold the token back until `lostRotationRetryAfter` past `sentAt`, then
-    /// present it again without waiting for a caller: a caller may not come
-    /// before the grace window closes, and after it the token is dead if the
-    /// lost POST rotated. A flight that settles on a resume long after the send
-    /// re-presents at once — the best left to try.
-    private func noteLostRotationLocked(sentAt: Date) {
+    /// Hold callers back until `lostRotationRetryAfter` past `sentAt`, and
+    /// re-present then without waiting for one: a caller may not come before
+    /// the grace window closes, and after it the token is dead if the lost POST
+    /// rotated. A loss on the shell's own re-presentation keeps the window of
+    /// the loss it retried, so each lost caller POST gets one re-presentation.
+    /// A flight that settles on a resume long after the send re-presents at
+    /// once, which is all that is left to try.
+    private func noteLostRotationLocked(sentAt: Date, onOwnRetry: Bool) {
+        let deadline = onOwnRetry ? lostRotationRetryDeadline : nil
         clearLostRotationLocked()
-        lostRotationSentAt = sentAt
-        var assertion = UIBackgroundTaskIdentifier.invalid
-        assertion = UIApplication.shared.beginBackgroundTask(withName: "ai.openframe.mobile.token-refresh.lost") { [weak self] in
-            guard let self else { return }
-            // Out of background time: the retry stays scheduled and runs on the resume.
-            queue.sync { self.endLostRotationAssertionLocked(assertion) }
+        let holdUntil = sentAt.addingTimeInterval(Self.lostRotationRetryAfter)
+        lostRotationHoldUntil = holdUntil
+        lostRotationRetryDeadline = deadline ?? sentAt.addingTimeInterval(Self.lostRotationRetryWithin)
+        scheduleLostRotationRetryLocked(at: holdUntil)
+    }
+
+    /// Re-present at `fireAt`, unless that is past `lostRotationRetryDeadline`.
+    /// A re-presentation that never left the device settles nothing, so it is
+    /// tried again at once (the flight spaces its own unreached retries) for as
+    /// long as the deadline allows.
+    private func scheduleLostRotationRetryLocked(at fireAt: Date) {
+        guard let deadline = lostRotationRetryDeadline, fireAt < deadline else {
+            ShellLog.auth.notice("too late to re-present a lost refresh inside the grace window — leaving it to the next caller")
+            return
         }
-        lostRotationAssertion = assertion
+        if lostRotationAssertion == .invalid {
+            var assertion = UIBackgroundTaskIdentifier.invalid
+            assertion = UIApplication.shared.beginBackgroundTask(withName: "ai.openframe.mobile.token-refresh.lost") { [weak self] in
+                guard let self else { return }
+                // Out of background time: the retry stays scheduled and runs on the resume.
+                queue.sync { self.endLostRotationAssertionLocked(assertion) }
+            }
+            lostRotationAssertion = assertion
+        }
         let retry = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.lostRotationRetry = nil
-            // The flight takes its own assertion before this one ends.
-            self.refreshLocked(force: true, rejectedAccessToken: nil, trigger: "a refresh whose answer was lost") { _ in }
-            self.endLostRotationAssertionLocked(assertion)
+            self.refreshLocked(force: true, rejectedAccessToken: nil, trigger: Self.lostRotationRetryTrigger) { result in
+                if case .failed(let code, _) = result, code == Code.unreached, self.lostRotationHoldUntil != nil {
+                    self.scheduleLostRotationRetryLocked(at: Date())
+                }
+            }
+            // The flight has taken its own assertion.
+            self.endLostRotationAssertionLocked(self.lostRotationAssertion)
         }
         lostRotationRetry = retry
-        // Half a second late on purpose: the hold in `refreshLocked` reads
-        // `Date()`, and a timer firing a hair early would be held back by it.
-        let delay = max(0, Self.lostRotationRetryAfter - Date().timeIntervalSince(sentAt)) + 0.5
-        queue.asyncAfter(wallDeadline: .now() + delay, execute: retry)
+        // Wall time, as the hold reads it, so a device sleep does not push the
+        // retry past the window; half a second late, so the hold cannot refuse it.
+        queue.asyncAfter(wallDeadline: .now() + max(0, fireAt.timeIntervalSinceNow) + 0.5, execute: retry)
     }
 
-    /// Nothing is in doubt any more: a rotation landed, a login stored a new
-    /// pair, or the session ended.
+    /// Drop the doubt and everything pending on it: a rotation landed, a login
+    /// stored a new pair, the session ended, or a newer loss replaces it.
     private func clearLostRotationLocked() {
-        lostRotationSentAt = nil
+        lostRotationHoldUntil = nil
+        lostRotationRetryDeadline = nil
         lostRotationRetry?.cancel()
         lostRotationRetry = nil
         endLostRotationAssertionLocked(lostRotationAssertion)

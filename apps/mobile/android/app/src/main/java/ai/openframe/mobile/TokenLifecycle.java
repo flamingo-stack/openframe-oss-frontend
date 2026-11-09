@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.Uri;
+import android.os.PowerManager;
 import android.os.SystemClock;
 import android.util.Base64;
 
@@ -84,12 +85,24 @@ final class TokenLifecycle {
     /**
      * After a POST whose answer was lost, when — counted from the moment it
      * went out — the shell presents the same refresh token again, on its own;
-     * every caller before that is held back. Inside the auth server's 60s grace
-     * window for a rotated-away token, and past the gateway's 30s wait on the
-     * auth server, so the lost POST cannot rotate over the re-presentation:
-     * the iOS constant {@code lostRotationRetryAfter} has the full why.
+     * every caller before that is held back. Inside the auth server's 60s
+     * grace for a rotated-away token
+     * ({@code openframe.authz.refresh-token-grace-seconds}), and past the
+     * gateway's 30s wait on the auth server, so the lost POST should not
+     * rotate over the re-presentation. The iOS {@code lostRotationRetryAfter}
+     * has the full why, and the case where it still does.
      */
     private static final long LOST_ROTATION_RETRY_AFTER_MS = 35_000;
+    /**
+     * How long after a lost POST the shell may still re-present on its own: a
+     * few seconds inside the 60s grace, for the POST to reach the server. The
+     * shell's own re-presentation keeps this window, so if its answer is lost
+     * too the hold ends past it and the shell stops; a persistent 5xx or 403
+     * is not re-posted forever, and callers carry on.
+     */
+    private static final long LOST_ROTATION_RETRY_WITHIN_MS = 55_000;
+    /** The trigger the shell's own re-presentation runs under; a loss on its flight keeps the window of the loss it retries. */
+    private static final String LOST_ROTATION_RETRY_TRIGGER = "a refresh whose answer was lost";
     /** The claim carrying the user UUID in our own access token ({@code sub} is the email). */
     static final String CLAIM_USER_ID = "userId";
     /** The web bundle's own acceptance rule for a header version (client-identity.ts). */
@@ -252,10 +265,25 @@ final class TokenLifecycle {
      * belongs to a session that no longer exists.
      */
     private long sessionEpoch;
-    /** When the last refresh that got no answer back went out (elapsedRealtime); null once nothing is in doubt. */
-    private Long lostRotationSentAt;
-    /** The re-presentation scheduled for LOST_ROTATION_RETRY_AFTER_MS. */
+    /**
+     * Until when callers are held back (elapsedRealtime):
+     * LOST_ROTATION_RETRY_AFTER_MS past the last refresh that went out and got
+     * no answer back. Null once nothing is in doubt.
+     */
+    private Long lostRotationHoldUntil;
+    /**
+     * After when the shell no longer re-presents on its own (elapsedRealtime):
+     * LOST_ROTATION_RETRY_WITHIN_MS past the lost POST it is re-presenting for.
+     */
+    private Long lostRotationRetryDeadline;
+    /** The scheduled re-presentation. */
     private ScheduledFuture<?> lostRotationRetry;
+    /**
+     * Keeps the CPU up until the re-presentation has settled: the executor's
+     * delay runs on the uptime clock, which stops in deep sleep, so a screen
+     * turned off during the wait would otherwise push it past the window.
+     */
+    private final PowerManager.WakeLock lostRotationWakeLock;
     /** Callers waiting on the refresh in flight; null when none is. */
     private List<Waiter> waiters;
     /** A rotation whose pair could not be written down; memory is the truth meanwhile. */
@@ -274,6 +302,10 @@ final class TokenLifecycle {
         this.context = context;
         this.store = new SecureTokenStore(context);
         this.transport = new RefreshTransport();
+        this.lostRotationWakeLock = context.getSystemService(PowerManager.class)
+            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "openframe:lost-rotation-retry");
+        // One holder, released explicitly: a release with nothing held is a no-op.
+        this.lostRotationWakeLock.setReferenceCounted(false);
     }
 
     /** The dumb store. The plugin drives its biometric primitives around the prompt; policy stays here. */
@@ -759,8 +791,8 @@ final class TokenLifecycle {
             completion.accept(RefreshResult.tokens(current));
             return;
         }
-        if (lostRotationSentAt != null) {
-            long left = LOST_ROTATION_RETRY_AFTER_MS - (SystemClock.elapsedRealtime() - lostRotationSentAt);
+        if (lostRotationHoldUntil != null) {
+            long left = lostRotationHoldUntil - SystemClock.elapsedRealtime();
             if (left > 0) {
                 ShellLog.auth.notice("refresh held back for " + ((left + 999) / 1000)
                     + "s — a rotation's fate is still unknown (trigger: " + trigger + ")");
@@ -870,7 +902,7 @@ final class TokenLifecycle {
             }
             case REJECTED: {
                 ShellLog.auth.error("the gateway answered 401 to the refresh (trigger: " + trigger + ")");
-                String why = lostRotationSentAt != null
+                String why = lostRotationHoldUntil != null
                     ? "a refresh whose response was lost had already rotated it"
                     : "the gateway rejected the refresh token";
                 ShellLog.auth.notice("session over (" + why + ") on a refresh (trigger: " + trigger + ") — clearing stored tokens");
@@ -884,44 +916,79 @@ final class TokenLifecycle {
             default:
                 // Stamped on every loss, not just the first: each unanswered POST
                 // is itself newly in doubt.
-                noteLostRotationLocked(outcome.sentAt);
-                ShellLog.auth.notice("refresh went out with no usable answer (" + outcome.reason + ") — presenting the token again "
+                ShellLog.auth.notice("refresh went out with no usable answer (" + outcome.reason + ") — holding the token back until "
                     + (LOST_ROTATION_RETRY_AFTER_MS / 1000) + "s after it went out (trigger: " + trigger + ")");
+                noteLostRotationLocked(outcome.sentAt, LOST_ROTATION_RETRY_TRIGGER.equals(trigger));
                 return RefreshResult.failed(Code.UNKNOWN, outcome.reason);
         }
     }
 
     /**
-     * Hold the token back until LOST_ROTATION_RETRY_AFTER_MS past {@code sentAt},
-     * then present it again without waiting for a caller: a caller may not come
+     * Hold callers back until LOST_ROTATION_RETRY_AFTER_MS past {@code sentAt},
+     * and re-present then without waiting for one: a caller may not come
      * before the grace window closes, and after it the token is dead if the
-     * lost POST rotated. A process frozen past that moment re-presents as soon
-     * as it runs again — the best left to try.
+     * lost POST rotated. A loss on the shell's own re-presentation keeps the
+     * window of the loss it retried, so each lost caller POST gets one
+     * re-presentation. A process frozen past that moment re-presents when it
+     * runs again, which is all that is left to try.
      */
-    private void noteLostRotationLocked(long sentAt) {
+    private void noteLostRotationLocked(long sentAt, boolean onOwnRetry) {
+        Long deadline = onOwnRetry ? lostRotationRetryDeadline : null;
         clearLostRotationLocked();
-        lostRotationSentAt = sentAt;
-        // Half a second late on purpose: the hold in refreshLocked reads the
-        // clock again, and a task firing a hair early would be held back by it.
-        long delay = Math.max(0, LOST_ROTATION_RETRY_AFTER_MS - (SystemClock.elapsedRealtime() - sentAt)) + 500;
+        long holdUntil = sentAt + LOST_ROTATION_RETRY_AFTER_MS;
+        lostRotationHoldUntil = holdUntil;
+        lostRotationRetryDeadline = deadline != null ? deadline : sentAt + LOST_ROTATION_RETRY_WITHIN_MS;
+        scheduleLostRotationRetryLocked(holdUntil);
+    }
+
+    /**
+     * Re-present at {@code fireAt} (elapsedRealtime), unless that is past
+     * lostRotationRetryDeadline. A re-presentation that never left the device
+     * settles nothing, so it is tried again at once (the flight spaces its own
+     * unreached retries) for as long as the deadline allows.
+     */
+    private void scheduleLostRotationRetryLocked(long fireAt) {
+        if (lostRotationRetryDeadline == null || fireAt >= lostRotationRetryDeadline) {
+            ShellLog.auth.notice("too late to re-present a lost refresh inside the grace window — leaving it to the next caller");
+            return;
+        }
+        // A safety bound well past the wait and the flight after it; released as soon as that settles.
+        lostRotationWakeLock.acquire(LOST_ROTATION_RETRY_WITHIN_MS + WALL_CLOCK_BUDGET_MS);
+        // Half a second late, so the hold, which reads the clock again, cannot refuse it.
+        long delay = Math.max(0, fireAt - SystemClock.elapsedRealtime()) + 500;
         lostRotationRetry = queue.schedule(() -> {
             lostRotationRetry = null;
             // A throw here is swallowed by the executor, and with it the retry.
             try {
-                refreshLocked(true, null, "a refresh whose answer was lost", ignored -> { });
+                refreshLocked(true, null, LOST_ROTATION_RETRY_TRIGGER, result -> {
+                    if (result.kind == RefreshResult.Kind.FAILED && Code.UNREACHED.equals(result.code)
+                        && lostRotationHoldUntil != null) {
+                        scheduleLostRotationRetryLocked(SystemClock.elapsedRealtime());
+                    }
+                    // Nothing re-armed, here or by a second loss settling this flight.
+                    if (lostRotationRetry == null) {
+                        lostRotationWakeLock.release();
+                    }
+                });
             } catch (RuntimeException e) {
                 ShellLog.auth.error("the lost-rotation retry failed: " + e);
+                lostRotationWakeLock.release();
             }
         }, delay, TimeUnit.MILLISECONDS);
     }
 
-    /** Nothing is in doubt any more: a rotation landed, a login stored a new pair, or the session ended. */
+    /**
+     * Drop the doubt and everything pending on it: a rotation landed, a login
+     * stored a new pair, the session ended, or a newer loss replaces it.
+     */
     private void clearLostRotationLocked() {
-        lostRotationSentAt = null;
+        lostRotationHoldUntil = null;
+        lostRotationRetryDeadline = null;
         if (lostRotationRetry != null) {
             lostRotationRetry.cancel(false);
             lostRotationRetry = null;
         }
+        lostRotationWakeLock.release();
     }
 
     /**
