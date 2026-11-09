@@ -85,6 +85,22 @@ export function ManhattanCentre({
     } else if (chatView === 'full' && route === 'page') setChatView('split');
   }, [enabled, oneColumn, pathname, route, chatView, setChatView]);
 
+  // "Close page" with the chat waiting behind the page: the chat stops waiting once its page
+  // is on screen (where the view draws nothing), not before — set at the click, the page
+  // being left would show the chat beside it until the chat's page loads.
+  const showChatOnArrivalRef = useRef(false);
+  useEffect(() => {
+    if (!showChatOnArrivalRef.current) return;
+    if (route === 'chat') {
+      showChatOnArrivalRef.current = false;
+      setChatView('split');
+    }
+  }, [route, setChatView]);
+  // Gone elsewhere instead (the navigation was overtaken): the request lapses.
+  useEffect(() => {
+    if (route !== 'chat') showChatOnArrivalRef.current = false;
+  }, [pathname, route]);
+
   // The pages the chat goes back beside ("Show side by side" on a chat's page). The
   // Mingo-first shell records them in its sheet, which v2 does not draw.
   const rememberPage = useMingoSheetStore(s => s.rememberPage);
@@ -114,6 +130,9 @@ export function ManhattanCentre({
               openDialogId={openDialogId}
               onFullScreen={() => setChatView('hidden')}
               onRestoreSplit={() => setChatView(shownChatViewOf(route))}
+              onShowChat={() => {
+                showChatOnArrivalRef.current = true;
+              }}
             />
           ),
         wrapDock: dock => (
@@ -175,14 +194,16 @@ interface ManhattanPageHeaderProps {
   openDialogId: string | null;
   onFullScreen: () => void;
   onRestoreSplit: () => void;
+  /** "Close page" with a chat waiting behind: it no longer waits (`chatView` back to `split` once its page is up). */
+  onShowChat: () => void;
 }
 
 /**
  * The page column's header (plan matrix H): Start Work's title alone; on a page its
  * module's name, then in split "Full screen" (the chat waits behind the page) and
  * "Close page" (the chat alone, on its page), alone "Show side by side" while a chat
- * waits and "Close page" (Start Work). A chat's own page draws none: the chat's header
- * is its header.
+ * waits and "Close page" (that chat on its page; Start Work when no chat is open). A
+ * chat's own page draws none: the chat's header is its header.
  */
 function ManhattanPageHeader({
   route,
@@ -191,14 +212,25 @@ function ManhattanPageHeader({
   openDialogId,
   onFullScreen,
   onRestoreSplit,
+  onShowChat,
 }: ManhattanPageHeaderProps) {
   const router = useRouter();
   if (route === 'chat') return null;
   if (route === 'home') return <AppColumnHeader title="Start Work" />;
   const moduleId = pathname ? navModuleOf(pathname) : null;
   const title = moduleId ? navModuleSectionedLabel(moduleId) : pageTitleOutsideNav(pathname);
+  // The open chat alone, on its page, whether it sits beside the page or waits behind it
+  // (page full screen); Start Work only when no chat is open.
+  // The chat comes forward: the next page shows it beside, as after closing from split.
+  const closePage = () => {
+    if (!openDialogId) {
+      router.push(routes.mingo.home);
+      return;
+    }
+    if (mode !== 'split') onShowChat();
+    router.push(routes.mingo.chat(openDialogId));
+  };
   if (mode === 'split') {
-    const closePage = () => router.push(openDialogId ? routes.mingo.chat(openDialogId) : routes.mingo.home);
     return (
       <AppColumnHeader
         title={title}
@@ -216,7 +248,7 @@ function ManhattanPageHeader({
       layoutAction={openDialogId ? 'restore-split' : undefined}
       layoutActionLabel="Show the chat beside the page"
       onLayoutAction={onRestoreSplit}
-      onClose={() => router.push(routes.mingo.home)}
+      onClose={closePage}
       closeLabel="Close page"
     />
   );

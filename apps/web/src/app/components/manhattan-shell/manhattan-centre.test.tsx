@@ -272,21 +272,48 @@ describe('ManhattanCentre', () => {
     expect(currentMode()).toBe('page');
   });
 
-  it('alone with a chat waiting: brings it back beside the page; close goes to Start Work', () => {
+  it('alone with a chat waiting: brings it back beside the page; close leaves that chat on its page', () => {
     chatState.activeDialogId = 'd-1';
     useManhattanCentreStore.setState({ chatView: 'hidden' });
     renderCentre();
-    click('Close page');
-    expect(nav.push).toHaveBeenCalledWith('/mingo');
-
     click('Show the chat beside the page');
     expect(currentMode()).toBe('split');
   });
 
-  it('alone with no chat: no layout button', () => {
+  it('page full screen, "Close page": the chat on its page, never beside the page on the way', () => {
+    chatState.activeDialogId = 'd-1';
+    useManhattanCentreStore.setState({ chatView: 'hidden' });
+    renderCentre();
+    click('Close page');
+    expect(nav.push).toHaveBeenCalledWith('/mingo/chat?id=d-1');
+    // Until the chat's page is up, the page being left stays as it was: no split for a frame.
+    expect(useManhattanCentreStore.getState().chatView).toBe('hidden');
+    expect(currentMode()).toBe('page');
+
+    nav.pathname = '/mingo/chat/';
+    renderCentre();
+    // On the chat's page the chat no longer waits: the next page shows it beside.
+    expect(useManhattanCentreStore.getState().chatView).toBe('split');
+    expect(currentMode()).toBe('page');
+  });
+
+  it('page full screen, "Close page" overtaken by another navigation: the chat keeps waiting', () => {
+    chatState.activeDialogId = 'd-1';
+    useManhattanCentreStore.setState({ chatView: 'hidden' });
+    renderCentre();
+    click('Close page');
+    nav.pathname = '/software';
+    renderCentre();
+    nav.pathname = '/mingo/chat/';
+    renderCentre();
+    expect(useManhattanCentreStore.getState().chatView).toBe('hidden');
+  });
+
+  it('alone with no chat: no layout button; close goes to Start Work', () => {
     renderCentre();
     expect(currentMode()).toBe('page');
     expect(button('Show the chat beside the page')).toBeNull();
-    expect(button('Close page')).not.toBeNull();
+    click('Close page');
+    expect(nav.push).toHaveBeenCalledWith('/mingo');
   });
 });
