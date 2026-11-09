@@ -20,8 +20,16 @@ export const REFRESH_TOKEN_KEY = 'of_refresh_token';
 /** The shell's reject code for a Keychain it may not read yet: the device is locked. */
 const DEVICE_LOCKED_ERROR = 'DEVICE_LOCKED';
 
+type TokenPair = { accessToken?: string | null; refreshToken?: string | null };
+
 let cachedAccessToken: string | null = null;
 let cachedRefreshToken: string | null = null;
+/**
+ * Moves on every write to the cached pair: an install, a rotation, a clear. A
+ * Keychain read in flight compares it to tell whether its answer is still the
+ * newest thing it knows (unlike the epoch, it also moves on a sign-out).
+ */
+let cacheWrites = 0;
 let hydration: Promise<void> | null = null;
 let tokenUpdateListenerRegistered = false;
 
@@ -155,22 +163,31 @@ function emitTokenChange(): void {
  * The payload is the full stored set, so an empty one is the session ending
  * (same reasoning as `clearTokens`).
  */
-export function adoptNativeTokens(tokens: { accessToken?: string | null; refreshToken?: string | null }): void {
-  const nextAccess = tokens.accessToken || null;
-  // Compared BEFORE the overwrite, and only a genuinely different token counts:
-  // a shell that re-emits the SAME tokens on resume would otherwise advance the
-  // epoch with no new credential, making every in-flight 401 short-circuit to a
-  // retry with the dead token.
-  const rotated = !!nextAccess && nextAccess !== cachedAccessToken;
-  cachedAccessToken = nextAccess;
-  cachedRefreshToken = tokens.refreshToken || null;
-  if (rotated) markTokenRotation();
+export function adoptNativeTokens(tokens: TokenPair): void {
+  installNativePair(tokens);
   // A pair in hand is the end of any lock: the launch read that was refused
   // (device locked, or a biometric prompt the shell has since satisfied) has
   // been answered by the shell itself. The lock boundary re-drives the session
   // check on this transition.
-  if (nextAccess && biometricLockState === 'locked') setBiometricLockState(null);
+  if (cachedAccessToken && biometricLockState === 'locked') setBiometricLockState(null);
   emitTokenChange();
+}
+
+/**
+ * Write a pair the shell holds into the cache; whether it installed a new
+ * credential (`getTokenEpoch`). Compared BEFORE the overwrite, and only a
+ * genuinely different token counts: a shell that re-emits the SAME tokens on
+ * resume would otherwise advance the epoch with no new credential, making every
+ * in-flight 401 short-circuit to a retry with the dead token.
+ */
+function installNativePair(tokens: TokenPair): boolean {
+  const nextAccess = tokens.accessToken || null;
+  const installed = !!nextAccess && nextAccess !== cachedAccessToken;
+  cachedAccessToken = nextAccess;
+  cachedRefreshToken = tokens.refreshToken || null;
+  cacheWrites++;
+  if (installed) markTokenRotation();
+  return installed;
 }
 
 /** Bearer-header auth is used instead of cookies: dev-ticket web mode, or always in the native shell. */
@@ -178,11 +195,19 @@ export function isBearerAuthMode(): boolean {
   return isAppShell() || runtimeEnv.enableDevTicketObserver();
 }
 
+/** The stored access token when auth rides in a header (`isBearerAuthMode`); null otherwise. */
+export function getBearerTokenSync(): string | null {
+  return isBearerAuthMode() ? getAccessTokenSync() : null;
+}
+
 /** Hydrate the in-memory cache from the Keychain (native only). Safe to call repeatedly. */
 export function initTokenStore(): Promise<void> {
   if (!hydration) {
     hydration = (async () => {
       if (!isAppShell()) return;
+      // Taken before the push listener can fire: whatever reaches the cache
+      // from here on (a push, a sign-out) is newer than the Keychain read below.
+      const writesBeforeRead = cacheWrites;
       // Shells with a shell-side refresher rotate tokens while the webview is
       // idle — mirror every rotation into the cache. The event carries the
       // full stored set, so an empty payload means the session is over.
@@ -218,9 +243,18 @@ export function initTokenStore(): Promise<void> {
       }
       try {
         const tokens = await nativeAuthPlugin()?.getTokens();
-        cachedAccessToken = tokens?.accessToken || null;
-        cachedRefreshToken = tokens?.refreshToken || null;
+        // Whatever reached the cache since hydration started (a pair the
+        // shell pushed, a sign-out) is newer than this read: keep it, or a
+        // rotated-away or signed-out token would come back. Otherwise the
+        // install is announced like every other write. Hydration used to fill
+        // the cache silently, so what waits for the first credential never
+        // heard of it: the core lib's authed pictures (through the adapter's
+        // epoch-gated `subscribe`) stayed on initials for the whole session
+        // after a cold start.
+        let installed = false;
+        if (cacheWrites === writesBeforeRead) installed = installNativePair(tokens ?? {});
         setBiometricLockState(null);
+        if (installed) emitTokenChange();
       } catch (error) {
         // With biometric login on, getTokens() prompts and can reject. A cancel
         // (or any generic failure) is NOT a signed-out state — the tokens are
@@ -231,6 +265,9 @@ export function initTokenStore(): Promise<void> {
         const code = nativeErrorCode(error);
         if (code === BIOMETRIC_ERROR.INVALIDATED) {
           setBiometricLockState('invalidated');
+        } else if (cacheWrites !== writesBeforeRead && cachedAccessToken) {
+          // The shell pushed a pair since hydration started: a pair in hand is
+          // the end of any lock (see adoptNativeTokens), so none is raised.
         } else if (
           code === BIOMETRIC_ERROR.CANCELED ||
           code === DEVICE_LOCKED_ERROR ||
@@ -293,12 +330,13 @@ export async function getRefreshToken(): Promise<string | null> {
 }
 
 /** Store whichever tokens are present (rotation responses may carry one or both). */
-export async function setTokens(tokens: { accessToken?: string | null; refreshToken?: string | null }): Promise<void> {
+export async function setTokens(tokens: TokenPair): Promise<void> {
   const { accessToken, refreshToken } = tokens;
   if (isAppShell()) {
     await initTokenStore();
     if (accessToken) cachedAccessToken = accessToken;
     if (refreshToken) cachedRefreshToken = refreshToken;
+    cacheWrites++;
     // AFTER the cache write, never before: the epoch advertises "a newer
     // credential is readable", so bumping it while `getAccessTokenSync()` still
     // returns the old value would make a 401 in that window short-circuit to a
@@ -343,6 +381,7 @@ export async function setTokens(tokens: { accessToken?: string | null; refreshTo
 export async function clearTokens(): Promise<void> {
   cachedAccessToken = null;
   cachedRefreshToken = null;
+  cacheWrites++;
   // Deliberately NOT a rotation: the epoch counts credentials INSTALLED, not
   // credentials changed. Bumping here would tell a 401 that arrived mid-logout
   // "someone already refreshed, just retry" — sending it out with no credential

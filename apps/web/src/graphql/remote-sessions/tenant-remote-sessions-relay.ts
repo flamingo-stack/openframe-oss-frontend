@@ -9,7 +9,8 @@ import { graphql } from 'react-relay';
  * a new variables set is a new connection record, which does exactly that.
  *
  * Each row spreads the session selection the device tab and the recording page
- * read (`sessionRecordingsApiService_session`), plus the device it ran on.
+ * read (`sessionRecordingsApiService_session`), plus the device it ran on and
+ * that device's customer, whose image is the CUSTOMER column's logo.
  */
 export const tenantRemoteSessionsRelayQuery = graphql`
   query tenantRemoteSessionsRelayQuery(
@@ -41,6 +42,7 @@ export const tenantRemoteSessionsRelayFragment = graphql`
             machineId
             displayName
             hostname
+            ...sessionRecordingsApiService_deviceCustomer
           }
         }
       }

@@ -9,6 +9,7 @@ import { matchesTicketSearch, type RecordingTicket, toRecordingTicket } from './
 
 vi.mock('react-relay', () => ({ graphql: () => ({}) }));
 vi.mock('relay-runtime', () => ({ readInlineData: (_fragment: unknown, ref: unknown) => ref }));
+vi.mock('@/lib/runtime-config', () => ({ runtimeEnv: { tenantHostUrl: () => 'https://tenant.example' } }));
 
 const asRef = (link: object) => link as unknown as RecordingTicketRef;
 
@@ -39,6 +40,24 @@ describe('toRecordingTicket', () => {
       assignedAvatarUrl: 'https://cdn.example/roman.png',
       createdAt: '2026-10-15T09:00:00.000Z',
     });
+  });
+
+  it("resolves the assignee's photo on the tenant gateway", () => {
+    expect(
+      toRecordingTicket(
+        asRef({
+          ticketId: '6ad0a6d1',
+          ticketNumber: 1432,
+          title: 'Apps and Tools Question',
+          statusName: null,
+          statusKind: null,
+          statusColor: null,
+          assignedName: 'Roman Smith',
+          assignedAvatarUrl: '/images/user/u-1?v=abc',
+          createdAt: null,
+        }),
+      ).assignedAvatarUrl,
+    ).toBe('https://tenant.example/api/images/user/u-1?v=abc');
   });
 
   it('reads a gone ticket as untitled and an unassigned one as nobody', () => {

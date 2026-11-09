@@ -12,7 +12,7 @@ vi.mock('@/lib/platform', async importOriginal => ({
 }));
 vi.mock('@/lib/token-refresh-manager', () => ({ refreshAccessToken: mocks.refreshAccessToken }));
 vi.mock('@/lib/token-store', () => ({
-  getAccessTokenSync: () => 'token',
+  getBearerTokenSync: () => 'token',
   getTokenEpoch: () => 1,
   isBearerAuthMode: () => true,
   subscribeToTokenChange: () => () => {},
