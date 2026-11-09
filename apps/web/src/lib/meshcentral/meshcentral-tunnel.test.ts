@@ -40,6 +40,11 @@ class FakeSocket {
     this.onclose?.({ code: 1006, reason: '', wasClean: false });
   }
 
+  closeWith(code: number, reason: string) {
+    this.readyState = FakeSocket.CLOSED;
+    this.onclose?.({ code, reason, wasClean: true });
+  }
+
   get relayId(): string | null {
     return new URL(this.url).searchParams.get('id');
   }
@@ -83,6 +88,100 @@ describe('MeshTunnel relay id', () => {
     expect(second.relayId).not.toBe(first.relayId);
     expect(announced).toEqual([first.relayId, second.relayId]);
 
+    tunnel.stop();
+  });
+});
+
+describe('MeshTunnel watch relay', () => {
+  beforeEach(() => {
+    FakeSocket.instances = [];
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', FakeSocket);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('dials without a mesh login, under the watch prefix and a new letters-and-digits nonce each time', async () => {
+    const tunnel = new MeshTunnel({
+      authCookie: '',
+      nodeId: 'node/1',
+      protocol: 2,
+      relayIdPrefix: 'REQUEST.w',
+      onData: () => {},
+    });
+
+    tunnel.start();
+    const first = FakeSocket.instances[0];
+    first.open();
+    first.drop();
+    await vi.runOnlyPendingTimersAsync();
+    const second = FakeSocket.instances[1];
+
+    for (const socket of [first, second]) {
+      const params = new URL(socket.url).searchParams;
+      expect(params.get('auth')).toBeNull();
+      expect(params.get('rauth')).toBeNull();
+      expect(params.get('p')).toBe('2');
+      expect(params.get('browser')).toBe('1');
+      expect(params.get('nodeid')).toBe('node/1');
+      expect(socket.relayId).toMatch(/^REQUEST\.w\.[a-z0-9]{1,32}$/);
+    }
+    expect(second.relayId).not.toBe(first.relayId);
+
+    tunnel.stop();
+  });
+
+  it('stops on a close it refuses instead of refreshing the token and dialling again', async () => {
+    const onFailed = vi.fn();
+    const onBeforeReconnect = vi.fn(() => Promise.resolve());
+    const tunnel = new MeshTunnel({
+      authCookie: '',
+      nodeId: 'node',
+      protocol: 2,
+      relayIdPrefix: 'REQUEST.w',
+      shouldReconnect: event => !(event.code === 1008 && event.reason === 'remote access ended'),
+      onBeforeReconnect,
+      onFailed,
+      onData: () => {},
+    });
+
+    tunnel.start();
+    FakeSocket.instances[0].open();
+    FakeSocket.instances[0].closeWith(1008, 'remote access ended');
+    await vi.runAllTimersAsync();
+
+    expect(FakeSocket.instances).toHaveLength(1);
+    expect(onBeforeReconnect).not.toHaveBeenCalled();
+    expect(onFailed).toHaveBeenCalledTimes(1);
+    tunnel.stop();
+  });
+
+  it('gives up after the redials it may make, and says so', async () => {
+    const onFailed = vi.fn();
+    const tunnel = new MeshTunnel({
+      authCookie: '',
+      nodeId: 'node',
+      protocol: 2,
+      maxReconnectAttempts: 2,
+      onFailed,
+      onData: () => {},
+    });
+
+    tunnel.start();
+    FakeSocket.instances[0].drop();
+    await vi.runOnlyPendingTimersAsync();
+    FakeSocket.instances[1].drop();
+    await vi.runOnlyPendingTimersAsync();
+    FakeSocket.instances[2].drop();
+    await vi.runAllTimersAsync();
+
+    expect(FakeSocket.instances).toHaveLength(3);
+    expect(onFailed).toHaveBeenCalledTimes(1);
     tunnel.stop();
   });
 });

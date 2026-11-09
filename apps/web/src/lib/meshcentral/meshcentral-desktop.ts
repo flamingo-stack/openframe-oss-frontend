@@ -34,6 +34,12 @@ export type DesktopInputHandlers = {
   setClipboardInterceptor?(interceptor: ((type: 'copy' | 'cut' | 'paste', sendKeys: () => void) => void) | null): void;
 };
 
+/**
+ * What a watcher may send (`setSender(…, { watch: true })`): pause / unpause (8) and refresh (6). Anything else -
+ * input, quality, the display list or a display switch - is never sent from a watch socket.
+ */
+const WATCH_COMMANDS: ReadonlySet<number> = new Set([0x0008, 0x0006]);
+
 /** The agent's combined "all displays" view in cmd 11 / cmd 12. */
 const ALL_DISPLAYS = 0xffff;
 
@@ -61,6 +67,9 @@ export class MeshDesktop implements DesktopInputHandlers {
   private readonly maxAccumBytes = 16 * 1024 * 1024;
   private stopped = false;
   private sender: ((data: Uint8Array) => void) | null = null;
+  /** Watching someone else's session: the stream is read, nothing on the device is changed. */
+  private watching = false;
+  private onScreenSizeCallback: ((width: number, height: number) => void) | null = null;
   private remoteWidth = 0;
   private remoteHeight = 0;
   private pressedKeys: Array<{ vk: number; extended: boolean; codepoint?: number }> = [];
@@ -469,9 +478,20 @@ export class MeshDesktop implements DesktopInputHandlers {
     this.invertScrollDirection = invert;
   }
 
-  setSender(sender: (data: Uint8Array) => void) {
+  /**
+   * Where the desktop's commands go. With `watch` the desktop only follows the stream the host runs: each pairing
+   * (`beginStream`) unpauses and refreshes it, and nothing else is ever sent - no quality, no display list, no display
+   * switch (the host's display is the one shown), no input.
+   */
+  setSender(sender: (data: Uint8Array) => void, { watch = false }: { watch?: boolean } = {}) {
     this.sender = sender;
-    this.initializeDesktop();
+    this.watching = watch;
+    if (!watch) this.initializeDesktop();
+  }
+
+  /** The remote screen's size in pixels, each time the agent sets it. */
+  onScreenSizeChange(callback: ((width: number, height: number) => void) | null) {
+    this.onScreenSizeCallback = callback;
   }
 
   private initializeDesktop() {
@@ -495,26 +515,27 @@ export class MeshDesktop implements DesktopInputHandlers {
     this.send(compBuffer);
 
     // Command 3: Unpause Desktop Stream (CRITICAL)
+    this.sendUnpause();
+
+    // Command 4: Request Initial Screen Refresh (Optional but helpful)
+    this.requestRefresh();
+
+    // Command 5: Request Display List for Multiscreen Support
+    this.requestDisplayList();
+  }
+
+  private sendUnpause() {
     const unpauseBuffer = new Uint8Array(5);
     const unpauseView = new DataView(unpauseBuffer.buffer);
     unpauseView.setUint16(0, 0x0008, false); // Command: PAUSE
     unpauseView.setUint16(2, 0x0005, false); // Size: 5 bytes total
     unpauseView.setUint8(4, 0); // 0=unpause, 1=pause
     this.send(unpauseBuffer);
-
-    // Command 4: Request Initial Screen Refresh (Optional but helpful)
-    const refreshBuffer = new Uint8Array(4);
-    const refreshView = new DataView(refreshBuffer.buffer);
-    refreshView.setUint16(0, 0x0006, false); // Command: REFRESH
-    refreshView.setUint16(2, 0x0004, false); // Size: 4 bytes total
-    this.send(refreshBuffer);
-
-    // Command 5: Request Display List for Multiscreen Support
-    this.requestDisplayList();
   }
 
   private send(bytes: Uint8Array) {
     if (!this.sender) return;
+    if (this.watching && !WATCH_COMMANDS.has(bytes.length >= 2 ? (bytes[0] << 8) | bytes[1] : -1)) return;
     try {
       this.sender(bytes);
     } catch {
@@ -693,6 +714,8 @@ export class MeshDesktop implements DesktopInputHandlers {
   }
 
   switchDisplay(displayId: number) {
+    // A watcher shows the host's display; the switch is the host's alone.
+    if (this.watching) return;
     this.requestedDisplay = displayId;
     this.sendSwitchDisplay(displayId);
     this.notifyDisplayList();
@@ -752,7 +775,8 @@ export class MeshDesktop implements DesktopInputHandlers {
    * for as long as the session lasts.
    */
   private applyTargetDisplay() {
-    if (this.displayList.length <= 1) return;
+    // A watcher follows the host's display: the multiplexer sends it every switch.
+    if (this.watching || this.displayList.length <= 1) return;
     const listed = (id: number | null) => id !== null && this.displayList.some(d => d.id === id);
     const target = listed(this.requestedDisplay)
       ? this.requestedDisplay
@@ -779,6 +803,12 @@ export class MeshDesktop implements DesktopInputHandlers {
     // The agent behind a fresh relay streams its own default display; its
     // display list says which, and the answer switches it back to the target.
     this.currentDisplay = null;
+    if (this.watching) {
+      // A watcher is sent the display list by the multiplexer when it joins; it asks for a whole picture.
+      this.sendUnpause();
+      this.requestRefresh();
+      return;
+    }
     this.requestDisplayList();
   }
 
@@ -875,6 +905,7 @@ export class MeshDesktop implements DesktopInputHandlers {
               this.canvas.height = fy;
               this.remoteWidth = fx;
               this.remoteHeight = fy;
+              this.onScreenSizeCallback?.(fx, fy);
             }
           }
         } else if (cmd === 3) {

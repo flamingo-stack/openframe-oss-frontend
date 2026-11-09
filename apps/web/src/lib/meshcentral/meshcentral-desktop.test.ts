@@ -197,3 +197,61 @@ describe('MeshDesktop displays', () => {
     expect(desktop.getDisplayList()).toEqual([]);
   });
 });
+
+describe('MeshDesktop watching', () => {
+  const PAUSE_OFF = [0x00, 0x08, 0x00, 0x05, 0x00];
+  const REFRESH = [0x00, 0x06, 0x00, 0x04];
+
+  function displayList(ids: number[], selected: number): Uint8Array {
+    const words = [ids.length, ...ids, selected];
+    const size = 4 + words.length * 2;
+    return new Uint8Array([0x00, 0x0b, size >> 8, size & 0xff, ...words.flatMap(w => [w >> 8, w & 0xff])]);
+  }
+
+  function watching() {
+    const canvas = document.createElement('canvas');
+    canvas.getContext = () => null;
+    const desktop = new MeshDesktop();
+    desktop.attachRenderOnly(canvas);
+    const frames: number[][] = [];
+    desktop.setSender(bytes => frames.push([...bytes]), { watch: true });
+    const displays: Array<number | null> = [];
+    desktop.onDisplayListChange((_list, current) => displays.push(current));
+    return { desktop, frames, displays };
+  }
+
+  it('sends nothing until the relay pairs, then only an unpause and a refresh per pairing', () => {
+    const { desktop, frames } = watching();
+    expect(frames).toEqual([]);
+    desktop.beginStream();
+    desktop.beginStream();
+    expect(frames).toEqual([PAUSE_OFF, REFRESH, PAUSE_OFF, REFRESH]);
+  });
+
+  it('follows the host display and never switches it, asks for the list or sends input and quality', async () => {
+    const { desktop, frames, displays } = watching();
+    await desktop.onBinaryFrame(displayList([1, 2, 0xffff], 2));
+    desktop.switchDisplay(1);
+    desktop.requestDisplayList();
+    desktop.sendCtrlAltDel();
+    desktop.sendKeyCombo('win+m');
+    expect(frames).toEqual([]);
+    expect(displays).toContain(2);
+    expect(displays.at(-1)).not.toBe(1);
+  });
+
+  it('reports the remote screen size', async () => {
+    const { desktop } = watching();
+    const sizes: Array<[number, number]> = [];
+    desktop.onScreenSizeChange((width, height) => sizes.push([width, height]));
+    await desktop.onBinaryFrame(new Uint8Array([0x00, 0x07, 0x00, 0x08, 0x05, 0x00, 0x02, 0xd0]));
+    expect(sizes).toEqual([[1280, 720]]);
+  });
+
+  it('still starts a technician stream with the full init', () => {
+    const desktop = new MeshDesktop();
+    const commands: number[] = [];
+    desktop.setSender(bytes => commands.push((bytes[0] << 8) | bytes[1]));
+    expect(commands).toEqual([0x000e, 0x0005, 0x0008, 0x0006, 0x000b]);
+  });
+});

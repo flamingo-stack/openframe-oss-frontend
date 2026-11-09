@@ -82,7 +82,7 @@ describe('session row status', () => {
 });
 
 describe('session row target', () => {
-  const OWN = { userId: 'tech-roman', remoteControl: true };
+  const OWN = { userId: 'tech-roman' };
   const target = (overrides: Partial<RecordingSummary> = {}) => ({
     ...row(),
     id: 'session-1',
@@ -104,16 +104,12 @@ describe('session row target', () => {
     expect(sessionHref(target({ recordingState: 'failed' }), OWN)).toBeNull();
   });
 
-  it("opens Remote Control from the technician's own running session, and the live page from anyone else's", () => {
-    expect(sessionHref(target(running), OWN)).toBe('/devices/details/remote-desktop?id=machine-1');
-    expect(sessionHref(target(running), { ...OWN, remoteControl: false })).toBeNull();
+  it("opens the live page from every running session, the technician's own included", () => {
+    expect(sessionHref(target(running), OWN)).toBe('/devices/details/live-session?id=session-1');
     expect(sessionHref(target({ ...running, technicianId: 'tech-dana' }), OWN)).toBe(
       '/devices/details/live-session?id=session-1',
     );
-    // A signed-in user the store has not read yet owns nothing.
-    expect(sessionHref(target(running), { userId: null, remoteControl: true })).toBe(
-      '/devices/details/live-session?id=session-1',
-    );
+    expect(sessionHref(target(running), { userId: null })).toBe('/devices/details/live-session?id=session-1');
   });
 
   it('waits for the recording of an ended session only while a file is still expected', () => {

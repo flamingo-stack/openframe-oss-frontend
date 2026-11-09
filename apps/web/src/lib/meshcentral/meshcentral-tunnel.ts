@@ -21,7 +21,24 @@ type TunnelCallbacks = {
   onRequestPairing?: (relayId: string, tunnelKey: string) => void;
   getAuthCookie?: () => string | null;
   onBeforeReconnect?: () => Promise<void>;
+  /** Called once the relay stops redialling: the server refused a redial (`shouldReconnect`) or the attempts ran out. */
+  onFailed?: () => void;
 };
+
+/** Characters of a relay nonce: the gateway takes 1-32 letters or digits. */
+const NONCE_ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyz';
+const NONCE_LENGTH = 12;
+
+/** A fresh relay nonce, `NONCE_LENGTH` lower-case letters and digits. */
+export function createRelayNonce(): string {
+  const bytes = new Uint8Array(NONCE_LENGTH);
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  return Array.from(bytes, byte => NONCE_ALPHABET[byte % NONCE_ALPHABET.length]).join('');
+}
 
 export class MeshTunnel {
   /** Stable across redials, unlike the relay id. */
@@ -47,13 +64,20 @@ export class MeshTunnel {
        * unique.
        */
       relayIdPrefix?: string;
+      /**
+       * Whether a closed relay redials (default: always). A close it refuses
+       * stops the relay (`onFailed`) instead of a token refresh and a redial.
+       */
+      shouldReconnect?: (event: CloseEvent) => boolean;
+      /** Redials in a row before the relay gives up (`onFailed`); default the manager's. */
+      maxReconnectAttempts?: number;
     } & TunnelCallbacks,
   ) {
     this.id = this.createRelayId();
   }
 
   private createRelayId(): string {
-    const nonce = Math.random().toString(36).slice(2);
+    const nonce = createRelayNonce();
     return this.params.relayIdPrefix ? `${this.params.relayIdPrefix}.${nonce}` : nonce;
   }
 
@@ -96,6 +120,8 @@ export class MeshTunnel {
       binaryType: 'arraybuffer',
       enableMessageQueue: true,
       refreshTokenBeforeReconnect: true,
+      ...(this.params.shouldReconnect && { shouldReconnect: this.params.shouldReconnect }),
+      ...(this.params.maxReconnectAttempts !== undefined && { maxReconnectAttempts: this.params.maxReconnectAttempts }),
       onBeforeReconnect: async () => {
         try {
           await this.params.onBeforeReconnect?.();
@@ -121,6 +147,7 @@ export class MeshTunnel {
         } else if (wsState === 'disconnected' || wsState === 'failed') {
           this.setState(0);
           this.clearLatencyTimer();
+          if (wsState === 'failed') this.params.onFailed?.();
         }
       },
       onOpen: () => {

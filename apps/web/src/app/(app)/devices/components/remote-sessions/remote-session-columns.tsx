@@ -27,7 +27,6 @@ import {
   expiresFilterValue,
   expiresSoonLabel,
   isLiveRow,
-  isOwnSession,
   isRecordingGone,
   type LiveRows,
   sessionHref,
@@ -46,7 +45,7 @@ export interface RemoteSessionColumnsOptions<T extends RecordingSummary = Record
   employeeOptions: FilterOption[];
   /** The clock the "Expires in N hours" countdown reads; ticks in the caller. */
   now: number;
-  /** Set while Watch live is on: running sessions read LIVE, and the signed-in technician's own opens Remote Control. */
+  /** Set while Watch live is on: running sessions read LIVE and open the live session page. */
   liveRows: LiveRows | null;
   onOpen: (row: T) => void;
   onDelete: (row: T) => void;
@@ -211,11 +210,7 @@ function SessionActions<T extends RecordingSummary>({
 }) {
   const loading = useLoadingScope();
   const deletable = !loading && canDeleteSession(row);
-  const openLabel = !isLiveRow(row, liveRows)
-    ? 'Open session recording'
-    : isOwnSession(row, liveRows)
-      ? 'Open Remote Control'
-      : 'Open live session';
+  const openLabel = isLiveRow(row, liveRows) ? 'Watch live' : 'Open session recording';
   return (
     <div data-no-row-click className="pointer-events-auto flex items-center justify-end gap-[var(--spacing-system-mf)]">
       <Button
