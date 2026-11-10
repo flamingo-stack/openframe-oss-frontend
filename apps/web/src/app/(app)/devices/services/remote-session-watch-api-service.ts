@@ -1,6 +1,7 @@
 import { graphql } from 'react-relay';
 import type { remoteSessionWatchApiServiceWatchMutation as WatchMutation } from '@/__generated__/remoteSessionWatchApiServiceWatchMutation.graphql';
 import { commitMutationPromise } from '@/lib/relay/commit-mutation';
+import type { RemoteSessionViewerEntry } from '../types/remote-access';
 import { type RawWire, text } from './remote-access-wire';
 import { SessionNotFoundError } from './session-recordings-service';
 
@@ -36,11 +37,7 @@ const watchMutation = graphql`
 `;
 
 /** Someone watching the session right now. */
-export interface WatchViewer {
-  userId: string;
-  name: string | null;
-  avatarUrl: string | null;
-}
+export type WatchViewer = RemoteSessionViewerEntry;
 
 /** What one watch answer admits: the socket's dial and who is watching. */
 export interface WatchGrant {
@@ -82,7 +79,7 @@ export const WATCH_EVENT_TYPES = {
 export type WatchEvent = { kind: 'viewers'; viewers: WatchViewer[] } | { kind: 'ended' };
 
 /** The current viewers of a list: one entry per user, those who left dropped. */
-function currentViewers(list: readonly unknown[]): WatchViewer[] {
+export function currentViewers(list: readonly unknown[]): WatchViewer[] {
   const seen = new Set<string>();
   const viewers: WatchViewer[] = [];
   for (const item of list) {

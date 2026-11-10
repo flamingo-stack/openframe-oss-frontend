@@ -237,6 +237,16 @@ export interface RemoteSession {
   recordingSuppressed?: 'storage_full' | null;
   /** The session chat dialog; null until the backend provisions it. */
   dialogId: string | null;
+  /** Who is watching the session right now (Watch live); empty while nobody watches. */
+  viewers: RemoteSessionViewerEntry[];
+}
+
+/** Someone watching a running session: one entry per user, however many tabs. */
+export interface RemoteSessionViewerEntry {
+  userId: string;
+  /** The profile name; null when the profile has none. */
+  name: string | null;
+  avatarUrl: string | null;
 }
 
 /** How a session ended, as far as the page knows. */
