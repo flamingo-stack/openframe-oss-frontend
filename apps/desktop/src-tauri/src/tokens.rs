@@ -1000,6 +1000,13 @@ enum Outcome {
     /// request reached the auth service, so nothing rotated and the token is
     /// exactly as good as it was.
     Gone,
+    /// The gateway answered with a failure that is not about the token: a 502 or
+    /// 503 for an auth server it could not use, a 429, a 5xx of its own. The
+    /// attempt has settled, so unlike [`Outcome::Unknown`] nothing is still
+    /// being served that the next presentation could race: no caller is held
+    /// back, and the shell does not re-present it on its own. Not retried
+    /// within this refresh; the callers' own pacing spaces the attempts.
+    Failed(String),
     /// The gateway never saw it — DNS, connect, or TLS. Safe to retry.
     Unreached(String),
     /// The request went out and the outcome is unknown: a broken or timed-out
@@ -1030,7 +1037,9 @@ pub(crate) fn damping_token(rejected: Option<String>, stored: Option<String>) ->
 /// - signed out while the rotation was on the wire → the rotation is dropped
 ///   unused, Ok(empty). The frontend acts on this the same way it acts on any
 ///   empty result, which is right: the session really is over.
-/// - unreached or unknown → Err, stored tokens kept
+/// - unreached, failed or unknown → Err, stored tokens kept. Only an unknown
+///   one holds the token back afterwards and is re-presented by the shell;
+///   after the other two the next call goes out
 /// - the tenant is gone (410, now or earlier) → Err, stored tokens kept, and no
 ///   request made once it is known. The session is not over — only its tenant
 ///   is — and rotating against a deleted tenant cannot succeed.
@@ -1137,7 +1146,7 @@ pub async fn refresh(
         Outcome::Rotated(_) | Outcome::Rejected => {
             lifecycle.consecutive_failures.store(0, Ordering::Relaxed)
         }
-        Outcome::Unreached(_) | Outcome::Unknown(_) => {
+        Outcome::Failed(_) | Outcome::Unreached(_) | Outcome::Unknown(_) => {
             lifecycle
                 .consecutive_failures
                 .fetch_add(1, Ordering::Relaxed);
@@ -1221,7 +1230,7 @@ pub async fn refresh(
             mark_gone(&lifecycle, "a refresh was answered with 410");
             Err(TENANT_GONE.into())
         }
-        Outcome::Unreached(e) => Err(e),
+        Outcome::Failed(e) | Outcome::Unreached(e) => Err(e),
         Outcome::Unknown(e) => {
             // Stamped on every loss, not just the first: each unanswered POST is
             // itself newly in doubt, and its re-presentation has to land inside
@@ -1343,9 +1352,14 @@ fn outcome_for_failure(answer: GatewayAnswer) -> Outcome {
         // refused, its tenant is gone, and ending the session over it would sign
         // the user out of a workspace that may yet be restored.
         _ if answer.deleted_tenant() => Outcome::Gone,
-        // Answered, so a rotation is not ruled out (a 5xx from a front end can
-        // sit in front of a gateway that already did the work).
-        status => Outcome::Unknown(format!("refresh failed: HTTP {status}")),
+        // Answered, so this attempt has settled: nothing is still being served
+        // that a new presentation could race, which is what the hold after a
+        // lost answer is for. Holding here would only refuse every caller, the
+        // user's own Retry included. A rotation is still not ruled out (a 5xx
+        // from a front end can sit in front of a gateway that already did the
+        // work), and for that case sooner is better: the server honours the
+        // token for REFRESH_GRACE_SECS from the rotation.
+        status => Outcome::Failed(format!("refresh failed: HTTP {status}")),
     }
 }
 
@@ -1733,6 +1747,7 @@ mod tests {
         let retryable = |outcome: &Outcome| matches!(outcome, Outcome::Unreached(_));
         assert!(retryable(&Outcome::Unreached("connect refused".into())));
         assert!(!retryable(&Outcome::Unknown("connection closed".into())));
+        assert!(!retryable(&Outcome::Failed("HTTP 503".into())));
         assert!(!retryable(&Outcome::Rejected));
         assert!(!retryable(&Outcome::Rotated(NativeAuthTokens::default())));
     }
@@ -2063,19 +2078,32 @@ mod tests {
             outcome_for_failure(answer(StatusCode::FORBIDDEN)),
             Outcome::Rejected
         ));
-        assert!(matches!(
-            outcome_for_failure(answer(StatusCode::BAD_GATEWAY)),
-            Outcome::Unknown(_)
-        ));
-        assert!(matches!(
-            outcome_for_failure(answer(StatusCode::NOT_FOUND)),
-            Outcome::Unknown(_)
-        ));
         // Only an unreached request is retried, and a 410 is not one.
         assert!(!matches!(
             outcome_for_failure(deleted_tenant_page()),
             Outcome::Unreached(_)
         ));
+    }
+
+    /// A failure the gateway answered with is not an answer that went missing.
+    /// 502 and 503 are how it reports an auth server it could not use, with the
+    /// refresh token untouched; holding the token back after one refused every
+    /// caller while the hold ran, the user's own Retry included.
+    #[test]
+    fn an_answered_failure_is_not_a_lost_answer() {
+        use reqwest::StatusCode;
+        for status in [
+            StatusCode::BAD_GATEWAY,
+            StatusCode::SERVICE_UNAVAILABLE,
+            StatusCode::INTERNAL_SERVER_ERROR,
+            StatusCode::TOO_MANY_REQUESTS,
+            StatusCode::NOT_FOUND,
+        ] {
+            assert!(
+                matches!(outcome_for_failure(answer(status)), Outcome::Failed(_)),
+                "HTTP {status} would arm the lost-rotation hold"
+            );
+        }
     }
 
     /// A tenant service's own 410 is JSON, and is not the tenant being deleted.
@@ -2084,7 +2112,7 @@ mod tests {
         use reqwest::StatusCode;
         assert!(matches!(
             outcome_for_failure(answer(StatusCode::GONE)),
-            Outcome::Unknown(_)
+            Outcome::Failed(_)
         ));
         assert_eq!(
             probe_verdict(Some(answer(StatusCode::GONE))),

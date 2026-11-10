@@ -66,19 +66,26 @@ what must survive idle:
   otherwise be able to land a read-merge-write on top of a rotation that
   completed in between and restore a spent refresh token.
 - **Retries, and what may not be retried.** A refresh is not idempotent, so the
-  three failure modes are kept apart: *unreached* (DNS, connect, TLS — the
+  four failure modes are kept apart: *unreached* (DNS, connect, TLS — the
   gateway never saw it) is retried after 1s and 3s; *rejected* (401/403) is final
-  on the first answer, since re-presenting the same token cannot change it; and
-  *unknown* (a broken or timed-out response, a 5xx, a 200 with no token headers)
-  is not retried on the spot, because a retry on the heels of the lost POST can
-  only turn "maybe rotated" into a rejection; the shell re-presents it 35 seconds
-  after the send instead (see the note below). A fourth, *gone* (410), is settled
-  by the gateway's routing filter before anything can rotate, so it is neither a
-  rejection nor an unknown — see **Tenant gone**.
+  on the first answer, since re-presenting the same token cannot change it;
+  *unknown* (a broken or timed-out response, a 200 with no token headers) is not
+  retried on the spot, because a retry on the heels of the lost POST can only
+  turn "maybe rotated" into a rejection: callers are held, and the shell
+  re-presents it 35 seconds after the send instead (see the note below); and
+  *failed* (any other answer: the gateway's 502/503 for an auth server it could
+  not use, a 429, a 5xx) is not retried within the refresh either, but the
+  attempt has settled, so nothing is still being served that a new presentation
+  could race: no caller is held, and the shell does not re-present it on its
+  own. Classing an answered failure as unknown refused every caller while the
+  hold ran, the Retry on the webview's "can't verify your session" screen
+  included. A fifth, *gone* (410), is settled by the gateway's routing filter
+  before anything can rotate, so it is neither a rejection nor an unknown — see
+  **Tenant gone**.
 - **Outcome contract**, consumed by the frontend's delegation: rotated → tokens;
   session over (rejected, or a rotation that could not be written to disk) →
-  tokens cleared, empty set returned; unreached/unknown → error, stored tokens
-  kept. The `refreshTokens` command takes the access token the webview says the
+  tokens cleared, empty set returned; unreached/failed/unknown → error, stored
+  tokens kept. The `refreshTokens` command takes the access token the webview says the
   gateway refused (`rejectedAccessToken`) and dampens against that, not against
   the stored token: if the store already holds a different one, a rotation
   already happened and the stored tokens are the answer, without a request. A
