@@ -179,8 +179,11 @@ what must survive idle:
 >
 > What is still lost: a machine that sleeps through the window, which is the
 > 2026-08-01 case above (it re-presents the moment it runs again, the best left
-> to try), and a re-presentation whose own answer is lost too (the next one is
-> past the first rotation's window).
+> to try), and a re-presentation whose own answer is lost too. The shell stops
+> there (`arms_lost_rotation_retry`): another would land past the first
+> rotation's window, and a gateway that answers nothing would otherwise be
+> presented the token every 35 seconds with every caller held throughout. The
+> token is left to the next caller once that hold is over, as on mobile.
 
 > **The refresh POST sends a body on purpose.** reqwest/hyper omit
 > `Content-Length` for bodyless POSTs — *and* for an explicit zero-length body.

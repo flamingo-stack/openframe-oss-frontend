@@ -1233,22 +1233,42 @@ pub async fn refresh(
         Outcome::Failed(e) | Outcome::Unreached(e) => Err(e),
         Outcome::Unknown(e) => {
             // Stamped on every loss, not just the first: each unanswered POST is
-            // itself newly in doubt, and its re-presentation has to land inside
-            // the window its own rotation would have opened. Not for a session
-            // signed out while this was on the wire: the doubt belonged to a
-            // token that is gone, and there is nothing left to present.
+            // itself newly in doubt, and holds callers back from its own send. A
+            // caller's loss is re-presented inside the window its own rotation
+            // would have opened; a loss on that re-presentation is not (see
+            // `arms_lost_rotation_retry`). Not for a session signed out while
+            // this was on the wire: the doubt belonged to a token that is gone,
+            // and there is nothing left to present.
             if lifecycle.custody_epoch.load(Ordering::Acquire) == custody {
                 lifecycle
                     .lost_rotation_sent_at
                     .store(sent_at, Ordering::Relaxed);
-                log::warn!(
-                    "[tokens] refresh went out with no usable answer — presenting the token again {LOST_ROTATION_RETRY_AFTER_SECS}s after it went out (trigger: {trigger})"
-                );
-                schedule_lost_rotation_retry(app, sent_at);
+                if arms_lost_rotation_retry(trigger) {
+                    log::warn!(
+                        "[tokens] refresh went out with no usable answer — presenting the token again {LOST_ROTATION_RETRY_AFTER_SECS}s after it went out (trigger: {trigger})"
+                    );
+                    schedule_lost_rotation_retry(app, sent_at);
+                } else {
+                    log::warn!(
+                        "[tokens] the re-presentation of a lost refresh got no usable answer either — holding the token back for {LOST_ROTATION_RETRY_AFTER_SECS}s and leaving it to the next caller"
+                    );
+                }
             }
             Err(e)
         }
     }
+}
+
+/// The trigger the shell's own re-presentation of a lost refresh runs under.
+const LOST_ROTATION_RETRY_TRIGGER: &str = "a refresh whose answer was lost";
+
+/// Whether a refresh that lost its answer is re-presented by the shell. Each
+/// caller's lost POST gets one: a loss on the shell's own re-presentation arms
+/// no other, or a gateway that answers nothing is presented the token every
+/// [`LOST_ROTATION_RETRY_AFTER_SECS`] for as long as that lasts, with every
+/// caller held back throughout. The mobile shells keep the same bound.
+fn arms_lost_rotation_retry(trigger: &str) -> bool {
+    trigger != LOST_ROTATION_RETRY_TRIGGER
 }
 
 /// Present the refresh token again once the hold on a POST that went out at
@@ -1261,7 +1281,7 @@ pub async fn refresh(
 /// Forced for that second case, against the access token stored when it fires,
 /// so a rotation that lands first leaves it nothing to do. Stands down at any
 /// tick that finds the mark no longer its own: a rotation, a sign-in or a
-/// sign-out cleared it, or a later loss armed a re-presentation of its own.
+/// sign-out cleared it, or a later loss replaced it.
 ///
 /// Ticks on the wall clock, for the reason in [`wait_until_settled`]. A machine
 /// that slept past the mark presents at once (behind the settle gate in
@@ -1282,7 +1302,7 @@ fn schedule_lost_rotation_retry(app: &AppHandle, sent_at: u64) {
         if !still_ours() {
             return;
         }
-        if let Err(e) = refresh(&app, true, access, "a refresh whose answer was lost").await {
+        if let Err(e) = refresh(&app, true, access, LOST_ROTATION_RETRY_TRIGGER).await {
             log::warn!("[tokens] re-presenting a refresh whose answer was lost failed: {e}");
         }
     });
@@ -2083,6 +2103,16 @@ mod tests {
             outcome_for_failure(deleted_tenant_page()),
             Outcome::Unreached(_)
         ));
+    }
+
+    /// One re-presentation per lost POST a caller started. Without the bound a
+    /// gateway that keeps answering nothing was re-posted every 35 seconds, and
+    /// each loss renewed the hold on everyone else.
+    #[test]
+    fn a_loss_on_the_shells_own_retry_arms_no_other() {
+        assert!(arms_lost_rotation_retry("webview upstream 401"));
+        assert!(arms_lost_rotation_retry("the background poll"));
+        assert!(!arms_lost_rotation_retry(LOST_ROTATION_RETRY_TRIGGER));
     }
 
     /// A failure the gateway answered with is not an answer that went missing.
