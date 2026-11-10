@@ -6,6 +6,7 @@ import { Loading01Icon, ScanXmarkIcon } from '@flamingo-stack/openframe-frontend
 import { LIVE_PULSE_CLASS, LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { useBusyDeviceLiveSession } from '../../hooks/use-busy-device-live-session';
 import { useRemoteAccessApproval } from '../../hooks/use-remote-access-approval';
 import { useRemoteAccessApprovalGate } from '../../hooks/use-remote-access-approval-gate';
 import { useRemoteSession } from '../../hooks/use-remote-session';
@@ -60,6 +61,12 @@ export function RemoteAccessGate({ deviceId, deviceName, reason, onBack, childre
   // DENIED with the mode recorded, NOTIFY_ONLY / SILENT_ACCESS approve at
   // once, APPROVAL_REQUIRED waits for the end user.
   const policyDenied = approval.request?.status === 'DENIED' && approval.request.mode === 'DENY_ACCESS';
+
+  // Another technician's session on the device: with Watch live on, the page becomes watching it.
+  const busyDevice = useBusyDeviceLiveSession(
+    deviceId,
+    gate === 'on' && approval.state === 'busy' && approval.errorCode === 'DEVICE_HAS_ACTIVE_SESSION',
+  );
 
   // Nothing to type - fire the request as soon as the gate is on. Keyed
   // off `state === 'idle'` rather than a one-shot flag: StrictMode's dev
@@ -127,7 +134,7 @@ export function RemoteAccessGate({ deviceId, deviceName, reason, onBack, childre
         }
       />
     );
-  } else if (approval.state === 'idle' || approval.state === 'requesting') {
+  } else if (approval.state === 'idle' || approval.state === 'requesting' || busyDevice.looking) {
     // Auto-request in flight (NOTIFY/SILENT settle instantly; APPROVAL_REQUIRED
     // proceeds to the awaiting screen).
     body = <BusyMark />;

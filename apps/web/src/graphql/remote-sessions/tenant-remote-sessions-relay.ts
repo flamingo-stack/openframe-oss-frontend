@@ -3,8 +3,9 @@ import { graphql } from 'react-relay';
 /**
  * One row of the tenant-wide list: the session selection the device tab and the
  * recording page read (`sessionRecordingsApiService_session`), plus the device
- * it ran on. Shared by the paged list and the running-sessions poll, so a row
- * reads the same from either.
+ * it ran on and that device's customer, whose image is the CUSTOMER column's
+ * logo. Shared by the paged list and the running-sessions poll, so a row reads
+ * the same from either.
  */
 export const tenantRemoteSessionsRelayRowFragment = graphql`
   fragment tenantRemoteSessionsRelay_row on RemoteSession @inline {
@@ -13,6 +14,7 @@ export const tenantRemoteSessionsRelayRowFragment = graphql`
       machineId
       displayName
       hostname
+      ...sessionRecordingsApiService_deviceCustomer
     }
   }
 `;

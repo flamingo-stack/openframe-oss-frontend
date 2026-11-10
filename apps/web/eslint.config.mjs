@@ -264,6 +264,34 @@ export default defineConfig([
   },
 
   {
+    // A picture is drawn by the core lib (`SquareAvatar`, `EntityImage`, the
+    // boxed `Image`), never by `next/image` directly: the lib's picture resolves a
+    // backend image path to the gateway and, in the native shells, fetches it with
+    // the bearer (`useAuthedAsset`). `next/image` on its own 401s there, the way
+    // the raw `<img>` that `@next/next/no-img-element` already refuses does.
+    // `register-embed-shims.ts` is where the app hands `next/image` to the lib.
+    name: 'openframe-frontend/pictures-through-the-lib',
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/lib/register-embed-shims.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'next/image',
+              message:
+                'Draw pictures with the core lib (SquareAvatar, EntityImage, or the boxed Image from ' +
+                '@flamingo-stack/openframe-frontend-core/embed-shims): next/image alone cannot load a gateway ' +
+                'picture in the native shells. See "Images and Avatars" in apps/web/CLAUDE.md.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
     // `relay/generated-typescript-types` matches on the HOOK NAME alone. This app
     // runs react-relay and TanStack React Query side by side on purpose (see
     // CLAUDE.md: Relay for `/api/graphql`, react-query for REST and the

@@ -224,6 +224,42 @@
       }
     },
     {
+      "name": "a removed rule value opens its tenant",
+      "envelope": {
+        "id": "6729a1f0c3b4d5e6f7a8b917",
+        "title": "A rule lost its group",
+        "type": "DIRECTORY_RULE_VALUE_REMOVED",
+        "category": "INTEGRATIONS",
+        "attributes": {
+          "connectionId": "6729a1f0c3b4d5e6f7a8b918",
+          "valueId": "6729a1f0c3b4d5e6f7a8b919"
+        }
+      },
+      "click": {
+        "type": "DIRECTORY_RULE_VALUE_REMOVED",
+        "category": "INTEGRATIONS",
+        "attributes": {
+          "connectionId": "6729a1f0c3b4d5e6f7a8b918"
+        }
+      }
+    },
+    {
+      "name": "a deactivated customer's tenants are not carried, so the click opens the tenant list",
+      "envelope": {
+        "id": "6729a1f0c3b4d5e6f7a8b920",
+        "title": "Customer deactivated",
+        "type": "DIRECTORY_CUSTOMER_DEACTIVATED",
+        "category": "INTEGRATIONS",
+        "attributes": {
+          "connections": "[{\"id\":\"c-1\",\"name\":\"Acme\"},{\"id\":\"c-2\",\"name\":\"Acme Google\"}]"
+        }
+      },
+      "click": {
+        "type": "DIRECTORY_CUSTOMER_DEACTIVATED",
+        "category": "INTEGRATIONS"
+      }
+    },
+    {
       "name": "an envelope with nothing to route on has no click",
       "envelope": {
         "id": "6729a1f0c3b4d5e6f7a8b915",

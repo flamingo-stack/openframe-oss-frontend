@@ -1,8 +1,9 @@
 /**
  * The live session page: a running session reads LIVE with its meta card, the host's bar and its time counting up;
- * the "not being recorded" banner and the chat show only when the session has them. An ended session turns into the
- * recording's processing screen and, once a file is listed, hands over to the recording page. A session the server
- * does not show is a 404.
+ * the "not being recorded" banner and the chat show only when the session has them. While it runs the host's screen
+ * is watched: the bar names the display shown and who is watching, the meta card the screen's resolution, and a
+ * watch that gave up offers a retry. An ended session turns into the recording's processing screen and, once a file is
+ * listed, hands over to the recording page. A session the server does not show is a 404.
  */
 
 import { act } from 'react';
@@ -20,6 +21,33 @@ const live = vi.hoisted(() => ({
   refetch: vi.fn(),
 }));
 const router = vi.hoisted(() => ({ replace: vi.fn() }));
+const watch = vi.hoisted(() => ({
+  args: vi.fn<(sessionId: string | null, live: boolean) => void>(),
+  state: 'connecting' as 'connecting' | 'streaming' | 'unavailable' | 'ended',
+  viewers: [] as { userId: string; name: string | null; avatarUrl: string | null }[],
+  display: null as number | null,
+  resolution: null as { width: number; height: number } | null,
+  retry: vi.fn(),
+}));
+const auth = vi.hoisted(() => ({ userId: 'tech-maria' as string | null }));
+
+vi.mock('../../hooks/use-remote-session-watch', () => ({
+  useRemoteSessionWatch: (sessionId: string | null, isLive: boolean) => {
+    watch.args(sessionId, isLive);
+    return {
+      state: watch.state,
+      viewers: watch.viewers,
+      display: watch.display,
+      resolution: watch.resolution,
+      attachCanvas: () => {},
+      retry: watch.retry,
+    };
+  },
+}));
+vi.mock('@/app/(auth)/auth/stores/auth-store', () => ({
+  useAuthStore: (select: (s: { user: { id: string } | null }) => unknown) =>
+    select({ user: auth.userId ? { id: auth.userId } : null }),
+}));
 
 vi.mock('../../hooks/use-session-recordings', () => ({
   useLiveSession: () => ({
@@ -83,6 +111,11 @@ beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   live.data = undefined;
   live.error = null;
+  watch.state = 'connecting';
+  watch.viewers = [];
+  watch.display = null;
+  watch.resolution = null;
+  auth.userId = 'tech-maria';
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -121,6 +154,56 @@ describe('LiveSessionView while the session runs', () => {
     expect(container.textContent).toContain(
       "This session isn't being recorded. Recording storage is full. New sessions aren't recorded until space is freed.",
     );
+  });
+
+  it('watches the running session and tells the watch once it ended', () => {
+    live.data = session();
+    render();
+    expect(watch.args).toHaveBeenLastCalledWith('session-1', true);
+    live.data = session({ live: false });
+    render();
+    expect(watch.args).toHaveBeenLastCalledWith('session-1', false);
+  });
+
+  it('connects first, then draws the screen with the display shown and the resolution', () => {
+    live.data = session();
+    render();
+    expect(container.textContent).toContain('Connecting to the live session');
+    expect(container.querySelector('canvas')?.className).toContain('invisible');
+
+    watch.state = 'streaming';
+    watch.display = 2;
+    watch.resolution = { width: 1280, height: 720 };
+    render();
+    expect(container.textContent).not.toContain('Connecting to the live session');
+    expect(container.querySelector('canvas')?.className).not.toContain('invisible');
+    expect(container.textContent).toContain('Display 2');
+    expect(container.textContent).toContain('1280 × 720');
+  });
+
+  it('lists the host first and marks the signed-in watcher, the host watching from another tab once', () => {
+    live.data = session();
+    watch.state = 'streaming';
+    watch.viewers = [
+      { userId: 'tech-roman', name: 'Roman Smith', avatarUrl: null },
+      { userId: 'tech-maria', name: 'Maria Pizzeria', avatarUrl: null },
+      { userId: 'tech-ilona', name: null, avatarUrl: null },
+    ];
+    render();
+    const stack = container.querySelector('[aria-label^="In this session"]');
+    expect(stack?.getAttribute('aria-label')).toBe(
+      'In this session: Roman Smith (host), Maria Pizzeria (you), Technician',
+    );
+  });
+
+  it('offers a retry once the watch gave up', () => {
+    live.data = session();
+    watch.state = 'unavailable';
+    render();
+    expect(container.textContent).toContain('Live view unavailable');
+    const retry = [...container.querySelectorAll('button')].find(b => b.textContent === 'Retry');
+    act(() => retry?.click());
+    expect(watch.retry).toHaveBeenCalledTimes(1);
   });
 
   it('shows the chat so far beside the stream once there is one', () => {

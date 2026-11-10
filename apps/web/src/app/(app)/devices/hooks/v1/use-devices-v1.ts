@@ -1,0 +1,74 @@
+'use client';
+// Main's apps/web/src/app/(app)/devices/hooks/use-devices.ts, rendered while tenant-management-v2 is off. Deleted with the flag.
+
+import type { DeviceFilterInput } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { useCallback, useMemo } from 'react';
+import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
+import type { devicesListRelayV1_query$key } from '@/__generated__/devicesListRelayV1_query.graphql';
+import type { devicesListRelayV1PaginationQuery as DevicesListRelayPaginationQueryType } from '@/__generated__/devicesListRelayV1PaginationQuery.graphql';
+import type { devicesListRelayV1Query as DevicesListRelayQueryType } from '@/__generated__/devicesListRelayV1Query.graphql';
+import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
+import { devicesListRelayV1Fragment, devicesListRelayV1Query } from '@/graphql/devices/v1/devices-list-relay-v1';
+import { DEVICES_PAGE_SIZE } from '../../queries/devices-api';
+import type { Device } from '../../types/device.types';
+import { useDeviceEpoch } from '../../utils/device-refresh';
+import { readListedMachineEdges } from '../../utils/read-machine';
+
+export interface UseDevicesResultV1 {
+  devices: Device[];
+  filteredCount: number;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  fetchNextPage: () => void;
+}
+
+/**
+ * The scrolled device list — the Devices page, the customer devices tab and the
+ * archive page.
+ *
+ * **Suspends** on first load and on any filter/search change. Callers render it
+ * inside a `<Suspense>`; to keep the previous page visible while a new filter
+ * loads (rather than dropping to the fallback), pass DEFERRED filter/search —
+ * see `DevicesPanel`, which defers them so a filter change is a transition.
+ *
+ * Relay owns the cursors and page merging that the previous `useInfiniteQuery`
+ * did by hand, and the rows are normalized `Machine` records shared with every
+ * device picker and schedule table in the app.
+ */
+export function useDevicesV1(filters?: DeviceFilterInput, search = ''): UseDevicesResultV1 {
+  // Refetches this query when a device mutation bumps the epoch — the only way
+  // to refresh a Relay query that is already mounted. See `device-refresh.ts`.
+  const fetchKey = useDeviceEpoch();
+
+  const root = useLazyLoadQuery<DevicesListRelayQueryType>(
+    devicesListRelayV1Query,
+    { filter: toRelayDeviceFilter(filters), search: search || null, first: DEVICES_PAGE_SIZE },
+    { fetchPolicy: 'store-and-network', fetchKey },
+  );
+
+  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
+    DevicesListRelayPaginationQueryType,
+    devicesListRelayV1_query$key
+  >(devicesListRelayV1Fragment, root);
+
+  const devices = useMemo(() => readListedMachineEdges(data.devices?.edges), [data.devices?.edges]);
+
+  // KNOWN LIMITATION: this refetches from the head (`after: null`), and
+  // `ConnectionHandler` REPLACES rather than merges on a head fetch, so a user
+  // who has scrolled past page 1 is snapped back to the first 20 rows after a
+  // device mutation. Refetching via `usePaginationFragment`'s `refetch` at the
+  // loaded size was tried and dropped `filteredCount` (the row counter
+  // disappeared), so it is not a straight swap. The correct fix is a
+  // `ConnectionHandler` updater applied from the mutation — but the delete call
+  // is REST (`apiClient.post`), not a Relay mutation, so that needs the
+  // mutation moved to Relay first.
+  const fetchNextPage = useCallback(() => loadNext(DEVICES_PAGE_SIZE), [loadNext]);
+
+  return {
+    devices,
+    filteredCount: data.devices?.filteredCount ?? 0,
+    hasNextPage: hasNext,
+    isFetchingNextPage: isLoadingNext,
+    fetchNextPage,
+  };
+}

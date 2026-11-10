@@ -1,11 +1,17 @@
 'use client';
 'use no memo';
 
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import type { FieldValues, UseFormReturn } from 'react-hook-form';
 
+interface Seed<R, T> {
+  record: R;
+  values: T;
+}
+
 /**
- * Fills a form that was mounted before its record arrived.
+ * Fills a form that was mounted before its record arrived, and returns the record it filled the form from (null
+ * until one has).
  *
  * This is what lets an edit page render its REAL form from the first paint —
  * locked, empty, and never swapped for a skeleton — instead of holding the whole
@@ -25,18 +31,48 @@ import type { FieldValues, UseFormReturn } from 'react-hook-form';
  * paint, so a cache-warm record would still cost one frame of the empty form.
  *
  * Detail queries typically run `store-and-network`, so a background refresh can
- * hand over a new object while the user is already typing. `isDirty` is read
- * inside the effect rather than tracked as a dependency, so the check is against
- * the form as it stands and a refresh can never overwrite edits in progress.
+ * hand over a new object while the user is already typing. A record is taken only
+ * while the form is pristine, so a refresh can never overwrite edits in progress —
+ * and what the form shows, locks and diffs against is then the returned record,
+ * never the latest one: the two part as soon as a refresh lands on a dirty form.
+ * The choice is made in render, when a new record is offered, so the record
+ * returned and the values the form holds agree from the next commit, before the
+ * paint; `isDirty` there is react-hook-form's state of this render.
+ *
+ * Each seed is applied once. The layout effect also runs again without a new one —
+ * a Suspense boundary revealing the form again, an Activity above it turning
+ * visible — and a reset then would wipe the edits in progress.
+ *
+ * `valuesOf` picks the form's values out of a record that carries more than them.
  */
-export function useSeedForm<T extends FieldValues>(form: UseFormReturn<T>, values: T | null) {
-  const seeded = useRef<T | null>(null);
+export function useSeedForm<T extends FieldValues>(form: UseFormReturn<T>, values: T | null): T | null;
+export function useSeedForm<T extends FieldValues, R>(
+  form: UseFormReturn<T>,
+  record: R | null,
+  valuesOf: (record: R) => T,
+): R | null;
+export function useSeedForm<T extends FieldValues, R>(
+  form: UseFormReturn<T>,
+  record: R | null,
+  valuesOf?: (record: R) => T,
+): R | null {
+  const [offered, setOffered] = useState<R | null>(null);
+  const [seed, setSeed] = useState<Seed<R, T> | null>(null);
+  const applied = useRef<Seed<R, T> | null>(null);
+
+  if (record !== offered) {
+    setOffered(record);
+    if (record !== null && record !== seed?.record && !form.formState.isDirty) {
+      // Without `valuesOf` the record is the values (the first overload).
+      setSeed({ record, values: valuesOf ? valuesOf(record) : (record as unknown as T) });
+    }
+  }
 
   useLayoutEffect(() => {
-    if (!values || seeded.current === values || form.formState.isDirty) {
-      return;
-    }
-    seeded.current = values;
-    form.reset(values);
-  }, [values, form]);
+    if (!seed || applied.current === seed) return;
+    applied.current = seed;
+    form.reset(seed.values);
+  }, [seed, form]);
+
+  return seed?.record ?? null;
 }

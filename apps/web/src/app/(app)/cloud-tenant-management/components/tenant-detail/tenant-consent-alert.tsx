@@ -4,10 +4,11 @@ import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/compo
 import { Alert } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { tenantConsentAlert_connection$key } from '@/__generated__/tenantConsentAlert_connection.graphql';
+import { DirectoryConsentIssueKind } from '@/generated/schema-enums';
 import { consentAlert, isReadable } from '../../utils/tenant-presentation';
 
 // Also spread by "Check Connection", so a probe that answers refreshes the outcome beside the state.
-// `issues` only for whether there are any: `TenantConsentIssues` reads and draws them.
+// `issues` for whether there are any and which tiers are unanswered: `TenantConsentIssues` draws them.
 const tenantConsentAlertFragment = graphql`
   fragment tenantConsentAlert_connection on DirectoryConnection {
     domain
@@ -18,7 +19,8 @@ const tenantConsentAlertFragment = graphql`
       outcome
       deniedTiers
       issues {
-        __typename
+        kind
+        tier
       }
     }
   }
@@ -29,7 +31,14 @@ export function TenantConsentAlert({ connection }: { connection: tenantConsentAl
   const data = useFragment(tenantConsentAlertFragment, connection);
   const attempt = data.lastConsentInfo;
   const alert = consentAlert(
-    attempt && { outcome: attempt.outcome, deniedTiers: attempt.deniedTiers, hasIssues: attempt.issues.length > 0 },
+    attempt && {
+      outcome: attempt.outcome,
+      deniedTiers: attempt.deniedTiers,
+      unfinishedTiers: attempt.issues.flatMap(({ kind, tier }) =>
+        kind === DirectoryConsentIssueKind.NOT_FINISHED && tier ? [tier] : [],
+      ),
+      hasIssues: attempt.issues.length > 0,
+    },
     { readable: isReadable(data.access.state), domain: data.domain },
   );
   if (!alert) return null;

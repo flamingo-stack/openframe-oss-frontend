@@ -19,7 +19,7 @@ import { RemoteSessionListState, RemoteSessionSortField, SortDirection } from '@
 import { tenantRemoteSessionsRelayRowFragment } from '@/graphql/remote-sessions/tenant-remote-sessions-relay';
 import { dateRangeToInstantBounds } from '@/lib/date-filter-params';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import { fromWireSession, readSession } from '../../services/session-recordings-api-service';
+import { customerLogoUrl, fromWireSession, readSession } from '../../services/session-recordings-api-service';
 import type { RecordingSummary } from '../../types/session-recording';
 import { REMOTE_SESSION_COLUMNS } from './remote-session-column-layout';
 import { remoteSessionColumns } from './remote-session-columns';
@@ -52,7 +52,11 @@ export function toTenantSessionRow(ref: TenantSessionRowKey): TenantSessionRow {
         }
       : null,
     customer: organization
-      ? { id: organization.organizationId ?? null, name: organization.name, logoUrl: organization.logoUrl ?? null }
+      ? {
+          id: organization.organizationId ?? null,
+          name: organization.name,
+          logoUrl: customerLogoUrl(organization, device) ?? null,
+        }
       : null,
   };
 }

@@ -13,16 +13,20 @@ import {
   type TenantAccessState,
   type TenantProvider,
   type TenantStatusTag,
+  unattributedLabel,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   DirectoryAccessState,
   DirectoryCapability,
   DirectoryConsentIssueKind,
   DirectoryConsentOutcome,
+  DirectoryLicenseFilter,
   DirectoryProvider,
+  DirectoryRuleKind,
 } from '@/generated/schema-enums';
 import { presentationFor } from '@/lib/exhaustive-map';
 import { formatDate, formatTimeWithSeconds, toValidDate } from '@/lib/format-date';
+import type { Instant } from '@/lib/graphql-scalars';
 
 // The list's own tables (access state tag, provider name and mark, "Last read", user count) live in
 // the core library beside the list view, over unions that restate these schema enums. This is where
@@ -60,6 +64,25 @@ const ACCESS_STATE_HINT = {
     "The customer's admin removed OpenFrame's access. Generate a new link and ask them to consent again.",
 } satisfies Record<Exclude<DirectoryAccessState, ReadableAccessState>, string>;
 
+/**
+ * A person paused the sync of a directory OpenFrame can still read. A disconnected tenant is disabled as well, and what
+ * it says is Disconnected.
+ */
+export function isSyncPaused(connection: {
+  readonly enabled: boolean;
+  readonly access: { readonly state: string };
+}): boolean {
+  return !connection.enabled && isReadable(connection.access.state);
+}
+
+/** "Paused by Roman Smith on 05/01/26." (Figma 3051-7925); a connection paused before this was recorded has neither. */
+export function syncPausedDescription(by: string | null | undefined, at: Instant | null | undefined): string | null {
+  const date = toValidDate(at);
+  const on = date ? ` on ${formatDate(date)}` : '';
+  if (by) return `Paused by ${by}${on}.`;
+  return date ? `Paused${on}.` : null;
+}
+
 /** The sentence under a failed "Check Connection"; an unknown state falls back to its tag label. */
 export function accessStateHint(state: string | null | undefined): string {
   return presentationFor(ACCESS_STATE_HINT, state) ?? accessStateTag(state).label;
@@ -81,6 +104,8 @@ export interface ConsentAlert {
 export interface ConsentAttempt {
   readonly outcome: string;
   readonly deniedTiers: readonly string[];
+  /** The tiers of its `NOT_FINISHED` issues: the admin left the chain on a Microsoft screen, or is still on one. */
+  readonly unfinishedTiers: readonly string[];
   /** The issues themselves render in their own card below the alert. */
   readonly hasIssues: boolean;
 }
@@ -113,12 +138,28 @@ const FAILED_CONSENT_MESSAGE = {
     "The consent link expired before it was used. Use Reconnect to generate a new link and send it to the customer's admin.",
 } satisfies Record<FailedConsentOutcome, (domain: string) => string>;
 
-// PARTIAL with declined tiers is verbatim from Figma (settings 2885-2333). A PARTIAL without any is a
-// tier Microsoft itself failed, which the issues card below names.
-function partialMessage(deniedTiers: readonly string[]): string {
-  return deniedTiers.length > 0
-    ? `Connected with limited access. The admin declined some permissions: ${deniedTiers.join(', ')}. Use Reconnect to approve them if you need that data.`
-    : 'Connected with limited access. Some permissions were not granted.';
+// Unanswered tiers get the backend's own instruction for them (`DirectoryConsentIssueMessages`).
+const FINISH_WITH_RECONNECT =
+  'Use Reconnect and have the admin approve every screen until Microsoft returns to OpenFrame.';
+
+// PARTIAL with declined tiers is verbatim from Figma (settings 2885-2333), and unanswered ones follow its pattern. A
+// PARTIAL with neither is a tier Microsoft itself failed, which the issues card below names.
+function partialMessage({
+  deniedTiers,
+  unfinishedTiers,
+}: Pick<ConsentAttempt, 'deniedTiers' | 'unfinishedTiers'>): string {
+  const declined = deniedTiers.join(', ');
+  const unfinished = unfinishedTiers.join(', ');
+  if (declined && unfinished) {
+    return `Connected with limited access. The admin declined some permissions: ${declined}, and hasn't finished approving: ${unfinished}. ${FINISH_WITH_RECONNECT}`;
+  }
+  if (unfinished) {
+    return `Connected with limited access. The admin hasn't finished approving: ${unfinished}. ${FINISH_WITH_RECONNECT}`;
+  }
+  if (declined) {
+    return `Connected with limited access. The admin declined some permissions: ${declined}. Use Reconnect to approve them if you need that data.`;
+  }
+  return 'Connected with limited access. Some permissions were not granted.';
 }
 
 /**
@@ -134,7 +175,7 @@ export function consentAlert(
   if (!attempt) return notConnectedYet;
 
   if (attempt.outcome === DirectoryConsentOutcome.PARTIAL) {
-    return { variant: 'warning', message: partialMessage(attempt.deniedTiers) };
+    return { variant: 'warning', message: partialMessage(attempt) };
   }
   if (attempt.outcome === DirectoryConsentOutcome.CONNECTED) {
     return attempt.hasIssues
@@ -147,13 +188,15 @@ export function consentAlert(
 }
 
 // The issue's own tag beside its tier. A provider error names who failed (the way Entra and Google
-// put their brand on their own error pages); a pending grant is grey because it settles by itself.
+// put their brand on their own error pages); a pending grant is grey because it settles by itself, and an unanswered
+// tier amber because only Reconnect finishes it.
 const CONSENT_ISSUE_TAG = {
   [DirectoryConsentIssueKind.PROVIDER_ERROR]: (providerLabel: string) => ({
     label: `${providerLabel} error`,
     variant: 'error',
   }),
   [DirectoryConsentIssueKind.PERMISSIONS_PENDING]: () => ({ label: 'Pending', variant: 'grey' }),
+  [DirectoryConsentIssueKind.NOT_FINISHED]: () => ({ label: 'Not finished', variant: 'warning' }),
 } satisfies Record<DirectoryConsentIssueKind, (providerLabel: string) => TenantStatusTag>;
 
 /** Tag for a consent issue's kind; an unknown kind renders as itself in grey. */
@@ -291,7 +334,108 @@ export function capabilityLabels(capabilities: readonly string[]): string[] {
   return capabilities.map(capability => presentationFor(CAPABILITY_LABELS, capability) ?? capability);
 }
 
-/** The two-tone "11/12/24 09:43:00" of the details card; `null` = never connected. */
+const LICENSE_FILTER_LABELS = {
+  [DirectoryLicenseFilter.HAS_UNUSED_SEATS]: 'Has unused seats',
+  [DirectoryLicenseFilter.NO_PURCHASED_TOTAL]: 'No purchased total',
+  [DirectoryLicenseFilter.NOT_READ_YET]: 'Not read yet',
+} satisfies Record<DirectoryLicenseFilter, string>;
+
+/** An option of the list's Licences funnel; an unknown value keeps its raw name. */
+export function licenseFilterLabel(value: string): string {
+  return presentationFor(LICENSE_FILTER_LABELS, value) ?? value;
+}
+
+const RULE_KIND_LABELS = {
+  [DirectoryRuleKind.ALL]: 'All accounts',
+  [DirectoryRuleKind.DOMAIN]: 'Domain',
+  [DirectoryRuleKind.GROUP]: 'Group',
+  [DirectoryRuleKind.ORG_UNIT]: 'Org unit',
+} satisfies Record<DirectoryRuleKind, string>;
+
+/** "Match by" — a rule kind's label; an unknown kind keeps its raw name. */
+export function ruleKindLabel(kind: string): string {
+  return presentationFor(RULE_KIND_LABELS, kind) ?? kind;
+}
+
+/**
+ * The kinds the rule editor offers, in Figma order: org units exist on Google Workspace only. `ALL` is not one of
+ * them: a whole-directory claim is the "One customer owns this tenant" mode, never a rule beside other customers'.
+ */
+export function ruleKindsFor(provider: string | null | undefined): DirectoryRuleKind[] {
+  return provider === DirectoryProvider.GOOGLE_WORKSPACE
+    ? [DirectoryRuleKind.DOMAIN, DirectoryRuleKind.GROUP, DirectoryRuleKind.ORG_UNIT]
+    : [DirectoryRuleKind.DOMAIN, DirectoryRuleKind.GROUP];
+}
+
+/** A rule kind in a sentence: "domains", "org units". */
+export function ruleKindPlural(kind: string): string {
+  return `${ruleKindLabel(kind).toLowerCase()}s`;
+}
+
+/** A group or org unit the directory no longer has, named the same way on every page: "Clinicians (deleted)". */
+export function deletedLabel(name: string): string {
+  return `${name} (deleted)`;
+}
+
+/**
+ * A rule value as text, in the rules table and the values picker (whose chips take text only). `name` is the name to
+ * show (`lastKnownName`), which a value deleted before names were kept has none of: its id then, so the user can tell
+ * which to remove.
+ */
+export function ruleValueLabel(value: {
+  readonly id: string;
+  readonly name: string | null | undefined;
+  readonly deleted?: boolean;
+}): string {
+  const name = value.name ?? value.id;
+  return value.deleted ? deletedLabel(name) : name;
+}
+
+/**
+ * The badge beside a rule's values while `deleted` of them are gone from the directory (the rule keeps them, and
+ * claims nobody through them), or `null` while none are.
+ */
+export function deletedValuesBadge(deleted: number): string | null {
+  if (deleted <= 0) return null;
+  return deleted === 1 ? 'Deleted value' : `${deleted} deleted values`;
+}
+
+/** A bound customer whose organization document is gone: there is no name left to show. */
+export const UNKNOWN_CUSTOMER = 'Unknown customer';
+
+/**
+ * Why a customer bound to a directory is no longer an active one ("Archived", "Deleted"), or `null` while it is. Such a
+ * customer stays bound and editable, its users count as unattributed, and it cannot be bound anew. Active is the
+ * backend's own test (`DirectoryActiveOrganizations`): a legacy organization with no status is active. Deleting one
+ * flips its status and keeps its document, so a missing document (`null`) is broken data, read as deleted too.
+ */
+export function inactiveCustomerBadge(
+  organization: { readonly status: string | null | undefined } | null | undefined,
+): string | null {
+  if (!organization || organization.status === 'DELETED') return 'Deleted';
+  return organization.status == null || organization.status === 'ACTIVE' ? null : 'Archived';
+}
+
+export interface AttributionSummary {
+  text: string;
+  /** Some synced users belong to no customer (Figma draws the cell in the warning colour). */
+  warning: boolean;
+}
+
+/**
+ * The details card's Attribution cell (Figma 3065-17490, 3051-7925), worded as the list's Customers cell words it;
+ * `null` until the first sync counts anyone.
+ */
+export function attributionSummary(
+  unattributed: number | null | undefined,
+  users: number | null | undefined,
+): AttributionSummary | null {
+  if (unattributed == null) return null;
+  const text = unattributedLabel(unattributed, users);
+  return text ? { text, warning: true } : { text: 'Fully attributed', warning: false };
+}
+
+/** The two-tone "11/12/24 09:43:00" of a consent issue's time; `null` = no time. */
 export function formatConnectedAt(iso: string | null | undefined): { date: string; time: string } | null {
   const date = toValidDate(iso);
   return date ? { date: formatDate(date), time: formatTimeWithSeconds(date) } : null;
