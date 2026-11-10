@@ -11,17 +11,20 @@ Every release dispatch of `.github/workflows/release.yml` attaches two files to 
 
 | File | What it is |
 |---|---|
-| `openframe-mobile-<x.y.z>.tar.xz` | The web static export as a ustar archive in one xz stream, built with no `NEXT_PUBLIC_*` in the job's environment and no `window.__ENV` in it. One bundle for every environment: a phone copies the `window.__ENV` script of its own built-in bundle into it, so each app keeps its shared host and dev-ticket setting. (The committed `apps/web/.env.local` still loads at build time, as it does for the desktop and store bundles; the app reads those values from `window.__ENV` at runtime, so only build-time metadata such as `og:url` carries them.) |
+| `openframe-mobile-<x.y.z>.tar.xz` | The web static export as a ustar archive in one xz stream, with no `window.__ENV` in it. One bundle for every environment: a phone copies the `window.__ENV` script of its own built-in bundle into it, so each app keeps its shared host and dev-ticket setting. The committed `apps/web/.env.local` still loads at build time, as for the desktop and store bundles; the app reads its values from `window.__ENV` at runtime, so only build-time output such as `og:url` carries them. |
 | `mobile.json` | Its manifest: `{keyId, payload, signature}`. `payload` is base64 of `{format, version, bridgeLevel, url, size, sha256}`; `signature` is ECDSA P-256 / SHA-256 over those payload bytes, DER, base64. |
 
-- The `build_mobile_ota` job builds the export, packs and signs it (the signing key reaches that step
-  only), then checks the result against `apps/mobile/ota/keys.json`. A failure fails the
-  release, like a desktop leg.
+- The `build_mobile_ota` job builds the export, packs and signs it, then checks the result
+  against `apps/mobile/ota/keys.json`. A failure fails the release, like a desktop leg. It sets
+  no environment's values, only `NEXT_PUBLIC_APP_MODE=saas-tenant`, the mode every mobile lane
+  builds with, because the root layout prerenders by it (the sidebar width it seeds). Only the
+  pack step is given the signing key, but it shares the job, and so the workspace, with `npm ci`
+  and the build: the key is as safe as the dependencies those run (the desktop's
+  `TAURI_SIGNING_PRIVATE_KEY` is in the same position).
 - `bridgeLevel` is `REQUIRED_BRIDGE_LEVEL` in `apps/web/src/lib/native-shell.ts`.
-- `keyId` is the first 16 lowercase hex digits of SHA-256 over the signing key's public SPKI DER, in its one
-  91-byte form (named curve, uncompressed point), the only one `ota-verify.mjs` accepts.
-- **Shells ignore payload fields they do not know.** That keeps `format: 1` open to optional
-  additions (delta archives, for one) without breaking the shells already installed.
+- `keyId` is the first 16 lowercase hex digits of SHA-256 over the signing key's public SPKI
+  DER, in its one 91-byte form (named curve, uncompressed point), the only one `ota-verify.mjs`
+  accepts.
 
 ### Why one tar.xz
 
@@ -53,17 +56,17 @@ files shrinks them. Measured on 1.0.213:
 
 The scripts are `scripts/ota-pack.mjs`, `ota-verify.mjs`, `ota-keygen.mjs`, `ota-tar.mjs`,
 `ota-env.mjs` (the `window.__ENV` element, shared with `inject-env.mjs`), `ota-error.mjs` and
-`ota-fixtures.mjs`. `node --test apps/mobile/scripts/ota.test.mjs apps/mobile/scripts/ota-fixtures.test.mjs`
-runs their tests (it needs `xz` and `tar`).
+`ota-fixtures.mjs`. `npm run test:ota` in `apps/mobile` runs their tests (it needs `xz` and
+`tar`).
 
 ### Known issue: unstyled pages
 
-`npm run build:export`, which runs `next-styles build`, leaves every page but `/` and the 404 without its route
-stylesheet in a static export: the core library's route step reads `prerender-manifest.json`
-from `dist`, while Next keeps it in `.next` for an export. Measured on 1.0.212 and 1.0.213. The
-plain `next build` styles every page but puts the whole stylesheet into all of them: 355 MB on
-the phone instead of 96 MB, so it is no way out for these bundles. No bundle should reach a phone
-before the library fixes the route step.
+`npm run build:export`, which runs `next-styles build`, leaves every page but `/` and the 404
+without its route stylesheet in a static export: the core library's route step reads
+`prerender-manifest.json` from `dist`, while Next keeps it in `.next` for an export. Measured on
+1.0.212 and 1.0.213. The plain `next build` styles every page but puts the whole stylesheet into
+all of them: 355 MB on the phone instead of 96 MB, so it is no way out for these bundles. No
+bundle should reach a phone before the library fixes the route step.
 
 ## How phones get it
 
@@ -93,6 +96,11 @@ bundle by its direct release URL. A pinned release without `mobile.json` (any re
 first one this job built) answers 502 on every request, uncached, so pin no such release once
 phones ask for it.
 
+**What the signature does not cover.** It proves a bundle was released, not that it is the one a
+phone should run. Which release phones take comes from this config and the GitHub release
+assets, as on desktop. So whoever can change those can move phones to any release that ever
+carried `mobile.json`, older ones included, or make them drop their OTA bundles.
+
 ## Shared test cases
 
 The format is implemented three times: in these scripts and in each shell's updater.
@@ -104,9 +112,9 @@ implementation words its errors as it likes.
 
 | File | Input | Outcome |
 |---|---|---|
-| `manifest-cases.json` | a `mobile.json` text and the keys of `fixture-keys.json` the shell holds | the payload's six fields, or a code |
+| `manifest-cases.json` | a `mobile.json` text and the keys of `fixture-keys.json` the shell holds | the payload's known fields, or a code |
 | `bundle-cases.json` | a file in `bundles/` and the `size` and `sha256` its payload gives | its files as `{path, size, sha256}` in archive order, or a code |
-| `env-cases.json` | the built-in and the downloaded `index.html` | the downloaded page with the env copied in, or a code |
+| `env-cases.json` | the built-in and the staged `index.html` | the staged page with the env copied in, or a code |
 | `decision-cases.json` | the shell's built-in version and bridge level, its bundles, a verified payload | `download`, `nothing` or `drop` |
 
 A case runner also derives each `keyId` in `fixture-keys.json` from its key and checks it, as
@@ -120,12 +128,11 @@ the shells derive the ids of the keys they hold.
   Java).
 - **The manifest**, checked in this order:
   1. `ENVELOPE`: strict JSON (RFC 8259, valid UTF-8, no byte order mark, nothing but whitespace
-     after the value)
-     holding an object whose `keyId`, `payload` and `signature` are strings, `payload` and
-     `signature` in canonical base64: decode, re-encode, compare. Java's decoder takes a missing
-     `=` and non-zero padding bits, Node's also the URL-safe alphabet, and `java.util.Base64`
-     needs API 26 where the app supports 24, so Android writes its own strict decoder. Fields
-     this format does not know are ignored.
+     after the value) holding an object whose `keyId`, `payload` and `signature` are strings,
+     `payload` and `signature` in canonical base64: decode, re-encode, compare. Java's decoder
+     takes a missing `=` and non-zero padding bits, Node's also the URL-safe alphabet, and
+     `java.util.Base64` needs API 26 where the app supports 24, so Android writes its own strict
+     decoder.
   2. `UNKNOWN_KEY`: `keyId` is not the id of a key the shell holds (exact, case-sensitive).
   3. `SIGNATURE`: the DER signature does not verify over the payload's bytes. The high-S form
      verifies (as in Node, CryptoKit and JCA). A needless leading zero, a negative integer, a
@@ -133,8 +140,8 @@ the shells derive the ids of the keys they hold.
      or throws. SunEC accepts a negative r, so Android's tests run Conscrypt, the device's
      provider, as the first security provider, and check that it is the one in use.
   4. `PAYLOAD`: the payload bytes are valid UTF-8 and, parsed by the same strict JSON, an object
-     with these fields; types
-     are JSON's, so `true` is not the number 1, which `JSONSerialization` would make it:
+     with these fields; types are JSON's, so `true` is not the number 1, which
+     `JSONSerialization` would make it:
      - `format`: the integer 1;
      - `version`: the whole string is three parts joined by `.`, each `0` or an ASCII 1-9 followed
        by at most eight ASCII digits, so each fits a 32-bit int (no sign, no suffix, no line
@@ -145,7 +152,9 @@ the shells derive the ids of the keys they hold.
        `/openframe-mobile-<version>.tar.xz`, compared as text, never parsed. Any host: the
        signature covers it.
 
-    Fields it does not know are ignored, which keeps `format: 1` open to optional additions.
+  In the envelope and the payload alike, fields this format does not know are ignored, which
+  keeps `format: 1` open to optional additions (delta archives, for one) without breaking the
+  shells already installed.
 - **The bundle.** `SIZE`, then `SHA256`, against the payload before anything is decompressed;
   then these groups, and with several faults the first group that has one gives the code:
   1. `XZ`: one xz stream from the first byte to the last. It opens with the magic
@@ -155,12 +164,12 @@ the shells derive the ids of the keys they hold.
      magic, then that the decoder ended the stream and consumed every input byte; Android reads
      with `SingleXZInputStream` and checks for the end of input.
   2. `TAR`: the magic `ustar\0` and version `00`; the checksum six octal digits, NUL, space,
-     equal to the unsigned sum of the header's 512 bytes with its own 8 counted as spaces; the size
-     eleven octal digits, NUL (ASCII `0`-`7` only: no sign, no space); no entry running past the end; after the
-     last entry two or more whole zero blocks and nothing else. Every other header byte (mode,
-     owner, times, link name, user and group names, device numbers, the unused tail) and the
-     padding after the data is ignored and never applied: the shell writes files with its own
-     permissions.
+     equal to the unsigned sum of the header's 512 bytes with its own 8 counted as spaces; the
+     size eleven octal digits, NUL (ASCII `0`-`7` only: no sign, no space); no entry running past
+     the end; after the last entry two or more whole zero blocks and nothing else. Every other
+     header byte (mode, owner, times, link name, user and group names, device numbers, the
+     unused tail) and the padding after the data is ignored and never applied: the shell writes
+     files with its own permissions.
   3. Entries, the first fault in archive order, each entry checked in this order:
      - `ENTRY_TYPE`: the type byte is `0` (a NUL type is refused too);
      - `ENTRY_NAME`: the path is the name field, or `prefix/name` when the prefix field is not
@@ -168,9 +177,9 @@ the shells derive the ids of the keys they hold.
        `\` (0x5C), and split on `/` no segment is empty, `.` or `..` (`isSafeEntryName`);
      - `DUPLICATE`: it collides with no other path, ignoring ASCII case: neither the same path
        nor a file where another path needs a directory. The iOS Simulator's volume ignores case.
-  4. `NO_INDEX`: no `index.html` at the root, in that exact case; `HAS_ENV`: it holds the
-     literal `<script>window.__ENV`; `NO_HEAD`: it lacks the literal `<head>`. The release
-     makes the env-copy checks too, so it never publishes what the phones' env copy refuses.
+  4. `NO_INDEX`: no `index.html` at the root, in that exact case; then the env copy's own
+     checks on it, `HAS_ENV` and `NO_HEAD` (below). The release makes them too, so it never
+     publishes what the phones' env copy refuses.
 
   A shell that decodes and reads the tar as it goes stops checking entries after its first entry
   fault but reads the tar on to its end, because a TAR fault further on outranks it. After a TAR
@@ -178,7 +187,7 @@ the shells derive the ids of the keys they hold.
   fault outranks both.
 - **The env copy** (`scripts/ota-env.mjs`), in this order: `NO_ENV` unless the built-in page
   holds the element, the first match of the literal `<script>window.__ENV` through the next
-  `</script>` (no attributes); `HAS_ENV` if the downloaded page holds the literal
+  `</script>` (no attributes); `HAS_ENV` if the staged page holds the literal
   `<script>window.__ENV`; `NO_HEAD` unless it holds the literal `<head>`. Then the element goes,
   as it is, right after the first `<head>`. As it is: no replacement-pattern API (`$&` in Java's
   `replaceFirst` and JS's `replace` would be read as a pattern).
@@ -207,38 +216,34 @@ makes of them, the signature must still verify over the same payload bytes, so n
 by them. A shell must not crash on them, though: it parses without recursion or refuses nesting
 past a bound with `ENVELOPE`. Only whoever can already write `mobile.json` can send them.
 
-### What the signature does not cover
-
-It proves a bundle was released, not that it is the one a phone should run. Which release phones
-take comes from the gateway config and the GitHub release assets, as on desktop. So whoever can
-change those can move phones to any release that ever carried `mobile.json`, older ones included,
-or make them drop their OTA bundles.
-
 ### Running and changing them
 
-- **Run them** with `node --test apps/mobile/scripts/ota-fixtures.test.mjs`, which also fails when
+- **Run them** with `npm run test:ota` in `apps/mobile`. `ota-fixtures.test.mjs` also fails when
   the committed outcomes, the payload of each manifest or what each bundle decodes to differ from
-  what the generator writes (its keys, signatures and compressed bytes change on every run). The shells' unit tests are to read
-  the same files once their updater exists: iOS from a SwiftPM package through `swift test`,
-  Android as JVM tests with `apps/mobile/ota/fixtures` as a resource directory (the Conscrypt
-  uber jar, 2.5.2, ships natives for linux-x86_64 and osx-x86_64, none for Apple Silicon).
+  what the generator writes (its keys, signatures and compressed bytes change on every run). The
+  shells' unit tests are to read the same files once their updater exists: iOS from a SwiftPM
+  package through `swift test`, Android as JVM tests with `apps/mobile/ota/fixtures` as a
+  resource directory (the Conscrypt uber jar, 2.5.2, ships natives for linux-x86_64 and
+  osx-x86_64, none for Apple Silicon).
 - **To change a case**, edit `scripts/ota-fixtures.mjs` (manifest and bundle cases) or the two
-  hand-written files, run `node apps/mobile/scripts/ota-fixtures.mjs`, and commit everything it
+  hand-written files, run `npm run ota:fixtures` in `apps/mobile`, and commit everything it
   writes, in the same PR as the change to the scripts and both shells. The generator states each
   outcome itself instead of asking `ota-verify.mjs`, and writes its malformed headers with its
-  own checksum, so a bug in the reader fails a case instead of becoming one. It does share
-  `writeTar` (for the well-formed bundles) and `keyIdOf` with the scripts; the key ids are also
-  worked out independently by the test. Every run makes new keys, whose private halves it does not keep, and new
-  signatures.
+  own checksum, so a bug in the reader fails a case instead of becoming one. The only format code
+  it shares with the scripts is `writeTar` (for the well-formed bundles), the xz settings and
+  `keyIdOf`, and the test works the key ids out again on its own. Every run makes new keys, whose private halves it
+  does not keep, and new signatures.
 
 ## Signing keys (one-time setup)
 
 The release signs with `MOBILE_OTA_SIGNING_KEY`, a repository secret like the desktop's
-`TAURI_SIGNING_PRIVATE_KEY`; the shells will trust the two public keys in `apps/mobile/ota/keys.json`
-(`current` signs, `next` is the rotation key). The private keys never enter the repository, and
+`TAURI_SIGNING_PRIVATE_KEY`; the shells will trust the two public keys in
+`apps/mobile/ota/keys.json` (`current` signs, `next` is the rotation key). The private keys never
+enter a repository: `ota-keygen.mjs` refuses a path inside any git work tree, and
 `ota-verify.mjs` refuses a `keys.json` that holds anything but PEM public keys.
 
-1. Create both keys, each private half outside the repository:
+1. Create both keys, each private half outside every repository (if your home directory is a git
+   work tree, keygen refuses it: pick a directory that is not):
 
    ```bash
    node apps/mobile/scripts/ota-keygen.mjs current ~/ota-current.pem

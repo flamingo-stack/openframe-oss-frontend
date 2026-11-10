@@ -264,11 +264,13 @@ jobs:
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
 
-      # No env values: each phone injects its own.
+      # No environment's values: each phone injects its own.
       - name: Build web export
         working-directory: apps/web
         env:
           OPENFRAME_BUNDLE_VERSION: ${{ env.VERSION }}
+          # The mode every mobile lane builds with; the root layout prerenders by it (apps/mobile/docs/ota.md).
+          NEXT_PUBLIC_APP_MODE: saas-tenant
         run: npm ci && npm run build:export
 
       - name: Pack and sign

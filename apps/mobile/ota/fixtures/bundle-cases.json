@@ -390,6 +390,24 @@
       }
     },
     {
+      "name": "a size field with a minus sign",
+      "bundle": "bundles/size-minus.tar.xz",
+      "size": 220,
+      "sha256": "2f30c7405269534b5523eb2f30d28213b79118aa7e8c3692271365229b387308",
+      "expect": {
+        "error": "TAR"
+      }
+    },
+    {
+      "name": "a size field of NULs",
+      "bundle": "bundles/size-empty.tar.xz",
+      "size": 236,
+      "sha256": "2fd1c407829d55fd310aaecb3f6d3ed0b7b59177b20ef1a4ca831b37275cf7bf",
+      "expect": {
+        "error": "TAR"
+      }
+    },
+    {
       "name": "a size field with a + sign",
       "bundle": "bundles/size-plus.tar.xz",
       "size": 220,

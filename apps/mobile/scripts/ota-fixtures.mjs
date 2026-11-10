@@ -9,7 +9,7 @@
 // cases instead of becoming one. Every run makes new keys (their private halves are not kept) and
 // new signatures, so rerun it only to change a case, and commit everything it writes.
 //
-//   node apps/mobile/scripts/ota-fixtures.mjs
+//   npm run ota:fixtures   (in apps/mobile)
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
@@ -19,8 +19,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 
-import { writeTar } from './ota-tar.mjs';
-import { bundleName, keyIdOf } from './ota-verify.mjs';
+import { writeTar, XZ_ENCODE } from './ota-tar.mjs';
+import { keyIdOf } from './ota-verify.mjs';
 
 export const FIXTURES_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'ota', 'fixtures');
 
@@ -39,16 +39,19 @@ const keyId = name => keyIdOf(KEYS[name].publicKey);
 const P256_N = BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551');
 
 const VERSION = '1.2.3';
+// The file name a payload url must end in, stated here rather than taken from ota-verify.mjs.
+const bundleFile = version => `openframe-mobile-${version}.tar.xz`;
 const PAYLOAD = {
   format: 1,
   version: VERSION,
   bridgeLevel: 1,
-  url: `https://github.com/flamingo-stack/openframe-oss-frontend/releases/download/${VERSION}/${bundleName(VERSION)}`,
+  url: `https://github.com/flamingo-stack/openframe-oss-frontend/releases/download/${VERSION}/${bundleFile(VERSION)}`,
   size: 4482516,
   sha256: sha256('a bundle'),
 };
-const KNOWN_FIELDS = Object.keys(PAYLOAD);
-const known = payload => Object.fromEntries(KNOWN_FIELDS.map(field => [field, payload[field]]));
+const PAYLOAD_FIELDS = Object.keys(PAYLOAD);
+/** The payload's known fields, the part of an accepted manifest a case expects. */
+export const knownFields = payload => Object.fromEntries(PAYLOAD_FIELDS.map(field => [field, payload[field]]));
 
 const derSign = (bytes, name) => sign('sha256', bytes, { key: KEYS[name].privateKey, dsaEncoding: 'der' });
 
@@ -110,21 +113,13 @@ function payloadWhere(accept) {
   throw new Error('no padding of the payload satisfies the case');
 }
 
-/** A signature by `a` over `bytes` whose `r` and `s` satisfy `accept`, re-signing until one does. */
+/** A DER signature by `a` over `bytes` that satisfies `accept`, re-signing until one does. */
 function signatureWhere(bytes, accept) {
   for (let i = 0; i < 64; i++) {
     const signature = derSign(bytes, 'a');
-    if (accept(derParts(signature))) return signature;
+    if (accept(signature)) return signature;
   }
   throw new Error('no signature satisfies the case');
-}
-
-/** A signature over `bytes` whose base64 has padding, re-signing until one does. */
-function paddedSignature(bytes) {
-  for (;;) {
-    const signature = derSign(bytes, 'a');
-    if (signature.length % 3) return signature;
-  }
 }
 
 function manifestCases() {
@@ -132,13 +127,13 @@ function manifestCases() {
   const bytes = Buffer.from(text);
   const payloadB64 = bytes.toString('base64');
   // A low-S signature, so its n - s twin below is the high-S form.
-  const signature = signatureWhere(bytes, ({ s }) => toBig(s) <= P256_N / 2n);
+  const signature = signatureWhere(bytes, der => toBig(derParts(der).s) <= P256_N / 2n);
   const { r, s } = derParts(signature);
   const ok = (name, manifestText, payload = PAYLOAD, keys = HELD) => ({
     name,
     keys,
     manifest: manifestText,
-    expect: { payload: known(payload) },
+    expect: { payload: knownFields(payload) },
   });
   const refused = (name, manifestText, error, keys = HELD) => ({
     name,
@@ -152,17 +147,18 @@ function manifestCases() {
 
   const unpaddedPayload = payloadWhere(b64 => b64.endsWith('='));
   const urlSafePayload = payloadWhere(b64 => /[+/]/.test(b64));
-  const sigPadded = paddedSignature(bytes);
+  // A signature whose base64 ends in padding, so its padding bits can be dirtied.
+  const sigPadded = signatureWhere(bytes, der => der.length % 3 !== 0);
   const fixed32 = int => Buffer.from(toBig(int).toString(16).padStart(64, '0'), 'hex');
   const longFormLength = Buffer.concat([Buffer.from([0x30, 0x81, signature.length - 2]), signature.subarray(2)]);
   // An r whose top bit is set, so DER gives it a leading zero; dropping that makes it negative.
-  const highR = derParts(signatureWhere(bytes, ({ r }) => r[0] === 0));
+  const highR = derParts(signatureWhere(bytes, der => derParts(der).r[0] === 0));
   const valid = manifest(text);
   // A version case names its own bundle, so the version rule is the only one it can fail.
   const withVersion = version => ({
     ...PAYLOAD,
     version,
-    url: PAYLOAD.url.replace(bundleName(VERSION), bundleName(version)),
+    url: PAYLOAD.url.replace(bundleFile(VERSION), bundleFile(version)),
   });
 
   return [
@@ -176,10 +172,10 @@ function manifestCases() {
     ok('an envelope field this format does not know is ignored', json({ ...JSON.parse(manifest(text)), comment: 'x' })),
     ok(
       'any https host: the signature covers the url',
-      manifest(JSON.stringify({ ...PAYLOAD, url: `https://example.com/x/${bundleName(VERSION)}` })),
+      manifest(JSON.stringify({ ...PAYLOAD, url: `https://example.com/x/${bundleFile(VERSION)}` })),
       {
         ...PAYLOAD,
-        url: `https://example.com/x/${bundleName(VERSION)}`,
+        url: `https://example.com/x/${bundleFile(VERSION)}`,
       },
     ),
     ok(
@@ -241,7 +237,7 @@ function manifestCases() {
       'ENVELOPE',
     ),
     // Strict JSON (RFC 8259, UTF-8): what JSON.parse refuses, a shell's parser must refuse too.
-    refused('a byte order mark before the manifest', `﻿${valid}`, 'ENVELOPE'),
+    refused('a byte order mark before the manifest', `\uFEFF${valid}`, 'ENVELOPE'),
     refused(
       'a trailing comma in the manifest',
       valid.replace(/\n}\n$/, () => ',\n}\n'),
@@ -323,6 +319,7 @@ function manifestCases() {
     signed('a payload without url', { ...PAYLOAD, url: undefined }, 'PAYLOAD'),
     signed('format 2', { ...PAYLOAD, format: 2 }, 'PAYLOAD'),
     signed('format "1", a string', { ...PAYLOAD, format: '1' }, 'PAYLOAD'),
+    signed('format an object whose toString is no function', { ...PAYLOAD, format: { toString: 1 } }, 'PAYLOAD'),
     signed('version 1.2', withVersion('1.2'), 'PAYLOAD'),
     signed('version 01.2.3', withVersion('01.2.3'), 'PAYLOAD'),
     signed('version 1.2.3-rc.1', withVersion('1.2.3-rc.1'), 'PAYLOAD'),
@@ -344,10 +341,11 @@ function manifestCases() {
     signed('sha256 and a newline', { ...PAYLOAD, sha256: `${PAYLOAD.sha256}\n` }, 'PAYLOAD'),
     signed(
       'a url with the file name glued to its last path segment',
-      { ...PAYLOAD, url: `https://example.com/x${bundleName(VERSION)}` },
+      { ...PAYLOAD, url: `https://example.com/x${bundleFile(VERSION)}` },
       'PAYLOAD',
     ),
     signed('an http url', { ...PAYLOAD, url: PAYLOAD.url.replace('https:', 'http:') }, 'PAYLOAD'),
+    signed('a url naming a .zip', { ...PAYLOAD, url: PAYLOAD.url.replace('.tar.xz', '.zip') }, 'PAYLOAD'),
     signed(
       'an HTTPS:// url: the scheme is compared as bytes',
       { ...PAYLOAD, url: PAYLOAD.url.replace('https:', 'HTTPS:') },
@@ -355,18 +353,18 @@ function manifestCases() {
     ),
     signed(
       'a url naming the bundle of another version',
-      { ...PAYLOAD, url: PAYLOAD.url.replace(bundleName(VERSION), bundleName('1.2.4')) },
+      { ...PAYLOAD, url: PAYLOAD.url.replace(bundleFile(VERSION), bundleFile('1.2.4')) },
       'PAYLOAD',
     ),
     signed('a url with a query after the file name', { ...PAYLOAD, url: `${PAYLOAD.url}?x=1` }, 'PAYLOAD'),
     signed(
       'a url whose query ends in the file name',
-      { ...PAYLOAD, url: `https://example.com/x?f=/${bundleName(VERSION)}` },
+      { ...PAYLOAD, url: `https://example.com/x?f=/${bundleFile(VERSION)}` },
       'PAYLOAD',
     ),
     signed(
       'a url whose fragment ends in the file name',
-      { ...PAYLOAD, url: `https://example.com/x#/${bundleName(VERSION)}` },
+      { ...PAYLOAD, url: `https://example.com/x#/${bundleFile(VERSION)}` },
       'PAYLOAD',
     ),
     // JSONSerialization reads true as the number 1; a shell must not.
@@ -426,8 +424,7 @@ function rawEntry({ data = '', pad = 0, ...options }) {
 }
 const rawTar = (entries, end = END) => Buffer.concat([...entries.map(rawEntry), end]);
 
-const XZ = ['-6', '-T1', '--check=crc64'];
-const xz = (data, args = XZ) => execFileSync('xz', [...args, '-c'], { input: data, maxBuffer: 2 ** 30 });
+const xz = (data, args = XZ_ENCODE) => execFileSync('xz', [...args, '-c'], { input: data, maxBuffer: 2 ** 30 });
 function xzList(archive) {
   const dir = mkdtempSync(join(tmpdir(), 'ota-fixtures-'));
   try {
@@ -493,6 +490,8 @@ function bundleCases() {
   }
   const tarCase = (name, file, entries, error, end) =>
     add(name, file, xz(rawTar(entries, end)), error ? { error } : { files: fileList(entries) });
+  const symlink = { name: 'hosts', type: '2' };
+  const envIndex = { name: 'index.html', data: INDEX.replace('<head>', `<head>${env}`) };
 
   // accepted
   add('a typical bundle', 'typical', typical, { files: typicalFiles });
@@ -503,7 +502,7 @@ function bundleCases() {
     null,
     Buffer.alloc(20 * BLOCK - BLOCK - BLOCK),
   );
-  const multiBlock = xz(typicalTar, [...XZ, '--block-size=1024']);
+  const multiBlock = xz(typicalTar, [...XZ_ENCODE, '--block-size=1024']);
   assert.ok(Number(xzList(multiBlock).blocks) > 1);
   add('one xz stream of several blocks', 'several-blocks', multiBlock, { files: typicalFiles });
   add(
@@ -640,6 +639,9 @@ function bundleCases() {
     [{ ...index, sizeField: `${INDEX.length.toString(8).padStart(11, ' ')}\0` }],
     'TAR',
   );
+  tarCase('a size field with a minus sign', 'size-minus', [{ ...index, sizeField: '-0001750\0' }], 'TAR');
+  // An empty entry first, so a reader that took the NULs for size 0 would read on and accept both.
+  tarCase('a size field of NULs', 'size-empty', [{ name: 'a.txt', data: '', sizeField: '\0' }, index], 'TAR');
   tarCase(
     'a size field with a + sign',
     'size-plus',
@@ -714,7 +716,7 @@ function bundleCases() {
     [{ name: 'assets/', type: '5' }, index],
     'ENTRY_TYPE',
   );
-  tarCase('a symbolic link', 'symlink', [index, { name: 'hosts', type: '2' }], 'ENTRY_TYPE');
+  tarCase('a symbolic link', 'symlink', [index, symlink], 'ENTRY_TYPE');
   tarCase('a hard link', 'hard-link', [index, { name: 'copy.html', type: '1' }], 'ENTRY_TYPE');
   tarCase(
     'a GNU long-name entry',
@@ -750,10 +752,7 @@ function bundleCases() {
   tarCase(
     'the first refusal in archive order wins',
     'first-refusal',
-    [
-      { name: '../evil.js', data: 'x' },
-      { name: 'hosts', type: '2' },
-    ],
+    [{ name: '../evil.js', data: 'x' }, symlink],
     'ENTRY_NAME',
   );
   tarCase('the same path twice', 'duplicate', [index, index], 'DUPLICATE');
@@ -790,7 +789,6 @@ function bundleCases() {
   );
 
   // which fault is reported when there are several: XZ, then TAR, then the first entry, then the rest
-  const symlink = { name: 'hosts', type: '2' };
   tarCase(
     'an entry fault, then bytes after the end blocks: TAR outranks it',
     'tar-over-entry',
@@ -837,7 +835,6 @@ function bundleCases() {
     [index, { name: 'a/b.js', data: '1' }, { name: 'a/b.js/', data: '2' }],
     'ENTRY_NAME',
   );
-  const envIndex = { name: 'index.html', data: INDEX.replace('<head>', `<head>${env}`) };
   tarCase(
     'an entry fault outranks an index.html carrying window.__ENV',
     'entry-over-env',
@@ -861,12 +858,7 @@ function bundleCases() {
     [{ name: 'Index.html', data: INDEX }],
     'NO_INDEX',
   );
-  tarCase(
-    'an index.html that carries window.__ENV',
-    'has-env',
-    [{ name: 'index.html', data: INDEX.replace('<head>', `<head>${env}`) }],
-    'HAS_ENV',
-  );
+  tarCase('an index.html that carries window.__ENV', 'has-env', [envIndex], 'HAS_ENV');
   tarCase(
     'an index.html with the start of a window.__ENV element and no </script>',
     'has-env-unterminated',
@@ -913,8 +905,9 @@ function main() {
   mkdirSync(join(FIXTURES_DIR, 'bundles'), { recursive: true });
   writeFileSync(join(FIXTURES_DIR, 'fixture-keys.json'), json({ keys: built.keys }));
   writeFileSync(join(FIXTURES_DIR, 'manifest-cases.json'), json({ cases: built.manifestCases }));
-  for (const [file, archive] of Object.entries(built.bundles))
+  for (const [file, archive] of Object.entries(built.bundles)) {
     writeFileSync(join(FIXTURES_DIR, 'bundles', `${file}.tar.xz`), archive);
+  }
   writeFileSync(join(FIXTURES_DIR, 'bundle-cases.json'), json({ cases: built.bundleCases }));
   console.log(
     `✓ ${FIXTURES_DIR}: ${built.manifestCases.length} manifest cases, ${built.bundleCases.length} bundle cases, ` +
@@ -922,4 +915,5 @@ function main() {
   );
 }
 
+// No runCli: the generator's failures are bugs in a case, and the stack says which.
 if (import.meta.main) main();

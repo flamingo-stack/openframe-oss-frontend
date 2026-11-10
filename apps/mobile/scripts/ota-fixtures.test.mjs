@@ -1,4 +1,4 @@
-// node --test apps/mobile/scripts/ota-fixtures.test.mjs   (needs the xz tool)
+// npm run test:ota   (in apps/mobile; needs the xz tool)
 //
 // The release scripts against the shared cases in apps/mobile/ota/fixtures, which the iOS and
 // Android unit tests run too (docs/ota.md, "Shared test cases").
@@ -6,17 +6,15 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash, createPublicKey } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
 
 import { copyEnvScript } from './ota-env.mjs';
 import { CODES, OtaError } from './ota-error.mjs';
-import { buildFixtures } from './ota-fixtures.mjs';
+import { buildFixtures, FIXTURES_DIR, knownFields } from './ota-fixtures.mjs';
 import { keyIdOf, verifyBundle, verifyManifest } from './ota-verify.mjs';
 
-const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), '..', 'ota', 'fixtures');
-const read = name => JSON.parse(readFileSync(join(FIXTURES, name), 'utf8'));
+const read = name => JSON.parse(readFileSync(join(FIXTURES_DIR, name), 'utf8'));
 
 const { keys } = read('fixture-keys.json');
 const { cases: manifestCases } = read('manifest-cases.json');
@@ -34,9 +32,6 @@ function outcome(name, fn) {
   }
 }
 
-const PAYLOAD_FIELDS = ['format', 'version', 'bridgeLevel', 'url', 'size', 'sha256'];
-const knownFields = payload => Object.fromEntries(PAYLOAD_FIELDS.map(field => [field, payload[field]]));
-
 for (const c of manifestCases) {
   test(`manifest: ${c.name}`, () => {
     const held = new Map(c.keys.map(name => [keys[name].keyId, createPublicKey(keys[name].publicKey)]));
@@ -47,7 +42,7 @@ for (const c of manifestCases) {
 
 for (const c of bundleCases) {
   test(`bundle: ${c.name}`, () => {
-    const archive = readFileSync(join(FIXTURES, c.bundle));
+    const archive = readFileSync(join(FIXTURES_DIR, c.bundle));
     assert.deepEqual(
       outcome('files', () => verifyBundle(archive, { size: c.size, sha256: c.sha256 })),
       c.expect,
@@ -92,7 +87,7 @@ test('every error code but KEYS is the outcome of some case', () => {
 test('every bundle in fixtures/bundles is named by a case', () => {
   const named = new Set(bundleCases.map(c => c.bundle));
   assert.deepEqual(
-    readdirSync(join(FIXTURES, 'bundles')).filter(file => !named.has(`bundles/${file}`)),
+    readdirSync(join(FIXTURES_DIR, 'bundles')).filter(file => !named.has(`bundles/${file}`)),
     [],
   );
 });
@@ -132,12 +127,12 @@ test('the committed cases and bundles are what ota-fixtures.mjs writes', () => {
       return null;
     }
   };
-  manifestCases.forEach((c, i) =>
-    assert.equal(payloadOf(c.manifest), payloadOf(built.manifestCases[i].manifest), c.name),
-  );
+  for (const [i, c] of manifestCases.entries()) {
+    assert.equal(payloadOf(c.manifest), payloadOf(built.manifestCases[i].manifest), c.name);
+  }
   assert.deepEqual(Object.keys(keys), Object.keys(built.keys));
   assert.deepEqual(
-    readdirSync(join(FIXTURES, 'bundles')).sort(),
+    readdirSync(join(FIXTURES_DIR, 'bundles')).sort(),
     Object.keys(built.bundles)
       .map(file => `${file}.tar.xz`)
       .sort(),
@@ -152,6 +147,6 @@ test('the committed cases and bundles are what ota-fixtures.mjs writes', () => {
     return `bytes ${sha(archive)}`;
   };
   for (const [file, archive] of Object.entries(built.bundles)) {
-    assert.equal(contentOf(readFileSync(join(FIXTURES, 'bundles', `${file}.tar.xz`))), contentOf(archive), file);
+    assert.equal(contentOf(readFileSync(join(FIXTURES_DIR, 'bundles', `${file}.tar.xz`))), contentOf(archive), file);
   }
 });

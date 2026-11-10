@@ -16,10 +16,10 @@ export const CODES = [
   'ENTRY_NAME', // a path a shell must not write
   'DUPLICATE', // a path colliding with another, ignoring ASCII case: the same one, or a file where a directory goes
   'NO_INDEX', // no index.html at the root
-  'HAS_ENV', // an index.html that already carries the literal <script>window.__ENV
   // the env copy
   'NO_ENV', // the built-in index.html has no window.__ENV script
-  'NO_HEAD', // an index.html without the literal <head> to put it after (the release checks it too)
+  'HAS_ENV', // the staged index.html already carries the literal <script>window.__ENV
+  'NO_HEAD', // the staged index.html has no literal <head> to put it after
   // keys.json
   'KEYS',
 ];
@@ -29,5 +29,15 @@ export class OtaError extends Error {
     if (!CODES.includes(code)) throw new Error(`unknown OTA error code ${code}`);
     super(message);
     this.code = code;
+  }
+}
+
+/** Runs a script's `main`, printing a failure, with its code if it is a refusal, and exiting 1. */
+export function runCli(main) {
+  try {
+    main();
+  } catch (error) {
+    console.error(`✗ ${error instanceof OtaError ? `${error.code}: ` : ''}${error.message}`);
+    process.exit(1);
   }
 }

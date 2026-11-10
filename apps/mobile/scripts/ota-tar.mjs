@@ -1,9 +1,8 @@
-// The archive of the over-the-air bundle (docs/ota.md): a ustar tar of regular files, compressed
-// as ONE xz stream. Not per-file compression: the export's pages and RSC payloads are near-copies
-// of each other, which only a stream spanning files can share (1.0.213: 21.6 MB as a per-file zip,
-// 4.5 MB as tar.xz). The shells decode it with Apple's Compression framework (COMPRESSION_LZMA)
-// and XZ for Java, then read the tar the way readTar does; fixtures/bundle-cases.json holds all
-// three to the same outcome. Node has no xz codec, so this runs `xz`.
+// The archive of the over-the-air bundle: a ustar tar of regular files, compressed as ONE xz
+// stream, which shares the near-copies among the export's pages (docs/ota.md, "Why one tar.xz").
+// The shells decode it with Apple's Compression framework and XZ for Java, then read the tar the way
+// readTar does; fixtures/bundle-cases.json holds all three to the same outcome. Node has no xz
+// codec, so this runs `xz`.
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -12,11 +11,10 @@ import { join } from 'node:path';
 import { OtaError } from './ota-error.mjs';
 
 const BLOCK = 512;
-// An 8 MiB dictionary: about 9 MiB to decode on a phone. -T1 because xz 5.6+ defaults to its
-// multi-threaded encoder, which cuts the input into independent blocks (a larger stream, other
-// bytes); single-threaded, every xz version writes one block. Same entries, same bytes, for one
-// xz build.
-const XZ_ARGS = ['-6', '-T1', '--check=crc64', '-c'];
+// -T1 because xz 5.6+ defaults to its multi-threaded encoder, which cuts the input into
+// independent blocks (a larger stream, other bytes); single-threaded, every xz version writes one
+// block. Same entries, same bytes, for one xz build.
+export const XZ_ENCODE = ['-6', '-T1', '--check=crc64'];
 const MAX_NAME = 255;
 const MAX_SIZE = 8 ** 11 - 1;
 const REGULAR = '0';
@@ -40,9 +38,8 @@ export function isSafeEntryName(name) {
 
 /**
  * ustar holds a path as a 155-byte prefix and a 100-byte name, split at a `/`, so the file name
- * itself is at most 100 bytes. Next's RSC payload files are named after their whole route
- * (`__next.<segments joined by .>.txt`, 67 bytes at most on 1.0.213), so a route of about 72
- * characters or more fails here and stops the release.
+ * itself is at most 100 bytes. Next names its RSC payload files after their whole route, so a long
+ * route fails here and stops the release (docs/ota.md, "ustar limits").
  */
 function splitName(name) {
   if (name.length <= 100) return ['', name];
@@ -57,9 +54,9 @@ function splitName(name) {
 }
 
 /** A ustar header's checksum: the sum of its bytes, with the checksum field counted as spaces. */
-export function headerChecksum(header) {
+function headerChecksum(block) {
   let sum = 0;
-  for (let i = 0; i < BLOCK; i++) sum += i >= 148 && i < 156 ? 0x20 : header[i];
+  for (let i = 0; i < BLOCK; i++) sum += i >= 148 && i < 156 ? 0x20 : block[i];
   return sum;
 }
 
@@ -83,11 +80,8 @@ function header(name, size) {
 /** An uncompressed ustar archive of `entries`, in the order given: mode 644, owner 0, mtime 0. */
 export function writeTar(entries) {
   const parts = [];
-  const seen = new Set();
   for (const { name, data } of entries) {
     if (!isSafeEntryName(name)) throw new OtaError('ENTRY_NAME', `unsafe file name: ${JSON.stringify(name)}`);
-    if (seen.has(name)) throw new OtaError('DUPLICATE', `duplicate file name: ${name}`);
-    seen.add(name);
     if (data.length > MAX_SIZE) throw new OtaError('TAR', `${name}: too large for ustar`);
     parts.push(header(name, data.length), data, Buffer.alloc((BLOCK - (data.length % BLOCK)) % BLOCK));
   }
@@ -97,6 +91,12 @@ export function writeTar(entries) {
 function xz(args, options) {
   const result = spawnSync('xz', args, { maxBuffer: 2 ** 31 - 1, ...options });
   if (result.error?.code === 'ENOENT') throw new Error('xz not found: apt install xz-utils, or brew install xz');
+  // No status and no signal: xz never ran, which says nothing about the bundle, so a plain Error.
+  // An EPIPE (xz quit early on corrupt input) or an ENOBUFS (Node killed it past maxBuffer) is
+  // about the bundle, so the caller refuses it as XZ.
+  if (result.error && result.status === null && result.signal === null) {
+    throw new Error(`xz: ${result.error.message}`);
+  }
   return result;
 }
 
@@ -104,8 +104,8 @@ const xzFailure = result => result.stderr?.toString().trim() || result.error?.me
 
 /** `writeTar(entries)` compressed as one xz stream. The same entries give the same bytes. */
 export function packTarXz(entries) {
-  const result = xz(XZ_ARGS, { input: writeTar(entries) });
-  if (result.error || result.status !== 0) throw new Error(`xz ${XZ_ARGS.join(' ')}: ${xzFailure(result)}`);
+  const result = xz([...XZ_ENCODE, '-c'], { input: writeTar(entries) });
+  if (result.error || result.status !== 0) throw new Error(`xz ${XZ_ENCODE.join(' ')}: ${xzFailure(result)}`);
   return result.stdout;
 }
 
@@ -123,8 +123,9 @@ function assertOneXzStream(archive) {
     writeFileSync(file, archive);
     const result = xz(['--robot', '--list', file], { encoding: 'utf8' });
     const line = result.stdout?.split('\n').find(l => l.startsWith('file\t'));
-    if (result.error || result.status !== 0 || !line)
+    if (result.error || result.status !== 0 || !line) {
       throw new OtaError('XZ', `not an intact xz file: ${xzFailure(result)}`);
+    }
     // file, streams, blocks, compressed, uncompressed, ratio, check, padding
     const [, streams, , , , , , padding] = line.split('\t');
     if (streams !== '1' || padding !== '0') {
@@ -147,15 +148,11 @@ export function xzDecompress(archive) {
 }
 
 /**
- * Every entry of an uncompressed ustar archive, `{name, type, data}`, in order. Throws (TAR) on a
- * magic other than `ustar\0` + `00`, a checksum or size field not exactly as writeTar writes it
- * (checksum: six octal digits, NUL, space; size: eleven octal digits, NUL), a wrong checksum, an
- * entry running past the end, or anything after the last entry but two or more whole zero blocks.
- * Only writeTar makes bundles, so nothing else needs reading, and three implementations agree on
- * an exact format more easily than on how far to be lenient. Read besides: the name and prefix
- * fields, each up to its first NUL, and the type byte. Every other header byte (mode, owner, times,
- * link name, user and group names, device numbers, the unused tail) and the padding after the data
- * are ignored, never applied: the shells write files with their own permissions.
+ * Every entry of an uncompressed ustar archive, `{name, type, data}`, in order. Throws (TAR) on
+ * anything but the exact layout writeTar writes, as docs/ota.md "The rules" spells it out for the
+ * TAR group: only writeTar makes bundles, and three implementations agree on an exact format more
+ * easily than on how far to be lenient. Of the rest of each header, only the name and prefix
+ * fields (each up to its first NUL) and the type byte are read.
  */
 export function readTar(tar) {
   const entries = [];

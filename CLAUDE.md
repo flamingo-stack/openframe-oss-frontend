@@ -32,7 +32,8 @@ lockfile without its `libc` fields.
   environment runs; `openframe-saas-desktop`, where the shell was released before, is legacy. The
   release builds no store binaries: the signed `.ipa`/`.aab` come from the
   `apps/mobile/scripts/build-*-prod.sh` lanes, uploaded to the stores by hand. PR tests and
-  checks run in the hub's code reviewer (`flamingo-code-review.yml`), the one required check.
+  checks run in the hub's code reviewer (`flamingo-code-review.yml`); `test.yml` builds, scans and
+  pushes the PR image.
 - A bridge name change (Tauri command/event, Capacitor plugin method) touches
   `apps/web/src/lib/native-shell.ts` and the shell implementation in the same PR.
   A new Tauri command also goes in `src-tauri/build.rs` and, if the page calls it,

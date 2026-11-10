@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
 import { ENV_SCRIPT_START } from './ota-env.mjs';
+import { runCli } from './ota-error.mjs';
 import { packTarXz } from './ota-tar.mjs';
 import {
   assertP256,
@@ -24,7 +25,7 @@ import {
   verifyManifest,
 } from './ota-verify.mjs';
 
-export const NATIVE_SHELL_PATH = join(dirname(fileURLToPath(import.meta.url)), '../../web/src/lib/native-shell.ts');
+const NATIVE_SHELL_PATH = join(dirname(fileURLToPath(import.meta.url)), '../../web/src/lib/native-shell.ts');
 
 // The social preview image, twice over (byte-identical copies). Only link-preview meta tags point at
 // it, by an absolute URL on the web host, so a phone never loads it from the bundle.
@@ -59,7 +60,10 @@ export function pack({ dist, version, urlBase, outDir, privateKeyPem, bridgeLeve
   if (!lstatSync(dist).isDirectory()) throw new Error(`${dist} is not a directory`);
   if (!existsSync(join(dist, 'index.html'))) throw new Error(`${dist} has no index.html`);
   if (ENV_SCRIPT_START.test(readFileSync(join(dist, 'index.html'), 'utf8'))) {
-    throw new Error(`${dist}/index.html carries window.__ENV: build the export with no NEXT_PUBLIC_* set`);
+    throw new Error(
+      `${dist}/index.html carries window.__ENV: pack apps/web's static export (npm run build:export), ` +
+        "not a shell's www/ that inject-env.mjs has written to",
+    );
   }
 
   const names = listFiles(dist)
@@ -123,11 +127,4 @@ function main() {
   console.log(`✓ ${result.manifestPath}: key ${result.keyId}, ${JSON.stringify(result.payload)}`);
 }
 
-if (import.meta.main) {
-  try {
-    main();
-  } catch (error) {
-    console.error(`✗ ${error.message}`);
-    process.exit(1);
-  }
-}
+if (import.meta.main) runCli(main);

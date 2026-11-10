@@ -1,16 +1,28 @@
-// node --test apps/mobile/scripts/ota.test.mjs   (needs the xz and tar tools)
+// npm run test:ota   (in apps/mobile; needs the xz and tar tools)
+//
+// What the shared cases (ota-fixtures.test.mjs) cannot hold: packing a real export, keygen,
+// keys.json, inject-env and the CLIs. Every format rule is a case there instead.
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { createPublicKey, generateKeyPairSync, sign } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { createPublicKey, generateKeyPairSync, randomBytes } from 'node:crypto';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { after, test } from 'node:test';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { copyEnvScript, insertEnvScript } from './ota-env.mjs';
+import { copyEnvScript, envScript, insertEnvScript } from './ota-env.mjs';
 import { LEFT_OUT, pack, readBridgeLevel } from './ota-pack.mjs';
-import { readTar, writeTar, xzDecompress } from './ota-tar.mjs';
+import { packTarXz, readTar, writeTar, xzDecompress } from './ota-tar.mjs';
 import { checkBundleContents, keyIdOf, loadKeys, verifyBundle, verifyManifest } from './ota-verify.mjs';
 
 const SCRIPTS = dirname(fileURLToPath(import.meta.url));
@@ -22,10 +34,19 @@ const LONG_PATH = `_next/static/chunks/app/(app)/${'d'.repeat(80)}/${'f'.repeat(
 const p256 = () => generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
 const pem = key =>
   key.export(key.type === 'private' ? { type: 'pkcs8', format: 'pem' } : { type: 'spki', format: 'pem' });
-const xzCompress = data => execFileSync('xz', ['-6', '-T1', '-c'], { input: data, maxBuffer: 2 ** 30 });
+
+const tempDirs = [];
+after(() => {
+  for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
+});
+function tempDir(prefix) {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  tempDirs.push(dir);
+  return dir;
+}
 
 function fixture() {
-  const dir = mkdtempSync(join(tmpdir(), 'ota-test-'));
+  const dir = tempDir('ota-test-');
   const dist = join(dir, 'dist');
   const files = {
     'index.html': '<!doctype html><html><head><title>OpenFrame</title></head><body></body></html>',
@@ -59,22 +80,7 @@ function packFixture(f, overrides = {}) {
   });
 }
 
-/** A mobile.json whose payload is `payload`, signed by `privateKey`. */
-function envelope(payload, privateKey) {
-  const bytes = Buffer.from(JSON.stringify(payload));
-  return JSON.stringify({
-    keyId: keyIdOf(privateKey),
-    payload: bytes.toString('base64'),
-    signature: sign('sha256', bytes, { key: privateKey, dsaEncoding: 'der' }).toString('base64'),
-  });
-}
-
-/** Rewrites a ustar header's checksum after a test has edited the header. */
-function fixChecksum(tar, offset) {
-  let sum = 0;
-  for (let i = 0; i < 512; i++) sum += i >= 148 && i < 156 ? 0x20 : tar[offset + i];
-  tar.write(`${sum.toString(8).padStart(6, '0')}\0 `, offset + 148, 'ascii');
-}
+const run = (script, ...args) => spawnSync(process.execPath, [join(SCRIPTS, script), ...args], { encoding: 'utf8' });
 
 test('pack writes a bundle and a manifest that verify against keys.json', () => {
   const f = fixture();
@@ -87,6 +93,8 @@ test('pack writes a bundle and a manifest that verify against keys.json', () => 
     verifyBundle(readFileSync(bundlePath), verified).map(file => file.path),
     Object.keys(f.files).sort(),
   );
+  const cli = run('ota-verify.mjs', '--keys', f.keysPath, '--manifest', manifestPath, '--bundle', bundlePath);
+  assert.equal(cli.status, 0, cli.stderr);
 });
 
 test('the bundle holds every file of the export byte for byte, minus the social preview images', () => {
@@ -116,72 +124,20 @@ test('the system xz and tar read the bundle', () => {
   for (const [name, content] of Object.entries(f.files)) assert.equal(readFileSync(join(out, name), 'utf8'), content);
 });
 
-test('the manifest is refused when signed by a key keys.json does not hold', () => {
-  const f = fixture();
-  const { payload } = packFixture(f);
-  assert.throws(() => verifyManifest(envelope(payload, p256().privateKey), loadKeys(f.keysPath)), /does not hold/);
-});
-
-test('the "next" key verifies too', () => {
-  const f = fixture();
-  const { payload } = packFixture(f);
-  assert.deepEqual(verifyManifest(envelope(payload, f.next.privateKey), loadKeys(f.keysPath)), payload);
-});
-
-test('a payload changed after signing is refused', () => {
-  const f = fixture();
-  const manifest = JSON.parse(readFileSync(packFixture(f).manifestPath, 'utf8'));
-  const payload = JSON.parse(Buffer.from(manifest.payload, 'base64').toString('utf8'));
-  manifest.payload = Buffer.from(JSON.stringify({ ...payload, version: '9.9.9' })).toString('base64');
-  assert.throws(() => verifyManifest(JSON.stringify(manifest), loadKeys(f.keysPath)), /signature does not verify/);
-});
-
-test('a payload with a bad field is refused even when signed', () => {
-  const f = fixture();
-  const keys = loadKeys(f.keysPath);
-  const { payload } = packFixture(f);
-  const cases = [
-    [{ ...payload, version: '1.2' }, /not x\.y\.z/],
-    [{ ...payload, version: '01.2.3' }, /not x\.y\.z/],
-    [{ ...payload, format: 2 }, /format/],
-    [{ ...payload, bridgeLevel: 0 }, /bridgeLevel/],
-    [{ ...payload, url: payload.url.replace('https:', 'http:') }, /url/],
-    [{ ...payload, url: payload.url.replace(`openframe-mobile-${VERSION}`, 'openframe-mobile-1.2.4') }, /url/],
-    [{ ...payload, url: payload.url.replace('.tar.xz', '.zip') }, /url/],
-    [{ ...payload, sha256: 'abc' }, /sha256/],
-    [{ ...payload, size: undefined }, /payload has no size/],
-  ];
-  for (const [bad, error] of cases)
-    assert.throws(() => verifyManifest(envelope(bad, f.current.privateKey), keys), error);
-});
-
-test('a payload field this version does not know is ignored, as the shells will ignore it', () => {
-  const f = fixture();
-  const { payload } = packFixture(f);
-  const extended = { ...payload, deltas: { '1.2.2': { url: 'https://example.test/d.tar.xz' } } };
-  assert.deepEqual(verifyManifest(envelope(extended, f.current.privateKey), loadKeys(f.keysPath)), extended);
-});
-
-test('a bundle that differs from its manifest is refused', () => {
-  const f = fixture();
-  const { bundlePath, payload } = packFixture(f);
-  const archive = readFileSync(bundlePath);
-  archive[100] ^= 0xff;
-  assert.throws(() => verifyBundle(archive, payload), /SHA-256/);
-  assert.throws(() => verifyBundle(Buffer.concat([archive, Buffer.from([0])]), payload), /bytes/);
-});
-
-test('a bundle that is not a single intact xz stream is refused', () => {
-  const tar = writeTar([{ name: 'index.html', data: Buffer.from('<html></html>') }]);
-  const archive = xzCompress(tar);
-  archive[archive.length - 20] ^= 0xff;
-  assert.throws(() => checkBundleContents(archive), /xz/);
-  assert.throws(() => checkBundleContents(tar), /xz/);
+test('a corrupt stream larger than the pipe buffer is refused as XZ, not taken for a broken host', () => {
+  // Random bytes do not compress, so xz quits on the flipped byte with most of its input unread:
+  // spawnSync reports EPIPE, which is the bundle's fault. The shared cases are too small for it.
+  const archive = packTarXz([
+    { name: 'index.html', data: Buffer.from('<html><head></head></html>') },
+    { name: 'noise.bin', data: randomBytes(1 << 20) },
+  ]);
+  archive[200] ^= 0xff;
+  assert.throws(() => checkBundleContents(archive), { code: 'XZ' });
 });
 
 test('pack refuses an export that carries window.__ENV', () => {
   const f = fixture();
-  writeFileSync(join(f.dist, 'index.html'), '<html><head><script>window.__ENV = {};</script></head></html>');
+  writeFileSync(join(f.dist, 'index.html'), `<html><head>${envScript({})}</head></html>`);
   assert.throws(() => packFixture(f), /window\.__ENV/);
 });
 
@@ -200,13 +156,13 @@ test('pack refuses an export with a symlink', () => {
 test('pack refuses a key that is not P-256, and no key at all', () => {
   const f = fixture();
   const p384 = generateKeyPairSync('ec', { namedCurve: 'secp384r1' }).privateKey;
-  assert.throws(() => packFixture(f, { privateKeyPem: pem(p384) }), /not a P-256 key/);
+  assert.throws(() => packFixture(f, { privateKeyPem: pem(p384) }), { code: 'KEYS', message: /not a P-256 key/ });
   assert.throws(() => packFixture(f, { privateKeyPem: '' }), /MOBILE_OTA_SIGNING_KEY is empty/);
 });
 
 test('pack refuses a version the shells cannot compare', () => {
   const f = fixture();
-  assert.throws(() => packFixture(f, { version: 'main-46fad6b' }), /not x\.y\.z/);
+  assert.throws(() => packFixture(f, { version: 'main-46fad6b' }), { code: 'PAYLOAD', message: /not x\.y\.z/ });
 });
 
 test('writeTar refuses names a shell must not write, and paths ustar cannot hold', () => {
@@ -221,7 +177,7 @@ test('writeTar refuses names a shell must not write, and paths ustar cannot hold
     'ü.txt',
     'a/'.repeat(128) + 'b',
   ]) {
-    assert.throws(() => writeTar([{ name, data: Buffer.from('x') }]), /unsafe file name/, name);
+    assert.throws(() => writeTar([{ name, data: Buffer.from('x') }]), { code: 'ENTRY_NAME' }, name);
   }
   assert.throws(
     () => writeTar([{ name: 'x'.repeat(101), data: Buffer.from('x') }]),
@@ -229,46 +185,12 @@ test('writeTar refuses names a shell must not write, and paths ustar cannot hold
   );
   // A Next RSC payload file named after a long route: the path fits in 255 bytes, its name not in 100.
   assert.throws(() => writeTar([{ name: `route/__next.${'r'.repeat(90)}.txt`, data: Buffer.from('x') }]), /too long/);
-  assert.throws(
-    () =>
-      writeTar([
-        { name: 'index.html', data: Buffer.alloc(0) },
-        { name: 'index.html', data: Buffer.alloc(0) },
-      ]),
-    /duplicate/,
-  );
 });
 
-test('a bundle entry that is not a regular file is refused', () => {
-  const tar = writeTar([{ name: 'index.html', data: Buffer.from('<html></html>') }]);
-  tar.write('2', 156, 'ascii');
-  fixChecksum(tar, 0);
-  assert.throws(() => checkBundleContents(xzCompress(tar)), /not a regular file/);
-});
-
-test('readTar refuses a bad header checksum and anything after the end blocks', () => {
-  const tar = writeTar([{ name: 'index.html', data: Buffer.from('<html></html>') }]);
-  const corrupt = Buffer.from(tar);
-  corrupt.write('X', 0, 'ascii');
-  assert.throws(() => readTar(corrupt), /checksum/);
-  assert.throws(() => readTar(Buffer.concat([tar, Buffer.from('trailing')])), /after the last entry/);
-  assert.throws(() => readTar(tar.subarray(0, 1024)), /end-of-archive|after the last entry/);
-});
-
-test('readTar refuses a size field that is not plain octal instead of looping on it', () => {
-  for (const size of ['-0001750\0', '00000001x8\0', '\0']) {
-    const tar = writeTar([{ name: 'index.html', data: Buffer.from('<html></html>') }]);
-    tar.fill(0, 124, 136);
-    tar.write(size, 124, 'ascii');
-    fixChecksum(tar, 0);
-    assert.throws(() => readTar(tar), /not eleven octal digits/, JSON.stringify(size));
-  }
-});
-
-test('loadKeys needs both slots, distinct, on P-256, and public halves only', () => {
+test('loadKeys needs both slots, distinct, on P-256, public halves only, in JSON that parses', () => {
   const f = fixture();
   const write = json => {
-    writeFileSync(f.keysPath, JSON.stringify(json));
+    writeFileSync(f.keysPath, typeof json === 'string' ? json : JSON.stringify(json));
     return f.keysPath;
   };
   assert.throws(() => loadKeys(write({ current: pem(f.current.publicKey) })), /no "next" key/);
@@ -282,6 +204,13 @@ test('loadKeys needs both slots, distinct, on P-256, and public halves only', ()
     () => loadKeys(write({ current: pem(f.current.privateKey), next: pem(f.next.publicKey) })),
     /never commit a private key/,
   );
+  assert.throws(() => loadKeys(write('{"current":')), { code: 'KEYS' });
+  assert.throws(() => loadKeys(write('null')), { code: 'KEYS', message: /not a JSON object/ });
+  const broken = '-----BEGIN PUBLIC KEY-----\nAAAA\n-----END PUBLIC KEY-----\n';
+  assert.throws(() => loadKeys(write({ current: broken, next: pem(f.next.publicKey) })), {
+    code: 'KEYS',
+    message: /does not load/,
+  });
 });
 
 test('loadKeys refuses a P-256 key in any SPKI encoding but the named-curve, uncompressed one', () => {
@@ -294,15 +223,15 @@ test('loadKeys refuses a P-256 key in any SPKI encoding but the named-curve, unc
     Buffer.from([2 + (y[31] & 1)]),
     x,
   ]);
-  const compressedPem = createPublicKey({ key: compressed, format: 'der', type: 'spki' });
-  assert.equal(compressedPem.export({ type: 'spki', format: 'der' }).length, 59);
-  writeFileSync(f.keysPath, JSON.stringify({ current: pem(compressedPem), next: pem(f.next.publicKey) }));
+  const compressedKey = createPublicKey({ key: compressed, format: 'der', type: 'spki' });
+  assert.equal(compressedKey.export({ type: 'spki', format: 'der' }).length, 59);
+  writeFileSync(f.keysPath, JSON.stringify({ current: pem(compressedKey), next: pem(f.next.publicKey) }));
   assert.throws(() => loadKeys(f.keysPath), { code: 'KEYS', message: /uncompressed SPKI/ });
 });
 
 test('inject-env writes the element where the shells copy it, once, and literally', () => {
   const page = '<!DOCTYPE html><html><head><meta charSet="utf-8"/></head><body></body></html>';
-  const element = '<script>window.__ENV = {"A":"$& $\' $1"};</script>';
+  const element = envScript({ A: "$& $' $1" });
   const injected = insertEnvScript(page, element);
   assert.equal(
     injected,
@@ -311,20 +240,62 @@ test('inject-env writes the element where the shells copy it, once, and literall
   // A store build and an over-the-air bundle of the same page start out identical.
   assert.equal(copyEnvScript(injected, page), injected);
   // A second run replaces the element instead of adding one.
-  const again = insertEnvScript(injected, '<script>window.__ENV = {};</script>');
-  assert.equal(again, page.replace('<head>', '<head><script>window.__ENV = {};</script>'));
-  assert.throws(() => insertEnvScript('<html></html>', element), { code: 'NO_HEAD' });
+  const again = insertEnvScript(injected, envScript({}));
+  assert.equal(
+    again,
+    page.replace('<head>', () => `<head>${envScript({})}`),
+  );
+  assert.throws(() => insertEnvScript('<html></html>', element), /no <head>/);
+  assert.throws(() => insertEnvScript('<head><script>window.__ENV = {', element), /without its <\/script>/);
 });
 
 test('REQUIRED_BRIDGE_LEVEL is readable from native-shell.ts', () => {
   assert.ok(Number.isInteger(readBridgeLevel()) && readBridgeLevel() >= 1);
 });
 
-test('keygen fills a slot, keeps the private key outside the repository, and replaces nothing', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'ota-keygen-'));
-  const keysPath = join(dir, 'ota', 'keys.json'); // a fresh clone has no apps/mobile/ota/ yet
-  const keygen = (...args) =>
-    spawnSync(process.execPath, [join(SCRIPTS, 'ota-keygen.mjs'), ...args, '--keys', keysPath], { encoding: 'utf8' });
+test('an xz the host cannot run is a plain Error, never XZ: it says nothing about the bundle', () => {
+  const dir = tempDir('ota-noexec-');
+  writeFileSync(join(dir, 'xz'), '#!/bin/sh\n', { mode: 0o644 });
+  const probe = `
+    import { xzDecompress } from ${JSON.stringify(pathToFileURL(join(SCRIPTS, 'ota-tar.mjs')).href)};
+    try {
+      xzDecompress(Buffer.from('fd377a585a000004', 'hex'));
+    } catch (error) {
+      console.log(JSON.stringify({ code: error.code ?? null, message: error.message }));
+    }`;
+  const child = spawnSync(process.execPath, ['--input-type=module', '-e', probe], {
+    encoding: 'utf8',
+    env: { ...process.env, PATH: dir },
+  });
+  const { code, message } = JSON.parse(child.stdout);
+  assert.equal(code, null, message);
+  assert.match(message, /EACCES/);
+});
+
+test('ota-verify refuses --bundle without its manifest and empty paths, and names the code of a refusal', () => {
+  const f = fixture();
+  const cli = run('ota-verify.mjs', '--keys', f.keysPath, '--bundle', join(f.dir, 'nothing.tar.xz'));
+  assert.equal(cli.status, 1);
+  assert.match(cli.stderr, /--bundle needs --manifest/);
+  for (const args of [
+    ['--keys', f.keysPath, '--manifest', ''],
+    ['--keys', f.keysPath, '--manifest', join(f.dir, 'mobile.json'), '--bundle', ''],
+    ['--keys', ''],
+  ]) {
+    const empty = run('ota-verify.mjs', ...args);
+    assert.equal(empty.status, 1, args.join(' '));
+    assert.match(empty.stderr, /need a path/, args.join(' '));
+  }
+  writeFileSync(f.keysPath, 'null');
+  const refused = run('ota-verify.mjs', '--keys', f.keysPath);
+  assert.equal(refused.status, 1);
+  assert.match(refused.stderr, /^✗ KEYS: /);
+});
+
+test('keygen fills a slot, keeps the private key out of every git work tree, and replaces nothing', () => {
+  const dir = tempDir('ota-keygen-');
+  const keysPath = join(dir, 'ota', 'keys.json'); // keygen makes the directory keys.json goes in
+  const keygen = (...args) => run('ota-keygen.mjs', ...args, '--keys', keysPath);
 
   assert.equal(keygen('current', join(dir, 'current.pem')).status, 0);
   assert.equal(keygen('next', join(dir, 'next.pem')).status, 0);
@@ -332,8 +303,20 @@ test('keygen fills a slot, keeps the private key outside the repository, and rep
   const keys = loadKeys(keysPath);
   assert.equal(keys.size, 2);
   assert.ok(keys.has(keyIdOf(readFileSync(join(dir, 'current.pem'), 'utf8'))));
+  const keysJson = readFileSync(keysPath, 'utf8');
 
   assert.match(keygen('current', join(dir, 'other.pem')).stderr, /already has a "current" key/);
-  assert.match(keygen('next', join(SCRIPTS, 'leak.pem')).stderr, /inside the repository/);
+  assert.match(keygen('next', join(SCRIPTS, 'leak.pem')).stderr, /inside a git work tree/);
+  symlinkSync(SCRIPTS, join(dir, 'into-the-repo'));
+  assert.match(keygen('next', join(dir, 'into-the-repo', 'leak.pem')).stderr, /inside a git work tree/);
   assert.match(keygen('later', join(dir, 'x.pem')).stderr, /usage/);
+  assert.equal(readFileSync(keysPath, 'utf8'), keysJson);
+  // A file already at the private key's path is never overwritten, and no public half is recorded.
+  const currentPem = readFileSync(join(dir, 'current.pem'), 'utf8');
+  const freshKeys = join(dir, 'fresh', 'keys.json');
+  const existing = run('ota-keygen.mjs', 'current', join(dir, 'current.pem'), '--keys', freshKeys);
+  assert.equal(existing.status, 1);
+  assert.match(existing.stderr, /EEXIST/);
+  assert.equal(readFileSync(join(dir, 'current.pem'), 'utf8'), currentPem);
+  assert.ok(!existsSync(freshKeys));
 });

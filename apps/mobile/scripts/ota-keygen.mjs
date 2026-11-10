@@ -1,18 +1,27 @@
 #!/usr/bin/env node
 // Creates an over-the-air signing key (docs/ota.md): writes the private key to
-// <private-key-file> (mode 600, never inside the repository) and its public half
+// <private-key-file> (mode 600, never inside a git work tree) and its public half
 // into the given slot of apps/mobile/ota/keys.json. Refuses to replace either.
 //
 //   node apps/mobile/scripts/ota-keygen.mjs <current|next> <private-key-file> [--keys <keys.json>]
 import { generateKeyPairSync } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
-import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { existsSync, mkdirSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
-import { KEY_SLOTS, KEYS_PATH, keyIdOf } from './ota-verify.mjs';
+import { runCli } from './ota-error.mjs';
+import { KEY_SLOTS, KEYS_PATH, keyIdOf, parseObject } from './ota-verify.mjs';
 
-const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+/**
+ * Whether `dir`, symlinks resolved, lies in any git work tree: this checkout, a checkout this one
+ * is nested in, or another one, each of which could commit the key.
+ */
+function inGitWorkTree(dir) {
+  for (let d = realpathSync(dir); ; d = dirname(d)) {
+    if (existsSync(join(d, '.git'))) return true;
+    if (dirname(d) === d) return false;
+  }
+}
 
 function main() {
   const { values, positionals } = parseArgs({
@@ -24,11 +33,10 @@ function main() {
     throw new Error('usage: ota-keygen.mjs <current|next> <private-key-file> [--keys <keys.json>]');
   }
   const target = resolve(privateKeyFile);
-  const fromRoot = relative(REPO_ROOT, target);
-  if (fromRoot !== '..' && !fromRoot.startsWith(`..${sep}`) && !isAbsolute(fromRoot)) {
-    throw new Error(`${target} is inside the repository; write the private key outside it`);
+  if (inGitWorkTree(dirname(target))) {
+    throw new Error(`${target} is inside a git work tree; write the private key outside every repository`);
   }
-  const keys = existsSync(values.keys) ? JSON.parse(readFileSync(values.keys, 'utf8')) : {};
+  const keys = existsSync(values.keys) ? parseObject(readFileSync(values.keys, 'utf8'), 'KEYS', values.keys) : {};
   if (keys[slot]) throw new Error(`${values.keys} already has a "${slot}" key; remove it first to replace it`);
 
   const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
@@ -46,9 +54,4 @@ function main() {
   console.log(`✓ "${slot}" key ${keyIdOf(publicKey)}: public half in ${values.keys}, private key in ${target}`);
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(`✗ ${error.message}`);
-  process.exit(1);
-}
+runCli(main);

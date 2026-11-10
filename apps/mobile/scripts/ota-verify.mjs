@@ -12,8 +12,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
-import { ENV_SCRIPT_START, HEAD } from './ota-env.mjs';
-import { OtaError } from './ota-error.mjs';
+import { assertEnvTarget } from './ota-env.mjs';
+import { OtaError, runCli } from './ota-error.mjs';
 import { isRegularFile, isSafeEntryName, readTar, xzDecompress } from './ota-tar.mjs';
 
 export const KEYS_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', 'ota', 'keys.json');
@@ -33,12 +33,11 @@ export const bundleName = version => `openframe-mobile-${version}.tar.xz`;
 const P256_SPKI_PREFIX = Buffer.from('3059301306072a8648ce3d020106082a8648ce3d030107034200', 'hex');
 const P256_SPKI_LENGTH = P256_SPKI_PREFIX.length + 65;
 
+/** The SPKI DER of a public key, or of the public half of a private key (KeyObject or PEM). */
+const spkiDer = key => (key.type === 'public' ? key : createPublicKey(key)).export({ type: 'spki', format: 'der' });
+
 /** The id a manifest names its key by: the first 16 hex digits of SHA-256 over the key's SPKI DER. */
-export function keyIdOf(key) {
-  const publicKey = key?.type === 'public' ? key : createPublicKey(key);
-  const spki = publicKey.export({ type: 'spki', format: 'der' });
-  return createHash('sha256').update(spki).digest('hex').slice(0, 16);
-}
+export const keyIdOf = key => createHash('sha256').update(spkiDer(key)).digest('hex').slice(0, 16);
 
 /**
  * Throws unless `key` (public or private) is an EC key on P-256, the only curve the shells verify, whose
@@ -51,7 +50,7 @@ export function assertP256(key, what) {
       `${what} is not a P-256 key (${key.asymmetricKeyType} ${key.asymmetricKeyDetails?.namedCurve ?? ''})`,
     );
   }
-  const spki = (key.type === 'public' ? key : createPublicKey(key)).export({ type: 'spki', format: 'der' });
+  const spki = spkiDer(key);
   if (spki.length !== P256_SPKI_LENGTH || !spki.subarray(0, P256_SPKI_PREFIX.length).equals(P256_SPKI_PREFIX)) {
     throw new OtaError(
       'KEYS',
@@ -62,7 +61,7 @@ export function assertP256(key, what) {
 
 /** keys.json as `keyId -> public key`; both slots must hold distinct P-256 public keys. */
 export function loadKeys(path = KEYS_PATH) {
-  const json = JSON.parse(readFileSync(path, 'utf8'));
+  const json = parseObject(readFileSync(path, 'utf8'), 'KEYS', path);
   const keys = new Map();
   for (const slot of KEY_SLOTS) {
     if (typeof json[slot] !== 'string') throw new OtaError('KEYS', `${path}: no "${slot}" key`);
@@ -71,7 +70,12 @@ export function loadKeys(path = KEYS_PATH) {
     if (!json[slot].trimStart().startsWith('-----BEGIN PUBLIC KEY-----') || json[slot].includes('PRIVATE')) {
       throw new OtaError('KEYS', `${path}: "${slot}" is not a PEM public key; never commit a private key`);
     }
-    const key = createPublicKey(json[slot]);
+    let key;
+    try {
+      key = createPublicKey(json[slot]);
+    } catch (error) {
+      throw new OtaError('KEYS', `${path}: "${slot}" does not load: ${error.message}`);
+    }
     assertP256(key, `${path} "${slot}"`);
     keys.set(keyIdOf(key), key);
   }
@@ -80,7 +84,7 @@ export function loadKeys(path = KEYS_PATH) {
 }
 
 /** `bytes` as UTF-8, refusing (`code`) what is not valid UTF-8 rather than replacing it. */
-export function strictUtf8(bytes, code, what) {
+function strictUtf8(bytes, code, what) {
   try {
     return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
   } catch {
@@ -94,7 +98,8 @@ function strictBase64(value, what) {
   return bytes;
 }
 
-function parseObject(text, code, what) {
+/** `text` as a JSON object, refused with `code` when it is not JSON or not an object. */
+export function parseObject(text, code, what) {
   let value;
   try {
     value = JSON.parse(text);
@@ -120,8 +125,9 @@ export function verifyManifest(text, keys) {
   const payloadBytes = strictBase64(envelope.payload, 'payload');
   const signature = strictBase64(envelope.signature, 'signature');
   const key = keys.get(envelope.keyId);
-  if (!key)
+  if (!key) {
     throw new OtaError('UNKNOWN_KEY', `manifest is signed by key ${envelope.keyId}, which keys.json does not hold`);
+  }
   let valid = false;
   try {
     valid = verify('sha256', payloadBytes, { key, dsaEncoding: 'der' }, signature);
@@ -130,21 +136,23 @@ export function verifyManifest(text, keys) {
   }
   if (!valid) throw new OtaError('SIGNATURE', `signature does not verify with key ${envelope.keyId}`);
   const payload = parseObject(strictUtf8(payloadBytes, 'PAYLOAD', 'payload'), 'PAYLOAD', 'payload');
-  // Fields this version does not know are ignored, as the shells ignore them: optional additions
-  // (delta archives, for one) can then join format 1 without breaking installed shells.
-  const missing = PAYLOAD_KEYS.filter(key => !Object.hasOwn(payload, key));
+  // Fields this version does not know are ignored (docs/ota.md, "The rules").
+  const missing = PAYLOAD_KEYS.filter(field => !Object.hasOwn(payload, field));
   if (missing.length) throw new OtaError('PAYLOAD', `payload has no ${missing.join(', ')}`);
-  if (payload.format !== FORMAT) throw new OtaError('PAYLOAD', `payload format ${payload.format}`);
+  // Values shown through JSON.stringify: an object field whose toString is no function would throw.
+  if (payload.format !== FORMAT) throw new OtaError('PAYLOAD', `payload format ${JSON.stringify(payload.format)}`);
   if (typeof payload.version !== 'string' || !VERSION.test(payload.version)) {
     throw new OtaError('PAYLOAD', `payload version ${JSON.stringify(payload.version)} is not x.y.z`);
   }
   if (!Number.isInteger(payload.bridgeLevel) || payload.bridgeLevel < 1) {
-    throw new OtaError('PAYLOAD', `payload bridgeLevel ${payload.bridgeLevel}`);
+    throw new OtaError('PAYLOAD', `payload bridgeLevel ${JSON.stringify(payload.bridgeLevel)}`);
   }
-  if (!Number.isInteger(payload.size) || payload.size < 1)
-    throw new OtaError('PAYLOAD', `payload size ${payload.size}`);
-  if (typeof payload.sha256 !== 'string' || !SHA256.test(payload.sha256))
+  if (!Number.isInteger(payload.size) || payload.size < 1) {
+    throw new OtaError('PAYLOAD', `payload size ${JSON.stringify(payload.size)}`);
+  }
+  if (typeof payload.sha256 !== 'string' || !SHA256.test(payload.sha256)) {
     throw new OtaError('PAYLOAD', 'payload sha256');
+  }
   if (
     typeof payload.url !== 'string' ||
     !payload.url.startsWith('https://') ||
@@ -161,18 +169,10 @@ export function verifyManifest(text, keys) {
 }
 
 /**
- * The checks a shell makes on a downloaded bundle once its bytes match the manifest
- * (fixtures/bundle-cases.json): exactly one xz stream (XZ) holding a well-formed ustar archive
- * (TAR); then entry by entry a regular file (ENTRY_TYPE) at a safe (ENTRY_NAME) path that collides
- * with no other (DUPLICATE); last an `index.html` at the root (NO_INDEX) without the literal
- * `<script>window.__ENV` (HAS_ENV) and with the literal `<head>` the env goes after (NO_HEAD), so
- * the release refuses what the shells' env copy would. When a bundle has several faults the code is
- * of the first of those groups that has one, and among entries of the first entry in archive order:
- * a shell that decodes and reads as it goes stops checking entries after its first entry fault but
- * reads the tar on to its end, since a TAR fault further on outranks it; after a TAR fault it stops
- * reading the tar; either way it drains the xz stream to its end, since an XZ fault outranks both.
- * Returns the files as
- * `{path, size, sha256}`, in archive order.
+ * The checks a shell makes on a downloaded bundle once its bytes match the manifest, as
+ * docs/ota.md "The rules" orders them: XZ, TAR, each entry (ENTRY_TYPE, ENTRY_NAME, DUPLICATE),
+ * then NO_INDEX and the env copy's own checks (HAS_ENV, NO_HEAD), so the release refuses what the
+ * shells' env copy would. Returns the files as `{path, size, sha256}`, in archive order.
  */
 export function checkBundleContents(archive) {
   const files = [];
@@ -182,8 +182,9 @@ export function checkBundleContents(archive) {
   let index = null;
   for (const entry of readTar(xzDecompress(archive))) {
     if (!isRegularFile(entry)) throw new OtaError('ENTRY_TYPE', `${entry.name} is not a regular file`);
-    if (!isSafeEntryName(entry.name))
+    if (!isSafeEntryName(entry.name)) {
       throw new OtaError('ENTRY_NAME', `unsafe file name ${JSON.stringify(entry.name)}`);
+    }
     const key = entry.name.toLowerCase();
     const parents = key
       .split('/')
@@ -202,11 +203,7 @@ export function checkBundleContents(archive) {
     });
   }
   if (index === null) throw new OtaError('NO_INDEX', 'no index.html at the root of the bundle');
-  if (ENV_SCRIPT_START.test(index)) {
-    throw new OtaError('HAS_ENV', 'index.html carries window.__ENV; the bundle must carry no env');
-  }
-  if (!index.includes(HEAD))
-    throw new OtaError('NO_HEAD', 'index.html has no <head> for the shells to put the env after');
+  assertEnvTarget(index);
   return files;
 }
 
@@ -226,6 +223,12 @@ function main() {
   const { values } = parseArgs({
     options: { manifest: { type: 'string' }, bundle: { type: 'string' }, keys: { type: 'string', default: KEYS_PATH } },
   });
+  if (values.manifest === '' || values.bundle === '' || values.keys === '') {
+    throw new Error('--manifest, --bundle and --keys need a path');
+  }
+  if (values.bundle !== undefined && values.manifest === undefined) {
+    throw new Error('--bundle needs --manifest, the payload it is checked against');
+  }
   const keys = loadKeys(values.keys);
   if (!values.manifest) {
     console.log(`✓ ${values.keys}: ${[...keys.keys()].map((id, i) => `${KEY_SLOTS[i]} ${id}`).join(', ')}`);
@@ -239,11 +242,4 @@ function main() {
   }
 }
 
-if (import.meta.main) {
-  try {
-    main();
-  } catch (error) {
-    console.error(`✗ ${error instanceof OtaError ? `${error.code}: ` : ''}${error.message}`);
-    process.exit(1);
-  }
-}
+if (import.meta.main) runCli(main);
