@@ -67,8 +67,8 @@ final class TokenLifecycle {
     /// How long after a lost POST the shell may still re-present on its own: a
     /// few seconds inside the 60s grace, for the POST to reach the server. The
     /// shell's own re-presentation keeps this window, so if its answer is lost
-    /// too the hold ends past it and the shell stops; a persistent 5xx or 403 is
-    /// not re-posted forever, and callers carry on.
+    /// too the hold ends past it and the shell stops; a gateway that keeps
+    /// answering nothing is not re-posted forever, and callers carry on.
     static let lostRotationRetryWithin: TimeInterval = 55
     /// The trigger the shell's own re-presentation runs under; a loss on its
     /// flight keeps the window of the loss it retries.
@@ -92,6 +92,7 @@ final class TokenLifecycle {
     enum Code {
         static let unreached = "REFRESH_UNREACHED"
         static let unknown = "REFRESH_UNKNOWN"
+        static let failed = "REFRESH_FAILED"
         static let held = "REFRESH_HELD"
         static let deviceLocked = "DEVICE_LOCKED"
         static let biometricLocked = "BIOMETRIC_LOCKED"
@@ -122,12 +123,17 @@ final class TokenLifecycle {
         case rotated(TokenPair)
         /// The gateway refused the refresh token (401).
         case rejected
+        /// The gateway answered with an error that is not about the token: a 502
+        /// or 503 for an auth server it could not use, a 429, the WAF's 403. The
+        /// attempt has settled, so unlike `unknown` nothing is still being
+        /// served that the next presentation could race: no caller is held back
+        /// and the shell does not re-present it. Not retried within the flight.
+        case failed(String)
         /// The gateway never saw it — no network path, DNS, connect, TLS. Safe to retry.
         case unreached(String)
         /// The request went out at `sentAt` and its fate is unknown: a broken or
-        /// timed-out response, a non-401 error status, or a success carrying no
-        /// tokens. Never retried within the flight; re-presented at
-        /// `lostRotationRetryAfter`.
+        /// timed-out response, or a success carrying no tokens. Never retried
+        /// within the flight; re-presented at `lostRotationRetryAfter`.
         case unknown(String, sentAt: Date)
     }
 
@@ -771,6 +777,9 @@ final class TokenLifecycle {
             return .sessionOver
         case .unreached(let reason):
             return .failed(code: Code.unreached, message: reason)
+        case .failed(let reason):
+            ShellLog.auth.notice("\(reason) — the gateway answered, so nothing is held back (trigger: \(trigger))")
+            return .failed(code: Code.failed, message: reason)
         case .unknown(let reason, let sentAt):
             // Stamped on every loss, not just the first: each unanswered POST is
             // itself newly in doubt.
@@ -1031,12 +1040,14 @@ final class TokenLifecycle {
             case 200..<300:
                 return .unknown("refresh returned no token headers — is mobile auth enabled on the gateway?", sentAt: flight.startedAt)
             default:
-                // Answered, so a rotation is not ruled out: a 5xx from a front end
-                // can sit in front of a gateway that already did the work. A 403
-                // is deliberately NOT a rejection — the BFF never answers one on
-                // this endpoint, so it is the WAF's, and a WAF verdict says
-                // nothing about the credential.
-                return .unknown("refresh failed: HTTP \(response.statusCode)", sentAt: flight.startedAt)
+                // Answered, so the attempt has settled. A rotation is still not
+                // ruled out (a 5xx from a front end can sit in front of a gateway
+                // that already did the work), and for that case sooner is
+                // better: the server honours the token for 60s from the
+                // rotation. A 403 is deliberately NOT a rejection — the BFF
+                // never answers one on this endpoint, so it is the WAF's, and a
+                // WAF verdict says nothing about the credential.
+                return .failed("refresh failed: HTTP \(response.statusCode)")
             }
         }
 

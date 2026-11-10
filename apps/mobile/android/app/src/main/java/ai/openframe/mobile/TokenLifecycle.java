@@ -97,8 +97,8 @@ final class TokenLifecycle {
      * How long after a lost POST the shell may still re-present on its own: a
      * few seconds inside the 60s grace, for the POST to reach the server. The
      * shell's own re-presentation keeps this window, so if its answer is lost
-     * too the hold ends past it and the shell stops; a persistent 5xx or 403
-     * is not re-posted forever, and callers carry on.
+     * too the hold ends past it and the shell stops; a gateway that keeps
+     * answering nothing is not re-posted forever, and callers carry on.
      */
     private static final long LOST_ROTATION_RETRY_WITHIN_MS = 55_000;
     /** The trigger the shell's own re-presentation runs under; a loss on its flight keeps the window of the loss it retries. */
@@ -114,6 +114,7 @@ final class TokenLifecycle {
     static final class Code {
         static final String UNREACHED = "REFRESH_UNREACHED";
         static final String UNKNOWN = "REFRESH_UNKNOWN";
+        static final String FAILED = "REFRESH_FAILED";
         static final String HELD = "REFRESH_HELD";
         static final String DEVICE_LOCKED = "DEVICE_LOCKED";
         static final String BIOMETRIC_LOCKED = "BIOMETRIC_LOCKED";
@@ -164,10 +165,14 @@ final class TokenLifecycle {
      * and UNKNOWN is the whole point: retrying a request the gateway never saw
      * costs nothing; retrying one it may have answered re-presents a refresh
      * token the server may already have retired, which comes back as a 401 and
-     * reads exactly like a revoked session.
+     * reads exactly like a revoked session. FAILED is neither: the gateway
+     * answered with an error that is not about the token (a 502 or 503 for an
+     * auth server it could not use, a 429, the WAF's 403), so the attempt has
+     * settled and nothing is still being served that the next presentation
+     * could race. No caller is held back and the shell does not re-present it.
      */
-    private static final class Outcome {
-        enum Kind { ROTATED, REJECTED, UNREACHED, UNKNOWN }
+    static final class Outcome {
+        enum Kind { ROTATED, REJECTED, UNREACHED, FAILED, UNKNOWN }
 
         final Kind kind;
         final TokenPair pair;
@@ -192,6 +197,10 @@ final class TokenLifecycle {
 
         static Outcome unreached(String reason) {
             return new Outcome(Kind.UNREACHED, null, reason, 0);
+        }
+
+        static Outcome failed(String reason) {
+            return new Outcome(Kind.FAILED, null, reason, 0);
         }
 
         static Outcome unknown(String reason, long sentAt) {
@@ -912,6 +921,9 @@ final class TokenLifecycle {
             }
             case UNREACHED:
                 return RefreshResult.failed(Code.UNREACHED, outcome.reason);
+            case FAILED:
+                ShellLog.auth.notice(outcome.reason + " — the gateway answered, so nothing is held back (trigger: " + trigger + ")");
+                return RefreshResult.failed(Code.FAILED, outcome.reason);
             case UNKNOWN:
             default:
                 // Stamped on every loss, not just the first: each unanswered POST
@@ -1014,6 +1026,24 @@ final class TokenLifecycle {
     /** The executor delay for a retry at {@code fireAt}: half a second late, so the hold, which reads the clock again, cannot refuse it. */
     static long lostRotationRetryDelay(long fireAt, long now) {
         return Math.max(0, fireAt - now) + 500;
+    }
+
+    /**
+     * What an answer that carried no rotated pair settles as. A 2xx without
+     * tokens rotated and lost the pair, a 401 refuses the token, and anything
+     * else is the gateway failing the refresh for a reason that is not about
+     * the token. A 403 is deliberately not a rejection: the BFF never answers
+     * one on this endpoint, so it is the WAF's, and says nothing about the
+     * credential.
+     */
+    static Outcome.Kind kindOfAnswerWithoutTokens(int status) {
+        if (status >= 200 && status < 300) {
+            return Outcome.Kind.UNKNOWN;
+        }
+        if (status == 401) {
+            return Outcome.Kind.REJECTED;
+        }
+        return Outcome.Kind.FAILED;
     }
 
     /** Whether a re-presentation that settled as {@code result} is tried again: only one that never left the device, while the doubt stands. */
@@ -1196,16 +1226,20 @@ final class TokenLifecycle {
                 if (rotated != null) {
                     return Outcome.rotated(rotated);
                 }
-                return Outcome.unknown("refresh returned no token headers — is mobile auth enabled on the gateway?", flight.startedAt);
             }
-            if (status == 401) {
-                return Outcome.rejected();
+            switch (kindOfAnswerWithoutTokens(status)) {
+                case REJECTED:
+                    return Outcome.rejected();
+                case FAILED:
+                    // Answered, so the attempt has settled. A rotation is still
+                    // not ruled out (a 5xx from a front end can sit in front of
+                    // a gateway that already did the work), and for that case
+                    // sooner is better: the server honours the token for 60s
+                    // from the rotation.
+                    return Outcome.failed("refresh failed: HTTP " + status);
+                default:
+                    return Outcome.unknown("refresh returned no token headers — is mobile auth enabled on the gateway?", flight.startedAt);
             }
-            // Answered, so a rotation is not ruled out: a 5xx from a front end
-            // can sit in front of a gateway that already did the work. A 403 is
-            // deliberately NOT a rejection — the BFF never answers one on this
-            // endpoint, so it is the WAF's, and says nothing about the credential.
-            return Outcome.unknown("refresh failed: HTTP " + status, flight.startedAt);
         }
 
         /**

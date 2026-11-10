@@ -102,10 +102,27 @@ public class TokenLifecycleLostRotationTest {
         assertTrue(TokenLifecycle.rearmsLostRotationRetry(unreached, true));
         assertFalse("the doubt was cleared meanwhile", TokenLifecycle.rearmsLostRotationRetry(unreached, false));
         assertFalse(TokenLifecycle.rearmsLostRotationRetry(failed(TokenLifecycle.Code.UNKNOWN), true));
+        assertFalse(TokenLifecycle.rearmsLostRotationRetry(failed(TokenLifecycle.Code.FAILED), true));
         assertFalse(TokenLifecycle.rearmsLostRotationRetry(failed(TokenLifecycle.Code.HELD), true));
         assertFalse(TokenLifecycle.rearmsLostRotationRetry(failed(TokenLifecycle.Code.NO_HOST), true));
         assertFalse(TokenLifecycle.rearmsLostRotationRetry(TokenLifecycle.RefreshResult.tokens(new TokenPair("access", "refresh")), true));
         assertFalse(TokenLifecycle.rearmsLostRotationRetry(TokenLifecycle.RefreshResult.sessionOver(), true));
+    }
+
+    /**
+     * A failure the gateway answered with is not an answer that went missing:
+     * 502 and 503 are how it reports an auth server it could not use. Classed
+     * as unknown, one held every caller back for 35s, the Retry on the web
+     * view's "can't verify your session" screen included.
+     */
+    @Test
+    public void anAnsweredFailureIsNotALostAnswer() {
+        for (int status : new int[] {502, 503, 500, 429, 403, 404}) {
+            assertEquals("HTTP " + status, TokenLifecycle.Outcome.Kind.FAILED, TokenLifecycle.kindOfAnswerWithoutTokens(status));
+        }
+        assertEquals(TokenLifecycle.Outcome.Kind.REJECTED, TokenLifecycle.kindOfAnswerWithoutTokens(401));
+        // A success without tokens did rotate, and the new pair is what was lost.
+        assertEquals(TokenLifecycle.Outcome.Kind.UNKNOWN, TokenLifecycle.kindOfAnswerWithoutTokens(204));
     }
 
     private static TokenLifecycle.RefreshResult failed(String code) {

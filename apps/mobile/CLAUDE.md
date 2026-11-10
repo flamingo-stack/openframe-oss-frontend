@@ -157,10 +157,20 @@ device log tags every step `[TokenLifecycle]`.
   it, so re-hydration (post-login full navigation, unlock retry) never prompts again.
   Without it every background rotation would drive a gated `SecItemCopyMatching`.
 - **Outcome taxonomy** per POST: rotated / rejected (401 only) / unreached (never left the
-  device: no path, DNS, connect, TLS — retried at 1s, 3s) / unknown (went out, no usable
-  answer: timeout, broken response, 5xx, **403**, 2xx with no token headers — not retried
-  within the flight). A 403 is deliberately not a rejection: the BFF never answers one here,
-  so it is the WAF's, and says nothing about the credential.
+  device: no path, DNS, connect, TLS — retried at 1s, 3s) / failed (the gateway answered
+  with an error that is not about the token: its 502/503 for an auth server it could not
+  use, a 429, a 5xx, **403** — not retried within the flight) / unknown (went out, no usable
+  answer: timeout, broken response, 2xx with no token headers — not retried within the
+  flight). A 403 is deliberately not a rejection: the BFF never answers one here, so it is
+  the WAF's, and says nothing about the credential.
+- **An answered failure holds nothing back.** A failed outcome has settled: nothing is still
+  being served that a new presentation could race, so no caller gets `REFRESH_HELD` and the
+  shell does not re-present it on its own. The web view sees `REFRESH_FAILED` and its next
+  refresh goes out. Classed as unknown (until 2026-11), one held every caller for 35s, the
+  Retry on the web's "can't verify your session" screen included. A rotation that did land
+  behind an answered failure (a front end's 5xx over a gateway that finished) is left to the
+  next caller, who has the 60s grace. Android pins the classification in
+  `TokenLifecycleLostRotationTest` (`kindOfAnswerWithoutTokens`).
 - **A lost answer is settled inside the grace window.** After an unknown outcome the shell
   presents the same refresh token again **on its own, 35s after the lost POST went out**
   (`lostRotationRetryAfter` / `LOST_ROTATION_RETRY_AFTER_MS`); every caller before that gets
@@ -174,8 +184,8 @@ device log tags every step `[TokenLifecycle]`.
   the device (no network yet) is tried again at once, until **55s after the lost POST**
   (`lostRotationRetryWithin` / `LOST_ROTATION_RETRY_WITHIN_MS`). A loss on the shell's own
   re-presentation keeps that window, so its hold ends past it and the shell stops: each lost
-  caller POST gets one re-presentation, and a persistent 5xx or 403 is left to callers instead
-  of being re-posted forever. iOS holds a background-task assertion over the wait; Android a
+  caller POST gets one re-presentation, and a gateway that keeps answering nothing is left to
+  callers instead of being re-posted forever. iOS holds a background-task assertion over the wait; Android a
   partial wake lock (its executor's delay stops in deep sleep). On Android these timing rules
   are pure static functions in `TokenLifecycle.java`, unit-tested on the JVM by
   `TokenLifecycleLostRotationTest`; the iOS twin has no test target yet. Still lost: a second lost
@@ -190,7 +200,7 @@ device log tags every step `[TokenLifecycle]`.
   shell cannot read *right now* — `errSecInteractionNotAllowed`: before the first unlock
   after a reboot, or an item still on the old `WhenUnlocked` class while the phone is
   locked — is `DEVICE_LOCKED` on both `getTokens` and `refreshTokens`; a gated store not
-  yet unlocked is `BIOMETRIC_LOCKED`; no host is `NO_HOST`; unreached/unknown/held all
+  yet unlocked is `BIOMETRIC_LOCKED`; no host is `NO_HOST`; unreached/failed/unknown/held all
   **reject**, which the frontend reads as transient. `DEVICE_LOCKED` on the launch read
   parks the frontend behind its unlock gate, and the shell pushes the pair on the first
   activation after the unlock, which lifts it. Field incident 2026-09-09: a Watch reply on
