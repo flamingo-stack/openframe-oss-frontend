@@ -2,6 +2,9 @@
 # its build output; patterns there are relative to that app.
 node_modules/
 
+# Private keys: ota-keygen.mjs and the desktop's signing setup write them outside every repository.
+*.pem
+
 # Editors / OS
 .idea/
 *.iml

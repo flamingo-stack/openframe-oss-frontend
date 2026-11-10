@@ -7,6 +7,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { envScript, insertEnvScript } from './ota-env.mjs';
+
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const indexPath = join(root, 'www', 'index.html');
 
@@ -47,14 +49,6 @@ if (!env.NEXT_PUBLIC_SHARED_HOST_URL) {
   process.exit(1);
 }
 
-const snippet = `<script>window.__ENV = ${JSON.stringify(env)};</script>`;
-let html = readFileSync(indexPath, 'utf8');
-
-if (/<script>window\.__ENV/.test(html)) {
-  html = html.replace(/<script>window\.__ENV[\s\S]*?<\/script>/, snippet);
-} else {
-  html = html.replace('<head>', `<head>${snippet}`);
-}
-
-writeFileSync(indexPath, html);
+// The same element and position the shells copy into an over-the-air bundle (ota-env.mjs).
+writeFileSync(indexPath, insertEnvScript(readFileSync(indexPath, 'utf8'), envScript(env)));
 console.log('▸ injected window.__ENV:', env);

@@ -23,6 +23,14 @@ import { isAppShell, isDesktopShell, isMobileShell } from './platform';
 export const APP_SCHEME = 'com.openframe.app';
 
 /**
+ * The native bridge level this bundle needs; each mobile shell compiles in the level it provides.
+ * The release copies it into the over-the-air manifest (`apps/mobile/scripts/ota-pack.mjs` reads
+ * this exact line), and a shell below it keeps the bundle it has. Bridge additions stay optional
+ * and probed, so raise it only when the bundle stops probing for a method it needs.
+ */
+export const REQUIRED_BRIDGE_LEVEL = 1;
+
+/**
  * What the desktop shell's `start` rejects with when the browser part ends without a result, besides
  * `USER_CANCELED`: the `*_ERROR` strings in its lib.rs, which a web test reads.
  */

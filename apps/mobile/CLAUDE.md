@@ -12,6 +12,8 @@ Strategy: `~/flamingo/openframe-desktop/docs/mobile-app-plan.md` + `native-apps-
 
 - `npm run build:web` — frontend export → `www/` → inject `window.__ENV` → `cap sync`
 - `npm run web:placeholder` — dev stub bundle (no frontend build needed)
+- `npm test` — the over-the-air release scripts' tests and the shared cases (`docs/ota.md`); the hub's code reviewer runs it on pull requests
+- `npm run ota:fixtures` — rewrites the shared manifest and bundle cases (the env and decision cases are hand-written)
 - `npx cap sync ios` — copy `www/` → `ios/App/App/public/`, regen configs + `Package.swift`
 - `npx cap run ios` / `npx cap open ios`
 - `npm run push:demo` — `simctl push` `dev/push-sample.apns` to a booted simulator
@@ -716,7 +718,8 @@ rebuild instead. WebView inspector: Safari → Develop.
 `docs/project-structure.md` (pipeline, committed-vs-generated) · `docs/using-native-apis.md`
 (plugin pattern) · `docs/run-on-iphone.md` (device/simulator/signing/live-reload/env) ·
 `docs/release-ios-prod.md` · `docs/release-android-prod.md` (store submission checklists) ·
-`docs/release-ios-stage.md` · `docs/release-android-stage.md`.
+`docs/release-ios-stage.md` · `docs/release-android-stage.md` · `docs/ota.md` (over-the-air
+bundle each release publishes, signing keys).
 
 **After structural changes** (new plugin, auth change, pipeline change, new platform), update
 the Obsidian note `OpenFrame/openframe-mobile.md` and bump its `updated` field.
