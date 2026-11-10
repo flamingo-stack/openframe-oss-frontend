@@ -933,11 +933,11 @@ final class TokenLifecycle {
      * runs again, which is all that is left to try.
      */
     private void noteLostRotationLocked(long sentAt, boolean onOwnRetry) {
-        Long deadline = onOwnRetry ? lostRotationRetryDeadline : null;
+        long deadline = lostRotationRetryDeadline(sentAt, onOwnRetry, lostRotationRetryDeadline);
         clearLostRotationLocked();
-        long holdUntil = sentAt + LOST_ROTATION_RETRY_AFTER_MS;
+        long holdUntil = lostRotationHoldEnd(sentAt);
         lostRotationHoldUntil = holdUntil;
-        lostRotationRetryDeadline = deadline != null ? deadline : sentAt + LOST_ROTATION_RETRY_WITHIN_MS;
+        lostRotationRetryDeadline = deadline;
         scheduleLostRotationRetryLocked(holdUntil);
     }
 
@@ -948,21 +948,19 @@ final class TokenLifecycle {
      * unreached retries) for as long as the deadline allows.
      */
     private void scheduleLostRotationRetryLocked(long fireAt) {
-        if (lostRotationRetryDeadline == null || fireAt >= lostRotationRetryDeadline) {
+        if (!mayRetryLostRotation(fireAt, lostRotationRetryDeadline)) {
             ShellLog.auth.notice("too late to re-present a lost refresh inside the grace window — leaving it to the next caller");
             return;
         }
         // A safety bound well past the wait and the flight after it; released as soon as that settles.
         lostRotationWakeLock.acquire(LOST_ROTATION_RETRY_WITHIN_MS + WALL_CLOCK_BUDGET_MS);
-        // Half a second late, so the hold, which reads the clock again, cannot refuse it.
-        long delay = Math.max(0, fireAt - SystemClock.elapsedRealtime()) + 500;
+        long delay = lostRotationRetryDelay(fireAt, SystemClock.elapsedRealtime());
         lostRotationRetry = queue.schedule(() -> {
             lostRotationRetry = null;
             // A throw here is swallowed by the executor, and with it the retry.
             try {
                 refreshLocked(true, null, LOST_ROTATION_RETRY_TRIGGER, result -> {
-                    if (result.kind == RefreshResult.Kind.FAILED && Code.UNREACHED.equals(result.code)
-                        && lostRotationHoldUntil != null) {
+                    if (rearmsLostRotationRetry(result, lostRotationHoldUntil != null)) {
                         scheduleLostRotationRetryLocked(SystemClock.elapsedRealtime());
                     }
                     // Nothing re-armed, here or by a second loss settling this flight.
@@ -989,6 +987,38 @@ final class TokenLifecycle {
             lostRotationRetry = null;
         }
         lostRotationWakeLock.release();
+    }
+
+    // ─── Lost-rotation timing (pure; TokenLifecycleLostRotationTest) ─────────
+    // Times are elapsedRealtime milliseconds.
+
+    /** When callers stop being held back after the POST sent at {@code sentAt} lost its answer. */
+    static long lostRotationHoldEnd(long sentAt) {
+        return sentAt + LOST_ROTATION_RETRY_AFTER_MS;
+    }
+
+    /**
+     * The self-retry window a loss gets: a loss on the shell's own
+     * re-presentation keeps the window of the loss it retried, any other loss
+     * starts its own. Without a window to keep (the doubt was cleared), it starts one.
+     */
+    static long lostRotationRetryDeadline(long sentAt, boolean onOwnRetry, Long currentDeadline) {
+        return onOwnRetry && currentDeadline != null ? currentDeadline : sentAt + LOST_ROTATION_RETRY_WITHIN_MS;
+    }
+
+    /** Whether the shell may still re-present on its own at {@code fireAt}. */
+    static boolean mayRetryLostRotation(long fireAt, Long deadline) {
+        return deadline != null && fireAt < deadline;
+    }
+
+    /** The executor delay for a retry at {@code fireAt}: half a second late, so the hold, which reads the clock again, cannot refuse it. */
+    static long lostRotationRetryDelay(long fireAt, long now) {
+        return Math.max(0, fireAt - now) + 500;
+    }
+
+    /** Whether a re-presentation that settled as {@code result} is tried again: only one that never left the device, while the doubt stands. */
+    static boolean rearmsLostRotationRetry(RefreshResult result, boolean stillInDoubt) {
+        return stillInDoubt && result.kind == RefreshResult.Kind.FAILED && Code.UNREACHED.equals(result.code);
     }
 
     /**

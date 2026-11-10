@@ -176,7 +176,9 @@ device log tags every step `[TokenLifecycle]`.
   re-presentation keeps that window, so its hold ends past it and the shell stops: each lost
   caller POST gets one re-presentation, and a persistent 5xx or 403 is left to callers instead
   of being re-posted forever. iOS holds a background-task assertion over the wait; Android a
-  partial wake lock (its executor's delay stops in deep sleep). Still lost: a second lost
+  partial wake lock (its executor's delay stops in deep sleep). On Android these timing rules
+  are pure static functions in `TokenLifecycle.java`, unit-tested on the JVM by
+  `TokenLifecycleLostRotationTest`; the iOS twin has no test target yet. Still lost: a second lost
   answer in a row; an iOS app backgrounded early in the wait, since iOS grants ~30s of
   background time; a process suspended or frozen past the window (or Android in Doze), which
   re-presents when it runs again; and the lost POST rotating over the re-presentation after
