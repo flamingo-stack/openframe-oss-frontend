@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LinkMachine } from '@/graphql/directory/link-machine-fields';
 
 const commit = vi.fn();
+const queryVariables = vi.fn();
 
 function machine(machineId: string, name: string): LinkMachine {
   return {
@@ -33,6 +34,7 @@ vi.mock('react-relay', async importOriginal => ({
   ...(await importOriginal<Record<string, unknown>>()),
   graphql: () => ({}),
   useLazyLoadQuery: (_query: unknown, variables: { search: string | null }) => {
+    queryVariables(variables);
     if (variables.search === 'fail') throw new Error('devices read failed');
     return { devices: { edges: (variables.search === 'zeta' ? [ZETA] : [ALPHA, ZETA]).map(node => ({ node })) } };
   },
@@ -80,25 +82,26 @@ function search(text: string) {
   input.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
+beforeEach(() => {
+  commit.mockReset();
+  queryVariables.mockReset();
+  // The search input measures itself.
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as never;
+  container = document.createElement('div');
+  document.body.appendChild(container);
+  root = createRoot(container);
+});
+
+afterEach(() => {
+  act(() => root.unmount());
+  container.remove();
+});
+
 describe('LinkDeviceModal, a search that hides the pick', () => {
-  beforeEach(() => {
-    commit.mockReset();
-    // The search input measures itself.
-    globalThis.ResizeObserver = class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    } as never;
-    container = document.createElement('div');
-    document.body.appendChild(container);
-    root = createRoot(container);
-  });
-
-  afterEach(() => {
-    act(() => root.unmount());
-    container.remove();
-  });
-
   it('drops the pick, so Link Device is off and links nothing', async () => {
     await act(async () => {
       root.render(<LinkDeviceModal record={RECORD} onClose={() => undefined} onLinked={() => undefined} />);
@@ -141,5 +144,21 @@ describe('LinkDeviceModal, a search that hides the pick', () => {
     act(() => linkButton().click());
     expect(commit).not.toHaveBeenCalled();
     consoleError.mockRestore();
+  });
+});
+
+describe('LinkDeviceModal, the machines it offers', () => {
+  it('asks for every machine the link takes, still-enrolling ones too, and none on its way out', async () => {
+    await act(async () => {
+      root.render(<LinkDeviceModal record={RECORD} onClose={() => undefined} onLinked={() => undefined} />);
+    });
+
+    expect(queryVariables).toHaveBeenCalled();
+    for (const [variables] of queryVariables.mock.calls) {
+      expect(variables.filter.statuses).toContain('PENDING');
+      for (const gone of ['PENDING_DELETION', 'DELETED', 'ARCHIVED', 'DECOMMISSIONED']) {
+        expect(variables.filter.statuses).not.toContain(gone);
+      }
+    }
   });
 });

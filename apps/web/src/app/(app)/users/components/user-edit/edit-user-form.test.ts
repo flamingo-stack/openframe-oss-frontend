@@ -11,6 +11,7 @@ vi.mock('react-relay', async importOriginal => ({
 
 import { type FixtureAccount, LIVE_DETAILS, userRecord as record } from './__tests__/edit-user-fixtures';
 import {
+  DEPROVISIONED_REASON,
   EDIT_USER_DEFAULT_VALUES,
   type EditUserFormData,
   type EditUserRecord,
@@ -235,6 +236,11 @@ describe('editUserNotice', () => {
   it('names the missing customer first', () => {
     const stored = record({ customers: [], readOnlyReasons: [DirectoryReadOnlyReason.PAUSED] });
     expect(editUserNotice(stored)?.description).toBe(NO_CUSTOMER_REASON);
+  });
+
+  it('names the deprovisioning in place of the missing customer, which a deprovisioned account never has', () => {
+    const stored = record({ customers: [], readOnlyReasons: [DirectoryReadOnlyReason.DEPROVISIONED] });
+    expect(editUserNotice(stored)).toEqual({ title: 'This user cannot be edited', description: DEPROVISIONED_REASON });
   });
 
   it('names the first read-only reason', () => {

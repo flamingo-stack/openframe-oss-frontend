@@ -1,11 +1,7 @@
 'use client';
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
-import {
-  DEFAULT_DEVICES_LIST_STATUSES,
-  DeviceTypeTile,
-  getDeviceStatusConfig,
-} from '@flamingo-stack/openframe-frontend-core/components/features';
+import { DeviceTypeTile, getDeviceStatusConfig } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   Button,
   RadioGroup,
@@ -23,6 +19,7 @@ import type { linkDeviceModalMutation as LinkDeviceMutationType } from '@/__gene
 import type { linkDeviceModalQuery as LinkDeviceQueryType } from '@/__generated__/linkDeviceModalQuery.graphql';
 import { ContentErrorBoundary, SectionLoadError, useRetryKey } from '@/app/components/shared';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
+import { DeviceStatus } from '@/generated/schema-enums';
 import { type LinkMachine, toLinkMachine } from '@/graphql/directory/link-machine-fields';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 
@@ -57,7 +54,18 @@ const linkDeviceModalMutation = graphql`
   }
 `;
 
-const MACHINE_FILTER = { statuses: [...DEFAULT_DEVICES_LIST_STATUSES] };
+// Not the Devices list's default: linkDirectoryDevice answers NOT_FOUND for a PENDING_DELETION machine, as for a
+// DELETED, ARCHIVED or DECOMMISSIONED one, and takes every other status, a still-enrolling PENDING one included.
+const MACHINE_FILTER = {
+  statuses: [
+    DeviceStatus.PENDING,
+    DeviceStatus.ACTIVE,
+    DeviceStatus.INACTIVE,
+    DeviceStatus.MAINTENANCE,
+    DeviceStatus.ONLINE,
+    DeviceStatus.OFFLINE,
+  ],
+};
 const LINK_FAILED = 'Could not link the device';
 
 /** The directory record being linked. */

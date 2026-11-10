@@ -2,7 +2,7 @@ import { graphql, readInlineData } from 'react-relay';
 import { z } from 'zod';
 import type { editUserForm_person$data, editUserForm_person$key } from '@/__generated__/editUserForm_person.graphql';
 import type { UpdateDirectoryUserInput } from '@/__generated__/useEditUserFormMutation.graphql';
-import { DirectoryUserField, OrgUserSource } from '@/generated/schema-enums';
+import { DirectoryReadOnlyReason, DirectoryUserField, OrgUserSource } from '@/generated/schema-enums';
 import { toCustomerOption } from '@/graphql/directory/customer-option';
 import { presentationFor } from '@/lib/exhaustive-map';
 import { parseLocalDate, toLocalDate } from '@/lib/graphql-scalars';
@@ -51,6 +51,16 @@ export const EDIT_USER_TITLE = 'Edit User';
 
 /** Writes need a customer the account is visible to (contract §6), so an account nobody claims cannot be saved. */
 export const NO_CUSTOMER_REASON = "No customer claims this user yet, so it can't be edited.";
+
+export const DEPROVISIONED_REASON = "Deprovisioned in the directory, so it can't be edited.";
+
+/**
+ * A deleted account, kept while it can still be restored (D3). The backend drops its claims, so it never has a
+ * customer: where the no-customer reason is shown, this says the real one instead.
+ */
+export function isDeprovisioned(readOnlyReasons: readonly string[]): boolean {
+  return readOnlyReasons.includes(DirectoryReadOnlyReason.DEPROVISIONED);
+}
 
 /** The picker's value for a manager the provider names who is not a synced account here: nothing to send until changed. */
 export const MANAGER_NOT_SYNCED = 'not-synced';
@@ -190,7 +200,10 @@ export function showsLocationFields(record: EditUserRecord | null): boolean {
 
 /** Why part of the form is locked; null when every field the provider takes is open. */
 export function editUserNotice(record: EditUserRecord): { title: string; description: string } | null {
-  if (record.customers.length === 0) return { title: 'This user cannot be edited', description: NO_CUSTOMER_REASON };
+  if (record.customers.length === 0) {
+    const description = isDeprovisioned(record.readOnlyReasons) ? DEPROVISIONED_REASON : NO_CUSTOMER_REASON;
+    return { title: 'This user cannot be edited', description };
+  }
   if (record.readOnlyReasons.length > 0) {
     return { title: 'Directory fields are locked', description: readOnlyTooltip(record.readOnlyReasons) };
   }

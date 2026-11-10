@@ -18,6 +18,8 @@ import type { RuleValue } from './attribution.types';
 // The Values picker of one rule (Figma 3562-27507): the directory's domains, groups or org units,
 // searched by name on the server. Until the connection's first sync has finished the API reads
 // them live from the provider, so a tenant connected a minute ago can be split already.
+// Both pickers wrap their chips (`wrapTags`): the default chip cuts its label at 90px, and with it the " (deleted)"
+// that marks a value the directory no longer has.
 
 /** The API's default page; a longer list is narrowed by typing. */
 const OPTIONS_LIMIT = 50;
@@ -66,6 +68,7 @@ function LockedValues({
   return (
     <Autocomplete
       multiple
+      wrapTags
       label={label}
       labelVariant="large"
       options={value.map(toOption)}
@@ -110,6 +113,7 @@ function RuleValuesOptions({
   return (
     <Autocomplete
       multiple
+      wrapTags
       label={label}
       labelVariant="large"
       options={offered.map(toOption)}
