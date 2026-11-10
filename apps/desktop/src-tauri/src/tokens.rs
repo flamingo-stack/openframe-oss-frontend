@@ -136,35 +136,15 @@ const DEADLINE_TICK: Duration = Duration::from_secs(1);
 /// other and each floors to a whole second, so a pair can differ by two with the
 /// machine fully awake. Everything above that is real suspend.
 const SLEEP_DETECT_SECS: u64 = 3;
-/// After a refresh POST whose rotation is in doubt, when the shell presents the
-/// same refresh token again, counted from the moment that POST went out. The
-/// shell does it on its own ([`schedule_lost_rotation_retry`]), once per POST a
-/// caller started ([`arms_re_presentation`]). After a POST that got no
-/// answer every caller before then is held back; after one the gateway answered
-/// with an error none is ([`Outcome::holds_callers`]).
-///
-/// The auth server honours a rotated-away refresh token for
-/// [`REFRESH_GRACE_SECS`] after the rotation, and the rotation came after the
-/// send, so a presentation at this mark lands inside that window whether or not
-/// the lost POST rotated. Not sooner: the gateway gives the auth server
-/// [`GATEWAY_AUTH_WAIT_SECS`] to answer, and a re-presentation that rotates
-/// while the lost POST is still being served gets rotated over by it, leaving
-/// this side holding a token the server has retired. Not later: the 60-second
-/// hold this replaced was counted from giving up (up to the send plus the
-/// 10-second budget) and then waited for a caller, so for any rotation before
-/// the give-up — an answer lost on its way back — the next presentation came
-/// after the window had closed, and its 401 signed the user out.
-///
-/// The hold itself is older than the window. The single-flight lock serializes
-/// callers but does not coalesce them: without it the losing caller finds the
-/// tokens unchanged, `needs_refresh` still true, and re-presents the token the
-/// moment the lock frees, on the same dead link — which is how 02:05:20 on
-/// 2026-08-01 turned an ambiguous outcome into a cleared session inside one
-/// second.
+/// When the shell presents the refresh token again after a POST whose rotation
+/// is in doubt, counted from that POST's send. Past [`GATEWAY_AUTH_WAIT_SECS`],
+/// so the POST in doubt is no longer being served and cannot rotate over the
+/// re-presentation; inside [`REFRESH_GRACE_SECS`], so a token that POST retired
+/// is still honoured. Callers are held until then only after a POST that got no
+/// answer ([`Outcome::holds_callers`]).
 const LOST_ROTATION_RETRY_AFTER_SECS: u64 = 35;
 /// How long after the POST in doubt the shell may still start a re-presentation:
-/// a few seconds inside the grace, for the POST to reach the server. Only one
-/// that never left the machine is tried again, so this is what bounds those.
+/// a few seconds inside the grace, for the POST to reach the server.
 const LOST_ROTATION_RETRY_WITHIN_SECS: u64 = 55;
 /// The trigger the shell's own re-presentation is logged under.
 const LOST_ROTATION_RETRY_TRIGGER: &str = "a refresh in doubt";
@@ -196,9 +176,8 @@ const _: () = {
     assert!(LOST_ROTATION_RETRY_AFTER_SECS > GATEWAY_AUTH_WAIT_SECS);
     assert!(LOST_ROTATION_RETRY_AFTER_SECS < LOST_ROTATION_RETRY_WITHIN_SECS);
     assert!(LOST_ROTATION_RETRY_WITHIN_SECS < REFRESH_GRACE_SECS);
-    // What lets an answered error hold no caller back: an answer inside the
-    // budget cannot be the gateway timing out on the auth server, so that POST
-    // has settled (`outcome_for_failure`).
+    // An answer inside the budget cannot be the gateway timing out on the auth
+    // server, which is what lets an answered error hold no caller back.
     assert!(REFRESH_WALL_CLOCK_BUDGET.as_secs() < GATEWAY_AUTH_WAIT_SECS);
 };
 
@@ -272,21 +251,13 @@ impl From<NativeAuthTokens> for PageTokens {
 pub struct TokenLifecycle {
     refresh_lock: tokio::sync::Mutex<()>,
     /// `now_secs` when the last refresh POST whose rotation is in doubt went
-    /// out — one that got no answer back, or one the gateway answered with an
-    /// error; zero once nothing is in doubt.
-    ///
-    /// Keys the re-presentation [`schedule_lost_rotation_retry`] arms (which
-    /// stands down once the mark is no longer its own), and tells the next
-    /// rejection that it is very likely that lost rotation surfacing rather
-    /// than a revoked session — a distinction no status code carries, and the
-    /// difference between a bug and a known hazard when someone reads the log
-    /// later. This field alone says whether anything is in doubt, rather than a
-    /// flag beside a timestamp that could disagree with it.
+    /// out; zero once nothing is in doubt. Keys the shell's re-presentation,
+    /// which stands down once the mark is no longer its own, and tells the next
+    /// rejection that it is likely that rotation surfacing rather than a
+    /// revoked session, which no status code says.
     lost_rotation_sent_at: AtomicU64,
-    /// Which kind of doubt a non-zero mark stands for: whether that POST got no
-    /// answer, so callers are held back until it has been re-presented
-    /// ([`Outcome::holds_callers`]). Written with the mark and read with it,
-    /// both under the refresh lock; says nothing while the mark is zero.
+    /// Whether the POST behind a non-zero mark got no answer, so callers are
+    /// held until it has been re-presented. Says nothing while the mark is zero.
     lost_rotation_holds_callers: AtomicBool,
     /// Refresh attempts that settled without a rotation or a rejection, in a
     /// row. Drives one backoff for both things that ask for a refresh — the poll
@@ -801,16 +772,14 @@ fn settle_left_secs(awake_since_mono: u64, mono_now: u64) -> Option<u64> {
 }
 
 /// How much longer until the POST in doubt that went out at `sent_at` is
-/// re-presented by [`schedule_lost_rotation_retry`], which is also how long
-/// callers are held when that POST holds them. None once that moment has come —
-/// which is also the answer for the zero mark that means nothing is in doubt.
+/// re-presented, or None once that moment has come — which is also the answer
+/// for the zero mark that means nothing is in doubt.
 ///
-/// On the wall clock, because unlike a resume the doubt is about a token rather
-/// than about this process's uptime, and the window it races is the server's.
-/// The zero mark carries the opposite meaning to the one in [`settle_left_secs`]
-/// — there it means "no resume recorded, so gate nothing", here "nothing in
-/// doubt, so hold nothing back" — which is why the two windows stay separate
-/// functions despite the shared arithmetic.
+/// On the wall clock, because the window it races is the server's. The zero
+/// mark carries the opposite meaning to the one in [`settle_left_secs`] — there
+/// "no resume recorded, so gate nothing", here "nothing in doubt, so hold
+/// nothing back" — which is why the two stay separate functions despite the
+/// shared arithmetic.
 fn lost_rotation_hold_secs(sent_at: u64, now: u64) -> Option<u64> {
     LOST_ROTATION_RETRY_AFTER_SECS
         .checked_sub(now.saturating_sub(sent_at))
@@ -1024,9 +993,8 @@ enum Outcome {
     Gone,
     /// The gateway answered with an error that is not about the token: a 502 or
     /// 503 for an auth server it could not use, a 429, a 5xx of its own. A
-    /// rotation is still not ruled out (a front end's 5xx can sit in front of a
-    /// gateway that finished the work), so the shell re-presents the token as it
-    /// does after an unknown outcome. Not retried within this refresh.
+    /// rotation behind it is not ruled out, so the token is re-presented as
+    /// after `Unknown`. Not retried within this refresh.
     AnsweredError(String),
     /// The gateway never saw it — DNS, connect, or TLS. Safe to retry.
     Unreached(String),
@@ -1038,10 +1006,8 @@ enum Outcome {
 
 impl Outcome {
     /// Whether callers are held back until the shell has re-presented the
-    /// token. Only after a POST that got no answer: the gateway may still be
-    /// serving it, and a caller's presentation could be rotated over by it. An
-    /// answered error has settled, and holding callers after one refused every
-    /// refresh until the hold ran out, the user's own Retry included.
+    /// token: only after a POST that got no answer, which the gateway may still
+    /// be serving. An answered error has settled, so the user's Retry goes out.
     fn holds_callers(&self) -> bool {
         matches!(self, Outcome::Unknown(_))
     }
@@ -1119,10 +1085,8 @@ impl From<&str> for RefreshFailure {
 }
 
 /// [`refresh`], which is this with `re_presenting` unset. Set, it is the shell
-/// re-presenting the POST in doubt that went out then
-/// ([`schedule_lost_rotation_retry`]): it goes ahead only while that POST is
-/// still the one in doubt, and stays out of the failure count that POST already
-/// added to.
+/// re-presenting the POST in doubt that went out then: it goes ahead only while
+/// that POST is still the one in doubt, and adds nothing to the failure count.
 async fn refresh_for(
     app: &AppHandle,
     force: bool,
@@ -1153,9 +1117,7 @@ async fn refresh_for(
     let _guard = lifecycle.refresh_lock.lock().await;
 
     // The doubt this re-presentation was armed for can be settled or replaced
-    // while it waits for the lock: a rotation, a sign-in or a sign-out clears
-    // the mark, and a later POST in doubt takes it over with a re-presentation
-    // of its own, which this one would otherwise put out of work.
+    // while it waits for the lock.
     let superseded = re_presenting
         .is_some_and(|sent_at| lifecycle.lost_rotation_sent_at.load(Ordering::Relaxed) != sent_at);
     if superseded {
@@ -1186,17 +1148,9 @@ async fn refresh_for(
         return Err(UNSETTLED.into());
     }
 
-    // A POST is already out there with no answer back, and the gateway may still
-    // be serving it: a presentation now could be rotated over by it, which is
-    // how an ambiguous outcome becomes a cleared session. The shell presents the
-    // token itself once the gateway should no longer be serving the lost POST.
-    let lost_sent_at = lifecycle.lost_rotation_sent_at.load(Ordering::Relaxed);
-    let held_for = lifecycle
-        .lost_rotation_holds_callers
-        .load(Ordering::Relaxed)
-        .then(|| lost_rotation_hold_secs(lost_sent_at, now_secs()))
-        .flatten();
-    if let Some(left) = held_for {
+    // A POST with no answer back may still be being served, and a presentation
+    // now could be rotated over by it.
+    if let Some(left) = callers_held_secs(&lifecycle, now_secs()) {
         log::warn!(
             "[tokens] refresh held back for {left}s — a rotation's fate is still unknown (trigger: {trigger})"
         );
@@ -1235,11 +1189,8 @@ async fn refresh_for(
         Outcome::Rotated(_) | Outcome::Rejected => {
             lifecycle.consecutive_failures.store(0, Ordering::Relaxed)
         }
-        // An answered error counts too: the gateway is reachable but is not
-        // rotating, which is as much to back off from as not reaching it. A
-        // re-presentation does not: the POST it follows was counted, and one
-        // tried a few times across a network gap would otherwise run the poll's
-        // backoff to its cap.
+        // An answered error counts: the gateway is reachable but not rotating.
+        // A re-presentation does not: the POST it follows was already counted.
         Outcome::AnsweredError(_) | Outcome::Unreached(_) | Outcome::Unknown(_) => {
             if re_presenting.is_none() {
                 lifecycle
@@ -1315,12 +1266,8 @@ async fn refresh_for(
             // Custody goes either way (the token is dead), but the log has to
             // say which, or it gets debugged twice.
             let why = match (in_doubt, lost_answer) {
-                // An earlier refresh went out and never came back, and this
-                // presentation came after the grace window its rotation opened:
-                // the machine slept through it, or the re-presentation was lost
-                // too. That rotation most likely did land and retired the value
-                // just presented, so this is it surfacing, not a session
-                // someone revoked.
+                // Most likely the lost POST's rotation surfacing after its grace
+                // window, not a session someone revoked.
                 (true, true) => "a refresh whose response was lost had already rotated it",
                 // A rotation behind an answered error is the rarer reading; a
                 // revocation during the outage is as likely.
@@ -1340,18 +1287,7 @@ async fn refresh_for(
             unreached: true,
         }),
         Outcome::AnsweredError(e) | Outcome::Unknown(e) => {
-            // Stamped on every such POST, not just the first: each is itself
-            // newly in doubt, and one with no answer holds callers back from its
-            // own send. Not for a session signed out while this was on the wire:
-            // the doubt belonged to a token that is gone, and there is nothing
-            // left to present.
-            if lifecycle.custody_epoch.load(Ordering::Acquire) == custody {
-                lifecycle
-                    .lost_rotation_sent_at
-                    .store(sent_at, Ordering::Relaxed);
-                lifecycle
-                    .lost_rotation_holds_callers
-                    .store(holds_callers, Ordering::Relaxed);
+            if note_lost_rotation(&lifecycle, custody, sent_at, holds_callers) {
                 if re_presents {
                     log::warn!(
                         "[tokens] refresh settled without a rotation or a rejection — presenting the token again {LOST_ROTATION_RETRY_AFTER_SECS}s after it went out (callers held: {holds_callers}, trigger: {trigger})"
@@ -1368,12 +1304,44 @@ async fn refresh_for(
     }
 }
 
+/// How much longer callers are held back, or None when no POST in doubt holds
+/// them: nothing is in doubt, the gateway answered that POST with an error, or
+/// the shell's re-presentation is due.
+fn callers_held_secs(lifecycle: &TokenLifecycle, now: u64) -> Option<u64> {
+    let sent_at = lifecycle.lost_rotation_sent_at.load(Ordering::Relaxed);
+    lifecycle
+        .lost_rotation_holds_callers
+        .load(Ordering::Relaxed)
+        .then(|| lost_rotation_hold_secs(sent_at, now))
+        .flatten()
+}
+
+/// Record the POST that went out at `sent_at` as leaving a rotation in doubt,
+/// and say whether it was recorded. Every such POST replaces the last. Not for
+/// a session signed out while the POST was on the wire (`custody` has moved):
+/// that doubt belonged to a token that is gone.
+fn note_lost_rotation(
+    lifecycle: &TokenLifecycle,
+    custody: u64,
+    sent_at: u64,
+    holds_callers: bool,
+) -> bool {
+    if lifecycle.custody_epoch.load(Ordering::Acquire) != custody {
+        return false;
+    }
+    lifecycle
+        .lost_rotation_sent_at
+        .store(sent_at, Ordering::Relaxed);
+    lifecycle
+        .lost_rotation_holds_callers
+        .store(holds_callers, Ordering::Relaxed);
+    true
+}
+
 /// Whether the shell re-presents the token on its own after a POST that settled
-/// as `outcome`: after the two outcomes that leave a rotation in doubt, and once
-/// per POST a caller started. The shell's own re-presentation arms no other, or
-/// a gateway that answers nothing would be presented the token every
-/// [`LOST_ROTATION_RETRY_AFTER_SECS`] for as long as that lasts, with every
-/// caller held back throughout. The mobile shells keep the same bound.
+/// as `outcome`: after the two outcomes that leave a rotation in doubt, once per
+/// POST a caller started. Its own re-presentation arms no other, or a gateway
+/// that answers nothing would be presented the token without end.
 fn arms_re_presentation(outcome: &Outcome, is_re_presentation: bool) -> bool {
     !is_re_presentation && matches!(outcome, Outcome::AnsweredError(_) | Outcome::Unknown(_))
 }
@@ -1385,23 +1353,15 @@ fn may_retry_lost_rotation(sent_at: u64, now: u64) -> bool {
 }
 
 /// Present the refresh token again [`LOST_ROTATION_RETRY_AFTER_SECS`] after the
-/// POST that went out at `sent_at`, without waiting for a caller. Waiting for
-/// one is what the old rule did, and nothing guarantees one inside the grace
-/// window: the poll backs off on the very failure that armed this, and a forced
-/// refresh (an upstream 401) may leave nothing due on the schedule at all. After
-/// the window the token is dead if that POST rotated.
+/// POST that went out at `sent_at`, without waiting for a caller: none is
+/// guaranteed inside the grace window, since the poll backs off on the very
+/// failure that armed this.
 ///
-/// Forced for that second case, against the access token stored when it fires,
-/// so a rotation that lands first leaves it nothing to do. Stands down once the
-/// mark is no longer its own, at any tick and again under the refresh lock: a
-/// rotation, a sign-in or a sign-out cleared it, or a later POST in doubt
-/// replaced it. A re-presentation that never left the machine settles nothing,
-/// so it is tried again until [`LOST_ROTATION_RETRY_WITHIN_SECS`] after the send.
-///
-/// Ticks on the wall clock, for the reason in [`wait_until_settled`]. A machine
-/// that slept past the mark presents once it has settled (the gate in
-/// [`refresh`]): the window may be gone by then, but that is all that is left to
-/// try, and the poll would present the same token anyway.
+/// Forced, against the access token stored when it fires, so a rotation that
+/// lands first leaves it nothing to do. Stands down once the mark is no longer
+/// its own, at any tick and again under the refresh lock. One that never left
+/// the machine is tried again until [`LOST_ROTATION_RETRY_WITHIN_SECS`] after
+/// the send.
 fn schedule_lost_rotation_retry(app: &AppHandle, sent_at: u64) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -1412,8 +1372,7 @@ fn schedule_lost_rotation_retry(app: &AppHandle, sent_at: u64) {
         }
         // The wait can end across a sleep, and this tick then comes due in the
         // same instant as the wake watch's. One more lets the watch record the
-        // resume first, so the settle gate in `refresh` holds the POST back
-        // instead of letting it out in the first second after a resume.
+        // resume first, so the settle gate in `refresh_for` holds the POST back.
         tokio::time::sleep(WAKE_TICK).await;
         loop {
             // Read before the last look at the mark, so a rotation that lands
@@ -1490,7 +1449,7 @@ async fn attempt_refresh(
             delay.as_secs()
         );
         tokio::time::sleep(*delay).await;
-        // Same reason as the gate in `refresh`, for the same monotonic delay:
+        // Same reason as the gate in `refresh_for`, for the same monotonic delay:
         // gating only the first of three attempts would leave the other two
         // free to fire at the instant of a resume.
         if let Some(left) = settle_left(app) {
@@ -1512,9 +1471,7 @@ fn outcome_for_failure(answer: GatewayAnswer) -> Outcome {
         // the user out of a workspace that may yet be restored.
         _ if answer.deleted_tenant() => Outcome::Gone,
         // Answered within the budget, which is shorter than the gateway's wait
-        // on the auth server, so no front end's timeout can be what answered
-        // and this attempt has settled. Not an unknown: see
-        // `Outcome::holds_callers` for what that would cost.
+        // on the auth server, so this attempt has settled and holds no caller.
         status => Outcome::AnsweredError(format!("refresh failed: HTTP {status}")),
     }
 }
@@ -1960,9 +1917,7 @@ mod tests {
 
     /// A lost POST is re-presented inside the grace window its rotation opened.
     /// The hold is counted from the send, so the time spent waiting for an
-    /// answer that never came comes out of it: counted from giving up, as it
-    /// was, a POST that ran out its budget was re-presented 70 seconds at the
-    /// earliest after a rotation at its send, which the server honours for 60.
+    /// answer that never came comes out of it.
     #[test]
     fn a_lost_answer_is_re_presented_inside_the_grace_window() {
         let sent_at = 10_000;
@@ -2240,10 +2195,77 @@ mod tests {
         ));
     }
 
-    /// One re-presentation per POST a caller started. Without the bound a
-    /// gateway that keeps answering nothing would be presented the token every
-    /// `LOST_ROTATION_RETRY_AFTER_SECS`, each time renewing the hold on everyone
-    /// else.
+    /// The gate a caller meets: held after a POST that got no answer, until the
+    /// shell's re-presentation is due, and never after one the gateway answered.
+    #[test]
+    fn only_a_lost_answer_holds_the_next_caller() {
+        let lifecycle = TokenLifecycle::default();
+        let sent_at = 10_000;
+        assert_eq!(callers_held_secs(&lifecycle, sent_at), None);
+
+        let lost = Outcome::Unknown("refresh got no answer".into());
+        assert!(note_lost_rotation(
+            &lifecycle,
+            0,
+            sent_at,
+            lost.holds_callers()
+        ));
+        assert_eq!(
+            callers_held_secs(&lifecycle, sent_at + 1),
+            Some(LOST_ROTATION_RETRY_AFTER_SECS - 1)
+        );
+        assert_eq!(
+            callers_held_secs(&lifecycle, sent_at + LOST_ROTATION_RETRY_AFTER_SECS),
+            None
+        );
+
+        let answered = Outcome::AnsweredError("refresh failed: HTTP 502".into());
+        assert!(note_lost_rotation(
+            &lifecycle,
+            0,
+            sent_at,
+            answered.holds_callers()
+        ));
+        assert_eq!(callers_held_secs(&lifecycle, sent_at + 1), None);
+    }
+
+    /// Each POST in doubt replaces the last: the mark the re-presentation is
+    /// keyed by moves to its send, and so does the hold.
+    #[test]
+    fn a_later_post_in_doubt_takes_over_the_mark_and_the_hold() {
+        let lifecycle = TokenLifecycle::default();
+        assert!(note_lost_rotation(&lifecycle, 0, 10_000, false));
+        assert_eq!(
+            lifecycle.lost_rotation_sent_at.load(Ordering::Relaxed),
+            10_000
+        );
+
+        assert!(note_lost_rotation(&lifecycle, 0, 10_020, true));
+        assert_eq!(
+            lifecycle.lost_rotation_sent_at.load(Ordering::Relaxed),
+            10_020
+        );
+        assert_eq!(
+            callers_held_secs(&lifecycle, 10_021),
+            Some(LOST_ROTATION_RETRY_AFTER_SECS - 1)
+        );
+    }
+
+    /// A refresh that settles after its session was signed out leaves no doubt
+    /// behind, or the next session's callers would be held for it.
+    #[test]
+    fn a_signed_out_sessions_refresh_leaves_nothing_in_doubt() {
+        let lifecycle = TokenLifecycle::default();
+        let custody = lifecycle.custody_epoch.load(Ordering::Acquire);
+        lifecycle.custody_epoch.fetch_add(1, Ordering::AcqRel);
+
+        assert!(!note_lost_rotation(&lifecycle, custody, 10_000, true));
+        assert_eq!(lifecycle.lost_rotation_sent_at.load(Ordering::Relaxed), 0);
+        assert_eq!(callers_held_secs(&lifecycle, 10_001), None);
+    }
+
+    /// One re-presentation per POST a caller started: without the bound a
+    /// gateway that answers nothing would be presented the token without end.
     #[test]
     fn the_shells_own_re_presentation_arms_no_other() {
         let lost = Outcome::Unknown("refresh got no answer".into());
@@ -2289,10 +2311,9 @@ mod tests {
         ));
     }
 
-    /// An error the gateway answered with is not an answer that went missing:
-    /// 502 and 503 are how it reports an auth server it could not use. Classed
-    /// as unknown, one refused every caller while the hold ran, the user's own
-    /// Retry included.
+    /// An error the gateway answered with is not an answer that went missing.
+    /// Classed as unknown, one refused every caller while the hold ran, the
+    /// user's own Retry included.
     #[test]
     fn an_answered_error_is_not_a_lost_answer() {
         use reqwest::StatusCode;

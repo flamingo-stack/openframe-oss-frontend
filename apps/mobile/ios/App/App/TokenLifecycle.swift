@@ -126,10 +126,8 @@ final class TokenLifecycle {
         case rejected
         /// The gateway answered the request sent at `sentAt` with an error that
         /// is not about the token: a 502 or 503 for an auth server it could not
-        /// use, a 429, the WAF's 403. A rotation is still not ruled out behind
-        /// one (a front end's 5xx can sit in front of a gateway that finished),
-        /// so the shell re-presents it as it does an unknown outcome. Not
-        /// retried within the flight.
+        /// use, a 429, the WAF's 403. A rotation behind it is not ruled out, so
+        /// it is re-presented as after `unknown`. Not retried within the flight.
         case answeredError(String, sentAt: Date)
         /// The gateway never saw it — no network path, DNS, connect, TLS. Safe to retry.
         case unreached(String)
@@ -139,11 +137,9 @@ final class TokenLifecycle {
         case unknown(String, sentAt: Date)
 
         /// Whether callers are held back until the shell has re-presented the
-        /// token. Only after a request that got no usable answer: the gateway
-        /// may still be serving it, and a caller's presentation could be
-        /// rotated over by it. An answered error has settled; held, one refused
-        /// every caller until the hold ran out, the Retry on the web view's
-        /// "can't verify your session" screen included.
+        /// token: only after a request that got no usable answer, which the
+        /// gateway may still be serving. An answered error has settled, so the
+        /// web view's Retry goes out.
         var holdsCallers: Bool {
             if case .unknown = self { return true }
             return false

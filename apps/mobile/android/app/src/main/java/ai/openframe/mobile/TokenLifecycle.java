@@ -166,11 +166,9 @@ final class TokenLifecycle {
      * and UNKNOWN is the whole point: retrying a request the gateway never saw
      * costs nothing; retrying one it may still be serving, on its heels, can
      * be rotated over by it, which leaves this side holding a refresh token
-     * the server has retired. ANSWERED_ERROR is the gateway
-     * answering with an error that is not about the token (a 502 or 503 for an
-     * auth server it could not use, a 429, the WAF's 403). A rotation is still
-     * not ruled out behind one, so the shell re-presents it as it does an
-     * unknown outcome, but see {@link #holdsCallers}.
+     * the server has retired. ANSWERED_ERROR is an answer that is not about
+     * the token (502, 503, 429, the WAF's 403): re-presented like UNKNOWN, but
+     * it holds no caller ({@link #holdsCallers}).
      */
     static final class Outcome {
         enum Kind { ROTATED, REJECTED, UNREACHED, ANSWERED_ERROR, UNKNOWN }
@@ -1048,11 +1046,9 @@ final class TokenLifecycle {
 
     /**
      * Whether callers are held back until the shell has re-presented the
-     * token. Only after a POST that got no usable answer: the gateway may
-     * still be serving it, and a caller's presentation could be rotated over
-     * by it. An answered error has settled; held, one refused every caller
-     * until the hold ran out, the Retry on the web view's "can't verify your
-     * session" screen included.
+     * token: only after a POST that got no usable answer, which the gateway
+     * may still be serving. An answered error has settled, so the web view's
+     * Retry goes out.
      */
     static boolean holdsCallers(Outcome.Kind kind) {
         return kind == Outcome.Kind.UNKNOWN;
@@ -1062,11 +1058,9 @@ final class TokenLifecycle {
 
     /**
      * What an answer that carried no rotated pair settles as, for the POST sent
-     * at {@code sentAt}. A 2xx without tokens rotated and lost the pair, a 401
-     * refuses the token, and anything else is an error that is not about the
-     * token. A 403 is deliberately not a rejection: the BFF never answers one
-     * on this endpoint, so it is the WAF's, and says nothing about the
-     * credential.
+     * at {@code sentAt}. A 403 is deliberately not a rejection: the BFF never
+     * answers one on this endpoint, so it is the WAF's, and says nothing about
+     * the credential.
      */
     static Outcome outcomeOfAnswerWithoutTokens(int status, long sentAt) {
         if (status >= 200 && status < 300) {
