@@ -22,6 +22,7 @@ import {
 // `@inline` fragments are read with `readInlineData`; the wire objects below stand in for the ref.
 vi.mock('relay-runtime', () => ({ readInlineData: (_fragment: unknown, ref: unknown) => ref }));
 vi.mock('react-relay', () => ({ graphql: () => ({}), fetchQuery: vi.fn() }));
+vi.mock('@/lib/runtime-config', () => ({ runtimeEnv: { tenantHostUrl: () => 'https://tenant.example' } }));
 
 const PARAMS: TenantSessionsParams = {
   device: [],
@@ -115,6 +116,28 @@ describe('toTenantSessionRow', () => {
     expect(unnamed.device?.name).toBe('front-desk.local');
     const gone = toTenantSessionRow({ ...NODE, device: null } as unknown as Parameters<typeof toTenantSessionRow>[0]);
     expect(gone.device).toBeNull();
+  });
+
+  it("draws the customer's logo from the device's customer, on the tenant gateway, while it is the session's", () => {
+    const withDeviceCustomer = (organizationId: string) =>
+      toTenantSessionRow({
+        ...NODE,
+        technician: { name: 'Roman Smith', avatarUrl: '/images/user/u-1?v=abc' },
+        organization: { organizationId: 'org-1', name: 'Acme', logoUrl: null },
+        device: {
+          ...NODE.device,
+          organization: { organizationId, image: { imageUrl: `/images/organization/${organizationId}`, hash: 'h1' } },
+        },
+      } as unknown as Parameters<typeof toTenantSessionRow>[0]);
+    const row = withDeviceCustomer('org-1');
+    expect(row.customer).toEqual({
+      id: 'org-1',
+      name: 'Acme',
+      logoUrl: 'https://tenant.example/api/images/organization/org-1?v=h1',
+    });
+    expect(row.employee.avatarUrl).toBe('https://tenant.example/api/images/user/u-1?v=abc');
+    // The device has moved to another customer since: initials, not that customer's logo.
+    expect(withDeviceCustomer('org-2').customer?.logoUrl).toBeNull();
   });
 });
 

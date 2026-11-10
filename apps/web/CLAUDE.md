@@ -498,6 +498,40 @@ know themselves (`DevicesViewConfig` in the root layout: device URLs, image URLs
   lib's `RemoteDesktopView` predates #578's header and #581's recording banner, and its knowledge-base
   views predate #547. Bring the lib view up to date before switching one of these screens to it.
 
+### Images and Avatars (MANDATORY)
+
+An avatar or logo that draws only its initials is almost always one of three things: a backend path the page
+cannot load, a picture loaded without the bearer in a native shell, or a fallback that stuck. Each has one rule.
+
+- **Draw every picture with the core lib**: `SquareAvatar` (people), `EntityImage` (organizations, logos),
+  `PersonCell` / `PeopleCell` / `AvatarStack`, or the boxed `Image` (`embed-shims`). Never a raw `<img>`
+  (`@next/next/no-img-element`) and never `next/image` directly (`openframe-frontend/pictures-through-the-lib`):
+  only the lib's picture resolves and authenticates (`useAuthedAsset`).
+- **Resolve backend image URLs at the data boundary with `getFullImageUrl(imageUrl, hash)`** (`src/lib/image-url.ts`),
+  in the mapper or transform that reads the field. The backend stores `/images/{type}/{id}` with no `/api`
+  (saas-lib `Image.getImageUrl()`), and the gateway serves it only at `{tenantHost}/api/images/...`. As it comes, it hits
+  the SPA catch-all on web and the bundle (`tauri://localhost`) in the desktop shell, so it loads nowhere. The
+  remote-access copies (`RemoteAccessTechnician.avatarUrl`, `RemoteSessionTicketLink.assignedAvatarUrl`) carry
+  `?v=<hash>` already: `getFullImageUrl(url)` with no hash. There is no hash-only helper: a hashed URL without its
+  host is what drew initials on the tickets board. A Google SSO picture is an absolute third-party URL and passes
+  through unchanged.
+- **The lib resolves on render too, as a net.** `resolveBackendImageUrl` is the chat runtime adapter's
+  `resolveAssetUrl` (`openframe-chat-runtime-provider.tsx`), and every lib picture passes its src through it. It is
+  not the contract: a URL that is compared, stored or sent anywhere still goes through `getFullImageUrl`.
+- **Bearer mode (the shells, dev-ticket web)**: a gateway picture waits for the credential, is fetched with it and is
+  drawn from a blob. A picture still waiting for its credential, or refused by an old one, is fetched again when the
+  credential changes: that is the adapter's epoch-gated `subscribe`, so **every write that installs a token must
+  `markTokenRotation()` + `emitTokenChange()`** (`token-store.ts`; cold-start `initTokenStore` included). A silent
+  write leaves every picture rendered before it waiting until it happens to render again: the desktop sidebar avatar
+  stayed on initials for whole sessions that way.
+- **A fallback comes from the lib's `useImageFallback`, keyed on the store's answer**
+  (`useImageFallback(useAuthedImageSrc(src))`), as `SquareAvatar` does: the component keeps holding the picture's
+  store entry, so a fetch that got no answer, or a 401 the session can refresh past, is retried. Keyed on the raw
+  URL, nothing retries it. Never hide a picture or show its fallback by writing to the DOM in `onError`: the write
+  outlives the src it was about.
+- **`RemoteAccessOrganization.logoUrl` is always null** (the backend never sets it on the session's customer copy).
+  The customer's logo is `RemoteSession.device.organization.image`.
+
 ### Embedded Page Components (standalone + tab reuse)
 
 Some page components render their own `PageLayout` and are used **both** as a standalone route

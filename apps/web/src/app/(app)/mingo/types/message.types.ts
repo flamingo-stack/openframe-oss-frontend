@@ -1,5 +1,7 @@
-import type { Message as LibMessage, MessageData } from '@flamingo-stack/openframe-frontend-core';
+import type { HistoricalMessage, Message as LibMessage, MessageData } from '@flamingo-stack/openframe-frontend-core';
 import type { ChatType, OwnerType } from '../../tickets/constants';
+
+type LibOwnerUser = NonNullable<NonNullable<HistoricalMessage['owner']>['user']>;
 
 export interface GraphQlMessage {
   id: string;
@@ -11,6 +13,11 @@ export interface GraphQlMessage {
   owner: {
     type: OwnerType;
     model?: string;
+    /**
+     * ADMIN rows: the author, as the lib's owner user plus the image's `hash`, which the lib type leaves out.
+     * `image.imageUrl` is the API's relative `/images/...` path (`toHistoryOwner` resolves both).
+     */
+    user?: Omit<LibOwnerUser, 'image'> & { image?: { imageUrl?: string | null; hash?: string | null } | null };
   };
   /**
    * The per-message payload as the chat service sends it — one shape per message

@@ -139,8 +139,8 @@ export function clearPauseIfTokenRotated(): void {
 // sign-in. The reset waits for the tokens to come back: the store is cleared at
 // the START of a sign-out, while the app still looks signed in, and lifting
 // `gone` there remounts it into the 410s that put the screen back over /auth.
-// Not "no tokens before, tokens now": native hydration fills the store without
-// emitting, so the first rotation after a cold start would read as a sign-in.
+// Not "no tokens before, tokens now": a cold start's native hydration installs
+// the first tokens too, and announces them, and that is not a sign-in.
 // A cookie-mode sign-in comes back through the auth host, which reloads.
 let signedOut = false;
 subscribeToTokenChange(() => {

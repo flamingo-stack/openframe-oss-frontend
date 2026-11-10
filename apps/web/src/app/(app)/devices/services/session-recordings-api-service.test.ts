@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { sessionRecordingsApiService_deviceCustomer$key as DeviceCustomerKey } from '@/__generated__/sessionRecordingsApiService_deviceCustomer.graphql';
 import type { sessionRecordingsApiService_session$data as WireSession } from '@/__generated__/sessionRecordingsApiService_session.graphql';
-import { fromWireSession, SessionRecordingsApiService } from './session-recordings-api-service';
+import { customerLogoUrl, fromWireSession, SessionRecordingsApiService } from './session-recordings-api-service';
 import { RecordingNotFoundError, RecordingUnavailableError, SessionNotFoundError } from './session-recordings-service';
 
 const relay = vi.hoisted(() => ({ fetchQuery: vi.fn(), commitMutation: vi.fn(), commitLocalUpdate: vi.fn() }));
@@ -12,9 +13,13 @@ interface StoreState {
 const store = vi.hoisted((): StoreState => ({ records: {}, invalidated: [] }));
 const chat = vi.hoisted(() => ({ history: vi.fn() }));
 const auth = vi.hoisted(() => ({ bearer: null as string | null }));
+/** The tenant host; the download tests keep a trailing slash, which a gateway path must not double. */
+const tenant = vi.hoisted(() => ({ host: 'https://tenant.example/' }));
 
 vi.mock('react-relay', () => ({
-  graphql: () => ({}),
+  graphql: (text: TemplateStringsArray) => ({
+    operation: /(?:query|mutation|fragment)\s+(\w+)/.exec(text.join(''))?.[1],
+  }),
   fetchQuery: relay.fetchQuery,
   commitLocalUpdate: relay.commitLocalUpdate,
 }));
@@ -29,7 +34,7 @@ vi.mock('@/lib/relay/commit-mutation', () => ({ commitMutationPromise: relay.com
 // `@inline` fragments are read with `readInlineData`; the wire objects below stand in for the ref.
 vi.mock('relay-runtime', () => ({ readInlineData: (_fragment: unknown, ref: unknown) => ref }));
 vi.mock('./remote-session-chat-api-service', () => ({ remoteSessionChatApiService: chat }));
-vi.mock('@/lib/runtime-config', () => ({ runtimeEnv: { tenantHostUrl: () => 'https://tenant.example/' } }));
+vi.mock('@/lib/runtime-config', () => ({ runtimeEnv: { tenantHostUrl: () => tenant.host } }));
 vi.mock('@/lib/token-store', () => ({
   isBearerAuthMode: () => auth.bearer !== null,
   getAccessTokenSync: () => auth.bearer,
@@ -85,6 +90,13 @@ function queriesAnswer(...payloads: unknown[]) {
   }
 }
 
+/** The variables each query of `operation` was sent with, in order. */
+function variablesSent(operation: string): unknown[] {
+  return relay.fetchQuery.mock.calls
+    .filter(([, query]) => (query as { operation?: string }).operation === operation)
+    .map(([, , variables]) => variables);
+}
+
 const fetchMock = vi.fn();
 
 beforeEach(() => {
@@ -99,6 +111,7 @@ beforeEach(() => {
   chat.history.mockReset();
   fetchMock.mockReset();
   auth.bearer = null;
+  tenant.host = 'https://tenant.example/';
   vi.stubGlobal('fetch', fetchMock);
 });
 
@@ -199,6 +212,55 @@ describe('fromWireSession', () => {
         }),
       ).sizeBytes,
     ).toBe(150);
+  });
+});
+
+describe('image URLs', () => {
+  beforeEach(() => {
+    tenant.host = 'https://tenant.example';
+  });
+
+  const LOGO = 'https://tenant.example/api/images/organization/org-1?v=h1';
+  /** The device lookup's machine, belonging to `organizationId`. */
+  const machine = (organizationId: string) => ({
+    hostname: 'Romans-MacBook-Pro.local',
+    organization: { organizationId, image: { imageUrl: `/images/organization/${organizationId}`, hash: 'h1' } },
+  });
+  const deviceKey = (organizationId: string) => machine(organizationId) as unknown as DeviceCustomerKey;
+
+  it("resolves the technician's photo on the tenant gateway and keeps a third-party one", () => {
+    const avatarOf = (avatarUrl: string | null) =>
+      fromWireSession(session({ technician: { name: 'Roman Smith', avatarUrl } })).employee.avatarUrl;
+    expect(avatarOf('/images/user/u-1?v=abc')).toBe('https://tenant.example/api/images/user/u-1?v=abc');
+    expect(avatarOf('https://lh3.googleusercontent.com/a/roman')).toBe('https://lh3.googleusercontent.com/a/roman');
+    expect(avatarOf(null)).toBeUndefined();
+  });
+
+  it("takes the customer's logo from the device's customer while it is the session's", () => {
+    const organization = { organizationId: 'org-1', name: 'Acme', logoUrl: null };
+    expect(customerLogoUrl(organization, deviceKey('org-1'))).toBe(LOGO);
+    // A device moved to another customer since does not lend the session its logo.
+    expect(customerLogoUrl(organization, deviceKey('org-2'))).toBeUndefined();
+    expect(customerLogoUrl({ ...organization, logoUrl: '/images/organization/org-1?v=h0' }, deviceKey('org-2'))).toBe(
+      'https://tenant.example/api/images/organization/org-1?v=h0',
+    );
+    expect(customerLogoUrl(organization, null)).toBeUndefined();
+    expect(customerLogoUrl(null, deviceKey('org-1'))).toBeUndefined();
+  });
+
+  it("opens a recording and a live session with the customer's logo", async () => {
+    chat.history.mockResolvedValue({ messages: [], lastSeq: 0 });
+    queriesAnswer(
+      { remoteSessionRecording: { recordingId: 'rec-1', session: session() } },
+      { device: machine('org-1') },
+    );
+    expect((await service.get('rec-1')).organization).toEqual({ id: 'org-1', name: 'Acme', logoUrl: LOGO });
+
+    queriesAnswer(
+      { remoteSession: { ...session({ status: 'ACTIVE', recordings: [] }), recordingSuppressed: null } },
+      { device: machine('org-1') },
+    );
+    expect((await service.live('session-1')).organization).toEqual({ id: 'org-1', name: 'Acme', logoUrl: LOGO });
   });
 });
 
@@ -317,7 +379,7 @@ describe('SessionRecordingsApiService', () => {
     ]);
   });
 
-  it('opens the requested file with its session, every file of it, hostname and transcript', async () => {
+  it("opens the requested file with its session, every file of it, its device's hostname and transcript", async () => {
     queriesAnswer(
       { remoteSessionRecording: { recordingId: 'rec-2', session: session() } },
       { device: { hostname: 'Romans-MacBook-Pro.local' } },
@@ -346,6 +408,7 @@ describe('SessionRecordingsApiService', () => {
       ['User', false],
     ]);
     expect(chat.history).toHaveBeenCalledWith('dialog-1');
+    expect(variablesSent('sessionRecordingsApiServiceDeviceQuery')).toEqual([{ machineId: 'machine-1' }]);
   });
 
   it('reads a recording the server has not got as not found, and any other failure as itself', async () => {
@@ -363,7 +426,7 @@ describe('SessionRecordingsApiService', () => {
     await expect(service.get('rec-1')).rejects.toBe(timeout);
   });
 
-  it('reads a live session by its id with the hostname, the customer, the chat so far and whether it is recorded', async () => {
+  it("reads a live session by its id with its device's hostname, the customer, the chat so far and whether it is recorded", async () => {
     queriesAnswer(
       { remoteSession: { ...session({ status: 'ACTIVE', recordings: [] }), recordingSuppressed: null } },
       { device: { hostname: 'Romans-MacBook-Pro.local' } },
@@ -384,6 +447,7 @@ describe('SessionRecordingsApiService', () => {
     });
     expect(detail.chat.map(message => message.body)).toEqual(['Hello']);
     expect(relay.fetchQuery.mock.calls[0][2]).toEqual({ sessionId: 'session-1' });
+    expect(variablesSent('sessionRecordingsApiServiceDeviceQuery')).toEqual([{ machineId: 'machine-1' }]);
   });
 
   it('reads a live session started while the recording storage was full as not recorded', async () => {

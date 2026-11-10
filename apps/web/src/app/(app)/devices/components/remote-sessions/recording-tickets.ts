@@ -1,6 +1,7 @@
 import { graphql } from 'react-relay';
 import { readInlineData } from 'relay-runtime';
 import type { recordingTickets_ticket$key as RecordingTicketRef } from '@/__generated__/recordingTickets_ticket.graphql';
+import { getFullImageUrl } from '@/lib/image-url';
 
 // The Assigned Tickets table of the recording page: the tickets linked to the
 // session, as the table reads them.
@@ -47,7 +48,7 @@ export function toRecordingTicket(ref: RecordingTicketRef): RecordingTicket {
     statusKind: ticket.statusKind ?? null,
     statusColor: ticket.statusColor ?? null,
     assignedName: ticket.assignedName ?? null,
-    assignedAvatarUrl: ticket.assignedAvatarUrl ?? null,
+    assignedAvatarUrl: getFullImageUrl(ticket.assignedAvatarUrl) ?? null,
     createdAt: ticket.createdAt != null ? String(ticket.createdAt) : null,
   };
 }
