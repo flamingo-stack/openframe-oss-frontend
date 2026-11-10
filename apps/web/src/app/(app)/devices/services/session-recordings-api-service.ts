@@ -4,6 +4,7 @@ import type {
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { commitLocalUpdate, fetchQuery, graphql } from 'react-relay';
 import { readInlineData } from 'relay-runtime';
+import type { sessionRecordingsApiService_deviceCustomer$key as DeviceCustomerKey } from '@/__generated__/sessionRecordingsApiService_deviceCustomer.graphql';
 import type {
   sessionRecordingsApiService_session$data as WireSession,
   sessionRecordingsApiService_session$key as WireSessionKey,
@@ -23,6 +24,7 @@ import {
   RemoteSessionStatus,
 } from '@/generated/schema-enums';
 import { getRelayErrorCodes } from '@/lib/handle-api-error';
+import { getFullImageUrl } from '@/lib/image-url';
 import { getRelayEnvironment } from '@/lib/relay';
 import { commitMutationPromise } from '@/lib/relay/commit-mutation';
 import { runtimeEnv } from '@/lib/runtime-config';
@@ -89,6 +91,24 @@ const sessionFragment = graphql`
       protocol
       downloadUrl
       status
+    }
+  }
+`;
+
+/**
+ * The customer of the device a session ran on, for the customer's logo: the
+ * server leaves the session's own `organization.logoUrl` empty. Selected beside
+ * the session by the pages that draw that logo (the tenant-wide list, the
+ * recording and live pages), not in the session selection the device tab reads.
+ */
+const deviceCustomerFragment = graphql`
+  fragment sessionRecordingsApiService_deviceCustomer on Machine @inline {
+    organization {
+      organizationId
+      image {
+        imageUrl
+        hash
+      }
     }
   }
 `;
@@ -178,6 +198,7 @@ const deviceQuery = graphql`
   query sessionRecordingsApiServiceDeviceQuery($machineId: String!) {
     device(machineId: $machineId) {
       hostname
+      ...sessionRecordingsApiService_deviceCustomer
     }
   }
 `;
@@ -234,12 +255,31 @@ function fromWireHold(hold: NonNullable<WireSession['recordingHold']>): Recordin
   };
 }
 
-/** The meta card's customer, from the wire session. */
-function fromWireOrganization(session: WireSession): RecordingDetail['organization'] {
+/**
+ * The customer's logo, absolute. It is the image of the customer the session's
+ * device belongs to while that is still the session's customer (a device moved
+ * since belongs to another one), else the session's own `logoUrl`.
+ */
+export function customerLogoUrl(
+  organization: WireSession['organization'],
+  device: DeviceCustomerKey | null | undefined,
+): string | undefined {
+  const deviceCustomer = device ? readInlineData(deviceCustomerFragment, device).organization : null;
+  if (deviceCustomer?.image && deviceCustomer.organizationId === organization?.organizationId) {
+    return getFullImageUrl(deviceCustomer.image.imageUrl, deviceCustomer.image.hash);
+  }
+  return getFullImageUrl(organization?.logoUrl);
+}
+
+/** The meta card's customer, from the wire session and the device it ran on. */
+function fromWireOrganization(
+  session: WireSession,
+  device: DeviceCustomerKey | null | undefined,
+): RecordingDetail['organization'] {
   return {
     id: session.organization?.organizationId ?? undefined,
     name: session.organization?.name ?? '',
-    logoUrl: session.organization?.logoUrl ?? undefined,
+    logoUrl: customerLogoUrl(session.organization, device),
   };
 }
 
@@ -266,7 +306,7 @@ export function fromWireSession(session: WireSession): RecordingSummary {
     recordingId: files[0]?.recordingId ?? null,
     employee: {
       name: session.technician.name,
-      avatarUrl: session.technician.avatarUrl ?? undefined,
+      avatarUrl: getFullImageUrl(session.technician.avatarUrl),
     },
     technicianId: session.technicianId,
   };
@@ -294,8 +334,8 @@ async function readTranscript(dialogId: string | null | undefined): Promise<Reco
   }
 }
 
-/** Hostname for the meta card; the session carries only the device id. */
-async function readHostname(machineId: string): Promise<string | undefined> {
+/** The meta card's hostname and customer logo; the session carries only the device id. */
+async function readDevice(machineId: string): Promise<DeviceQuery['response']['device']> {
   try {
     const data = await fetchQuery<DeviceQuery>(
       getRelayEnvironment(),
@@ -303,9 +343,9 @@ async function readHostname(machineId: string): Promise<string | undefined> {
       { machineId },
       { fetchPolicy: 'store-or-network' },
     ).toPromise();
-    return data?.device?.hostname ?? undefined;
+    return data?.device ?? null;
   } catch {
-    return undefined;
+    return null;
   }
 }
 
@@ -393,13 +433,13 @@ export class SessionRecordingsApiService implements ISessionRecordingsService {
     }
     if (!data?.remoteSessionRecording) throw new RecordingNotFoundError();
     const session = readSession(data.remoteSessionRecording.session);
-    const [hostname, chat] = await Promise.all([readHostname(session.deviceId), readTranscript(session.dialogId)]);
+    const [device, chat] = await Promise.all([readDevice(session.deviceId), readTranscript(session.dialogId)]);
     return {
       ...fromWireSession(session),
       // The file the page was opened on; it plays the whole session regardless.
       recordingId: data.remoteSessionRecording.recordingId,
-      hostname,
-      organization: fromWireOrganization(session),
+      hostname: device?.hostname ?? undefined,
+      organization: fromWireOrganization(session, device),
       segments: session.recordings.map((file): RecordingSegment => ({
         id: file.recordingId,
         downloadUrl: file.downloadUrl ?? undefined,
@@ -425,11 +465,11 @@ export class SessionRecordingsApiService implements ISessionRecordingsService {
     if (!data?.remoteSession) throw new SessionNotFoundError();
     const { remoteSession } = data;
     const session = readSession(remoteSession);
-    const [hostname, chat] = await Promise.all([readHostname(session.deviceId), readTranscript(session.dialogId)]);
+    const [device, chat] = await Promise.all([readDevice(session.deviceId), readTranscript(session.dialogId)]);
     return {
       ...fromWireSession(session),
-      hostname,
-      organization: fromWireOrganization(session),
+      hostname: device?.hostname ?? undefined,
+      organization: fromWireOrganization(session, device),
       notRecorded: remoteSession.recordingSuppressed != null,
       chat,
     };
