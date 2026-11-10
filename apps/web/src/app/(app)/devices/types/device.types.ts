@@ -336,17 +336,20 @@ export type DeviceGraphQlNode = {
   updatedAt?: string;
   /** Id of the user whose install command enrolled the device; null on devices enrolled without one. */
   userId?: string | null;
-  // `id`, not `tagId` — this mirrors the GraphQL `Tag` node, and the transform
-  // renames it. The old `tagId` here named a field the documents never selected,
-  // so every tag arrived with `tagId: undefined` behind a type that claimed
-  // otherwise.
-  tags?: Array<{
+  // Mirrors the GraphQL `MachineTag` node: `id` is the assignment's (one per
+  // device and tag), the definition sits under `tag`, `values` and `taggedAt`
+  // are this device's. The transform turns it into a `DeviceTag` keyed by
+  // `tag.id`.
+  tagAssignments?: Array<{
     id: string;
-    key: string;
-    description?: string;
-    color?: string;
     values: string[];
-    createdAt?: Instant;
+    taggedAt?: Instant | null;
+    tag: {
+      id: string;
+      key: string;
+      description?: string | null;
+      color?: string | null;
+    };
   }>;
   toolConnections?: ToolConnection[];
   installedAgents?: InstalledAgent[];

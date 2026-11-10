@@ -48,13 +48,20 @@ export const deviceRowFieldsFragment = graphql`
     # loaded so far. Selected whole here rather than split across the ladder: a
     # field selected at two steps lands in two separate $data types, and a tag
     # assembled from both halves would have to be zipped back together by index.
-    tags {
+    # tagAssignments, not the deprecated tags: tags carries this device's values
+    # under the tag definition's id, so Relay merged every device sharing a tag
+    # into one record. A MachineTag has an id per (device, tag); the definition
+    # sits under tag.
+    tagAssignments {
       id
-      key
-      description
-      color
       values
-      createdAt
+      taggedAt
+      tag {
+        id
+        key
+        description
+        color
+      }
     }
   }
 `;

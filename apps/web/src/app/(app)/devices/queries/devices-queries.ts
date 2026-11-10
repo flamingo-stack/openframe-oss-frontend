@@ -101,13 +101,16 @@ export const GET_DEVICE_QUERY = `
       registeredAt
       updatedAt
       userId
-      tags {
+      tagAssignments {
         id
-        key
-        description
-        color
         values
-        createdAt
+        taggedAt
+        tag {
+          id
+          key
+          description
+          color
+        }
       }
       toolConnections {
         id
