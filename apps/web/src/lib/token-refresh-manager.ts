@@ -21,6 +21,12 @@
  *    released — started another three-POST cycle at once: hundreds of
  *    `/oauth/refresh` per page open while the auth service was down, and a page
  *    that never left its skeletons.
+ * 4. **One failed cycle is not an outage.** A dropped link on wake, a network
+ *    change, an auth pod restarting: the cycle after it succeeds. So the first
+ *    failure is not answered. The call waits out that first backoff step and
+ *    answers with the next cycle (`refreshPastFirstFailure`); only a second
+ *    failure in a row is `transient`. Answering the first put the "can't verify
+ *    your session" screen over sessions its own retry refreshed 5 s later.
  */
 
 import { clearStoredTokens } from './force-logout';
@@ -222,6 +228,19 @@ export function getRefreshBackoffRemainingMs(): number {
   return backoff ? Math.max(0, backoff.until - Date.now()) : 0;
 }
 
+/**
+ * The deadline of a backoff worth waiting out rather than answering from: the
+ * one a FIRST failed cycle armed, here or in another tab. Null once the outage
+ * is established (a second failure in a row), and null when the wait would take
+ * the call past `CYCLE_BUDGET_MS`: a cycle that long was a hang, and a second
+ * one only delays the error state.
+ */
+function firstFailureDeadline(startedAt: number): number | null {
+  const backoff = readBackoff();
+  if (backoff?.failures !== 1 || backoff.until <= Date.now()) return null;
+  return backoff.until - startedAt < CYCLE_BUDGET_MS ? backoff.until : null;
+}
+
 let crossTabSyncRegistered = false;
 
 /**
@@ -243,6 +262,13 @@ initCrossTabSync();
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/** A timer runs on the monotonic clock and can fire a moment before the wall clock reaches `deadline`. */
+async function sleepUntil(deadline: number): Promise<void> {
+  for (let left = deadline - Date.now(); left > 0; left = deadline - Date.now()) {
+    await sleep(left);
+  }
 }
 
 /** Millisecond `exp` of a JWT, or `null` when it cannot be read (opaque token, malformed). */
@@ -479,8 +505,29 @@ async function runExclusive(waitStartedAt: number, ignoreBackoff: boolean): Prom
 }
 
 /**
+ * A cycle, and when it is the first to fail, the one after it (rule 4 of the
+ * header). The second runs at the backoff's own deadline, never sooner: that is
+ * the moment the "can't verify your session" screen's automatic retry ran it
+ * before, so the POSTs of an outage are the same ones at the same times, and a
+ * transport failure is still not retried on the spot. The Web Lock is not held
+ * across the wait, and a call that finds the first failure already made (by the
+ * proactive refresh, by another tab) starts at the wait.
+ */
+async function refreshPastFirstFailure(startedAt: number): Promise<RefreshOutcome> {
+  const outcome = getRefreshBackoffRemainingMs() > 0 ? 'transient' : await runExclusive(startedAt, false);
+  if (outcome !== 'transient') return outcome;
+
+  const deadline = firstFailureDeadline(startedAt);
+  if (deadline === null) return 'transient';
+  await sleepUntil(deadline);
+  // Another tab ran the second cycle first and it failed: the backoff is its next step now.
+  if (getRefreshBackoffRemainingMs() > 0) return 'transient';
+  return runExclusive(startedAt, false);
+}
+
+/**
  * Refresh the access token, reporting what the attempt says about the session.
- * Concurrent calls join the in-flight rotation.
+ * Concurrent calls join the in-flight rotation, its wait included.
  *
  * `observedEpoch` is {@link getTokenEpoch} captured just before the request that
  * hit the 401 was sent. When it no longer matches, that request went out under a
@@ -500,19 +547,20 @@ export async function refreshTokens(observedEpoch?: number, options: RefreshOpti
     return refreshPromise;
   }
 
-  // A cycle has failed and its backoff has not lapsed: this 401 is "refresh
-  // pending", not a trigger. Answered as that cycle was, without a request.
   const ignoreBackoff = options.ignoreBackoff === true;
-  if (!ignoreBackoff && getRefreshBackoffRemainingMs() > 0) {
+  const waitStartedAt = Date.now();
+
+  // An outage's backoff has not lapsed: this 401 is "refresh pending", not a
+  // trigger. Answered as the cycles before it were, without a request.
+  if (!ignoreBackoff && getRefreshBackoffRemainingMs() > 0 && firstFailureDeadline(waitStartedAt) === null) {
     return 'transient';
   }
 
   isRefreshing = true;
-  const waitStartedAt = Date.now();
 
   refreshPromise = (async () => {
     try {
-      return await runExclusive(waitStartedAt, ignoreBackoff);
+      return await (ignoreBackoff ? runExclusive(waitStartedAt, true) : refreshPastFirstFailure(waitStartedAt));
     } catch {
       return 'transient';
     } finally {

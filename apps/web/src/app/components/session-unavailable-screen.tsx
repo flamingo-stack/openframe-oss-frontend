@@ -60,9 +60,11 @@ async function signOutLocally(): Promise<void> {
  * Replaces the app while the session is `paused` as `transient`
  * (`session-health.ts`): a 401 went through a refresh, and the refresh failed
  * for a reason that says nothing about the credential — the auth server down
- * (502/503 from `/oauth/refresh`), a dropped link, a WAF refusal. Before this
- * screen the page sat in its skeletons with nothing to do but close the tab,
- * while every 401 behind it started another refresh cycle.
+ * (502/503 from `/oauth/refresh`), a dropped link, a WAF refusal. Twice in a
+ * row: the refresh manager answers a first failed cycle with the next one, the
+ * page still loading meanwhile, so a refresh that succeeds on its retry never
+ * shows this. Before this screen the page sat in its skeletons with nothing to
+ * do but close the tab, while every 401 behind it started another refresh cycle.
  *
  * Replaces the tree the way `WorkspaceGoneGate` does rather than floating over
  * it: a recovery then remounts every page query fresh instead of leaving the

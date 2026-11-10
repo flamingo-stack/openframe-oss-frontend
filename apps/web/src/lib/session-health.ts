@@ -8,9 +8,10 @@
  *   - `healthy` — nothing known against the session.
  *   - `paused`  — auth could not be re-established. Background polling stops;
  *     user-driven requests still go out. Why it paused decides what ends it:
- *       - `transient`: the refresh itself failed (dropped link, auth-server 5xx).
- *         The tokens may be fine, so any gateway 2xx — the link coming back — or a
- *         later rotation ends it.
+ *       - `transient`: the refresh itself failed (dropped link, auth-server 5xx),
+ *         two cycles in a row: `token-refresh-manager.ts` does not answer the
+ *         first. The tokens may be fine, so any gateway 2xx — the link coming
+ *         back — or a later rotation ends it.
  *       - `rejected`: a 401 survived a successful refresh. The gateway's JWT check
  *         is the same on every path, so a path refusing a just-issued token while
  *         others answer 2xx is refused behind the gateway; a stray 2xx proves
