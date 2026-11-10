@@ -36,6 +36,9 @@ export const deviceQueryKeys = {
     [...deviceQueryKeys.all, 'session-recordings', 'detail', recordingId] as const,
   /** One session the live session page follows. */
   liveSession: (sessionId: string) => [...deviceQueryKeys.all, 'session-recordings', 'live', sessionId] as const,
+  /** The tenant's running sessions under the tenant-wide list's filter (its LIVE rows). */
+  tenantLiveSessions: (filter: object) =>
+    [...deviceQueryKeys.all, 'session-recordings', 'tenant-live', filter] as const,
   /** The session timeline a recording page lists (the Session Events list and the track markers). */
   sessionEvents: (recordingId: string) =>
     [...deviceQueryKeys.all, 'session-recordings', 'events', recordingId] as const,

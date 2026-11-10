@@ -2,7 +2,6 @@
 
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
-import { useIsMobileShell } from '@/app/hooks/use-is-mobile-shell';
 import type { FeatureFlagGate } from '@/lib/feature-flags';
 import type { LiveRows } from '../components/remote-sessions/session-status';
 import { useSessionRecordingsGate } from './use-session-recordings-gate';
@@ -28,6 +27,5 @@ export function useRemoteSessionWatchGate(): FeatureFlagGate {
 export function useLiveRows(): LiveRows | null {
   const gate = useRemoteSessionWatchGate();
   const userId = useAuthStore(s => s.user?.id ?? null);
-  const isMobileShell = useIsMobileShell();
-  return gate === 'on' ? { userId, remoteControl: !isMobileShell } : null;
+  return gate === 'on' ? { userId } : null;
 }

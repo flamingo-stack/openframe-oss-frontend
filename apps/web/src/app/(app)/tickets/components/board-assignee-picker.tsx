@@ -3,7 +3,6 @@
 import type { BoardTicket } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { AssigneeDropdown } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { memo } from 'react';
-import { getFullImageUrl } from '@/lib/image-url';
 import { useAssignTicket } from '../hooks/use-assign-ticket';
 import { useAssigneeOptions } from '../hooks/use-assignee-options';
 
@@ -25,7 +24,7 @@ export const BoardAssigneePicker = memo(function BoardAssigneePickerImpl({ ticke
           ? {
               id: assignee.id,
               name: assignee.name ?? assignee.initials ?? assignee.id,
-              avatarSrc: getFullImageUrl(assignee.avatarUrl),
+              avatarSrc: assignee.avatarUrl,
               deleted: assignee.deleted,
             }
           : undefined

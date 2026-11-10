@@ -8,7 +8,7 @@ import { useCallback, useMemo, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { extractPendingApprovals, findLatestPendingApprovalId, stripPendingApprovals } from '@/lib/chat-history';
 import { adminDisplayName, makeChatRowId } from '@/lib/chat-stream-thread';
-import { appendImageHash, getFullImageUrl } from '@/lib/image-url';
+import { getFullImageUrl } from '@/lib/image-url';
 import { selectUser, useAuthStore } from '@/stores';
 import type { MessageListRef, MessagePageRef } from '../../tickets/services/ticket-service.types';
 import {
@@ -179,10 +179,9 @@ export function useMingoDialogChat(dialogId: string | null): UseMingoDialogChat 
       processed.push({
         ...msg,
         name: msg.name || 'Unknown',
-        // `msg.avatar` is a relative `imageUrl` (GraphQL owner image or the
-        // optimistic auth-store avatar); resolve to a full URL once here so
-        // both the standalone page and the embeddable chat get an absolute src.
-        avatar: getFullImageUrl(msg.avatar) ?? null,
+        // Already the absolute image URL: resolved where it entered the store
+        // (`toHistoryOwner` for history, `sendMessage` for the optimistic row).
+        avatar: msg.avatar ?? null,
         assistantType: msg.assistantType as 'fae' | 'mingo' | undefined,
         timestamp: msg.timestamp || new Date(),
       });
@@ -296,8 +295,7 @@ export function useMingoDialogChat(dialogId: string | null): UseMingoDialogChat 
           authorType: 'admin',
           content: content.trim(),
           name: adminDisplayName(user),
-          // Relative `imageUrl` with cache-bust hash; resolved to a full URL in the processed mapping.
-          avatar: appendImageHash(user?.image?.imageUrl, user?.image?.hash) ?? null,
+          avatar: getFullImageUrl(user?.image?.imageUrl, user?.image?.hash) ?? null,
           timestamp: new Date(),
           // Attach the picked context so the optimistic bubble renders its chips.
           contextItems: context?.contextItems?.length ? context.contextItems : undefined,

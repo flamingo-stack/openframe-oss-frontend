@@ -7,7 +7,11 @@ import {
   NoData,
   PageLayout,
 } from '@flamingo-stack/openframe-frontend-core';
-import { getDeviceName, RemoteDesktopChatPanel } from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
+  getDeviceName,
+  RemoteDesktopChatPanel,
+  RemoteSessionViewers,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ChatsIcon,
   Chevron02DownIcon,
@@ -30,6 +34,7 @@ import { RemoteDesktopDeviceInfo } from '@/app/(app)/devices/components/remote-d
 import { RecordingWarningAlert } from '@/app/(app)/devices/components/remote-sessions/recording-storage-banner';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remote-access-approval-gate';
+import { useRemoteControlViewers } from '@/app/(app)/devices/hooks/use-remote-control-viewers';
 import { useRemoteSessionActionReporter } from '@/app/(app)/devices/hooks/use-remote-session-action-reporter';
 import { useRemoteSessionChat, useRemoteSessionDialogId } from '@/app/(app)/devices/hooks/use-remote-session-chat';
 import { buildRemoteAccessRelayIdPrefix, type RemoteSessionEndReason } from '@/app/(app)/devices/types/remote-access';
@@ -281,6 +286,8 @@ function RemoteDesktopSession() {
   const chat = useRemoteSessionChat(chatDialogId, showChat);
   // The end user wrote while the panel was closed: a dot on Open Chat until the panel opens.
   const chatUnread = chat.hasUnread && !showChat;
+  // Who is watching this session (Watch live): shown only while somebody other than this technician watches.
+  const viewers = useRemoteControlViewers();
   // Pinned while a modal opened from the toolbar is up and while the chat
   // toggle carries an unread dot - a hidden dot is a missed message.
   const toolbar = useAutoHideToolbar(autoHideToolbar, settingsOpen || shortcutsOpen || chatUnread);
@@ -708,12 +715,13 @@ function RemoteDesktopSession() {
 
   // Header per Figma 2155-109503 (desktop) / 2164-111246 (tablet): the device
   // card and the buttons share one 80px row on desktop; below that the buttons
-  // drop to a row of their own. Chat, actions, fullscreen, settings - in that order.
+  // drop to a row of their own. Viewers, chat, actions, fullscreen, settings - in that order.
   const controlsBar = (
     <div className="flex flex-shrink-0 flex-col overflow-hidden rounded-md border border-ods-border bg-ods-card">
       <div className="flex flex-col gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)] content-lg:flex-row content-lg:items-center content-lg:justify-between">
         {deviceInfoBlock}
         <div className="flex flex-shrink-0 items-center gap-[var(--spacing-system-m)]">
+          <RemoteSessionViewers viewers={viewers} />
           {chatDialogId && !sessionEnded && (
             <Button
               variant="outline"
@@ -804,6 +812,7 @@ function RemoteDesktopSession() {
           chatOpen={chatDialogId && !sessionEnded ? showChat : undefined}
           chatUnread={chatUnread}
           onToggleChat={chatDialogId && !sessionEnded ? toggleChat : undefined}
+          viewers={viewers}
           visible={toolbar.visible}
           hold={toolbar.hold}
         />

@@ -4,6 +4,7 @@ import type { KeepRecordingSelection } from '@flamingo-stack/openframe-frontend-
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { handleApiError } from '@/lib/handle-api-error';
+import { sessionInterval, sessionPollMeta, sessionRetry } from '@/lib/session-poll';
 import { isAwaitingRecording } from '../components/remote-sessions/session-status';
 import { sessionRecordingsApiService as service } from '../services/session-recordings-api-service';
 import { RecordingNotFoundError, SessionNotFoundError } from '../services/session-recordings-service';
@@ -12,17 +13,20 @@ import { deviceQueryKeys } from '../utils/query-keys';
 import { useSessionRecordingsGate } from './use-session-recordings-gate';
 
 /** How often a polled list is read again: a session started or ended elsewhere shows within this. */
-const LIVE_POLL_MS = 10_000;
+export const LIVE_POLL_MS = 10_000;
 
 /**
  * Remote sessions of one device, for the Remote Sessions tab. With `poll` (Watch live on) the list is read again every
- * 10 s, paused while the browser tab is hidden, so a session that starts or ends shows without a reload.
+ * 10 s, paused while the browser tab is hidden or the session is not healthy, so a session that starts or ends shows
+ * without a reload.
  */
 export function useSessionRecordings(deviceId: string | null, { poll = false }: { poll?: boolean } = {}) {
   return useQuery({
     queryKey: deviceQueryKeys.sessionRecordings(deviceId ?? ''),
     queryFn: deviceId ? () => service.list(deviceId) : skipToken,
-    refetchInterval: poll ? LIVE_POLL_MS : false,
+    ...(poll
+      ? { refetchInterval: sessionInterval(LIVE_POLL_MS), retry: sessionRetry(3), meta: sessionPollMeta }
+      : { refetchInterval: false as const }),
   });
 }
 

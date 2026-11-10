@@ -25,6 +25,7 @@ import { fetchMingoDialogMessages } from '../queries/fetch-dialog-messages';
 import { useApproveRequestMutation, useRejectRequestMutation } from '../services/mingo-api-service';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
 import type { DialogResponse, Message, MessagePage } from '../types';
+import { toHistoryOwner } from '../utils/history-owner';
 import { historyStreamFloor } from '../utils/history-stream-floor';
 import { mingoDialogQueryKeys } from '../utils/query-keys';
 
@@ -462,7 +463,7 @@ export function useMingoDialogSelection() {
       dialogId: msg.dialogId,
       chatType: msg.chatType,
       createdAt: msg.createdAt,
-      owner: msg.owner,
+      owner: toHistoryOwner(msg.owner),
       messageData: msg.messageData,
       // Feed the merge's per-role seq coverage so a post-reload live synthetic
       // isn't dropped by an unrelated row's seq (message-loss on stop/reload).

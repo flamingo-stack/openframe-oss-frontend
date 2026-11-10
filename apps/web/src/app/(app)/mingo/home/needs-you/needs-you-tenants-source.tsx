@@ -3,8 +3,11 @@
 import { useLayoutEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { needsYouTenantsSourceQuery as NeedsYouTenantsSourceQueryType } from '@/__generated__/needsYouTenantsSourceQuery.graphql';
+import { useTenantManagementV2Gate } from '@/app/(app)/cloud-tenant-management/components/shared/use-tenant-management-gate';
+import { boundCustomerOptions } from '@/app/(app)/cloud-tenant-management/components/tenant-form/bound-customer';
 import { useRetryKey } from '@/app/components/shared/content-error-boundary';
 import { failedSyncTenantRow, type ReportSource } from './needs-you-rows';
+import { NeedsYouTenantsSourceV1 } from './v1/needs-you-tenants-source-v1';
 
 /** How many failed connections are read: the card's cap, plus room for rows it drops as duplicates. */
 const TENANT_CANDIDATES = 5;
@@ -22,8 +25,8 @@ const needsYouTenantsSourceQuery = graphql`
           id
           name
           provider
-          organization {
-            name
+          customers {
+            ...boundCustomer_customer
           }
         }
       }
@@ -31,8 +34,18 @@ const needsYouTenantsSourceQuery = graphql`
   }
 `;
 
-/** Reports `tenants`; renders nothing. */
+/**
+ * Reports `tenants`; renders nothing. Off, main's source and its operation; while the flag reads, nothing: the card
+ * stays in its loading form until a source reports.
+ */
 export function NeedsYouTenantsSource({ onReport }: { onReport: ReportSource }) {
+  const gate = useTenantManagementV2Gate();
+  if (gate === 'on') return <NeedsYouTenantsSourceV2 onReport={onReport} />;
+  if (gate === 'off') return <NeedsYouTenantsSourceV1 onReport={onReport} />;
+  return null;
+}
+
+function NeedsYouTenantsSourceV2({ onReport }: { onReport: ReportSource }) {
   const retryKey = useRetryKey();
   const data = useLazyLoadQuery<NeedsYouTenantsSourceQueryType>(
     needsYouTenantsSourceQuery,
@@ -48,7 +61,9 @@ export function NeedsYouTenantsSource({ onReport }: { onReport: ReportSource }) 
           id: node.id,
           name: node.name,
           provider: node.provider,
-          customerName: node.organization.name,
+          customerName: boundCustomerOptions(node.customers)
+            .map(customer => customer.name)
+            .join(', '),
         }),
       ),
     [data.directoryConnections.edges],

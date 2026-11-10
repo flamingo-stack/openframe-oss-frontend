@@ -53,6 +53,12 @@ export function parseLocalDate(day: string): Date | null {
   return parsed.getMonth() === month - 1 && parsed.getDate() === date ? parsed : null;
 }
 
+/** The `Date`'s local calendar day. A picked day is local midnight, so `toISOString` would read the day before, east of UTC. */
+export function toLocalDate(date: Date): LocalDate {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` as LocalDate;
+}
+
 /**
  * The day `days` after `day` (before it, when negative), or null when `day` is not one. Calendar arithmetic on the
  * local day, so a daylight-saving change never moves the answer by an hour into another day.
@@ -61,8 +67,7 @@ export function addLocalDays(day: string, days: number): LocalDate | null {
   const parsed = parseLocalDate(day);
   if (!parsed) return null;
   parsed.setDate(parsed.getDate() + days);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}` as LocalDate;
+  return toLocalDate(parsed);
 }
 
 /** Adopts a string built elsewhere (a wall-clock instant, a stored value); throws on one `Date` cannot read. */

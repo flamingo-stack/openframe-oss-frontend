@@ -73,6 +73,7 @@ export interface NavigationFlags {
   insights: boolean;
   softwareManagement: boolean;
   tenantManagement: boolean;
+  tenantManagementV2: boolean;
 }
 
 // --------------------------------------------------------------------------
@@ -195,6 +196,15 @@ const NAV_MODULES = {
     category: NotificationCategory.SOFTWARE,
     beta: true,
   },
+  // The users of every connected directory: Tenant Management Phase 2, so behind both of its flags.
+  users: {
+    label: 'Users',
+    icon: UsersIcon,
+    path: routes.users.list,
+    prefixes: ['/users'],
+    gates: ['tenantManagement', 'tenantManagementV2'],
+    beta: true,
+  },
   logs: {
     label: 'Logs',
     icon: ClipboardListIcon,
@@ -235,14 +245,6 @@ const NAV_MODULES = {
     prefixes: ['/help-center'],
   },
   settings: { label: 'Settings', icon: Settings02Icon, path: routes.settings.root(), prefixes: ['/settings'] },
-  // Manhattan v2's Fleet → Users: the Settings → Employees page (more specific than Settings,
-  // so the core sidebar lights Users, not Settings, there).
-  users: {
-    label: 'Users',
-    icon: UsersIcon,
-    path: routes.settings.employees,
-    prefixes: ['/settings/employees'],
-  },
 } as const satisfies Record<string, NavModule>;
 
 export type NavModuleId = keyof typeof NAV_MODULES;
@@ -294,6 +296,8 @@ const FLAT_LAYOUT = {
     'scripts',
     'monitoring',
     'software',
+    // Figma: after Software.
+    'users',
     'logs',
     'tickets',
     'worktime',
@@ -323,7 +327,7 @@ const GROUPED_LAYOUT: { groups: readonly NavGroup[]; leaves: readonly NavModuleI
       id: 'inventory',
       label: 'Inventory',
       icon: LaptopMobileIcon,
-      children: ['organizations', 'devices', 'software', 'integrations'],
+      children: ['organizations', 'devices', 'software', 'users', 'integrations'],
     },
     { id: 'service-desk', label: 'Service Desk', icon: HeadsetIcon, children: ['tickets', 'worktime'] },
     {
