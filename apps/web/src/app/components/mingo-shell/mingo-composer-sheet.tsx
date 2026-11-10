@@ -72,7 +72,9 @@ export function MingoComposerSheet() {
   const shown = up && canShowSheet(route);
   // A phone's chat list, over a page (not Mingo's own); the chat itself is never in it at
   // once (`showList`). Up on the first frame of a page it was asked to open on, as the sheet.
-  const listShown = useMingoSheetStore(s => isListUp(s, pathname)) && phone && !shown && isSheetRoute(route);
+  // v2: over Mingo's own pages as well, as its top bar button opens it from any page.
+  const listShown =
+    useMingoSheetStore(s => isListUp(s, pathname)) && phone && !shown && (isSheetRoute(route) || !!manhattan);
   const hideList = useMingoSheetStore(s => s.hideList);
   const dismiss = listShown ? hideList : hide;
 
@@ -110,6 +112,8 @@ export function MingoComposerSheet() {
       onResetHeight={resetHeight}
       defaultShare={1}
       resizable={!phone}
+      // v2 phone: the list fills the screen under the top bar, so the card meets the bar flush.
+      flushTop={phone && !!manhattan}
       className={phone ? undefined : SHEET_WIDTH_CLASS_NAME}
       aria-label="Mingo chat"
     >

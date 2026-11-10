@@ -442,7 +442,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   const [navCollapsed, setNavCollapsed] = useManhattanNavCollapsed();
   // Manhattan v2: the centre keeps 800px on a desktop — the sidebars that would take it
   // go to their rails and open over the centre instead (plan D19).
-  const squeeze = useManhattanSqueeze(manhattan, sidebarCollapsed, navCollapsed);
+  const squeeze = useManhattanSqueeze(manhattan);
   // Below two rails + 800px the v2 top bar opens the sidebars as drawers: its buttons' reveals,
   // and the chats drawer closes once a chat opens from it (`ManhattanCentre`).
   const [chatsReveal, setChatsReveal] = useState(0);
@@ -582,8 +582,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
                 />
               </>
             ),
-            // The sidebar's own toggle: the preference on a desktop, the overlay on a
-            // tablet and while the centre needs the room (`overlay`).
+            // The sidebar's own toggle: the preference on a desktop, the overlay on a tablet.
             sectionSlot: chatEnabled
               ? ({ minimized, toggle }) => (
                   <ManhattanChatsSection
@@ -603,7 +602,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             ),
             collapsed: sidebarCollapsed,
             onCollapsedChange: setSidebarCollapsed,
-            overlay: squeeze.compact ? 'drawer' : squeeze.left,
+            overlay: squeeze.compact ? 'drawer' : undefined,
             revealSignal: revealSignal + chatsReveal,
             dismissSignal: chatsDismiss,
             className: 'h-full',
@@ -620,7 +619,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       isMdUp,
       sidebarCollapsed,
       revealSignal,
-      squeeze.left,
       squeeze.compact,
       chatsReveal,
       chatsDismiss,
@@ -647,7 +645,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             groupsStorageKey: MANHATTAN_NAVIGATION_FOLDS_KEY,
             collapsed: navCollapsed,
             onCollapsedChange: setNavCollapsed,
-            overlay: squeeze.compact ? 'drawer' : squeeze.right,
+            overlay: squeeze.compact ? 'drawer' : undefined,
             revealSignal: navReveal,
             className: 'h-full',
           }
@@ -660,7 +658,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       handleNavigate,
       navCollapsed,
       setNavCollapsed,
-      squeeze.right,
       squeeze.compact,
       navReveal,
     ],
@@ -780,14 +777,18 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
         showTimeTracker: isMdUp === false,
         showTicketAlerts: isMdUp === false,
         showMingoAI: mingoButton,
+        // Manhattan v2: the button stays Mingo's and always opens the chat list, on any page
+        // (a chat or Mingo's home included); the list closes from its own scrim or a pick.
         onMingoAI: () => {
-          if (listOpen) hideList();
+          if (manhattan) showList();
+          else if (listOpen) hideList();
           else if (sheetUp) hideSheet();
           else if (onMingoPage) router.push(outsidePage ?? routes.dashboard);
           else showList();
         },
-        isMingoAIActive: listOpen || sheetUp || onMingoPage,
-        mingoAICloseWhenActive: true,
+        // Never "active" in v2: the phone's icon-only button would turn into a × (`HeaderMingoButton`).
+        isMingoAIActive: !manhattan && (listOpen || sheetUp || onMingoPage),
+        mingoAICloseWhenActive: !manhattan,
       }),
       // Manhattan v2 on a phone: the chats at the left (Mingo), the navigation at the right
       // (the burger, the desktop's sections), on the sidebars' dark panel ground.
