@@ -1,4 +1,4 @@
-// npm run test:ota   (in apps/mobile; needs the xz tool)
+// npm test   (in apps/mobile; needs the xz tool)
 //
 // The release scripts against the shared cases in apps/mobile/ota/fixtures, which the iOS and
 // Android unit tests run too (docs/ota.md, "Shared test cases").

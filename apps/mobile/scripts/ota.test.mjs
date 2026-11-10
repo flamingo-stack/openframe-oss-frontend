@@ -1,4 +1,4 @@
-// npm run test:ota   (in apps/mobile; needs the xz and tar tools)
+// npm test   (in apps/mobile; needs the xz and tar tools)
 //
 // What the shared cases (ota-fixtures.test.mjs) cannot hold: packing a real export, keygen,
 // keys.json, inject-env and the CLIs. Every format rule is a case there instead.

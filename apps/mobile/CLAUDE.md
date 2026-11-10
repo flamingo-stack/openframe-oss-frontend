@@ -12,7 +12,7 @@ Strategy: `~/flamingo/openframe-desktop/docs/mobile-app-plan.md` + `native-apps-
 
 - `npm run build:web` — frontend export → `www/` → inject `window.__ENV` → `cap sync`
 - `npm run web:placeholder` — dev stub bundle (no frontend build needed)
-- `npm run test:ota` — the over-the-air release scripts' tests and the shared cases (`docs/ota.md`)
+- `npm test` — the over-the-air release scripts' tests and the shared cases (`docs/ota.md`); the hub's code reviewer runs it on pull requests
 - `npm run ota:fixtures` — rewrites the shared manifest and bundle cases (the env and decision cases are hand-written)
 - `npx cap sync ios` — copy `www/` → `ios/App/App/public/`, regen configs + `Package.swift`
 - `npx cap run ios` / `npx cap open ios`

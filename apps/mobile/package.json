@@ -20,7 +20,7 @@
     "push:demo": "xcrun simctl push booted ai.openframe.mobile dev/push-sample.apns",
     "push:approval": "xcrun simctl push booted ai.openframe.mobile dev/push-approval.apns",
     "push:reply": "xcrun simctl push booted ai.openframe.mobile dev/push-reply.apns",
-    "test:ota": "node --test scripts/ota.test.mjs scripts/ota-fixtures.test.mjs",
+    "test": "node --test scripts/ota.test.mjs scripts/ota-fixtures.test.mjs",
     "ota:fixtures": "node scripts/ota-fixtures.mjs"
   },
   "dependencies": {

@@ -56,8 +56,8 @@ files shrinks them. Measured on 1.0.213:
 
 The scripts are `scripts/ota-pack.mjs`, `ota-verify.mjs`, `ota-keygen.mjs`, `ota-tar.mjs`,
 `ota-env.mjs` (the `window.__ENV` element, shared with `inject-env.mjs`), `ota-error.mjs` and
-`ota-fixtures.mjs`. `npm run test:ota` in `apps/mobile` runs their tests (it needs `xz` and
-`tar`).
+`ota-fixtures.mjs`. `npm test` in `apps/mobile` runs their tests (it needs `xz` and `tar`), and
+the hub's code reviewer runs it when it reviews a pull request.
 
 ### Known issue: unstyled pages
 
@@ -218,7 +218,7 @@ past a bound with `ENVELOPE`. Only whoever can already write `mobile.json` can s
 
 ### Running and changing them
 
-- **Run them** with `npm run test:ota` in `apps/mobile`. `ota-fixtures.test.mjs` also fails when
+- **Run them** with `npm test` in `apps/mobile`. `ota-fixtures.test.mjs` also fails when
   the committed outcomes, the payload of each manifest or what each bundle decodes to differ from
   what the generator writes (its keys, signatures and compressed bytes change on every run). The
   shells' unit tests are to read the same files once their updater exists: iOS from a SwiftPM
