@@ -112,9 +112,10 @@ const FOOTER_BUTTON_CLASS = cn(
 );
 
 /**
- * The user row (Figma `user`): the account (avatar and name, its popover with Support
- * replies, Settings, Help Center and Log out), then the time tracker, the bell and the
- * collapse button — one 56px row, everything on one centre line. In the rail a column,
+ * The user row (Figma `user`): the account (the avatar alone; its menu shows the name and
+ * email over Log out — Settings and Help Center are in the navigation) with the time tracker
+ * and the bell beside it, and the collapse button alone at the row's end — one 56px row,
+ * everything on one centre line. In the rail a column,
  * each centred: avatar, Worktime, bell, collapse.
  */
 export function ManhattanChatsFooter({
@@ -151,14 +152,20 @@ export function ManhattanChatsFooter({
           : 'h-14 gap-[var(--spacing-system-xsf)] pl-[var(--spacing-system-xsf)] pr-[var(--spacing-system-xsf)]',
       )}
     >
-      <div className={cn('min-w-0', minimized ? 'w-full' : 'flex-1')}>
-        {/* The rail centres its buttons, so the avatar is centred with them. */}
-        <MingoAccountPopover collapsed={minimized} locked={locked} collapsedAlign="center" />
-      </div>
-      <div className={cn('flex shrink-0 items-center', minimized && 'w-full flex-col gap-[var(--spacing-system-xxs)]')}>
+      {/* The avatar with the time tracker and the bell beside it; the collapse button alone at
+          the row's end. The rail stacks them all, centred: avatar, Worktime, bell, collapse. */}
+      <div
+        className={cn(
+          'flex min-w-0 items-center',
+          minimized ? 'w-full flex-col gap-[var(--spacing-system-xxs)]' : 'flex-1 gap-[var(--spacing-system-xsf)]',
+        )}
+      >
+        <div className={cn('shrink-0', minimized && 'w-full')}>
+          <MingoAccountPopover collapsed={minimized} locked={locked} collapsedAlign="center" avatarOnly logoutOnly />
+        </div>
         {controls}
-        {collapse}
       </div>
+      {collapse && <div className={cn('flex shrink-0 items-center', minimized && 'w-full flex-col')}>{collapse}</div>}
     </div>
   );
 }

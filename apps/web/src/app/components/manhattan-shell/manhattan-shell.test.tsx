@@ -18,20 +18,20 @@ const { seen } = vi.hoisted(() => ({
 vi.mock('@flamingo-stack/openframe-frontend-core/components/features', () => ({
   TimeTrackerHeaderButton: () => {
     seen.tracker += 1;
-    return null;
+    return <span data-cell="tracker" />;
   },
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/components/navigation', () => ({
   NavigationSidebarActionRow: () => null,
   NotificationsBellButton: () => {
     seen.bell += 1;
-    return null;
+    return <span data-cell="bell" />;
   },
 }));
 vi.mock('@/app/components/mingo-shell/mingo-account-popover', () => ({
   MingoAccountPopover: (props: Record<string, unknown>) => {
     seen.account.push(props);
-    return null;
+    return <span data-cell="account" />;
   },
 }));
 vi.mock('@/app/components/mingo-shell/mingo-sidebar-history', () => ({ MingoSidebarHistory: () => null }));
@@ -103,6 +103,19 @@ describe('ManhattanChatsFooter', () => {
     expect(collapseButton()?.getAttribute('aria-label')).toBe('Hide chats');
     act(() => collapseButton()?.click());
     expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it('sets Worktime and the bell beside the avatar, the collapse button alone at the end', () => {
+    render();
+    const cell = (name: string) => container.querySelector(`[data-cell="${name}"]`);
+    const group = cell('account')?.parentElement?.parentElement;
+    expect(group?.contains(cell('tracker'))).toBe(true);
+    expect(group?.contains(cell('bell'))).toBe(true);
+    expect(group?.contains(collapseButton())).toBe(false);
+    // In the row: the avatar's group first, the collapse button after it.
+    const row = group?.parentElement;
+    expect(row?.lastElementChild?.contains(collapseButton())).toBe(true);
+    expect(seen.account.at(-1)).toMatchObject({ avatarOnly: true, logoutOnly: true });
   });
 
   it('expands from the rail', () => {
