@@ -18,7 +18,9 @@ import { graphql } from 'react-relay';
  *
  * `unreadNotificationCount` is selected beside the shared fragment, not in it: only
  * this list draws a row's unread count, and the pickers on the same fragment should
- * not pay for it.
+ * not pay for it. `deviceDirectoryFields_machine` sits beside it for a harder reason: its fields exist only in the
+ * `tenant-management-v2` schema, so this list runs only while that flag is on, and off the panel reads
+ * `devicesListRelayV1_query`, which selects neither.
  */
 export const devicesListRelayQuery = graphql`
   query devicesListRelayQuery($filter: DeviceFilterInput, $search: String, $first: Int!, $after: String) {
@@ -41,6 +43,7 @@ export const devicesListRelayFragment = graphql`
       edges {
         node {
           ...deviceFields_machine
+          ...deviceDirectoryFields_machine
           unreadNotificationCount
         }
       }

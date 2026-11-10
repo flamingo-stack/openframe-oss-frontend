@@ -209,7 +209,7 @@ describe('RemoteSessionsTab with Watch live on', () => {
 
   beforeEach(() => {
     hooks.rows = [...ROWS, COLLEAGUE_LIVE];
-    hooks.liveRows = { userId: 'tech-roman', remoteControl: true };
+    hooks.liveRows = { userId: 'tech-roman' };
     act(() => root.render(<RemoteSessionsTab device={DEVICE} />));
   });
 
@@ -222,10 +222,10 @@ describe('RemoteSessionsTab with Watch live on', () => {
     expect(rowOf(PROCESSING).textContent).toMatch(/processing/i);
   });
 
-  it("opens Remote Control from the signed-in technician's own running session, the live page from a colleague's", () => {
-    expect(button(LIVE, 'Open Remote Control')?.disabled).toBe(false);
-    expect(rowOf(LIVE).closest('a')?.getAttribute('href')).toBe('/devices/details/remote-desktop?id=machine-1');
-    expect(button(COLLEAGUE_LIVE, 'Open live session')?.disabled).toBe(false);
+  it("opens the live page from every running session, the signed-in technician's own included", () => {
+    expect(button(LIVE, 'Watch live')?.disabled).toBe(false);
+    expect(rowOf(LIVE).closest('a')?.getAttribute('href')).toBe(`/devices/details/live-session?id=${LIVE.id}`);
+    expect(button(COLLEAGUE_LIVE, 'Watch live')?.disabled).toBe(false);
     expect(rowOf(COLLEAGUE_LIVE).closest('a')?.getAttribute('href')).toBe(
       '/devices/details/live-session?id=colleague-live',
     );
@@ -247,12 +247,6 @@ describe('RemoteSessionsTab with Watch live on', () => {
   it('keeps Delete off for running sessions', () => {
     expect(button(LIVE, 'Delete session')?.disabled).toBe(true);
     expect(button(COLLEAGUE_LIVE, 'Delete session')?.disabled).toBe(true);
-  });
-
-  it('opens nothing from a running session where Remote Control is unavailable', () => {
-    hooks.liveRows = { userId: 'tech-roman', remoteControl: false };
-    act(() => root.render(<RemoteSessionsTab device={DEVICE} />));
-    expect(button(LIVE, 'Open Remote Control')?.disabled).toBe(true);
   });
 
   it('polls the list', () => {

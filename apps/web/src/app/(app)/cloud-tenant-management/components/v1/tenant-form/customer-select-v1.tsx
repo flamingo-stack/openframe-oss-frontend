@@ -1,0 +1,216 @@
+'use client';
+// Main's apps/web/src/app/(app)/cloud-tenant-management/components/tenant-form/customer-select.tsx, rendered while tenant-management-v2 is off. Deleted with the flag.
+
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  SquareAvatar,
+  TruncateText,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import type { ReactNode } from 'react';
+import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
+import type { customerSelectV1_query$key } from '@/__generated__/customerSelectV1_query.graphql';
+import type { customerSelectV1PaginationQuery } from '@/__generated__/customerSelectV1PaginationQuery.graphql';
+import type { customerSelectV1Query as CustomerSelectQueryType } from '@/__generated__/customerSelectV1Query.graphql';
+import { ContentErrorBoundary, useRetryKey, NO_ITEMS } from '@/app/components/shared';
+import { type CustomerOption, toCustomerOption } from '@/graphql/directory/customer-option';
+import { getFullImageUrl } from '@/lib/image-url';
+import { withBoundOrganizationV1 } from './tenant-form-helpers-v1';
+
+// The "Select Customer" field of the New / Edit forms: a core `Select` without a search box (Figma
+// comment #107) over the customers not yet bound to a connection, paged as the menu scrolls.
+
+const CUSTOMER_PAGE_SIZE = 20;
+
+const customerSelectV1Query = graphql`
+  query customerSelectV1Query($first: Int!, $after: String) {
+    ...customerSelectV1_query @arguments(first: $first, after: $after)
+  }
+`;
+
+const customerSelectFragment = graphql`
+  fragment customerSelectV1_query on Query
+  @refetchable(queryName: "customerSelectV1PaginationQuery")
+  @argumentDefinitions(first: { type: "Int", defaultValue: 20 }, after: { type: "String" }) {
+    directoryConnectionOrganizations(first: $first, after: $after)
+      @connection(key: "customerSelectV1_directoryConnectionOrganizations") {
+      edges {
+        node {
+          ...customerOption_organization
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
+
+interface CustomerSelectProps {
+  value: string;
+  onChange: (organizationId: string) => void;
+  error?: string;
+  invalid?: boolean;
+  disabled?: boolean;
+  /** The customer this connection is already bound to; the API lists only unbound ones. */
+  includeOrganization?: CustomerOption | null;
+  /** Edit: hold the list until the bound customer is known, or a fully bound workspace reads "No customers available". */
+  enabled?: boolean;
+}
+
+interface CustomerSelectShellProps extends Omit<CustomerSelectProps, 'includeOrganization' | 'enabled'> {
+  options: readonly CustomerOption[];
+  placeholder: string;
+  /** Rendered last inside the menu — the load-more sentinel. */
+  footer?: ReactNode;
+}
+
+function CustomerOptionLabel({ organization }: { organization: CustomerOption }) {
+  return (
+    <span className="flex min-w-0 items-center gap-[var(--spacing-system-xsf)]">
+      <SquareAvatar
+        src={getFullImageUrl(organization.image?.imageUrl, organization.image?.hash)}
+        alt={organization.name}
+        fallback={organization.name}
+        size="sm"
+        variant="square"
+      />
+      <TruncateText as="span" className="text-inherit">
+        {organization.name}
+      </TruncateText>
+    </span>
+  );
+}
+
+function CustomerSelectShell({
+  value,
+  onChange,
+  error,
+  invalid,
+  disabled,
+  options,
+  placeholder,
+  footer,
+}: CustomerSelectShellProps) {
+  return (
+    <Select value={value} onValueChange={onChange} disabled={disabled}>
+      <SelectTrigger
+        label="Select Customer"
+        labelVariant="large"
+        invalid={invalid}
+        error={error}
+        aria-label="Select Customer"
+      >
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map(organization => (
+          <SelectItem
+            key={organization.organizationId}
+            value={organization.organizationId}
+            // Lets a long customer name shrink into an ellipsis instead of overflowing the menu.
+            className="[&>span:first-child]:min-w-0 [&>span:first-child]:flex-1"
+          >
+            <CustomerOptionLabel organization={organization} />
+          </SelectItem>
+        ))}
+        {footer}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function CustomerSelectOptions({ includeOrganization, disabled, ...props }: Omit<CustomerSelectProps, 'enabled'>) {
+  const retryKey = useRetryKey();
+  const queryData = useLazyLoadQuery<CustomerSelectQueryType>(
+    customerSelectV1Query,
+    { first: CUSTOMER_PAGE_SIZE, after: null },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
+  );
+  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
+    customerSelectV1PaginationQuery,
+    customerSelectV1_query$key
+  >(customerSelectFragment, queryData);
+
+  const loaded = data.directoryConnectionOrganizations.edges.map(edge => toCustomerOption(edge.node));
+  const options = withBoundOrganizationV1(loaded, includeOrganization);
+  // Nothing to pick is a disabled field with the reason as its placeholder: Radix forbids an empty-valued item.
+  const empty = options.length === 0 && !hasNext;
+
+  // A callback ref, not an effect: Radix mounts the menu's children only while it is open, in a portal.
+  const sentinelRef = (node: HTMLDivElement | null) => {
+    if (!node) return undefined;
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0]?.isIntersecting && !isLoadingNext) loadNext(CUSTOMER_PAGE_SIZE);
+      },
+      { rootMargin: '100px' },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  };
+
+  return (
+    <CustomerSelectShell
+      {...props}
+      options={options}
+      disabled={disabled || empty}
+      placeholder={empty ? 'No customers available' : 'Select Customer'}
+      footer={hasNext ? <div ref={sentinelRef} aria-hidden className="h-px w-full" /> : null}
+    />
+  );
+}
+
+/**
+ * The customer field. Before its list is read (held by `enabled`, or in a loading scope: its own boundary's
+ * fallback, or the page's) it is the real field, locked, with no options, and reads nothing.
+ */
+export function CustomerSelectV1(props: CustomerSelectProps) {
+  const { enabled = true, includeOrganization, ...shellProps } = props;
+  if (!enabled) {
+    return <CustomerSelectLocked {...shellProps} />;
+  }
+
+  return (
+    <ContentErrorBoundary
+      fallback={() => (
+        <CustomerSelectShell
+          {...shellProps}
+          options={NO_ITEMS}
+          placeholder="Couldn't load customers"
+          error={shellProps.error ?? 'Reload the page to try again.'}
+          disabled
+        />
+      )}
+    >
+      <CustomerSelectList {...shellProps} includeOrganization={includeOrganization} />
+    </ContentErrorBoundary>
+  );
+}
+
+/** The field over its list, with its own boundary: in its scope the reader draws the locked field. */
+function CustomerSelectList(props: Omit<CustomerSelectProps, 'enabled'>) {
+  return (
+    <LoadingSuspense label="Loading customers">
+      <CustomerSelectBody {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function CustomerSelectBody({ includeOrganization, ...shellProps }: Omit<CustomerSelectProps, 'enabled'>) {
+  if (useLoadingScope()) {
+    return <CustomerSelectLocked {...shellProps} />;
+  }
+  return <CustomerSelectOptions {...shellProps} includeOrganization={includeOrganization} />;
+}
+
+/** The real field, locked, with no options: what it is before its list is read. */
+function CustomerSelectLocked(shellProps: Omit<CustomerSelectProps, 'enabled' | 'includeOrganization'>) {
+  return <CustomerSelectShell {...shellProps} options={NO_ITEMS} placeholder="Select Customer" disabled />;
+}

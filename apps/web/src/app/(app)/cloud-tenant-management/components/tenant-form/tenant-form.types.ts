@@ -1,6 +1,5 @@
-// Form schema for New / Edit Tenant Integration. The customer field
-// is a separate fragment on purpose: phase 2 removes the customer ↔ connection
-// binding from these forms, so it must be deletable without touching the rest.
+// Form schema for New / Edit Tenant Integration: the connection's own fields. Its customers are a
+// form of their own (`attribution.types.ts`).
 
 import { z } from 'zod';
 import { DirectoryProvider } from '@/generated/schema-enums';
@@ -23,18 +22,11 @@ const domainSchema = z
 
 const nameSchema = z.string().trim().min(1, 'Enter a connection name').max(100, 'Keep the name under 100 characters');
 
-/** Phase-2 removal point: delete this fragment and the `.extend()` call. */
-export const tenantCustomerFieldSchema = z.object({
-  organizationId: z.string().min(1, 'Select a customer'),
+export const tenantFormSchema = z.object({
+  provider: z.enum(DirectoryProvider, { error: 'Select a provider' }),
+  domain: domainSchema,
+  name: nameSchema,
 });
-
-export const tenantFormSchema = z
-  .object({
-    provider: z.enum(DirectoryProvider, { error: 'Select a provider' }),
-    domain: domainSchema,
-    name: nameSchema,
-  })
-  .extend(tenantCustomerFieldSchema.shape);
 
 export type TenantFormData = z.infer<typeof tenantFormSchema>;
 
@@ -46,5 +38,4 @@ export const TENANT_FORM_DEFAULT_VALUES: TenantFormData = {
   provider: DirectoryProvider.MICROSOFT_365,
   domain: '',
   name: '',
-  organizationId: '',
 };

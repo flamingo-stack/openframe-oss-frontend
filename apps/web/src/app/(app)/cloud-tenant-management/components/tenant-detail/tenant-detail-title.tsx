@@ -1,7 +1,7 @@
 'use client';
 
 import { TitleBlock } from '@flamingo-stack/openframe-frontend-core';
-import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import type { ActionsMenuGroup, PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 
@@ -17,14 +17,16 @@ interface TenantDetailTitleProps {
   title: string;
   /** The title is the record's name and it is still loading — drawn as a bar. */
   loading?: boolean;
-  /** Reconnect and Edit; they hang on the route, not on the record. */
+  /** Edit, and Reconnect while the tenant cannot be read. */
   actions?: PageActionButton[];
+  /** The "…" menu beside them: a phone merges them all into it. */
+  menuActions?: ActionsMenuGroup[];
   /** The record is not confirmed yet — the actions are drawn as placeholders in their own widths. */
   loadingActions?: boolean;
 }
 
 /** The details page's title and Back, for a page whose title is the record itself (canon `DetailTitle`). */
-export function TenantDetailTitle({ title, loading, actions, loadingActions }: TenantDetailTitleProps) {
+export function TenantDetailTitle({ title, loading, actions, menuActions, loadingActions }: TenantDetailTitleProps) {
   const handleBack = useSafeBack(routes.cloudTenantManagement.list);
   return (
     <TitleBlock
@@ -32,7 +34,8 @@ export function TenantDetailTitle({ title, loading, actions, loadingActions }: T
       loading={loading}
       titleSkeletonLines={TENANT_TITLE_SKELETON_LINES}
       actions={actions}
-      actionsVariant="icon-buttons"
+      menuActions={menuActions}
+      actionsVariant="menu-primary"
       loadingActions={loadingActions}
       backButton={{ label: 'Back', onClick: handleBack }}
     />

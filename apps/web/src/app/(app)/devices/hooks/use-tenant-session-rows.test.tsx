@@ -28,7 +28,7 @@ vi.mock('./use-tenant-live-sessions', () => ({
   },
 }));
 
-const WATCH_LIVE: LiveRows = { userId: 'tech-roman', remoteControl: true };
+const WATCH_LIVE: LiveRows = { userId: 'tech-roman' };
 
 const row = (id: string, live = false) => ({ id, live }) as TenantSessionRow;
 

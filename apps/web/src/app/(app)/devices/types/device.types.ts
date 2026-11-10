@@ -229,6 +229,12 @@ export interface Device {
   organizationImageUrl?: string | null;
   organizationImageHash?: string | null;
 
+  // Directory: the USER and SOURCES columns (`deviceDirectoryFields_machine`)
+  directorySources?: readonly string[];
+  directoryUserLink?: string;
+  directoryUserName?: string | null;
+  directoryUserCount?: number;
+
   // Tags
   tags?: DeviceTag[];
 
