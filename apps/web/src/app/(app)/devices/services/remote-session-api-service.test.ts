@@ -177,6 +177,25 @@ describe('fromWireRemoteSession', () => {
     expect(() => fromWireRemoteSession(wireSession({ sessionId: '' }))).toThrow();
     expect(() => fromWireRemoteSession(wireSession({ status: 'PARKED' }))).toThrow();
   });
+
+  it('reads who is watching now: one entry per user, without those who left', () => {
+    const viewer = (userId: string, leftAt: string | null = null) => ({
+      userId,
+      name: userId === 'tech-3' ? null : `Name ${userId}`,
+      avatarUrl: null,
+      leftAt,
+    });
+    const session = fromWireRemoteSession(
+      wireSession({
+        viewers: [viewer('tech-2'), viewer('tech-4', '2026-09-23T10:02:00Z'), viewer('tech-2'), viewer('tech-3')],
+      }),
+    );
+    expect(session.viewers).toEqual([
+      { userId: 'tech-2', name: 'Name tech-2', avatarUrl: null },
+      { userId: 'tech-3', name: null, avatarUrl: null },
+    ]);
+    expect(fromWireRemoteSession(wireSession()).viewers).toEqual([]);
+  });
 });
 
 describe('remote session events', () => {
@@ -234,6 +253,7 @@ describe('remote session events', () => {
       requestId: REQUEST_ID,
       status: 'ACTIVE',
       dialogId: 'dlg-1',
+      viewers: [],
     });
 
     const known = fromWireRemoteSession(wireSession({ dialogId: 'dlg-2' }));

@@ -8,7 +8,8 @@ import {
   parseRemoteSessionEvent,
   remoteSessionApiService,
 } from '../services/remote-session-api-service';
-import type { RemoteSession, RemoteSessionEnd } from '../types/remote-access';
+import { parseWatchEvent } from '../services/remote-session-watch-api-service';
+import type { RemoteSession, RemoteSessionEnd, RemoteSessionViewerEntry } from '../types/remote-access';
 
 export interface UseRemoteSessionResult {
   /** The backend session behind the mounted surface; null until found. */
@@ -32,6 +33,16 @@ function endOf(session: RemoteSession): RemoteSessionEnd {
   return { endReason: session.endReason ?? null, endedAt: session.endedAt ?? null };
 }
 
+/** Who is watching, as the header shows them: the same people, names and faces, in the same order. */
+function sameViewers(a: readonly RemoteSessionViewerEntry[], b: readonly RemoteSessionViewerEntry[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every(
+      (viewer, i) => viewer.userId === b[i].userId && viewer.name === b[i].name && viewer.avatarUrl === b[i].avatarUrl,
+    )
+  );
+}
+
 /** The fields the page reacts to; a poll answer that changed none of them is not a new object. */
 function sameSession(a: RemoteSession, b: RemoteSession): boolean {
   return (
@@ -40,7 +51,9 @@ function sameSession(a: RemoteSession, b: RemoteSession): boolean {
     a.dialogId === b.dialogId &&
     a.endReason === b.endReason &&
     // A session first known from the STARTED push learns it was not recorded from the poll.
-    (a.recordingSuppressed ?? null) === (b.recordingSuppressed ?? null)
+    (a.recordingSuppressed ?? null) === (b.recordingSuppressed ?? null) &&
+    // The poll also catches a viewer event the push missed.
+    sameViewers(a.viewers, b.viewers)
   );
 }
 
@@ -119,6 +132,17 @@ export function useRemoteSession(deviceId: string, requestId: string | null): Us
     subject,
     useCallback(
       payload => {
+        // Someone started or stopped watching: the event carries the full current list. Before the session is
+        // known there is nothing to put it on; the lookup brings the list with the record.
+        const known = sessionRef.current;
+        const watch = known ? parseWatchEvent(payload, known.sessionId) : null;
+        if (known && watch?.kind === 'viewers') {
+          const { sessionId } = known;
+          setSession(prev =>
+            prev?.sessionId === sessionId && prev.status !== 'ENDED' ? { ...prev, viewers: watch.viewers } : prev,
+          );
+          return;
+        }
         const event = parseRemoteSessionEvent(payload);
         if (!event) return;
         const current = sessionRef.current;

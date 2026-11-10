@@ -208,7 +208,13 @@ export function LiveSessionView({ sessionId }: LiveSessionViewProps) {
 
   const userId = useAuthStore(s => s.user?.id ?? null);
   const watch = useRemoteSessionWatch(sessionId, !!session?.live);
-  const viewers = session ? sessionViewers(session, watch.viewers, userId) : [];
+  const viewers = session
+    ? sessionViewers(
+        { id: session.technicianId, name: session.employee.name, avatarUrl: session.employee.avatarUrl ?? null },
+        watch.viewers,
+        userId,
+      )
+    : [];
   const resolution = watch.resolution ? `${watch.resolution.width} × ${watch.resolution.height}` : undefined;
 
   return (
