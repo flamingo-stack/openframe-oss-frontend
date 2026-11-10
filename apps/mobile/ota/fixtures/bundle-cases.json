@@ -1,0 +1,904 @@
+{
+  "cases": [
+    {
+      "name": "a typical bundle",
+      "bundle": "bundles/typical.tar.xz",
+      "size": 780,
+      "sha256": "bbe9641f429c5e051d81354bbe58e5d3219afb6b7c756468b444f697a9933d32",
+      "expect": {
+        "files": [
+          {
+            "path": "index.html",
+            "size": 111,
+            "sha256": "62f073e8e2624b35abc24d281454ac4cf8fb07bc4311c18f6eb49d8debfd1ab3"
+          },
+          {
+            "path": "404.html",
+            "size": 57,
+            "sha256": "cf516886bb8cc7b0fbfdd30bb517bf75f836f0e0aedbdc7cb381ade283958579"
+          },
+          {
+            "path": "devices/details/index.html",
+            "size": 111,
+            "sha256": "62f073e8e2624b35abc24d281454ac4cf8fb07bc4311c18f6eb49d8debfd1ab3"
+          },
+          {
+            "path": "devices/details/__next.devices.details.txt",
+            "size": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "_next/static/media/one-block.bin",
+            "size": 512,
+            "sha256": "0a7aaaf5d4f94087a8b8f340e064331f290002943ff2517bfa0248b8199c4c89"
+          },
+          {
+            "path": "_next/static/media/one-block-and-a-byte.bin",
+            "size": 513,
+            "sha256": "bbfe09403f0c29c104e98e5b38e8b7322445cda5936b16d1e348b93e930268f9"
+          },
+          {
+            "path": "_next/static/media/every-byte.bin",
+            "size": 256,
+            "sha256": "40aff2e9d2d8922e47afd4648e6967497158785fbd1da870e7110266bf944880"
+          },
+          {
+            "path": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn.js",
+            "size": 57,
+            "sha256": "abfbd7eedf7ccd0a3b6e7f4fad79b58596fac610b8a0f2bcacde4907812861ea"
+          },
+          {
+            "path": "ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp/qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq.js",
+            "size": 57,
+            "sha256": "945a53546d63feee926f1a6a76890b06a681d5905ae7800eba4bcdc0bcd0f152"
+          },
+          {
+            "path": "_next/static/chunks/app/(app)/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff.js",
+            "size": 10,
+            "sha256": "2e29cd9a98755c46896f7a2d56524db2d6d96b248e36db46de14c30bf47c8d05"
+          }
+        ]
+      }
+    },
+    {
+      "name": "zero blocks past the two that end the archive, as tar pads to 10 KiB",
+      "bundle": "bundles/record-padding.tar.xz",
+      "size": 248,
+      "sha256": "750cb623efb5fb9ac5eff5326a8f3a316fabe7277adefc491972d27a03b42191",
+      "expect": {
+        "files": [
+          {
+            "path": "index.html",
+            "size": 111,
+            "sha256": "62f073e8e2624b35abc24d281454ac4cf8fb07bc4311c18f6eb49d8debfd1ab3"
+          }
+        ]
+      }
+    },
+    {
+      "name": "one xz stream of several blocks",
+      "bundle": "bundles/several-blocks.tar.xz",
+      "size": 1636,
+      "sha256": "1bddfa89d09cd5c13a72d06a7e2ebc0fb92e78a3e64781337b2ff57d32301c9a",
+      "expect": {
+        "files": [
+          {
+            "path": "index.html",
+            "size": 111,
+            "sha256": "62f073e8e2624b35abc24d281454ac4cf8fb07bc4311c18f6eb49d8debfd1ab3"
+          },
+          {
+            "path": "404.html",
+            "size": 57,
+            "sha256": "cf516886bb8cc7b0fbfdd30bb517bf75f836f0e0aedbdc7cb381ade283958579"
+          },
+          {
+            "path": "devices/details/index.html",
+            "size": 111,
+            "sha256": "62f073e8e2624b35abc24d281454ac4cf8fb07bc4311c18f6eb49d8debfd1ab3"
+          },
+          {
+            "path": "devices/details/__next.devices.details.txt",
+            "size": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "_next/static/media/one-block.bin",
+            "size": 512,
+            "sha256": "0a7aaaf5d4f94087a8b8f340e064331f290002943ff2517bfa0248b8199c4c89"
+          },
+          {
+            "path": "_next/static/media/one-block-and-a-byte.bin",
+            "size": 513,
+            "sha256": "bbfe09403f0c29c104e98e5b38e8b7322445cda5936b16d1e348b93e930268f9"
+          },
+          {
+            "path": "_next/static/media/every-byte.bin",
+            "size": 256,
+            "sha256": "40aff2e9d2d8922e47afd4648e6967497158785fbd1da870e7110266bf944880"
+          },
+          {
+            "path": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn.js",
+            "size": 57,
+            "sha256": "abfbd7eedf7ccd0a3b6e7f4fad79b58596fac610b8a0f2bcacde4907812861ea"
+          },
+          {
+            "path": "ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp/qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq.js",
+            "size": 57,
+            "sha256": "945a53546d63feee926f1a6a76890b06a681d5905ae7800eba4bcdc0bcd0f152"
+          },
+          {
+            "path": "_next/static/chunks/app/(app)/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff.js",
+            "size": 10,
+            "sha256": "2e29cd9a98755c46896f7a2d56524db2d6d96b248e36db46de14c30bf47c8d05"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a name field ends at its first NUL",
+      "bundle": "bundles/nul-in-name.tar.xz",
+      "size": 228,
+      "sha256": "b12049376710640997b2d5f09299163da627174251e82781f9eb43526bcdd938",
+      "expect": {
+        "files": [
+          {
+            "path": "index.html",
+            "size": 111,
+            "sha256": "62f073e8e2624b35abc24d281454ac4cf8fb07bc4311c18f6eb49d8debfd1ab3"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a prefix field ends at its first NUL",
+      "bundle": "bundles/nul-in-prefix.tar.xz",
+      "size": 248,
+      "sha256": "3d1dc8c6c2cae6770b5b334ab593fe98fe60b22a74cf42ba945a8bbe30327538",
+      "expect": {
+        "files": [
+          {
+            "path": "index.html",
+            "size": 111,
+            "sha256": "62f073e8e2624b35abc24d281454ac4cf8fb07bc4311c18f6eb49d8debfd1ab3"
+          },
+          {
+            "path": "a/b.js",
+            "size": 1,
+            "sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+          }
+        ]
+      }
+    },
+    {
+      "name": "header bytes besides magic, version, checksum, size, type, name and prefix are ignored, as is the data padding",
+      "bundle": "bundles/ignored-header-fields.tar.xz",
+      "size": 264,
+      "sha256": "849284a725f4d6a5d45b63a08fad27ed9f17c0eb4688768c572ca20a74f1daba",
+      "expect": {
+        "files": [
+          {
+            "path": "index.html",
+            "size": 111,
+            "sha256": "62f073e8e2624b35abc24d281454ac4cf8fb07bc4311c18f6eb49d8debfd1ab3"
+          }
+        ]
+      }
+    },
+    {
+      "name": "an index.html that mentions window.__ENV outside the element",
+      "bundle": "bundles/env-mentioned.tar.xz",
+      "size": 252,
+      "sha256": "328f4bdaf04f9b2fe6912ceb00871e82cac6955ee594c0de7bd7cef80c384263",
+      "expect": {
+        "files": [
+          {
+            "path": "index.html",
+            "size": 153,
+            "sha256": "a5a6e9fb263722e0098f48024d07a862e3e6ab1c639c8bbc2fc125a5dce37b1c"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a bundle one byte longer than the payload says",
+      "bundle": "bundles/typical.tar.xz",
+      "size": 779,
+      "sha256": "bbe9641f429c5e051d81354bbe58e5d3219afb6b7c756468b444f697a9933d32",
+      "expect": {
+        "error": "SIZE"
+      }
+    },
+    {
+      "name": "a bundle whose SHA-256 differs from the payload",
+      "bundle": "bundles/typical.tar.xz",
+      "size": 780,
+      "sha256": "b417b5a81cdf763657e2f236480ec47099de4660e08912e3858757c7a486c8b6",
+      "expect": {
+        "error": "SHA256"
+      }
+    },
+    {
+      "name": "size is checked before SHA-256",
+      "bundle": "bundles/typical.tar.xz",
+      "size": 781,
+      "sha256": "b417b5a81cdf763657e2f236480ec47099de4660e08912e3858757c7a486c8b6",
+      "expect": {
+        "error": "SIZE"
+      }
+    },
+    {
+      "name": "size is checked before anything is decompressed",
+      "bundle": "bundles/plain-tar.tar.xz",
+      "size": 2049,
+      "sha256": "42dfeb27f3c292ef9bd53f989355664746c3909717827db0cc197ef5f799ce22",
+      "expect": {
+        "error": "SIZE"
+      }
+    },
+    {
+      "name": "SHA-256 is checked before anything is decompressed",
+      "bundle": "bundles/plain-tar.tar.xz",
+      "size": 2048,
+      "sha256": "b417b5a81cdf763657e2f236480ec47099de4660e08912e3858757c7a486c8b6",
+      "expect": {
+        "error": "SHA256"
+      }
+    },
+    {
+      "name": "a plain tar, not compressed",
+      "bundle": "bundles/plain-tar.tar.xz",
+      "size": 2048,
+      "sha256": "42dfeb27f3c292ef9bd53f989355664746c3909717827db0cc197ef5f799ce22",
+      "expect": {
+        "error": "XZ"
+      }
+    },
+    {
+      "name": "a gzip-compressed tar",
+      "bundle": "bundles/gzip.tar.xz",
+      "size": 179,
+      "sha256": "fdec26c859803fe4089be53dca6785e20abb0162bf6d6083bafc0a31ce9a1063",
+      "expect": {
+        "error": "XZ"
+      }
+    },
+    {
+      "name": "a tar in the legacy .lzma container",
+      "bundle": "bundles/lzma-alone.tar.xz",
+      "size": 171,
+      "sha256": "cf92c8184d780d557feb463d8bbe80bbcf44e759c59cfc6dc2e46c796e55f466",
+      "expect": {
+        "error": "XZ"
+      }
+    },
+    {
+      "name": "an empty file",
+      "bundle": "bundles/empty.tar.xz",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expect": {
+        "error": "XZ"
+      }
+    },
+    {
+      "name": "a second xz stream after the first, which Apple Compression would never read",
+      "bundle": "bundles/two-streams.tar.xz",
+      "size": 360,
+      "sha256": "bafcd224f9fb39d27218d99a1b75428dc33a007beb2acd363d7a3ef4761f8b31",
+      "expect": {
+        "error": "XZ"
+      }
+    },
+    {
+      "name": "stream padding after the stream",
+      "bundle": "bundles/stream-padding.tar.xz",
+      "size": 220,
+      "sha256": "5dc36d4973fadbb1cda28388f8f19e195b59c4bd12c83fd82dd6cfa64c858e93",
+      "expect": {
+        "error": "XZ"
+      }
+    },
+    {
+      "name": "a truncated stream",
+      "bundle": "bundles/truncated.tar.xz",
+      "size": 764,
+      "sha256": "d6bb338a961dd2a8902ec529b28ad8f2811ac7ef84670ab13c1b947ab032bfb5",
+      "expect": {
+        "error": "XZ"
+      }
+    },
+    {
+      "name": "a flipped bit inside the compressed data",
+      "bundle": "bundles/flipped-bit.tar.xz",
+      "size": 780,
+      "sha256": "897d446724c7184f6a64c551b0d6d585ada167d9cfcb56410a4644acc085ae34",
+      "expect": {
+        "error": "XZ"
+      }
+    },
+    {
+      "name": "a block whose CRC64 does not match, found only once it is all decoded",
+      "bundle": "bundles/bad-check.tar.xz",
+      "size": 780,
+      "sha256": "008f7d1c68a8d4bfdf4dbbcf056d6159fdbd56f836cc61c943bb7e8aca9014fc",
+      "expect": {
+        "error": "XZ"
+      }
+    },
+    {
+      "name": "a header checksum off by one",
+      "bundle": "bundles/checksum.tar.xz",
+      "size": 216,
+      "sha256": "6ed5a33ad21ca2cb77db8253559784cfd68246ab5e583a4e41d18a144f213549",
+      "expect": {
+        "error": "TAR"
+      }
+    },
+    {
+      "name": "GNU tar magic, not ustar",
+      "bundle": "bundles/gnu-magic.tar.xz",
+      "size": 216,
+      "sha256": "2b1c5206f311ec8f34deebe8ee09833575e31470c6a292ce5c8c4c50329aeb60",
+      "expect": {
+        "error": "TAR"
+      }
+    },
+    {
+      "name": "no magic at all (v7 tar)",
+      "bundle": "bundles/v7.tar.xz",
+      "size": 208,
+      "sha256": "86c94b178be711278f9190a35439f25012f64d3e04d7a12a13c999997b83257a",
+      "expect": {
+        "error": "TAR"
+      }
+    },
+    {
+      "name": "the ustar magic with a version other than 00",
+      "bundle": "bundles/ustar-version.tar.xz",
+      "size": 212,
+      "sha256": "c94021aa1c7418800415909c87f5e283a12d5a081f32680da834b59b84a155c2",
+      "expect": {
+        "error": "TAR"
+      }
+    },
+    {
+      "name": "a size field with a digit that is not octal",
+      "bundle": "bundles/size-not-octal.tar.xz",
+      "size": 216,
+      "sha256": "204a46e8a598b489279d55378c69d52cbf60d424ca0985e10920dd319e320490",
+      "expect": {
+        "error": "TAR"
+      }
+    },
+    {
+      "name": "a GNU base-256 size field",
+      "bundle": "bundles/size-base-256.tar.xz",
+      "size": 220,
+      "sha256": "3ce9fb601cdea1e1eaa976b6343fe24cf350c83ec3b3b4ad4b5734271233611a",
+      "expect": {
+        "error": "TAR"
+      }
+    },
+    {
+      "name": "a size field padded with spaces, not zeros",
+      "bundle": "bundles/size-spaces.tar.xz",
+      "size": 220,
+      "sha256": "780facc13fb63867d332a687c3fb8808cc4e73079be64e19dc22d1718ab51c19",
+      "expect": {
+        "error": "TAR"
+      }
+    },
+    {
+      "name": "a size field with a + sign",
+      "bundle": "bundles/size-plus.tar.xz",
+      "size": 220,
+      "sha256": "37589e3f0580ecc508393bf1ca155f816f3fcdbbfa2aed4bb35deeb9e546b813",
+      "expect": {
+        "error": "TAR"
+      }
+    },
+    {
+      "name": "a size field ending in a space, not a NUL",
+      "bundle": "bundles/size-space-end.tar.xz",
+      "size": 216,
+      "sha256": "ec40de83f1a555a42751085be13d9b84745a0182b7b3005174ba131c8550d164",
+      "expect": {
+        "error": "TAR"
+      }
+    },
+    {
+      "name": "a checksum field ending in two NULs, not a NUL and a space",
+      "bundle": "bundles/checksum-two-nuls.tar.xz",
+      "size": 216,
+      "sha256": "4720202d1588af5f10bc23c85ab7f7265458fde27315a686a7da13481865adf8",
+      "expect": {
+        "error": "TAR"
+      }
+    },
+    {
+      "name": "a checksum field of seven digits",
+      "bundle": "bundles/checksum-seven-digits.tar.xz",
+      "size": 216,
+      "sha256": "aadebefc34ecb2e7e28a4abae66ef6aa3b7df2c9118a75683eeb5898e5da64f0",
+      "expect": {
+        "error": "TAR"
+      }
+    },
+    {
+      "name": "an entry that runs past the end of the archive",
+      "bundle": "bundles/past-the-end.tar.xz",
+      "size": 208,
+      "sha256": "af4a42b3a952c53fb3c51f2ef370e3d64207eae7c158a0aaa8be146b8794e781",
+      "expect": {
+        "error": "TAR"
+      }
+    },
+    {
+      "name": "no end-of-archive blocks",
+      "bundle": "bundles/no-end.tar.xz",
+      "size": 212,
+      "sha256": "c7498eef07e0698d0c2ca4ca3dd2a67230ec2ce23f1e9f79a99f33601964670b",
+      "expect": {
+        "error": "TAR"
+      }
+    },
+    {
+      "name": "one end-of-archive block, not two",
+      "bundle": "bundles/one-end-block.tar.xz",
+      "size": 216,
+      "sha256": "00318c410604175fdd65a39dc38037e1ff0ab1150d4b89507b375d7676659463",
+      "expect": {
+        "error": "TAR"
+      }
+    },
+    {
+      "name": "bytes after the end-of-archive blocks",
+      "bundle": "bundles/trailing-bytes.tar.xz",
+      "size": 224,
+      "sha256": "a43630eba96b96b4b8906eaf47a08f9e0ba00c735e765a0abcac3050a11f9ccd",
+      "expect": {
+        "error": "TAR"
+      }
+    },
+    {
+      "name": "zeros after the end that are not a whole block",
+      "bundle": "bundles/partial-block.tar.xz",
+      "size": 216,
+      "sha256": "b5821bf99cdede222409eb9541df0c10b2093db2c1a5a1382ae7195af59688e4",
+      "expect": {
+        "error": "TAR"
+      }
+    },
+    {
+      "name": "an entry after the end-of-archive blocks",
+      "bundle": "bundles/entry-after-end.tar.xz",
+      "size": 252,
+      "sha256": "84c29fedcb707f71f1b4fa391e0d5923546e4ce4fe9afdfd69a3bad1a574dad6",
+      "expect": {
+        "error": "TAR"
+      }
+    },
+    {
+      "name": "an entry after a single zero block",
+      "bundle": "bundles/entry-after-one-zero-block.tar.xz",
+      "size": 248,
+      "sha256": "0374d773da11ac09e42b256e10e0170933028c8964d0928874d1ee8b7348d8ac",
+      "expect": {
+        "error": "TAR"
+      }
+    },
+    {
+      "name": "a pax extended header",
+      "bundle": "bundles/pax.tar.xz",
+      "size": 272,
+      "sha256": "a76032ff4584fff527190f0b5ff05a6cf215c7aeb1b9d318f7691d590db009e2",
+      "expect": {
+        "error": "ENTRY_TYPE"
+      }
+    },
+    {
+      "name": "a directory entry: the type is checked before the name",
+      "bundle": "bundles/directory.tar.xz",
+      "size": 232,
+      "sha256": "41cee485a75625e34bcf75356e73c12a13fe35141f74153c97a1580d22e0e1ae",
+      "expect": {
+        "error": "ENTRY_TYPE"
+      }
+    },
+    {
+      "name": "a symbolic link",
+      "bundle": "bundles/symlink.tar.xz",
+      "size": 236,
+      "sha256": "c02daa8b54ecaae3fc6721e0799e2733f06a2e87ce69c8e702ded93ba8ff4ace",
+      "expect": {
+        "error": "ENTRY_TYPE"
+      }
+    },
+    {
+      "name": "a hard link",
+      "bundle": "bundles/hard-link.tar.xz",
+      "size": 240,
+      "sha256": "04af4ed91a832eb943b4f5f8f2ca7e721a665e53fb849c4c3611bd61c92a99bc",
+      "expect": {
+        "error": "ENTRY_TYPE"
+      }
+    },
+    {
+      "name": "a GNU long-name entry",
+      "bundle": "bundles/gnu-long-name.tar.xz",
+      "size": 260,
+      "sha256": "a25357071f1e203859f3d28e45ce767cd2fce1b5fb8be0b39e9fe54ea3e4e22c",
+      "expect": {
+        "error": "ENTRY_TYPE"
+      }
+    },
+    {
+      "name": "a NUL type byte, which pre-POSIX tars meant as a regular file",
+      "bundle": "bundles/nul-type.tar.xz",
+      "size": 216,
+      "sha256": "71277e9be3d95e475e2d5c4cde472266e9ef6b3d02984aef1a75acac8366b354",
+      "expect": {
+        "error": "ENTRY_TYPE"
+      }
+    },
+    {
+      "name": "an unsafe path: \"../evil.js\"",
+      "bundle": "bundles/name-parent.tar.xz",
+      "size": 248,
+      "sha256": "8db735de286e61481f3148c9839dfa5679506fb60dc75279395c74108286b16b",
+      "expect": {
+        "error": "ENTRY_NAME"
+      }
+    },
+    {
+      "name": "an unsafe path: \"../evil.js\" from the prefix field \"..\"",
+      "bundle": "bundles/name-parent-in-prefix.tar.xz",
+      "size": 248,
+      "sha256": "272a676427d516bc9ff6730d146a066d8bab11ca86178f85c7d6df9880824c67",
+      "expect": {
+        "error": "ENTRY_NAME"
+      }
+    },
+    {
+      "name": "an unsafe path: \"/evil.js\"",
+      "bundle": "bundles/name-absolute.tar.xz",
+      "size": 248,
+      "sha256": "60f4ac34b19bf86af9afc42b1b9a4eff59a02c2641fa0157eb2c4b80d761ecb9",
+      "expect": {
+        "error": "ENTRY_NAME"
+      }
+    },
+    {
+      "name": "an unsafe path: \"a//b.js\"",
+      "bundle": "bundles/name-empty-segment.tar.xz",
+      "size": 244,
+      "sha256": "3504ca24bd207af7b0bcf9118f1d395fd6d5afbd9b1e26b85f07d7dc46e08e86",
+      "expect": {
+        "error": "ENTRY_NAME"
+      }
+    },
+    {
+      "name": "an unsafe path: \"./index.html\"",
+      "bundle": "bundles/name-dot-segment.tar.xz",
+      "size": 244,
+      "sha256": "35451bc2fa45115257c27341361f8a4e4b1f956038cbb845c2ff401c7c889f0b",
+      "expect": {
+        "error": "ENTRY_NAME"
+      }
+    },
+    {
+      "name": "an unsafe path: \"assets/\"",
+      "bundle": "bundles/name-trailing-slash.tar.xz",
+      "size": 244,
+      "sha256": "e5b4f27b08f86ba85363d9229df3596a88ca5899df79955aba2e1a2496f92ada",
+      "expect": {
+        "error": "ENTRY_NAME"
+      }
+    },
+    {
+      "name": "an unsafe path: \"a\\\\b.js\"",
+      "bundle": "bundles/name-backslash.tar.xz",
+      "size": 244,
+      "sha256": "91ce1ead468cfc07692a3a79e17003a33606ca2aa6535edb789bdeb41d0e0123",
+      "expect": {
+        "error": "ENTRY_NAME"
+      }
+    },
+    {
+      "name": "an unsafe path: \"a b.js\"",
+      "bundle": "bundles/name-space.tar.xz",
+      "size": 244,
+      "sha256": "9f7cd663ff0bc46f181c65c15145656ebd4c4cc6f683ed89f3b39897020e9238",
+      "expect": {
+        "error": "ENTRY_NAME"
+      }
+    },
+    {
+      "name": "an unsafe path: \"café.js\"",
+      "bundle": "bundles/name-non-ascii.tar.xz",
+      "size": 244,
+      "sha256": "79773c18c785a96e91b23742bec193be46705760dcdf6a60c4328757d3c5a3ff",
+      "expect": {
+        "error": "ENTRY_NAME"
+      }
+    },
+    {
+      "name": "an unsafe path: \"a\\u0001b.js\"",
+      "bundle": "bundles/name-control.tar.xz",
+      "size": 244,
+      "sha256": "09f5aca54daaf358d13bef6ed03099812933351cdf0fa2f2fb8c845d6c469496",
+      "expect": {
+        "error": "ENTRY_NAME"
+      }
+    },
+    {
+      "name": "an unsafe path: \"ab.js\"",
+      "bundle": "bundles/name-delete.tar.xz",
+      "size": 244,
+      "sha256": "76a2050330daf9133c0c5cd9c35574157a6fb571656eec153c2d68316ad0eda5",
+      "expect": {
+        "error": "ENTRY_NAME"
+      }
+    },
+    {
+      "name": "an unsafe path: 256 bytes",
+      "bundle": "bundles/name-256-bytes.tar.xz",
+      "size": 244,
+      "sha256": "f8132185e42f117c25a13f524f850006c254fc2e584dee9cb321e81e4031c8d2",
+      "expect": {
+        "error": "ENTRY_NAME"
+      }
+    },
+    {
+      "name": "the first refusal in archive order wins",
+      "bundle": "bundles/first-refusal.tar.xz",
+      "size": 152,
+      "sha256": "6d618834446b59e9e67a46944f11cda73bf4d14831eb24acd7c7f1e17f45f693",
+      "expect": {
+        "error": "ENTRY_NAME"
+      }
+    },
+    {
+      "name": "the same path twice",
+      "bundle": "bundles/duplicate.tar.xz",
+      "size": 224,
+      "sha256": "6c0c81beb9fde2651424a548c5e66108e46f1118bb58913eda69ea422004b374",
+      "expect": {
+        "error": "DUPLICATE"
+      }
+    },
+    {
+      "name": "the same path as name and as prefix + name",
+      "bundle": "bundles/duplicate-prefix.tar.xz",
+      "size": 260,
+      "sha256": "a10122264046780ef624bac4d362b876572e1b10c49223bffcb8cc03ad14c05a",
+      "expect": {
+        "error": "DUPLICATE"
+      }
+    },
+    {
+      "name": "a file where another path needs a directory",
+      "bundle": "bundles/file-then-directory.tar.xz",
+      "size": 264,
+      "sha256": "5a11c86ae667d7da2bd4fe4f3af3ad69702c6ddcfbaa41b9bd4108eae365d04e",
+      "expect": {
+        "error": "DUPLICATE"
+      }
+    },
+    {
+      "name": "a file where an earlier path needed a directory",
+      "bundle": "bundles/directory-then-file.tar.xz",
+      "size": 264,
+      "sha256": "c9dc6ffceefbcad3ac180cc39484d26907b16860aa0876fded06ccc0aff4e061",
+      "expect": {
+        "error": "DUPLICATE"
+      }
+    },
+    {
+      "name": "two paths that differ only in case",
+      "bundle": "bundles/case-only.tar.xz",
+      "size": 228,
+      "sha256": "1aab65cd8fc4abb8f738a96beb8547ff24cbceda940a6d527b17d69b19507669",
+      "expect": {
+        "error": "DUPLICATE"
+      }
+    },
+    {
+      "name": "a file and a directory that differ only in case",
+      "bundle": "bundles/case-file-directory.tar.xz",
+      "size": 268,
+      "sha256": "cbc75250edbfb861e2b0716bcc0a54122482404b78d91918fb4de8e426fe775a",
+      "expect": {
+        "error": "DUPLICATE"
+      }
+    },
+    {
+      "name": "directories that differ only in case, holding different files, collide on nothing",
+      "bundle": "bundles/case-directories.tar.xz",
+      "size": 260,
+      "sha256": "eb97637f9e49c7a677493c8a341c50bb41b2f77ae33691c103990e6040ae1edb",
+      "expect": {
+        "files": [
+          {
+            "path": "index.html",
+            "size": 111,
+            "sha256": "62f073e8e2624b35abc24d281454ac4cf8fb07bc4311c18f6eb49d8debfd1ab3"
+          },
+          {
+            "path": "App/a.js",
+            "size": 1,
+            "sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+          },
+          {
+            "path": "app/b.js",
+            "size": 1,
+            "sha256": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35"
+          }
+        ]
+      }
+    },
+    {
+      "name": "an entry fault, then bytes after the end blocks: TAR outranks it",
+      "bundle": "bundles/tar-over-entry.tar.xz",
+      "size": 240,
+      "sha256": "f40a9e87dd057774c596baca66294676de63d6e526a417b9fe515b5883244f5a",
+      "expect": {
+        "error": "TAR"
+      }
+    },
+    {
+      "name": "an entry fault in a tar without its end blocks: TAR outranks it",
+      "bundle": "bundles/truncated-tar-over-entry.tar.xz",
+      "size": 228,
+      "sha256": "1c3b35521e7c893ba46a310795dab9476062eb720ca1495d8e35454c1fd10f81",
+      "expect": {
+        "error": "TAR"
+      }
+    },
+    {
+      "name": "an entry fault in the first of two xz streams: XZ outranks it",
+      "bundle": "bundles/two-streams-over-entry.tar.xz",
+      "size": 376,
+      "sha256": "19b1049b492b02184057604b9fc81d8d79a84165a41cbc000e7303657e7ae244",
+      "expect": {
+        "error": "XZ"
+      }
+    },
+    {
+      "name": "an entry fault, then a block CRC64 that does not match: XZ outranks it",
+      "bundle": "bundles/bad-check-over-entry.tar.xz",
+      "size": 232,
+      "sha256": "e5d79ccb401bf400820a74812f5ad3d9f0283d1670fc9230fb1e5d18925a4db7",
+      "expect": {
+        "error": "XZ"
+      }
+    },
+    {
+      "name": "an entry fault outranks a missing index.html",
+      "bundle": "bundles/entry-over-no-index.tar.xz",
+      "size": 116,
+      "sha256": "469a221df41566047583294362023a8844649981c3deaac07738eb6ef1334981",
+      "expect": {
+        "error": "ENTRY_TYPE"
+      }
+    },
+    {
+      "name": "a header checksum fault in a stream whose block CRC64 fails: XZ outranks TAR",
+      "bundle": "bundles/bad-check-over-tar.tar.xz",
+      "size": 216,
+      "sha256": "f6484ee0bdf22f168d9e423abc1cbcd831e7b5cf7a2a94e11ee66a7e1f755f9e",
+      "expect": {
+        "error": "XZ"
+      }
+    },
+    {
+      "name": "bytes after the end blocks in the first of two xz streams: XZ outranks TAR",
+      "bundle": "bundles/two-streams-over-tar.tar.xz",
+      "size": 368,
+      "sha256": "69be13235e19e0e61fc25f2ac3ca18426608a75fbc8b47106b80360898f1e6f4",
+      "expect": {
+        "error": "XZ"
+      }
+    },
+    {
+      "name": "a collision before a later entry fault",
+      "bundle": "bundles/duplicate-over-entry.tar.xz",
+      "size": 244,
+      "sha256": "9498418735bc15d91d78e61e49a2daa2d03bfedaeb0a750232454d937890fd3e",
+      "expect": {
+        "error": "DUPLICATE"
+      }
+    },
+    {
+      "name": "within one entry, the name is checked before collisions",
+      "bundle": "bundles/name-over-duplicate.tar.xz",
+      "size": 260,
+      "sha256": "b053db987f4e722cca56803aa1996a16c8b53c8eda2ffeffbc17aa1a7aabcbca",
+      "expect": {
+        "error": "ENTRY_NAME"
+      }
+    },
+    {
+      "name": "an entry fault outranks an index.html carrying window.__ENV",
+      "bundle": "bundles/entry-over-env.tar.xz",
+      "size": 296,
+      "sha256": "a16889aa49856e558acdf36c5533e55e3a8e802f79be1e4e0bfbae3ede84dbeb",
+      "expect": {
+        "error": "ENTRY_TYPE"
+      }
+    },
+    {
+      "name": "bytes after the end blocks outrank an index.html carrying window.__ENV",
+      "bundle": "bundles/tar-over-env.tar.xz",
+      "size": 280,
+      "sha256": "191f3ce4fe74bc87bb2aa4da35e70bb183a1b7e5e1d4175b582d678de717bf79",
+      "expect": {
+        "error": "TAR"
+      }
+    },
+    {
+      "name": "no entries at all",
+      "bundle": "bundles/no-entries.tar.xz",
+      "size": 76,
+      "sha256": "fc3a2583bafae712e6e3255a9f7015816ba60be24c9ba94bb802c2311c3eca35",
+      "expect": {
+        "error": "NO_INDEX"
+      }
+    },
+    {
+      "name": "index.html only in a subdirectory",
+      "bundle": "bundles/no-root-index.tar.xz",
+      "size": 220,
+      "sha256": "cc726826e1184d9162942145ee792f60b3d81ea597b35bef266a625d7c673ac2",
+      "expect": {
+        "error": "NO_INDEX"
+      }
+    },
+    {
+      "name": "only Index.html: the root page is matched in its exact case",
+      "bundle": "bundles/no-index-case.tar.xz",
+      "size": 216,
+      "sha256": "f6d7829ebcff27a72bb415bd63b864d202535b114ce02fe837c938665e519c58",
+      "expect": {
+        "error": "NO_INDEX"
+      }
+    },
+    {
+      "name": "an index.html that carries window.__ENV",
+      "bundle": "bundles/has-env.tar.xz",
+      "size": 276,
+      "sha256": "180d504d5ba710334484542eae0a894e647bba59627583f65cfe572e15c109c1",
+      "expect": {
+        "error": "HAS_ENV"
+      }
+    },
+    {
+      "name": "an index.html with the start of a window.__ENV element and no </script>",
+      "bundle": "bundles/has-env-unterminated.tar.xz",
+      "size": 244,
+      "sha256": "86b6dc6981cb68f1a2d5df573d63db43e57b8a367f4037fd9a61825ae67b01a9",
+      "expect": {
+        "error": "HAS_ENV"
+      }
+    },
+    {
+      "name": "an index.html without a literal <head>, which no shell could give its env",
+      "bundle": "bundles/no-head.tar.xz",
+      "size": 228,
+      "sha256": "f5e6b2f92cec35190c6eb8a0c49520c775418163f1b5bc56363916a6f3ecb035",
+      "expect": {
+        "error": "NO_HEAD"
+      }
+    },
+    {
+      "name": "an index.html carrying window.__ENV and without a literal <head>: HAS_ENV first",
+      "bundle": "bundles/env-over-no-head.tar.xz",
+      "size": 284,
+      "sha256": "eed89204fc364b226bba9b37f736840ea082cf5974a6847462e48fe8658713b8",
+      "expect": {
+        "error": "HAS_ENV"
+      }
+    }
+  ]
+}

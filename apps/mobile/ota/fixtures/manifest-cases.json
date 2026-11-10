@@ -1,0 +1,888 @@
+{
+  "cases": [
+    {
+      "name": "a manifest signed by the current key",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEUCIQDH8PETn94ay8MOqwNhBZ9PU/MN6M6Yu2bNBOONx5n7ZgIgFwppNOG1bf8BNA3d1/K/iL8K3kz0Dio4uuaEERjcztw=\"\n}\n",
+      "expect": {
+        "payload": {
+          "format": 1,
+          "version": "1.2.3",
+          "bridgeLevel": 1,
+          "url": "https://github.com/flamingo-stack/openframe-oss-frontend/releases/download/1.2.3/openframe-mobile-1.2.3.tar.xz",
+          "size": 4482516,
+          "sha256": "cd98c950d629c66548537b4ecd68dab3e8cf59974ba6e40df5a1a7354b39db5f"
+        }
+      }
+    },
+    {
+      "name": "a manifest signed by the next key",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"dcba105b6b9c6c83\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEUCICNuPC65edvVw1dti9YGRjmc4e5t+Spjc7/WpVMug9bLAiEAob6xJYffqtixofCWn6M1nNBX1B2c3rlbW3Cm0VZRYQg=\"\n}\n",
+      "expect": {
+        "payload": {
+          "format": 1,
+          "version": "1.2.3",
+          "bridgeLevel": 1,
+          "url": "https://github.com/flamingo-stack/openframe-oss-frontend/releases/download/1.2.3/openframe-mobile-1.2.3.tar.xz",
+          "size": 4482516,
+          "sha256": "cd98c950d629c66548537b4ecd68dab3e8cf59974ba6e40df5a1a7354b39db5f"
+        }
+      }
+    },
+    {
+      "name": "a payload field this format does not know is ignored",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYiLCJkZWx0YSI6eyJmcm9tIjoiMS4yLjIifX0=\",\n  \"signature\": \"MEUCIDxZ9cdFS/bzF74S/r08mKzMXyk48LNp2la9eDHw80z4AiEAooCGL4FxV6C4a1jZ2MdwpvB3y2v3/fM7Ea7Bsq2UEYE=\"\n}\n",
+      "expect": {
+        "payload": {
+          "format": 1,
+          "version": "1.2.3",
+          "bridgeLevel": 1,
+          "url": "https://github.com/flamingo-stack/openframe-oss-frontend/releases/download/1.2.3/openframe-mobile-1.2.3.tar.xz",
+          "size": 4482516,
+          "sha256": "cd98c950d629c66548537b4ecd68dab3e8cf59974ba6e40df5a1a7354b39db5f"
+        }
+      }
+    },
+    {
+      "name": "an envelope field this format does not know is ignored",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEUCIA0ugFVlXawJZRkSKlXK8ru6CojKRG/IAh7jV8/2MemGAiEA6rx3+S3Grc7wZIQ5di0yjbSoJx69026c0MMHy02EnRI=\",\n  \"comment\": \"x\"\n}\n",
+      "expect": {
+        "payload": {
+          "format": 1,
+          "version": "1.2.3",
+          "bridgeLevel": 1,
+          "url": "https://github.com/flamingo-stack/openframe-oss-frontend/releases/download/1.2.3/openframe-mobile-1.2.3.tar.xz",
+          "size": 4482516,
+          "sha256": "cd98c950d629c66548537b4ecd68dab3e8cf59974ba6e40df5a1a7354b39db5f"
+        }
+      }
+    },
+    {
+      "name": "any https host: the signature covers the url",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2V4YW1wbGUuY29tL3gvb3BlbmZyYW1lLW1vYmlsZS0xLjIuMy50YXIueHoiLCJzaXplIjo0NDgyNTE2LCJzaGEyNTYiOiJjZDk4Yzk1MGQ2MjljNjY1NDg1MzdiNGVjZDY4ZGFiM2U4Y2Y1OTk3NGJhNmU0MGRmNWExYTczNTRiMzlkYjVmIn0=\",\n  \"signature\": \"MEQCIH7dnTTSKNg5WhvrCMFmDGsXJa88SnT+h+0PsK6lEBDsAiAka1oxaX9KmAmhfL3pAlGuwvtHxP3fPAnIqL0RaatTdQ==\"\n}\n",
+      "expect": {
+        "payload": {
+          "format": 1,
+          "version": "1.2.3",
+          "bridgeLevel": 1,
+          "url": "https://example.com/x/openframe-mobile-1.2.3.tar.xz",
+          "size": 4482516,
+          "sha256": "cd98c950d629c66548537b4ecd68dab3e8cf59974ba6e40df5a1a7354b39db5f"
+        }
+      }
+    },
+    {
+      "name": "a high-S signature (s replaced by n - s) verifies",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEUCIFegzmJK/XEmM1B1xK9kq1UsmcWZOXFx+j/eWL5pRX5hAiEAiv3RHQNp+QAQlqAdiL1Nw5fWbepX5/mJP2js7OSqTdQ=\"\n}\n",
+      "expect": {
+        "payload": {
+          "format": 1,
+          "version": "1.2.3",
+          "bridgeLevel": 1,
+          "url": "https://github.com/flamingo-stack/openframe-oss-frontend/releases/download/1.2.3/openframe-mobile-1.2.3.tar.xz",
+          "size": 4482516,
+          "sha256": "cd98c950d629c66548537b4ecd68dab3e8cf59974ba6e40df5a1a7354b39db5f"
+        }
+      }
+    },
+    {
+      "name": "version parts of nine digits",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiI5OTk5OTk5OTkuMC4wIiwiYnJpZGdlTGV2ZWwiOjEsInVybCI6Imh0dHBzOi8vZ2l0aHViLmNvbS9mbGFtaW5nby1zdGFjay9vcGVuZnJhbWUtb3NzLWZyb250ZW5kL3JlbGVhc2VzL2Rvd25sb2FkLzEuMi4zL29wZW5mcmFtZS1tb2JpbGUtOTk5OTk5OTk5LjAuMC50YXIueHoiLCJzaXplIjo0NDgyNTE2LCJzaGEyNTYiOiJjZDk4Yzk1MGQ2MjljNjY1NDg1MzdiNGVjZDY4ZGFiM2U4Y2Y1OTk3NGJhNmU0MGRmNWExYTczNTRiMzlkYjVmIn0=\",\n  \"signature\": \"MEUCIQDWct63HvTmnFh25mLXLxDu3fDpc8ipbink9bENajD0DwIgUxzOEdWDHWDzaarimn9yR+dgZGQZyog5kP9i69c7Kz0=\"\n}\n",
+      "expect": {
+        "payload": {
+          "format": 1,
+          "version": "999999999.0.0",
+          "bridgeLevel": 1,
+          "url": "https://github.com/flamingo-stack/openframe-oss-frontend/releases/download/1.2.3/openframe-mobile-999999999.0.0.tar.xz",
+          "size": 4482516,
+          "sha256": "cd98c950d629c66548537b4ecd68dab3e8cf59974ba6e40df5a1a7354b39db5f"
+        }
+      }
+    },
+    {
+      "name": "the manifest is not JSON",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "not json",
+      "expect": {
+        "error": "ENVELOPE"
+      }
+    },
+    {
+      "name": "the manifest is a JSON array",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "[\n  \"1900106934dd3d66\",\n  \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"MEQCIFegzmJK/XEmM1B1xK9kq1UsmcWZOXFx+j/eWL5pRX5hAiB1Ai7h/JYHAO9pX+J3QrI8JRCMw08vpPu0UN3WF7jXfQ==\"\n]\n",
+      "expect": {
+        "error": "ENVELOPE"
+      }
+    },
+    {
+      "name": "the manifest is JSON null",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "null",
+      "expect": {
+        "error": "ENVELOPE"
+      }
+    },
+    {
+      "name": "no signature field",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\"\n}\n",
+      "expect": {
+        "error": "ENVELOPE"
+      }
+    },
+    {
+      "name": "a keyId that is not a string",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": 1,\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEQCIFegzmJK/XEmM1B1xK9kq1UsmcWZOXFx+j/eWL5pRX5hAiB1Ai7h/JYHAO9pX+J3QrI8JRCMw08vpPu0UN3WF7jXfQ==\"\n}\n",
+      "expect": {
+        "error": "ENVELOPE"
+      }
+    },
+    {
+      "name": "a payload without its base64 padding",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ\",\n  \"signature\": \"MEUCIQD96L5kCbPcOUdyxTP9DuybmrrArIwKDo41hCqeSTz8MwIgM1DDBy9zzVudXg/gPh4E7cys+e9y0Fxnb1k1jxlrc+A=\"\n}\n",
+      "expect": {
+        "error": "ENVELOPE"
+      }
+    },
+    {
+      "name": "a payload in the URL-safe base64 alphabet",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYiLCJub3RlIjoiPz8_In0=\",\n  \"signature\": \"MEQCIFRXr9b7F+6xQSJNi+7jwwo+jsBVCYH+8EG2bjiL4SnNAiAgVhziRpYo8xP5Oj67bjS6bTtH9I+eP7+ueOLIOQGGxw==\"\n}\n",
+      "expect": {
+        "error": "ENVELOPE"
+      }
+    },
+    {
+      "name": "a payload in base64 broken into MIME lines",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRw\\nczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxl\\nYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUi\\nOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5\\nOTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEYCIQDSFzp/53tvkRWGRYKjjF4R6tmS7xa4zzZyTWGgSIfHEQIhAN1DbUlq8DoaGJGCDWZ0cthrVzR7bBVjd2lQX2j5muXh\"\n}\n",
+      "expect": {
+        "error": "ENVELOPE"
+      }
+    },
+    {
+      "name": "a payload in base64 with a leading space",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \" eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEUCIAe8j+iuN+rcMrKBPVzMMRXZnElBZd/PZT/69vRVk/X2AiEArGkHIWOyXnYEqx4+IfyHtYfZsvTDXqmyrTYffH4Y4mc=\"\n}\n",
+      "expect": {
+        "error": "ENVELOPE"
+      }
+    },
+    {
+      "name": "a payload in base64 with non-zero padding bits",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifR==\",\n  \"signature\": \"MEUCIHKIJtPChSqbSYequzFvXu2KcNdxOWzUX32XtyUAeyHaAiEAyBL2iJzZ1F4vMJD+bNqZnhKA98LHYrPVxQ+gSOuwpCc=\"\n}\n",
+      "expect": {
+        "error": "ENVELOPE"
+      }
+    },
+    {
+      "name": "a signature in base64 with non-zero padding bits",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEUCIQD9neeE2KAscb0A1SwuRiJFhdIGFfVIORuKQ1DCqVCBWAIgfbsw3LMctepFxTj5aPBXZnPEYoicSeO8KrUR5QcJenR=\"\n}\n",
+      "expect": {
+        "error": "ENVELOPE"
+      }
+    },
+    {
+      "name": "bad base64 is refused before the key is looked up",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"b4c58f7767ef2555\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==!\",\n  \"signature\": \"MEYCIQCyK2chPkL8gqYcKYcQlBCQdMKKv6ANrZFiIN/dBCu0vQIhAKimO0SXwtvYJrUE2T5ngbnhR79Rn3C+KAO3NBc6uzVK\"\n}\n",
+      "expect": {
+        "error": "ENVELOPE"
+      }
+    },
+    {
+      "name": "a non-canonical signature under an unknown key: the envelope is checked first",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"b4c58f7767ef2555\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEUCIQD9neeE2KAscb0A1SwuRiJFhdIGFfVIORuKQ1DCqVCBWAIgfbsw3LMctepFxTj5aPBXZnPEYoicSeO8KrUR5QcJenR=\"\n}\n",
+      "expect": {
+        "error": "ENVELOPE"
+      }
+    },
+    {
+      "name": "a byte order mark before the manifest",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "﻿{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEQCIFm6NfRLFkVXvr92HwawPxMuOE0mQ+oYQXATg8oxcYpyAiAlTMrHB2IFJEz0INYYhSlKgKIwymFbZdMg9vNZq32/LA==\"\n}\n",
+      "expect": {
+        "error": "ENVELOPE"
+      }
+    },
+    {
+      "name": "a trailing comma in the manifest",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEQCIFm6NfRLFkVXvr92HwawPxMuOE0mQ+oYQXATg8oxcYpyAiAlTMrHB2IFJEz0INYYhSlKgKIwymFbZdMg9vNZq32/LA==\",\n}\n",
+      "expect": {
+        "error": "ENVELOPE"
+      }
+    },
+    {
+      "name": "a comment in the manifest",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "/* mobile.json */\n{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEQCIFm6NfRLFkVXvr92HwawPxMuOE0mQ+oYQXATg8oxcYpyAiAlTMrHB2IFJEz0INYYhSlKgKIwymFbZdMg9vNZq32/LA==\"\n}\n",
+      "expect": {
+        "error": "ENVELOPE"
+      }
+    },
+    {
+      "name": "text after the manifest object",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEQCIFm6NfRLFkVXvr92HwawPxMuOE0mQ+oYQXATg8oxcYpyAiAlTMrHB2IFJEz0INYYhSlKgKIwymFbZdMg9vNZq32/LA==\"\n}\nx",
+      "expect": {
+        "error": "ENVELOPE"
+      }
+    },
+    {
+      "name": "single-quoted strings in the manifest",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  'keyId': '1900106934dd3d66',\n  'payload': 'eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==',\n  'signature': 'MEQCIFm6NfRLFkVXvr92HwawPxMuOE0mQ+oYQXATg8oxcYpyAiAlTMrHB2IFJEz0INYYhSlKgKIwymFbZdMg9vNZq32/LA=='\n}\n",
+      "expect": {
+        "error": "ENVELOPE"
+      }
+    },
+    {
+      "name": "signed by a key the shell does not hold",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"b4c58f7767ef2555\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEUCIQD7nZ1DuNrGQE6mTNAkvXtV1RMBYBYra5ernmByDCmUQgIgOCP26oUAl4qzxvPm4csi2rjJ+z31wvEKwJgdqs0GAjc=\"\n}\n",
+      "expect": {
+        "error": "UNKNOWN_KEY"
+      }
+    },
+    {
+      "name": "signed by the next key on a shell that holds only the current one",
+      "keys": [
+        "a"
+      ],
+      "manifest": "{\n  \"keyId\": \"dcba105b6b9c6c83\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEUCIQCJz6WePnKLVk0ffnK4qUXaPC/pVm8/iuUZXYqdqitl6QIgJPW39Jsd3cSxzJshr8+nFXNGM+3gp/91SKWwkWaRFpo=\"\n}\n",
+      "expect": {
+        "error": "UNKNOWN_KEY"
+      }
+    },
+    {
+      "name": "the keyId of a held key in upper case",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934DD3D66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEYCIQDhlXFjNz3+jzH28gaL4GAxmt+z6XT3LXxl7oGts8tqPwIhAIqghc6ROdHIunIdlcLcY6miEJmI9xfucwrPJ4bKXTpC\"\n}\n",
+      "expect": {
+        "error": "UNKNOWN_KEY"
+      }
+    },
+    {
+      "name": "an empty keyId",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEYCIQCuXWwXQlSOUlUf0a5Qm6BEbbX7XtQNWWQMptqFQ+U6igIhAKz6MJAZW4nnaj0b4nwghvrCifYBoh8p8YJBK4QJNJUD\"\n}\n",
+      "expect": {
+        "error": "UNKNOWN_KEY"
+      }
+    },
+    {
+      "name": "an unknown key is refused before the signature is checked",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"b4c58f7767ef2555\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"\"\n}\n",
+      "expect": {
+        "error": "UNKNOWN_KEY"
+      }
+    },
+    {
+      "name": "the keyId of the current key on a signature by the next",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEUCIHJJ2PSLjAGvzI1KRQfkjSENvzM+i1yIH7xgdZpfpDrnAiEAulNx28VEdW+KHbnQQOzwXAZR8rW26l77slySL6sDf3U=\"\n}\n",
+      "expect": {
+        "error": "SIGNATURE"
+      }
+    },
+    {
+      "name": "the payload changed after signing",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiI5LjkuOSIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEYCIQDONoD9dLluD2JM+vKKOPAdeu7UwlyyGYbStvVaNfxYwQIhAM6zZ75z05TASds3hr6Tfj0QunONNI8oDkEZ+noAQ8hV\"\n}\n",
+      "expect": {
+        "error": "SIGNATURE"
+      }
+    },
+    {
+      "name": "a signature over other bytes",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEUCIQCS4OPtVjmIW0bYHoHr58d4cy9fvRwX2NuuLRYp9jNB3AIgUt3L87On77wSmnlrZ2nyFXIsUOG4afjZOM/VzYs+i8U=\"\n}\n",
+      "expect": {
+        "error": "SIGNATURE"
+      }
+    },
+    {
+      "name": "an empty signature",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"\"\n}\n",
+      "expect": {
+        "error": "SIGNATURE"
+      }
+    },
+    {
+      "name": "a raw r || s signature (IEEE P1363), not DER",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"V6DOYkr9cSYzUHXEr2SrVSyZxZk5cXH6P95YvmlFfmF1Ai7h/JYHAO9pX+J3QrI8JRCMw08vpPu0UN3WF7jXfQ==\"\n}\n",
+      "expect": {
+        "error": "SIGNATURE"
+      }
+    },
+    {
+      "name": "a DER integer with a needless leading zero",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEUCIQBXoM5iSv1xJjNQdcSvZKtVLJnFmTlxcfo/3li+aUV+YQIgdQIu4fyWBwDvaV/id0KyPCUQjMNPL6T7tFDd1he4130=\"\n}\n",
+      "expect": {
+        "error": "SIGNATURE"
+      }
+    },
+    {
+      "name": "a DER sequence with a long-form length (BER)",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MIFEAiBXoM5iSv1xJjNQdcSvZKtVLJnFmTlxcfo/3li+aUV+YQIgdQIu4fyWBwDvaV/id0KyPCUQjMNPL6T7tFDd1he4130=\"\n}\n",
+      "expect": {
+        "error": "SIGNATURE"
+      }
+    },
+    {
+      "name": "a byte after the DER signature",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEQCIFegzmJK/XEmM1B1xK9kq1UsmcWZOXFx+j/eWL5pRX5hAiB1Ai7h/JYHAO9pX+J3QrI8JRCMw08vpPu0UN3WF7jXfQA=\"\n}\n",
+      "expect": {
+        "error": "SIGNATURE"
+      }
+    },
+    {
+      "name": "s = 0",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MCUCIFegzmJK/XEmM1B1xK9kq1UsmcWZOXFx+j/eWL5pRX5hAgEA\"\n}\n",
+      "expect": {
+        "error": "SIGNATURE"
+      }
+    },
+    {
+      "name": "a negative DER integer r (its leading zero dropped), which SunEC accepts",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEQCIIhZPQrOKg06Rn1cXur87/NGVD7gR3mK/kGE8o7WqmBEAiBjDyFqn90paFQoPmrz0gy+Frt7e3eF3C62DZB4G4YMuQ==\"\n}\n",
+      "expect": {
+        "error": "SIGNATURE"
+      }
+    },
+    {
+      "name": "a payload that is not JSON under a signature over other bytes: the signature is checked first",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"aGVsbG8=\",\n  \"signature\": \"MEUCIEuk4/DEM3y8PsWzyjwY/G/ooFf0p8pHKPYNH4y94pkYAiEAkS3o6He8NZZhpggVAEJofEFlNlDiz6Io9xiCi4nmXmM=\"\n}\n",
+      "expect": {
+        "error": "SIGNATURE"
+      }
+    },
+    {
+      "name": "a payload that is not JSON",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"aGVsbG8=\",\n  \"signature\": \"MEUCIQCbCjH7o4bBSWWOPZd1zw3+UrsvnPqj30uB2FnnJkv1mAIgfjax0/4PoTv2fhWvtY74c+ydiYGPQyhfJJtWVqwLmpw=\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "a payload that is not UTF-8",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYiLCJub3RlIjoi/yJ9\",\n  \"signature\": \"MEUCIQCejZM09LYJHyfOk8HydJ5Q3tZ3bxQ6QZK2pCcX1bfvfQIgfFK1onqHhVsv+LvKojXVTrnq5HrPaM499fMjdsePNo0=\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "a payload that is a JSON array",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"W3siZm9ybWF0IjoxLCJ2ZXJzaW9uIjoiMS4yLjMiLCJicmlkZ2VMZXZlbCI6MSwidXJsIjoiaHR0cHM6Ly9naXRodWIuY29tL2ZsYW1pbmdvLXN0YWNrL29wZW5mcmFtZS1vc3MtZnJvbnRlbmQvcmVsZWFzZXMvZG93bmxvYWQvMS4yLjMvb3BlbmZyYW1lLW1vYmlsZS0xLjIuMy50YXIueHoiLCJzaXplIjo0NDgyNTE2LCJzaGEyNTYiOiJjZDk4Yzk1MGQ2MjljNjY1NDg1MzdiNGVjZDY4ZGFiM2U4Y2Y1OTk3NGJhNmU0MGRmNWExYTczNTRiMzlkYjVmIn1d\",\n  \"signature\": \"MEQCIHl5GwQ6tI++pwcqndfrLfmyC+CQ0tSV1xnsjMhVkjjWAiAFGZ/Srcx6VKVpCMxj5i/dzdy6AcPo5e83MAJDsCOKtQ==\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "a payload without sha256",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTZ9\",\n  \"signature\": \"MEUCIQCXbSsiZf6lWUKDeZGSHh28sa3H/Y09pufGmPd9nfDEAwIgbvjwXXRGKq0pHbozg9Yz1znDttFFlQ9FoYPkp4kPmto=\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "a payload without url",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJzaXplIjo0NDgyNTE2LCJzaGEyNTYiOiJjZDk4Yzk1MGQ2MjljNjY1NDg1MzdiNGVjZDY4ZGFiM2U4Y2Y1OTk3NGJhNmU0MGRmNWExYTczNTRiMzlkYjVmIn0=\",\n  \"signature\": \"MEUCIA+ZjAb1WItfSUORjAimPhbA4qg8lsSrlsd5ou9f2HRZAiEAw+OrMH7IGZboT4A8kgYxTcrLmacM0Y9/E6rcFwTxbGU=\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "format 2",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjIsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEQCIAGLYsL/5HplMi7AJcUKsHeGB3x3aW95Z9907VBERQ9JAiBj0BBMZRMfUOpDGMDZU6rmCK9EoaY8yZY7Lkg6SEiojg==\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "format \"1\", a string",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOiIxIiwidmVyc2lvbiI6IjEuMi4zIiwiYnJpZGdlTGV2ZWwiOjEsInVybCI6Imh0dHBzOi8vZ2l0aHViLmNvbS9mbGFtaW5nby1zdGFjay9vcGVuZnJhbWUtb3NzLWZyb250ZW5kL3JlbGVhc2VzL2Rvd25sb2FkLzEuMi4zL29wZW5mcmFtZS1tb2JpbGUtMS4yLjMudGFyLnh6Iiwic2l6ZSI6NDQ4MjUxNiwic2hhMjU2IjoiY2Q5OGM5NTBkNjI5YzY2NTQ4NTM3YjRlY2Q2OGRhYjNlOGNmNTk5NzRiYTZlNDBkZjVhMWE3MzU0YjM5ZGI1ZiJ9\",\n  \"signature\": \"MEQCIAsX1c3dfekCheGhux/UyfFiZZvh81L4/+gnFxyjNPqvAiBaVe+6ET5GpLPdj6wBKejFifvTqmySa6PruZEdPURMTw==\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "version 1.2",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIiLCJicmlkZ2VMZXZlbCI6MSwidXJsIjoiaHR0cHM6Ly9naXRodWIuY29tL2ZsYW1pbmdvLXN0YWNrL29wZW5mcmFtZS1vc3MtZnJvbnRlbmQvcmVsZWFzZXMvZG93bmxvYWQvMS4yLjMvb3BlbmZyYW1lLW1vYmlsZS0xLjIudGFyLnh6Iiwic2l6ZSI6NDQ4MjUxNiwic2hhMjU2IjoiY2Q5OGM5NTBkNjI5YzY2NTQ4NTM3YjRlY2Q2OGRhYjNlOGNmNTk5NzRiYTZlNDBkZjVhMWE3MzU0YjM5ZGI1ZiJ9\",\n  \"signature\": \"MEUCIBz8aa/f0AnXlRVcQIN9k2Ko0xGaTqFWtVjFuG4VhhkJAiEA+Oc7CSmyeSaaxTdXB6D76wpm0y0j8W/TYfzi1xuGUEM=\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "version 01.2.3",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIwMS4yLjMiLCJicmlkZ2VMZXZlbCI6MSwidXJsIjoiaHR0cHM6Ly9naXRodWIuY29tL2ZsYW1pbmdvLXN0YWNrL29wZW5mcmFtZS1vc3MtZnJvbnRlbmQvcmVsZWFzZXMvZG93bmxvYWQvMS4yLjMvb3BlbmZyYW1lLW1vYmlsZS0wMS4yLjMudGFyLnh6Iiwic2l6ZSI6NDQ4MjUxNiwic2hhMjU2IjoiY2Q5OGM5NTBkNjI5YzY2NTQ4NTM3YjRlY2Q2OGRhYjNlOGNmNTk5NzRiYTZlNDBkZjVhMWE3MzU0YjM5ZGI1ZiJ9\",\n  \"signature\": \"MEYCIQDitX/ettV68J/tDWHulpzuTc499W4A9wZm10oXgw899wIhAM4w7hvhafCUNxkCcPnVsIKiXDDvNDMzdgKZdd/QHTHF\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "version 1.2.3-rc.1",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMy1yYy4xIiwiYnJpZGdlTGV2ZWwiOjEsInVybCI6Imh0dHBzOi8vZ2l0aHViLmNvbS9mbGFtaW5nby1zdGFjay9vcGVuZnJhbWUtb3NzLWZyb250ZW5kL3JlbGVhc2VzL2Rvd25sb2FkLzEuMi4zL29wZW5mcmFtZS1tb2JpbGUtMS4yLjMtcmMuMS50YXIueHoiLCJzaXplIjo0NDgyNTE2LCJzaGEyNTYiOiJjZDk4Yzk1MGQ2MjljNjY1NDg1MzdiNGVjZDY4ZGFiM2U4Y2Y1OTk3NGJhNmU0MGRmNWExYTczNTRiMzlkYjVmIn0=\",\n  \"signature\": \"MEUCIQD4t1jIW21trJ3kOk4xCqRvpWDjua91bJA6tddAhO5UcAIgISjb8KBazfPUiyBfTFE1owR4wfee5RapSSAuJq6jp8s=\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "version +1.2.3",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIrMS4yLjMiLCJicmlkZ2VMZXZlbCI6MSwidXJsIjoiaHR0cHM6Ly9naXRodWIuY29tL2ZsYW1pbmdvLXN0YWNrL29wZW5mcmFtZS1vc3MtZnJvbnRlbmQvcmVsZWFzZXMvZG93bmxvYWQvMS4yLjMvb3BlbmZyYW1lLW1vYmlsZS0rMS4yLjMudGFyLnh6Iiwic2l6ZSI6NDQ4MjUxNiwic2hhMjU2IjoiY2Q5OGM5NTBkNjI5YzY2NTQ4NTM3YjRlY2Q2OGRhYjNlOGNmNTk5NzRiYTZlNDBkZjVhMWE3MzU0YjM5ZGI1ZiJ9\",\n  \"signature\": \"MEQCIFEb4E4W6HlISxJZTFGCT6KOc894Zm5VKbMijY9NLlC+AiBthxVKi4N5PCbhgZi2+EOwocF3zAVwya/ZXdajIW+qwg==\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "version 1.2.3 and a newline",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuM1xuIiwiYnJpZGdlTGV2ZWwiOjEsInVybCI6Imh0dHBzOi8vZ2l0aHViLmNvbS9mbGFtaW5nby1zdGFjay9vcGVuZnJhbWUtb3NzLWZyb250ZW5kL3JlbGVhc2VzL2Rvd25sb2FkLzEuMi4zL29wZW5mcmFtZS1tb2JpbGUtMS4yLjNcbi50YXIueHoiLCJzaXplIjo0NDgyNTE2LCJzaGEyNTYiOiJjZDk4Yzk1MGQ2MjljNjY1NDg1MzdiNGVjZDY4ZGFiM2U4Y2Y1OTk3NGJhNmU0MGRmNWExYTczNTRiMzlkYjVmIn0=\",\n  \"signature\": \"MEUCIQDMX1KycAC4rxtPO+haOr+bbsPs1B9hIM1futa2YSgVJwIgKg0ztlBBigMZUwC26uIYjGh42BNwCHNIfgTQr859jdI=\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "version 1.2.1000000000: a part of ten digits",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMTAwMDAwMDAwMCIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4xMDAwMDAwMDAwLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEUCIQCxEneV8j4BT03fFA2czdVKXea3MV80vdhYa2CogFiuQAIgdTprO20eMhqIQHBbqQDKCQsLuD3u6fiJaBXQVUF249E=\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "version 1.2.3. with a trailing dot",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMy4iLCJicmlkZ2VMZXZlbCI6MSwidXJsIjoiaHR0cHM6Ly9naXRodWIuY29tL2ZsYW1pbmdvLXN0YWNrL29wZW5mcmFtZS1vc3MtZnJvbnRlbmQvcmVsZWFzZXMvZG93bmxvYWQvMS4yLjMvb3BlbmZyYW1lLW1vYmlsZS0xLjIuMy4udGFyLnh6Iiwic2l6ZSI6NDQ4MjUxNiwic2hhMjU2IjoiY2Q5OGM5NTBkNjI5YzY2NTQ4NTM3YjRlY2Q2OGRhYjNlOGNmNTk5NzRiYTZlNDBkZjVhMWE3MzU0YjM5ZGI1ZiJ9\",\n  \"signature\": \"MEQCIGXA9xNOI8CCxOFF6H8njF8KDffYQabv1X0KPIGNfJ3KAiBMrLKNHXqHKQzoR7ZKUKZmgSzpeIEII7CC4YZQ6x8g9g==\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "version 1.2.٣, an Arabic-Indic digit",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIu2aMiLCJicmlkZ2VMZXZlbCI6MSwidXJsIjoiaHR0cHM6Ly9naXRodWIuY29tL2ZsYW1pbmdvLXN0YWNrL29wZW5mcmFtZS1vc3MtZnJvbnRlbmQvcmVsZWFzZXMvZG93bmxvYWQvMS4yLjMvb3BlbmZyYW1lLW1vYmlsZS0xLjIu2aMudGFyLnh6Iiwic2l6ZSI6NDQ4MjUxNiwic2hhMjU2IjoiY2Q5OGM5NTBkNjI5YzY2NTQ4NTM3YjRlY2Q2OGRhYjNlOGNmNTk5NzRiYTZlNDBkZjVhMWE3MzU0YjM5ZGI1ZiJ9\",\n  \"signature\": \"MEUCIF4h6DzJlEtSpsRVREcKqPnUt3qQAsfymBE544XqD5mFAiEAi45bIaYsHDbWb2cB/x8Nrs77YFZg75od1hc6Kwh6rRA=\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "version null",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOm51bGwsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEUCIQD5u1NVukCty1Kiz3HxqTCX3k4xQejgHbvCHjqyGF1iVAIgIlaRRCPZJME3Of9VWyzoVE7cIjSIPlwPHBggfC9nrW0=\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "bridgeLevel 0",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjowLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEYCIQDMlMklgRO0ue+SrSfgNuFTGDybApxhD7FvWGaIcX9VJwIhAMuWb+cdBuyizGU4FPF/ii+UoX/A5PVCiFSlqxD/owUU\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "bridgeLevel 1.5",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLjUsInVybCI6Imh0dHBzOi8vZ2l0aHViLmNvbS9mbGFtaW5nby1zdGFjay9vcGVuZnJhbWUtb3NzLWZyb250ZW5kL3JlbGVhc2VzL2Rvd25sb2FkLzEuMi4zL29wZW5mcmFtZS1tb2JpbGUtMS4yLjMudGFyLnh6Iiwic2l6ZSI6NDQ4MjUxNiwic2hhMjU2IjoiY2Q5OGM5NTBkNjI5YzY2NTQ4NTM3YjRlY2Q2OGRhYjNlOGNmNTk5NzRiYTZlNDBkZjVhMWE3MzU0YjM5ZGI1ZiJ9\",\n  \"signature\": \"MEUCIQD1zo9VcNZEhcK1C59QcRoNUd82/mNdOBB3EQMeP2RvvwIgdqcpKSyFpAuQMsmHrDOqhk1BtvwvkDddPvh4J5ATK5M=\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "bridgeLevel \"1\", a string",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoiMSIsInVybCI6Imh0dHBzOi8vZ2l0aHViLmNvbS9mbGFtaW5nby1zdGFjay9vcGVuZnJhbWUtb3NzLWZyb250ZW5kL3JlbGVhc2VzL2Rvd25sb2FkLzEuMi4zL29wZW5mcmFtZS1tb2JpbGUtMS4yLjMudGFyLnh6Iiwic2l6ZSI6NDQ4MjUxNiwic2hhMjU2IjoiY2Q5OGM5NTBkNjI5YzY2NTQ4NTM3YjRlY2Q2OGRhYjNlOGNmNTk5NzRiYTZlNDBkZjVhMWE3MzU0YjM5ZGI1ZiJ9\",\n  \"signature\": \"MEQCIBfNIzOcOTVHkFVCd+7Ze/40DClZOl78LCHH1UrrWaBVAiAfFYYdQKpC5OMv9rE7m3sctrDHQbINe56hLGpChnVCrA==\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "size 0",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjAsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEQCICwjL/vIql02ll7/tCXLiIgUKSZkK0S9l5o027KbA1RPAiBGnRnSAGuHokNNJhkIrDsUeWHoGjbV5JPgh+dC2r5lNg==\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "size -1",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOi0xLCJzaGEyNTYiOiJjZDk4Yzk1MGQ2MjljNjY1NDg1MzdiNGVjZDY4ZGFiM2U4Y2Y1OTk3NGJhNmU0MGRmNWExYTczNTRiMzlkYjVmIn0=\",\n  \"signature\": \"MEYCIQDzuY1JjQStlFi1lOayoePE+hXZOYgdW0pGro9TDYhl6QIhAK9PDYxNBkwhwLwPLu4IOSETI2YELQpob5F7g7T2TKo5\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "size \"4482516\", a string",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOiI0NDgyNTE2Iiwic2hhMjU2IjoiY2Q5OGM5NTBkNjI5YzY2NTQ4NTM3YjRlY2Q2OGRhYjNlOGNmNTk5NzRiYTZlNDBkZjVhMWE3MzU0YjM5ZGI1ZiJ9\",\n  \"signature\": \"MEUCIQDanaMqF2ZWrAxVh2sV8gKSMYH6BQa/ZK8wtgrxndcXqwIgHbyfz8omcObUsl2VebGhhbm0uL2iW90Ug4rt1eByYuU=\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "sha256 in upper case",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6IkNEOThDOTUwRDYyOUM2NjU0ODUzN0I0RUNENjhEQUIzRThDRjU5OTc0QkE2RTQwREY1QTFBNzM1NEIzOURCNUYifQ==\",\n  \"signature\": \"MEQCIGcuVe5AK8KUxn4xtIF/ytjnI7YHCgrQxuyt5iaLbASSAiAu/4uTdurIhpRGL20CpVhUOfk3QqlLfH8yjnouy2xJXA==\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "sha256 of 63 digits",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImQ5OGM5NTBkNjI5YzY2NTQ4NTM3YjRlY2Q2OGRhYjNlOGNmNTk5NzRiYTZlNDBkZjVhMWE3MzU0YjM5ZGI1ZiJ9\",\n  \"signature\": \"MEUCIQCaFnjtRU5EawkdJDNbA+6NPKWn7LM9OY90nxBqRjxw1wIge+YghEVjFWV6D8iAYk0djpHhyMWe8X/GgUqKBsfJwQw=\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "sha256 and a newline",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWZcbiJ9\",\n  \"signature\": \"MEYCIQDONKXAK7z4fKthzeUYhQQkuk8fMQ3QSohK6wzz0YisuQIhAJ74Aep3WqjIHPDjQwLb3Aj50mIQrpzG4el5toX51+6V\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "a url with the file name glued to its last path segment",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2V4YW1wbGUuY29tL3hvcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEUCICMFqb4QWzFNSmS76ZJOlO6BIM0LdGEbaxLUgKa1dPdsAiEAwbc/3W7Rssfn3P5RR31yPYQ4hUehokJloD6T2eF0+3U=\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "an http url",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwOi8vZ2l0aHViLmNvbS9mbGFtaW5nby1zdGFjay9vcGVuZnJhbWUtb3NzLWZyb250ZW5kL3JlbGVhc2VzL2Rvd25sb2FkLzEuMi4zL29wZW5mcmFtZS1tb2JpbGUtMS4yLjMudGFyLnh6Iiwic2l6ZSI6NDQ4MjUxNiwic2hhMjU2IjoiY2Q5OGM5NTBkNjI5YzY2NTQ4NTM3YjRlY2Q2OGRhYjNlOGNmNTk5NzRiYTZlNDBkZjVhMWE3MzU0YjM5ZGI1ZiJ9\",\n  \"signature\": \"MEUCIGYwuv6TNzVQRpgvOCg9Wod4V5p8Ev5HHJmoCfq+SSICAiEAxW1XMD/jIRAvSCluh0p1Zgnl4Wbhripq4yJNxE535HI=\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "an HTTPS:// url: the scheme is compared as bytes",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJIVFRQUzovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEYCIQDsdlao7jPxvNdtwjOrTmy263HTvGwIfMZhhBgCUq1z4wIhAKDycV5i09DJX1jjICHgyLIb7k8zvi55sLnb5UFMJEZS\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "a url naming the bundle of another version",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi40LnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEUCIGWbPnyekpmOxyAU+KKtxzM1JalWQnkzKWJNXdgiLWDoAiEAnUD5p6bwnu5uUOBlazhLZJL+eqiSkigNEcFmj83NnOs=\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "a url with a query after the file name",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54ej94PTEiLCJzaXplIjo0NDgyNTE2LCJzaGEyNTYiOiJjZDk4Yzk1MGQ2MjljNjY1NDg1MzdiNGVjZDY4ZGFiM2U4Y2Y1OTk3NGJhNmU0MGRmNWExYTczNTRiMzlkYjVmIn0=\",\n  \"signature\": \"MEYCIQCc6QFoAdcU0yiMwn6qZnKRcsJsxXAUatp/4kZXgymMWAIhANyN3V+JB3A6miT8w5YrFDRDPf7YNK1TG6xp2prF15Mq\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "a url whose query ends in the file name",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2V4YW1wbGUuY29tL3g/Zj0vb3BlbmZyYW1lLW1vYmlsZS0xLjIuMy50YXIueHoiLCJzaXplIjo0NDgyNTE2LCJzaGEyNTYiOiJjZDk4Yzk1MGQ2MjljNjY1NDg1MzdiNGVjZDY4ZGFiM2U4Y2Y1OTk3NGJhNmU0MGRmNWExYTczNTRiMzlkYjVmIn0=\",\n  \"signature\": \"MEUCIQDqznOQTFpzduil1TvU0QX2SA6VMwtpFs5wlNU5ahO5gQIgchD+spMpc/VVc6h5BAYe9s0B93Q2VX2mQDyUQqNdWOA=\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "a url whose fragment ends in the file name",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2V4YW1wbGUuY29tL3gjL29wZW5mcmFtZS1tb2JpbGUtMS4yLjMudGFyLnh6Iiwic2l6ZSI6NDQ4MjUxNiwic2hhMjU2IjoiY2Q5OGM5NTBkNjI5YzY2NTQ4NTM3YjRlY2Q2OGRhYjNlOGNmNTk5NzRiYTZlNDBkZjVhMWE3MzU0YjM5ZGI1ZiJ9\",\n  \"signature\": \"MEQCIGnUnlrhbcV52K3od+o8dBdtzywgfEhdoaflCFy3YtcUAiALS7Y5lzFxYqiXVbgtASfnKUav+Z39sCvhLw/VxL+uCA==\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "format true",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOnRydWUsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEUCIQD/69pnb4G3dxxWvOD31+WmjzWlkhoyqLXzv1fYvUME5QIgHo22VymT7UIiff8Z/LJQ4Sk9I8zyQXcpGyv6iEaQxPA=\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "bridgeLevel true",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjp0cnVlLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOjQ0ODI1MTYsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEUCIQCoNEV5vY2HnrTn5iK1sGLrsGVhixKXge4oTUb1/qBVCgIgQweWRtqLwh0WOlFEhb45ZdDf6/3erVazXSkfNS03x5g=\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    },
+    {
+      "name": "size true",
+      "keys": [
+        "a",
+        "b"
+      ],
+      "manifest": "{\n  \"keyId\": \"1900106934dd3d66\",\n  \"payload\": \"eyJmb3JtYXQiOjEsInZlcnNpb24iOiIxLjIuMyIsImJyaWRnZUxldmVsIjoxLCJ1cmwiOiJodHRwczovL2dpdGh1Yi5jb20vZmxhbWluZ28tc3RhY2svb3BlbmZyYW1lLW9zcy1mcm9udGVuZC9yZWxlYXNlcy9kb3dubG9hZC8xLjIuMy9vcGVuZnJhbWUtbW9iaWxlLTEuMi4zLnRhci54eiIsInNpemUiOnRydWUsInNoYTI1NiI6ImNkOThjOTUwZDYyOWM2NjU0ODUzN2I0ZWNkNjhkYWIzZThjZjU5OTc0YmE2ZTQwZGY1YTFhNzM1NGIzOWRiNWYifQ==\",\n  \"signature\": \"MEUCIHcd/dqKUnl74tts7KztGfR6WlUGmmeou/lR1atkZLR2AiEAh3UiAq8AB1qmJMB9+JiDjXN0FiYGCBEopI+ki3qSSwk=\"\n}\n",
+      "expect": {
+        "error": "PAYLOAD"
+      }
+    }
+  ]
+}

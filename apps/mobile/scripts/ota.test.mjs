@@ -1,13 +1,14 @@
 // node --test apps/mobile/scripts/ota.test.mjs   (needs the xz and tar tools)
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { generateKeyPairSync, sign } from 'node:crypto';
+import { createPublicKey, generateKeyPairSync, sign } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { copyEnvScript, insertEnvScript } from './ota-env.mjs';
 import { LEFT_OUT, pack, readBridgeLevel } from './ota-pack.mjs';
 import { readTar, writeTar, xzDecompress } from './ota-tar.mjs';
 import { checkBundleContents, keyIdOf, loadKeys, verifyBundle, verifyManifest } from './ota-verify.mjs';
@@ -19,7 +20,8 @@ const URL_BASE = `https://github.com/flamingo-stack/openframe-oss-frontend/relea
 const LONG_PATH = `_next/static/chunks/app/(app)/${'d'.repeat(80)}/${'f'.repeat(60)}.js`;
 
 const p256 = () => generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
-const pem = key => key.export(key.type === 'private' ? { type: 'pkcs8', format: 'pem' } : { type: 'spki', format: 'pem' });
+const pem = key =>
+  key.export(key.type === 'private' ? { type: 'pkcs8', format: 'pem' } : { type: 'spki', format: 'pem' });
 const xzCompress = data => execFileSync('xz', ['-6', '-T1', '-c'], { input: data, maxBuffer: 2 ** 30 });
 
 function fixture() {
@@ -81,13 +83,19 @@ test('pack writes a bundle and a manifest that verify against keys.json', () => 
   assert.deepEqual(verified, payload);
   assert.equal(verified.url, `${URL_BASE}/openframe-mobile-${VERSION}.tar.xz`);
   assert.equal(verified.bridgeLevel, 1);
-  assert.equal(verifyBundle(readFileSync(bundlePath), verified), Object.keys(f.files).length);
+  assert.deepEqual(
+    verifyBundle(readFileSync(bundlePath), verified).map(file => file.path),
+    Object.keys(f.files).sort(),
+  );
 });
 
 test('the bundle holds every file of the export byte for byte, minus the social preview images', () => {
   const f = fixture();
   const entries = readTar(xzDecompress(readFileSync(packFixture(f).bundlePath)));
-  assert.deepEqual(entries.map(e => e.name), Object.keys(f.files).sort());
+  assert.deepEqual(
+    entries.map(e => e.name),
+    Object.keys(f.files).sort(),
+  );
   for (const entry of entries) assert.equal(entry.data.toString('utf8'), f.files[entry.name]);
 });
 
@@ -143,7 +151,8 @@ test('a payload with a bad field is refused even when signed', () => {
     [{ ...payload, sha256: 'abc' }, /sha256/],
     [{ ...payload, size: undefined }, /payload has no size/],
   ];
-  for (const [bad, error] of cases) assert.throws(() => verifyManifest(envelope(bad, f.current.privateKey), keys), error);
+  for (const [bad, error] of cases)
+    assert.throws(() => verifyManifest(envelope(bad, f.current.privateKey), keys), error);
 });
 
 test('a payload field this version does not know is ignored, as the shells will ignore it', () => {
@@ -201,14 +210,31 @@ test('pack refuses a version the shells cannot compare', () => {
 });
 
 test('writeTar refuses names a shell must not write, and paths ustar cannot hold', () => {
-  for (const name of ['../evil', '/etc/passwd', 'a//b', 'a/./b', 'dir/', 'a\\b', 'with space', 'ü.txt', 'a/'.repeat(128) + 'b']) {
+  for (const name of [
+    '../evil',
+    '/etc/passwd',
+    'a//b',
+    'a/./b',
+    'dir/',
+    'a\\b',
+    'with space',
+    'ü.txt',
+    'a/'.repeat(128) + 'b',
+  ]) {
     assert.throws(() => writeTar([{ name, data: Buffer.from('x') }]), /unsafe file name/, name);
   }
-  assert.throws(() => writeTar([{ name: 'x'.repeat(101), data: Buffer.from('x') }]), /too long for the bundle's ustar format/);
+  assert.throws(
+    () => writeTar([{ name: 'x'.repeat(101), data: Buffer.from('x') }]),
+    /too long for the bundle's ustar format/,
+  );
   // A Next RSC payload file named after a long route: the path fits in 255 bytes, its name not in 100.
   assert.throws(() => writeTar([{ name: `route/__next.${'r'.repeat(90)}.txt`, data: Buffer.from('x') }]), /too long/);
   assert.throws(
-    () => writeTar([{ name: 'index.html', data: Buffer.alloc(0) }, { name: 'index.html', data: Buffer.alloc(0) }]),
+    () =>
+      writeTar([
+        { name: 'index.html', data: Buffer.alloc(0) },
+        { name: 'index.html', data: Buffer.alloc(0) },
+      ]),
     /duplicate/,
   );
 });
@@ -235,7 +261,7 @@ test('readTar refuses a size field that is not plain octal instead of looping on
     tar.fill(0, 124, 136);
     tar.write(size, 124, 'ascii');
     fixChecksum(tar, 0);
-    assert.throws(() => readTar(tar), /not octal/, JSON.stringify(size));
+    assert.throws(() => readTar(tar), /not eleven octal digits/, JSON.stringify(size));
   }
 });
 
@@ -246,13 +272,48 @@ test('loadKeys needs both slots, distinct, on P-256, and public halves only', ()
     return f.keysPath;
   };
   assert.throws(() => loadKeys(write({ current: pem(f.current.publicKey) })), /no "next" key/);
-  assert.throws(() => loadKeys(write({ current: pem(f.current.publicKey), next: pem(f.current.publicKey) })), /same key/);
+  assert.throws(
+    () => loadKeys(write({ current: pem(f.current.publicKey), next: pem(f.current.publicKey) })),
+    /same key/,
+  );
   const ed25519 = generateKeyPairSync('ed25519').publicKey;
   assert.throws(() => loadKeys(write({ current: pem(ed25519), next: pem(f.next.publicKey) })), /not a P-256 key/);
   assert.throws(
     () => loadKeys(write({ current: pem(f.current.privateKey), next: pem(f.next.publicKey) })),
     /never commit a private key/,
   );
+});
+
+test('loadKeys refuses a P-256 key in any SPKI encoding but the named-curve, uncompressed one', () => {
+  const f = fixture();
+  const spki = f.current.publicKey.export({ type: 'spki', format: 'der' });
+  const [x, y] = [spki.subarray(27, 59), spki.subarray(59, 91)];
+  // The same key with a compressed point: CryptoKit cannot load it, and its id would differ.
+  const compressed = Buffer.concat([
+    Buffer.from('3039301306072a8648ce3d020106082a8648ce3d030107032200', 'hex'),
+    Buffer.from([2 + (y[31] & 1)]),
+    x,
+  ]);
+  const compressedPem = createPublicKey({ key: compressed, format: 'der', type: 'spki' });
+  assert.equal(compressedPem.export({ type: 'spki', format: 'der' }).length, 59);
+  writeFileSync(f.keysPath, JSON.stringify({ current: pem(compressedPem), next: pem(f.next.publicKey) }));
+  assert.throws(() => loadKeys(f.keysPath), { code: 'KEYS', message: /uncompressed SPKI/ });
+});
+
+test('inject-env writes the element where the shells copy it, once, and literally', () => {
+  const page = '<!DOCTYPE html><html><head><meta charSet="utf-8"/></head><body></body></html>';
+  const element = '<script>window.__ENV = {"A":"$& $\' $1"};</script>';
+  const injected = insertEnvScript(page, element);
+  assert.equal(
+    injected,
+    page.replace('<head>', () => `<head>${element}`),
+  );
+  // A store build and an over-the-air bundle of the same page start out identical.
+  assert.equal(copyEnvScript(injected, page), injected);
+  // A second run replaces the element instead of adding one.
+  const again = insertEnvScript(injected, '<script>window.__ENV = {};</script>');
+  assert.equal(again, page.replace('<head>', '<head><script>window.__ENV = {};</script>'));
+  assert.throws(() => insertEnvScript('<html></html>', element), { code: 'NO_HEAD' });
 });
 
 test('REQUIRED_BRIDGE_LEVEL is readable from native-shell.ts', () => {

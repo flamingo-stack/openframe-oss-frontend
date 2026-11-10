@@ -1,0 +1,104 @@
+{
+  "cases": [
+    {
+      "name": "the built-in element goes right after the staged page's <head>",
+      "builtin": "<!DOCTYPE html><html lang=\"en\"><head><meta charSet=\"utf-8\"/><script>window.__ENV = {\"NEXT_PUBLIC_SHARED_HOST_URL\":\"https://auth.openframe.ai\"};</script><title>OpenFrame</title></head><body></body></html>",
+      "staged": "<!DOCTYPE html><html lang=\"en\"><head><meta charSet=\"utf-8\"/><title>OpenFrame 1.2.3</title></head><body></body></html>",
+      "expect": {
+        "html": "<!DOCTYPE html><html lang=\"en\"><head><script>window.__ENV = {\"NEXT_PUBLIC_SHARED_HOST_URL\":\"https://auth.openframe.ai\"};</script><meta charSet=\"utf-8\"/><title>OpenFrame 1.2.3</title></head><body></body></html>"
+      }
+    },
+    {
+      "name": "the element runs to the first </script>, across lines",
+      "builtin": "<head><script>window.__ENV = {\n  \"NEXT_PUBLIC_APP_MODE\": \"saas-tenant\"\n};</script><script>other()</script></head>",
+      "staged": "<html><head></head></html>",
+      "expect": {
+        "html": "<html><head><script>window.__ENV = {\n  \"NEXT_PUBLIC_APP_MODE\": \"saas-tenant\"\n};</script></head></html>"
+      }
+    },
+    {
+      "name": "dollar signs and backslashes in the env are copied as they are",
+      "builtin": "<head><script>window.__ENV = {\"A\":\"$& $' $` $1 $$\",\"B\":\"\\\\n\"};</script></head>",
+      "staged": "<head></head>",
+      "expect": {
+        "html": "<head><script>window.__ENV = {\"A\":\"$& $' $` $1 $$\",\"B\":\"\\\\n\"};</script></head>"
+      }
+    },
+    {
+      "name": "only the first <head> of the staged page gets it",
+      "builtin": "<head><script>window.__ENV = {};</script></head>",
+      "staged": "<html><head></head><body><script>const s = \"<head>\";</script></body></html>",
+      "expect": {
+        "html": "<html><head><script>window.__ENV = {};</script></head><body><script>const s = \"<head>\";</script></body></html>"
+      }
+    },
+    {
+      "name": "of two elements in the built-in page, the first is copied",
+      "builtin": "<head><script>window.__ENV = {\"N\":1};</script><script>window.__ENV = {\"N\":2};</script></head>",
+      "staged": "<head></head>",
+      "expect": {
+        "html": "<head><script>window.__ENV = {\"N\":1};</script></head>"
+      }
+    },
+    {
+      "name": "a built-in page without the element",
+      "builtin": "<head><script>window.ENV = {};</script></head>",
+      "staged": "<head></head>",
+      "expect": { "error": "NO_ENV" }
+    },
+    {
+      "name": "a built-in element with an attribute does not match",
+      "builtin": "<head><script nonce=\"x\">window.__ENV = {};</script></head>",
+      "staged": "<head></head>",
+      "expect": { "error": "NO_ENV" }
+    },
+    {
+      "name": "a built-in element without its </script>",
+      "builtin": "<head><script>window.__ENV = {};",
+      "staged": "<head></head>",
+      "expect": { "error": "NO_ENV" }
+    },
+    {
+      "name": "a staged page that already carries an env",
+      "builtin": "<head><script>window.__ENV = {};</script></head>",
+      "staged": "<head></head><body><script>window.__ENV = {\"NEXT_PUBLIC_SHARED_HOST_URL\":\"https://evil.example\"};</script></body>",
+      "expect": { "error": "HAS_ENV" }
+    },
+    {
+      "name": "a staged page with the start of an env element and no </script> already carries one",
+      "builtin": "<head><script>window.__ENV = {};</script></head>",
+      "staged": "<head></head><body><script>window.__ENV = {</body>",
+      "expect": { "error": "HAS_ENV" }
+    },
+    {
+      "name": "the built-in element is looked for before the staged page is checked",
+      "builtin": "<head></head>",
+      "staged": "<script>window.__ENV = {};</script>",
+      "expect": { "error": "NO_ENV" }
+    },
+    {
+      "name": "an env in the staged page is found before its missing <head>",
+      "builtin": "<head><script>window.__ENV = {};</script></head>",
+      "staged": "<html><script>window.__ENV = {};</script></html>",
+      "expect": { "error": "HAS_ENV" }
+    },
+    {
+      "name": "a staged page without <head>",
+      "builtin": "<head><script>window.__ENV = {};</script></head>",
+      "staged": "<html><body></body></html>",
+      "expect": { "error": "NO_HEAD" }
+    },
+    {
+      "name": "<head> is matched literally: not with attributes",
+      "builtin": "<head><script>window.__ENV = {};</script></head>",
+      "staged": "<html><head lang=\"en\"></head></html>",
+      "expect": { "error": "NO_HEAD" }
+    },
+    {
+      "name": "<head> is matched literally: not in upper case",
+      "builtin": "<head><script>window.__ENV = {};</script></head>",
+      "staged": "<HTML><HEAD></HEAD></HTML>",
+      "expect": { "error": "NO_HEAD" }
+    }
+  ]
+}
