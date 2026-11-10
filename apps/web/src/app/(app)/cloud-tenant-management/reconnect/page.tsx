@@ -5,11 +5,13 @@ import { notFound } from 'next/navigation';
 import { useRequiredIdParam } from '@/app/hooks/use-required-id-param';
 import { routes } from '@/lib/routes';
 import { TenantPageShell } from '../components/shared/tenant-page-shell';
-import { useTenantManagementGate } from '../components/shared/use-tenant-management-gate';
+import { useTenantManagementGate, useTenantManagementV2Gate } from '../components/shared/use-tenant-management-gate';
 import { ReconnectTenantView } from '../components/tenant-reconnect/reconnect-tenant-view';
+import { ReconnectTenantViewV1 } from '../components/v1/tenant-reconnect/reconnect-tenant-view-v1';
 
 export default function ReconnectTenantPage() {
   const gate = useTenantManagementGate();
+  const v2 = useTenantManagementV2Gate();
   const id = useRequiredIdParam(routes.cloudTenantManagement.list, routes.cloudTenantManagement.new());
   if (gate === 'off') {
     notFound();
@@ -21,8 +23,8 @@ export default function ReconnectTenantPage() {
     <TenantPageShell title="Reconnect Tenant Integration" errorMessage="Couldn't load this tenant." resetKey={id}>
       {/* Until the flag is known the view draws in a loading scope and reads nothing. Keyed by id: the mint guard
           and the probe verdict belong to one tenant. */}
-      <LoadingWhen loading={gate === 'loading'}>
-        <ReconnectTenantView key={id} id={id} />
+      <LoadingWhen loading={gate === 'loading' || v2 === 'loading'}>
+        {v2 === 'on' ? <ReconnectTenantView key={id} id={id} /> : <ReconnectTenantViewV1 key={id} id={id} />}
       </LoadingWhen>
     </TenantPageShell>
   );

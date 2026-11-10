@@ -9,15 +9,17 @@ import {
   TruncateText,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import type { tenantRemoteSessionsRelay_query$data as TenantSessionsData } from '@/__generated__/tenantRemoteSessionsRelay_query.graphql';
+import { readInlineData } from 'relay-runtime';
+import type { tenantRemoteSessionsRelay_row$key as TenantSessionRowKey } from '@/__generated__/tenantRemoteSessionsRelay_row.graphql';
 import type { tenantRemoteSessionsRelayQuery$variables as TenantSessionsVariables } from '@/__generated__/tenantRemoteSessionsRelayQuery.graphql';
 import type { TableDateFilter } from '@/app/components/shared/date-column-header';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { ValueText } from '@/app/components/shared/value-text';
 import { RemoteSessionListState, RemoteSessionSortField, SortDirection } from '@/generated/schema-enums';
+import { tenantRemoteSessionsRelayRowFragment } from '@/graphql/remote-sessions/tenant-remote-sessions-relay';
 import { dateRangeToInstantBounds } from '@/lib/date-filter-params';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import { fromWireSession, readSession } from '../../services/session-recordings-api-service';
+import { customerLogoUrl, fromWireSession, readSession } from '../../services/session-recordings-api-service';
 import type { RecordingSummary } from '../../types/session-recording';
 import { REMOTE_SESSION_COLUMNS } from './remote-session-column-layout';
 import { remoteSessionColumns } from './remote-session-columns';
@@ -34,9 +36,9 @@ export interface TenantSessionRow extends RecordingSummary {
   customer: { id: string | null; name: string; logoUrl: string | null } | null;
 }
 
-type TenantSessionNode = TenantSessionsData['remoteSessions']['edges'][number]['node'];
-
-export function toTenantSessionRow(node: TenantSessionNode): TenantSessionRow {
+/** One row from the paged list or the running-sessions poll; both spread the same fragment. */
+export function toTenantSessionRow(ref: TenantSessionRowKey): TenantSessionRow {
+  const node = readInlineData(tenantRemoteSessionsRelayRowFragment, ref);
   const session = readSession(node);
   const { device } = node;
   const organization = session.organization;
@@ -50,7 +52,11 @@ export function toTenantSessionRow(node: TenantSessionNode): TenantSessionRow {
         }
       : null,
     customer: organization
-      ? { id: organization.organizationId ?? null, name: organization.name, logoUrl: organization.logoUrl ?? null }
+      ? {
+          id: organization.organizationId ?? null,
+          name: organization.name,
+          logoUrl: customerLogoUrl(organization, device) ?? null,
+        }
       : null,
   };
 }

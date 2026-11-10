@@ -16,15 +16,32 @@ export function getFullImageUrl(imageUrl: string | null | undefined, hash?: stri
 
 /**
  * Append a content `hash` as `?v=` to bust the browser cache when the image
- * changes. Preserves the URL's relative/absolute form (unlike getFullImageUrl,
- * which prefixes the API host) — use when the consumer resolves the URL itself.
+ * changes. Not exported: a URL with its hash but without its host is what drew
+ * initials on the tickets board (see "Images and Avatars" in CLAUDE.md).
  */
-export function appendImageHash<T extends string | null | undefined>(imageUrl: T, hash?: string | null): T {
-  if (!imageUrl || !hash) {
+function appendImageHash(imageUrl: string, hash?: string | null): string {
+  if (!hash) {
     return imageUrl;
   }
   const separator = imageUrl.includes('?') ? '&' : '?';
-  return `${imageUrl}${separator}v=${hash}` as T;
+  return `${imageUrl}${separator}v=${hash}`;
+}
+
+/**
+ * The backend's own image paths, as it stores them: `/images/{type}/{id}` (saas-lib `Image.getImageUrl()`, with
+ * `?v=<hash>` already on the remote-access copies) and `/knowledge-base/images/{id}`. The gateway serves both under
+ * `/api`; the page's origin serves neither (the SPA catch-all on web, the bundle in a native shell).
+ */
+const BACKEND_IMAGE_PATH = /^\/(?:api\/)?(?:images|knowledge-base\/images)\//;
+
+/**
+ * Where a backend image path is served. Every picture the core lib draws passes through this first (the chat
+ * runtime's auth adapter registers it as `resolveAssetUrl`), so a value that reached a picture without
+ * `getFullImageUrl` still draws. Leaves every other URL as it is: absolute, `data:` / `blob:`, the bundle's
+ * own files. Idempotent.
+ */
+export function resolveBackendImageUrl(url: string): string {
+  return BACKEND_IMAGE_PATH.test(url) ? buildFullUrl(url) : url;
 }
 
 function buildFullUrl(imageUrl: string): string {

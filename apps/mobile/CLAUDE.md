@@ -145,11 +145,12 @@ key), so a gated read shows **one** prompt and writes stay silent.
 
 Both plugins implement `refreshTokens`, and **its presence is the switch**: frontend
 `token-refresh-manager.ts` delegates every refresh to it and stops POSTing `/oauth/refresh`
-itself, and `refreshIfStale()` (the resume refresh) becomes a no-op. Refresh tokens rotate
-with no grace window, so there must be exactly one refresher — the shell, which also keeps
-the session alive while the WebView is idle. Mirrors desktop `tokens.rs`. Consequence: a
-misconfigured native refresher is a dead session in ~15 min; the device log tags every
-step `[TokenLifecycle]`.
+itself, and `refreshIfStale()` (the resume refresh) becomes a no-op. Refresh tokens rotate,
+and the auth server honours a rotated-away token for only 60s
+(`openframe.authz.refresh-token-grace-seconds`), so there must be exactly one refresher — the
+shell, which also keeps the session alive while the WebView is idle. Mirrors desktop
+`tokens.rs`. Consequence: a misconfigured native refresher is a dead session in ~15 min; the
+device log tags every step `[TokenLifecycle]`.
 
 - **In-memory pair.** Primed by the first successful read (with biometric login on, that is
   the ONE prompt the WebView drives at launch) and by every write; `getTokens` answers from
@@ -157,10 +158,32 @@ step `[TokenLifecycle]`.
   Without it every background rotation would drive a gated `SecItemCopyMatching`.
 - **Outcome taxonomy** per POST: rotated / rejected (401 only) / unreached (never left the
   device: no path, DNS, connect, TLS — retried at 1s, 3s) / unknown (went out, no usable
-  answer: timeout, broken response, 5xx, **403**, 2xx with no token headers — never retried,
-  and the token is held back for a 60s cooldown so the next caller can't cash the ambiguity
-  in as a 401). A 403 is deliberately not a rejection: the BFF never answers one here, so it
-  is the WAF's, and says nothing about the credential.
+  answer: timeout, broken response, 5xx, **403**, 2xx with no token headers — not retried
+  within the flight). A 403 is deliberately not a rejection: the BFF never answers one here,
+  so it is the WAF's, and says nothing about the credential.
+- **A lost answer is settled inside the grace window.** After an unknown outcome the shell
+  presents the same refresh token again **on its own, 35s after the lost POST went out**
+  (`lostRotationRetryAfter` / `LOST_ROTATION_RETRY_AFTER_MS`); every caller before that gets
+  `REFRESH_HELD`. 35s is past the gateway's 30s wait on the auth server (`WebClientConfig`'s
+  `responseTimeout`, oss-lib gateway-service-core), so the lost POST should not rotate over
+  the re-presentation, and inside the 60s the server honours the rotated-away token, counted
+  from a rotation that came after the send — so it gets a fresh pair whether or not the lost
+  POST rotated. The old rule (hold 60s from the moment the shell gave up, then wait for a
+  caller) always landed outside the window, and its 401 signed the user out (CU-17tkuw64r3v;
+  the window shipped server-side 2026-11, oss-lib #2919). A re-presentation that never leaves
+  the device (no network yet) is tried again at once, until **55s after the lost POST**
+  (`lostRotationRetryWithin` / `LOST_ROTATION_RETRY_WITHIN_MS`). A loss on the shell's own
+  re-presentation keeps that window, so its hold ends past it and the shell stops: each lost
+  caller POST gets one re-presentation, and a persistent 5xx or 403 is left to callers instead
+  of being re-posted forever. iOS holds a background-task assertion over the wait; Android a
+  partial wake lock (its executor's delay stops in deep sleep). On Android these timing rules
+  are pure static functions in `TokenLifecycle.java`, unit-tested on the JVM by
+  `TokenLifecycleLostRotationTest`; the iOS twin has no test target yet. Still lost: a second lost
+  answer in a row; an iOS app backgrounded early in the wait, since iOS grants ~30s of
+  background time; a process suspended or frozen past the window (or Android in Doze), which
+  re-presents when it runs again; and the lost POST rotating over the re-presentation after
+  all, when it reached the gateway late in its 10s budget and the auth server spent the rest
+  of the 35s on it.
 - **Bridge mapping — reject, never resolve empty.** The frontend maps an empty resolve to
   session-over → `clearStoredTokens()` → `clearTokens`, which also turns biometric login
   off. So only a 401, or a store that is provably **absent**, resolves empty. A store the
@@ -182,8 +205,11 @@ step `[TokenLifecycle]`.
   and a 10s budget measured on `Date()`, because URLSession's own timers stop while the
   process is suspended. A rotation whose write fails is kept in memory and re-written on
   the next activation / `protectedDataDidBecomeAvailable`.
-- **Triggers:** the WebView's delegated call, `didBecomeActive`, and a 30s foreground poll
-  (refresh when `exp` is within 120s). Nothing runs in the background.
+- **Triggers:** the WebView's delegated call, `didBecomeActive`, a 30s foreground poll
+  (refresh when `exp` is within 120s), the shell's own re-presentation of a lost answer
+  (above), and `ensureFresh` from the notification actions (below). The last two can run in
+  the background: the re-presentation under its iOS assertion, or on Android with its wake
+  lock keeping the CPU out of deep sleep through the wait.
 - **Refresh base: the SHARED auth host, never the tenant host.** Info.plist
   `OpenFrameSharedHostURL` (from the `OPENFRAME_SHARED_HOST_URL` build setting — the lanes
   pass it from `NEXT_PUBLIC_SHARED_HOST_URL`, so bundle and plist can't drift), else the
@@ -621,7 +647,8 @@ swapped.
   `AndroidManifest.xml`), so the permission appears in the built APK/AAB without showing up
   in `android/app/src/main/AndroidManifest.xml`. Expect a Play listing diff on the next
   upload. Likewise `androidx.work` (the notification actions) merges `RECEIVE_BOOT_COMPLETED`,
-  `WAKE_LOCK` and `FOREGROUND_SERVICE`.
+  `WAKE_LOCK` and `FOREGROUND_SERVICE`; `WAKE_LOCK` is now also declared in the app manifest,
+  for `TokenLifecycle`'s wake lock.
 - **Live-reload `server.url` must be removed before any shippable build.** The release lanes
   hard-fail if one is present.
 - **SSO consent prompt name = `CFBundleName`**, not `CFBundleDisplayName`. The

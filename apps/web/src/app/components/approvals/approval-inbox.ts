@@ -196,6 +196,25 @@ function ticketCard(ticket: Dialog): ApprovalCard | null {
 }
 
 /**
+ * The notification's copy of a request has no guardrail review (the backend writes the tool
+ * calls into it without one); the chat's or the ticket's copy of the same request does. Each
+ * call takes the review of its twin, matched by its execution request id, else by position.
+ */
+function withPolicyReviews(card: ApprovalCard, source: ApprovalCard): ApprovalCard {
+  const approval = getApprovalMeta(card.notification);
+  const sourceCalls = getApprovalMeta(source.notification)?.toolCalls ?? [];
+  if (!approval || sourceCalls.every(call => !call.policyReview)) return card;
+  const toolCalls = approval.toolCalls.map((call, index) => {
+    if (call.policyReview) return call;
+    const twin = call.toolExecutionRequestId
+      ? sourceCalls.find(other => other.toolExecutionRequestId === call.toolExecutionRequestId)
+      : sourceCalls[index];
+    return twin?.policyReview ? { ...call, policyReview: twin.policyReview } : call;
+  });
+  return { ...card, notification: { ...card.notification, meta: { ...card.notification.meta, toolCalls } } };
+}
+
+/**
  * A Mingo request's notification is titled "Approval required"; the chat it waits in is
  * the better name, and the one its title link opens.
  */
@@ -248,7 +267,8 @@ function newestFirst(a: ApprovalCard, b: ApprovalCard): number {
 /**
  * The list from the sources. One card per approval request: a notification wins over the
  * chat that raised it (it carries the backend's own text) and over the ticket it waits on.
- * A request settled in this tab leaves the list — except the cards in `kept`, decided on
+ * The notification takes the guardrail review from the chat's or the ticket's copy, the only
+ * ones that carry it. A request settled in this tab leaves the list — except the cards in `kept`, decided on
  * the page itself, which stay with their decision on them.
  */
 export function composeApprovalInbox(
@@ -264,11 +284,13 @@ export function composeApprovalInbox(
     const card = dialogCard(dialog);
     if (!card) continue;
     const shown = cards.get(card.approvalRequestId);
-    cards.set(card.approvalRequestId, shown ? withChatTitle(shown, dialog) : card);
+    cards.set(card.approvalRequestId, shown ? withChatTitle(withPolicyReviews(shown, card), dialog) : card);
   }
   for (const ticket of sources.tickets ?? []) {
     const card = ticketCard(ticket);
-    if (card && !cards.has(card.approvalRequestId)) cards.set(card.approvalRequestId, card);
+    if (!card) continue;
+    const shown = cards.get(card.approvalRequestId);
+    cards.set(card.approvalRequestId, shown ? withPolicyReviews(shown, card) : card);
   }
 
   for (const id of Object.keys(sources.decisions)) cards.delete(id);

@@ -23,7 +23,7 @@ import { NO_ITEMS } from '@/app/components/shared';
 import { useNow } from '@/app/hooks/use-now';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { EMPTY_VALUE } from '@/lib/empty-value';
-import { appendImageHash } from '@/lib/image-url';
+import { getFullImageUrl } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
 import { useApprovalRequests } from '../hooks/use-approval-requests';
 import { useMoveTicket, useMovingTicketIds } from '../hooks/use-move-ticket';
@@ -253,7 +253,7 @@ function dialogToBoardTicket(
             id: dialog.assignedTo,
             name: dialog.assignedName,
             initials: initialsOf(dialog.assignedName),
-            avatarUrl: appendImageHash(dialog.assigneeImageUrl, dialog.assigneeImageHash),
+            avatarUrl: getFullImageUrl(dialog.assigneeImageUrl, dialog.assigneeImageHash),
             deleted: isUserDeleted?.(dialog.assignedTo) || undefined,
           },
         ]

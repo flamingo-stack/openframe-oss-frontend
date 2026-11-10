@@ -27,6 +27,7 @@ import {
 import {
   useGuardrailsTemplate,
   useGuardrailsTemplates,
+  usePrefetchGuardrailsTemplates,
 } from '@/app/(app)/settings/ai-settings/components/guardrails/use-guardrails-policies';
 import {
   useOrganizationGuardrails,
@@ -127,8 +128,15 @@ export const CustomerGuardrailsSettings = forwardRef<CustomerGuardrailsHandle, C
         ? selection.templateId
         : selection.baseTemplateId
       : null;
-    const { template: displayTemplate, isLoading: isDetailLoading } = useGuardrailsTemplate(
-      useDefault ? null : displayTemplateId,
+    const {
+      template: displayTemplate,
+      isLoading: isDetailLoading,
+      isSwitching: isTemplateSwitching,
+    } = useGuardrailsTemplate(useDefault ? null : displayTemplateId);
+    // The presets' rules read ahead while they can be picked: a radio switch shows the new rules at once.
+    usePrefetchGuardrailsTemplates(
+      stockTemplates.map(t => t.id),
+      !useDefault,
     );
 
     const baseLevels = useMemo(() => buildBaseLevels(displayTemplate?.rules ?? []), [displayTemplate]);
@@ -296,7 +304,6 @@ export const CustomerGuardrailsSettings = forwardRef<CustomerGuardrailsHandle, C
               <GuardrailsTemplatePicker
                 options={templateOptions}
                 value={selectedRadioValue}
-                disabled={isDetailLoading}
                 onSelect={selectOption}
                 onCreateCustomPolicyFrom={createCustomPolicyFrom}
               />
@@ -311,8 +318,10 @@ export const CustomerGuardrailsSettings = forwardRef<CustomerGuardrailsHandle, C
                 // The template's rules load on a preset switch: the groups draw their own skeleton meanwhile.
                 <LoadingWhen loading={isDetailLoading}>
                   <GuardrailsPolicyGroups
+                    switching={isTemplateSwitching}
                     groups={editorGroups}
-                    editMode={selection?.kind === 'custom'}
+                    // Not while the previous preset's rules stand in for the new ones.
+                    editMode={selection?.kind === 'custom' && !isTemplateSwitching}
                     onPolicyPermissionChange={setPolicyPermission}
                     onCategoryPermissionChange={applyCategoryPermission}
                   />

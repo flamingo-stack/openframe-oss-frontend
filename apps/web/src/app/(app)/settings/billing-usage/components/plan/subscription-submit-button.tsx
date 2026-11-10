@@ -27,8 +27,9 @@ interface SubscriptionSubmitButtonProps {
   tokenAmountUsd?: number | null;
   /**
    * Whether that top-up repeats once the subscription runs
-   * (`CheckoutInput.autoTopUpEnabled`). Sent only beside an amount: without one
-   * there is nothing for the switch to charge.
+   * (`CheckoutInput.autoTopUpEnabled`). Sent only beside an amount above 0:
+   * without one there is nothing for the switch to charge, and the backend
+   * refuses the pair (`AUTO_TOP_UP_WITHOUT_TOKEN_PURCHASE`).
    */
   autoTopUpEnabled?: boolean;
   /**
@@ -116,10 +117,11 @@ export function SubscriptionSubmitButton({
         toast({ title: 'Check the AI top-up', description: topUpProblem, variant: 'destructive' });
         return;
       }
+      const amountUsd = tokenAmountUsd != null && tokenAmountUsd > 0 ? tokenAmountUsd : undefined;
       createCheckout.mutate({
         products: checkoutProducts,
-        tokenAmountUsd: tokenAmountUsd ?? undefined,
-        autoTopUpEnabled: tokenAmountUsd != null ? autoTopUpEnabled : undefined,
+        tokenAmountUsd: amountUsd,
+        autoTopUpEnabled: amountUsd != null ? autoTopUpEnabled : undefined,
       });
     };
 

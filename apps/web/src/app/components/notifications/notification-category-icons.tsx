@@ -9,6 +9,11 @@ const ICON_BY_TYPE: Readonly<Record<string, IconRef>> = {
   [NEW_PERMISSIONS_REQUIRED_TYPE]: { set: 'CloudIcon' },
 };
 
+/** Backend category → icon, for the directory's notices: the lib's table leaves INTEGRATIONS bare. */
+const ICON_BY_CATEGORY: Readonly<Record<string, IconRef>> = {
+  INTEGRATIONS: { set: 'CodingForkIcon' },
+};
+
 /** A table's own entry only: a backend string never resolves to `Object.prototype` (`constructor`, `toString`). */
 function ownIcon(table: Readonly<Record<string, IconRef>>, key: string): IconRef | undefined {
   return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined;
@@ -16,12 +21,14 @@ function ownIcon(table: Readonly<Record<string, IconRef>>, key: string): IconRef
 
 /**
  * The tile icon: the type's own when it has one, else its category's (the lib's `notificationCategoryIcon`, the one
- * category-to-icon table every host draws from), else none (the severity dot).
+ * category-to-icon table every host draws from, after the override above), else none (the severity dot).
  */
 export function getNotificationIcon(notification: Notification): ReactNode | undefined {
   const type = notification.meta?.notificationType;
-  const byType = typeof type === 'string' ? ownIcon(ICON_BY_TYPE, type) : undefined;
-  return byType ? <NamedIcon icon={byType} size={16} /> : notificationCategoryIcon(notification.category);
+  const own =
+    (typeof type === 'string' ? ownIcon(ICON_BY_TYPE, type) : undefined) ??
+    ownIcon(ICON_BY_CATEGORY, notification.category ?? '');
+  return own ? <NamedIcon icon={own} size={16} /> : notificationCategoryIcon(notification.category);
 }
 
 /** Attach the icon for tile rendering; explicit `icon`/`imageUrl` win. */
