@@ -1,4 +1,4 @@
-import { Expand01Icon, XmarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { Collapse02Icon, Expand01Icon, XmarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { AppLayoutWorkAreaMode } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import type { ComposerRoute } from '@/app/components/mingo-shell/mingo-dock-route';
 
@@ -37,7 +37,7 @@ export function manhattanHeaderActions({
   const sideBySide = (onClick: () => void) => ({
     id: 'show-side-by-side',
     label: 'Show side by side',
-    icon: <Expand01Icon size={20} />,
+    icon: <Collapse02Icon size={20} />,
     onClick,
   });
   if (route === 'chat') return openDialogId && lastPage && !compact ? [sideBySide(showBesidePage), close] : [close];
