@@ -532,6 +532,29 @@ describe('the first failed cycle of an outage', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('sends nothing when the tab ahead of it in the lock ran the second cycle and failed', async () => {
+    const fetchMock = vi.fn(rotated);
+    vi.stubGlobal('fetch', fetchMock);
+    // Both tabs waited out the same deadline and queued on the lock. The other
+    // one held it first, and its second cycle stepped the backoff up.
+    vi.stubGlobal('navigator', {
+      locks: {
+        request: async (_name: string, _options: LockOptions, callback: () => Promise<unknown>) => {
+          localStorage.setItem(BACKOFF_KEY, `${Date.now() + 15_000}:2`);
+          return callback();
+        },
+      },
+    });
+    localStorage.setItem(BACKOFF_KEY, `${Date.now() + 3_000}:1`);
+    const { refreshTokens } = await loadManager();
+
+    const answer = refreshTokens();
+    await vi.advanceTimersByTimeAsync(3_000);
+
+    expect(await answer).toBe('transient');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('is an outage once the second cycle fails too, and from then on a 401 is answered with no request', async () => {
     const fetchMock = vi.fn(dropped);
     vi.stubGlobal('fetch', fetchMock);

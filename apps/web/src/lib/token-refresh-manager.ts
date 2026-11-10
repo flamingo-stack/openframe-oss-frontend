@@ -517,6 +517,8 @@ async function refreshPastFirstFailure(startedAt: number): Promise<RefreshOutcom
   const outcome = getRefreshBackoffRemainingMs() > 0 ? 'transient' : await runExclusive(startedAt, false);
   if (outcome !== 'transient') return outcome;
 
+  // An outage's backoff has not lapsed: this 401 is "refresh pending", not a
+  // trigger. Answered as the cycles before it were, without a request.
   const deadline = firstFailureDeadline(startedAt);
   if (deadline === null) return 'transient';
   await sleepUntil(deadline);
@@ -548,15 +550,8 @@ export async function refreshTokens(observedEpoch?: number, options: RefreshOpti
   }
 
   const ignoreBackoff = options.ignoreBackoff === true;
-  const waitStartedAt = Date.now();
-
-  // An outage's backoff has not lapsed: this 401 is "refresh pending", not a
-  // trigger. Answered as the cycles before it were, without a request.
-  if (!ignoreBackoff && getRefreshBackoffRemainingMs() > 0 && firstFailureDeadline(waitStartedAt) === null) {
-    return 'transient';
-  }
-
   isRefreshing = true;
+  const waitStartedAt = Date.now();
 
   refreshPromise = (async () => {
     try {
