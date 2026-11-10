@@ -30,9 +30,9 @@ lockfile without its `libc` fields.
   changed, and the desktop bundles as workflow artifacts (no release) when `apps/desktop` changed.
   Installed desktop apps update through the tenant gateway, which serves the release that
   environment runs; `openframe-saas-desktop`, where the shell was released before, is legacy. The
-  mobile store legs are commented out: the signed `.ipa`/`.aab` come from the
-  `apps/mobile/scripts/build-*-prod.sh` lanes, uploaded to the stores by hand. PR checks for web,
-  desktop and the OTA scripts are one `test.yml`, gated by paths, behind the required "All Checks".
+  release builds no store binaries: the signed `.ipa`/`.aab` come from the
+  `apps/mobile/scripts/build-*-prod.sh` lanes, uploaded to the stores by hand. PR tests and
+  checks run in the hub's code reviewer (`flamingo-code-review.yml`), the one required check.
 - A bridge name change (Tauri command/event, Capacitor plugin method) touches
   `apps/web/src/lib/native-shell.ts` and the shell implementation in the same PR.
   A new Tauri command also goes in `src-tauri/build.rs` and, if the page calls it,

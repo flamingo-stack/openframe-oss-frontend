@@ -242,16 +242,15 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  # The mobile shells' over-the-air web bundle (apps/mobile/docs/ota.md): one export for every
-  # environment, carrying no env, since each phone gives it the env of its own built-in bundle.
-  # Built here with no secret in the job, signed in mobile_ota_sign with no npm install in it.
-  mobile_ota_build:
+  # Mobile over-the-air bundle, one for every environment (apps/mobile/docs/ota.md).
+  build_mobile_ota:
     name: 'Build Mobile OTA Bundle'
     needs: [version]
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
+    timeout-minutes: 30
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -265,66 +264,20 @@ jobs:
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
 
-      # Every environment's phones get this one build, so no environment's values may enter it from
-      # the job. (The committed apps/web/.env.local still loads, as for the desktop and store builds.)
+      # No env values: each phone injects its own.
       - name: Build web export
         working-directory: apps/web
         env:
-          OPENFRAME_BUILD_TARGET: export
-          OPENFRAME_BUNDLE_VERSION: ${{ needs.version.outputs.version }}
-        run: |
-          set -euo pipefail
-          if env | grep -q '^NEXT_PUBLIC_'; then
-            echo "::error::NEXT_PUBLIC_* is set for the OTA build: $(env | grep -o '^NEXT_PUBLIC_[A-Z0-9_]*' | xargs)"
-            exit 1
-          fi
-          npm ci --no-audit --no-fund
-          npm run build
-
-      - name: Upload export
-        uses: actions/upload-artifact@v4
-        with:
-          name: mobile-ota-export  # not openframe-*: the release attaches only the signed bundle
-          path: apps/web/dist/
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 7  # long enough to re-run a failed sign job without rebuilding
-
-  mobile_ota_sign:
-    name: 'Sign Mobile OTA Bundle'
-    needs: [version, mobile_ota_build]
-    runs-on: ubuntu-latest
-    # Holds MOBILE_OTA_SIGNING_KEY behind a deployment rule that admits main only.
-    environment: mobile-ota
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-
-      - name: Download export
-        uses: actions/download-artifact@v4
-        with:
-          name: mobile-ota-export
-          path: ota-export
+          OPENFRAME_BUNDLE_VERSION: ${{ env.VERSION }}
+        run: npm ci && npm run build:export
 
       - name: Pack and sign
         env:
-          VERSION: ${{ needs.version.outputs.version }}
-          URL_BASE: ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ needs.version.outputs.version }}
+          URL_BASE: ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ env.VERSION }}
           MOBILE_OTA_SIGNING_KEY: ${{ secrets.MOBILE_OTA_SIGNING_KEY }}
-        run: node apps/mobile/scripts/ota-pack.mjs --dist ota-export --version "$VERSION" --url-base "$URL_BASE" --out ota-artifacts
+        run: node apps/mobile/scripts/ota-pack.mjs --dist apps/web/dist --version "$VERSION" --url-base "$URL_BASE" --out ota-artifacts
 
       - name: Verify against apps/mobile/ota/keys.json
-        env:
-          VERSION: ${{ needs.version.outputs.version }}
         run: node apps/mobile/scripts/ota-verify.mjs --manifest ota-artifacts/mobile.json --bundle "ota-artifacts/openframe-mobile-${VERSION}.tar.xz"
 
       - name: Upload artifact
@@ -335,109 +288,10 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  # Mobile builds disabled: to restore, uncomment both jobs, re-add them to release needs and the Mobile header section.
-#  # Signed store builds, attached to the release for manual upload to App Store Connect / Play.
-#  build_ios:
-#    name: 'Build iOS'
-#    needs: [version]
-#    if: github.event_name == 'workflow_dispatch'
-#    runs-on: macos-latest
-#    defaults:
-#      run:
-#        shell: bash
-#        working-directory: apps/mobile
-#    steps:
-#      - name: Checkout
-#        uses: actions/checkout@v4
-#        with:
-#          persist-credentials: false
-
-#      - name: Set up Node
-#        uses: actions/setup-node@v4
-#        with:
-#          node-version-file: .nvmrc
-
-#      - name: Build
-#        env:
-#          NEXT_PUBLIC_SHARED_HOST_URL: ${{ secrets.OPENFRAME_SHARED_HOST_URL }}
-#          OPENFRAME_BUNDLE_VERSION: ${{ needs.version.outputs.version }}
-#          VERSION_NAME: ${{ needs.version.outputs.version }}
-#          GOOGLE_SERVICE_INFO_PLIST: ${{ secrets.IOS_GOOGLE_SERVICE_INFO_PLIST }}
-#          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
-#          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-#          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-#        run: |
-#          npm ci
-#          printf '%s' "$GOOGLE_SERVICE_INFO_PLIST" > ios/App/App/GoogleService-Info.plist
-#          export ASC_KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
-#          printf '%s' "$ASC_KEY_P8" > "$ASC_KEY_PATH"
-#          BUILD_NUMBER="$GITHUB_RUN_NUMBER" scripts/build-ios-prod.sh
-#          mv build/prod/*.ipa "OpenFrame_${VERSION_NAME}.ipa"
-
-#      - name: Upload artifact
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: openframe-mobile-ios
-#          path: apps/mobile/OpenFrame_*.ipa
-#          if-no-files-found: error
-#          retention-days: 30
-
-#  build_android:
-#    name: 'Build Android'
-#    needs: [version]
-#    if: github.event_name == 'workflow_dispatch'
-#    runs-on: ubuntu-latest
-#    defaults:
-#      run:
-#        shell: bash
-#        working-directory: apps/mobile
-#    steps:
-#      - name: Checkout
-#        uses: actions/checkout@v4
-#        with:
-#          persist-credentials: false
-
-#      - name: Set up Node
-#        uses: actions/setup-node@v4
-#        with:
-#          node-version-file: .nvmrc
-
-#      - name: Set up Java
-#        uses: actions/setup-java@v4
-#        with:
-#          distribution: temurin
-#          java-version: 21
-
-#      - name: Build
-#        env:
-#          NEXT_PUBLIC_SHARED_HOST_URL: ${{ secrets.OPENFRAME_SHARED_HOST_URL }}
-#          OPENFRAME_BUNDLE_VERSION: ${{ needs.version.outputs.version }}
-#          VERSION_NAME: ${{ needs.version.outputs.version }}
-#          GOOGLE_SERVICES_JSON: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON }}
-#          ANDROID_UPLOAD_KEYSTORE: ${{ secrets.ANDROID_UPLOAD_KEYSTORE }}
-#          ANDROID_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
-#          ANDROID_UPLOAD_KEY_ALIAS: upload
-#          ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}  # PKCS12: key password = store password
-#        run: |
-#          npm ci
-#          printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/src/prod/google-services.json
-#          export ANDROID_UPLOAD_STORE_FILE="$RUNNER_TEMP/upload.jks"
-#          base64 --decode <<< "$ANDROID_UPLOAD_KEYSTORE" > "$ANDROID_UPLOAD_STORE_FILE"
-#          JBR="$JAVA_HOME" VERSION_CODE="$GITHUB_RUN_NUMBER" scripts/build-android-prod.sh
-#          mv android/app/build/outputs/bundle/prodRelease/app-prod-release.aab "OpenFrame_${VERSION_NAME}.aab"
-
-#      - name: Upload artifact
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: openframe-mobile-android
-#          path: apps/mobile/OpenFrame_*.aab
-#          if-no-files-found: error
-#          retention-days: 30
-
   # A failed leg leaves the pushed image without a release; re-run the failed jobs.
   release:
     name: 'Create Release'
-    needs: [version, build_image, build_desktop, mobile_ota_sign]  # + build_ios, build_android
+    needs: [version, build_image, build_desktop, build_mobile_ota]
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:

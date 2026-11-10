@@ -14,9 +14,9 @@ Every release dispatch of `.github/workflows/release.yml` attaches two files to 
 | `openframe-mobile-<x.y.z>.tar.xz` | The web static export as a ustar archive in one xz stream, built with no `NEXT_PUBLIC_*` in the job's environment and no `window.__ENV` in it. One bundle for every environment: a phone copies the `window.__ENV` script of its own built-in bundle into it, so each app keeps its shared host and dev-ticket setting. (The committed `apps/web/.env.local` still loads at build time, as it does for the desktop and store bundles; the app reads those values from `window.__ENV` at runtime, so only build-time metadata such as `og:url` carries them.) |
 | `mobile.json` | Its manifest: `{keyId, payload, signature}`. `payload` is base64 of `{format, version, bridgeLevel, url, size, sha256}`; `signature` is ECDSA P-256 / SHA-256 over those payload bytes, DER, base64. |
 
-- `mobile_ota_build` builds the export with no secret in the job; `mobile_ota_sign` packs and
-  signs it with no npm install in the job, then checks the result against
-  `apps/mobile/ota/keys.json`. A failure in either fails the release, like a desktop leg.
+- The `build_mobile_ota` job builds the export, packs and signs it (the signing key reaches that step
+  only), then checks the result against `apps/mobile/ota/keys.json`. A failure fails the
+  release, like a desktop leg.
 - `bridgeLevel` is `REQUIRED_BRIDGE_LEVEL` in `apps/web/src/lib/native-shell.ts`.
 - `keyId` is the first 16 hex digits of SHA-256 over the signing key's public SPKI DER.
 - **Shells ignore payload fields they do not know.** That keeps `format: 1` open to optional
@@ -40,7 +40,7 @@ files shrinks them. Measured on 1.0.213:
   packs to the same bytes.
 - **ustar limits:** a path of at most 255 bytes, and a file name (its last part) of at most 100.
   Next names each RSC payload file after its whole route (`__next.<segments>.txt`, 67 bytes at
-  most on 1.0.213), so a route of about 72 characters would stop the release at "Sign Mobile OTA
+  most on 1.0.213), so a route of about 72 characters would stop the release at "Build Mobile OTA
   Bundle" until it is shortened or the format learns pax path records.
 - `assets/openframe/og-image.png` and `twitter-image.png` stay out (`LEFT_OUT` in
   `ota-pack.mjs`): byte-identical, and only link-preview meta tags point at them, by an absolute
@@ -51,8 +51,7 @@ files shrinks them. Measured on 1.0.213:
 
 The scripts are `scripts/ota-pack.mjs`, `scripts/ota-verify.mjs`, `scripts/ota-keygen.mjs` and
 `scripts/ota-tar.mjs`; `node --test apps/mobile/scripts/ota.test.mjs` runs their tests (it needs
-`xz` and `tar`), and the PR check **Mobile OTA Scripts** runs them plus `ota-verify.mjs` on
-`keys.json`.
+`xz` and `tar`).
 
 ### Known issue: unstyled pages
 
@@ -93,8 +92,8 @@ phones ask for it.
 
 ## Signing keys (one-time setup)
 
-The release signs with `MOBILE_OTA_SIGNING_KEY`, a secret of the GitHub environment
-`mobile-ota`; the shells will trust the two public keys in `apps/mobile/ota/keys.json`
+The release signs with `MOBILE_OTA_SIGNING_KEY`, a repository secret like the desktop's
+`TAURI_SIGNING_PRIVATE_KEY`; the shells will trust the two public keys in `apps/mobile/ota/keys.json`
 (`current` signs, `next` is the rotation key). The private keys never enter the repository, and
 `ota-verify.mjs` refuses a `keys.json` that holds anything but PEM public keys.
 
@@ -105,11 +104,10 @@ The release signs with `MOBILE_OTA_SIGNING_KEY`, a secret of the GitHub environm
    node apps/mobile/scripts/ota-keygen.mjs next ~/ota-next.pem
    ```
 
-2. Create the environment `mobile-ota` (repository Settings → Environments) with deployment
-   branches limited to `main`, and store the current key in it:
+2. Store the current key as a repository secret:
 
    ```bash
-   gh secret set MOBILE_OTA_SIGNING_KEY --env mobile-ota --repo flamingo-stack/openframe-oss-frontend < ~/ota-current.pem
+   gh secret set MOBILE_OTA_SIGNING_KEY --repo flamingo-stack/openframe-oss-frontend < ~/ota-current.pem
    ```
 
 3. Move `~/ota-next.pem` into the team password manager, delete both files, and commit
