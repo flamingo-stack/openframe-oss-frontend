@@ -53,7 +53,11 @@ import {
 } from './app-shell-chrome';
 import { AiBalanceBar, BillingBarsHydrator, type BillingBarsState, NO_BARS, TrialEndingBar } from './billing-bars';
 import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
-import { MANHATTAN_WORK_AREA_STORAGE_KEY, ManhattanCentre } from './manhattan-shell/manhattan-centre';
+import {
+  MANHATTAN_WORK_AREA_SQUEEZE_FLOOR,
+  MANHATTAN_WORK_AREA_STORAGE_KEY,
+  ManhattanCentre,
+} from './manhattan-shell/manhattan-centre';
 import { useManhattanCentreStore } from './manhattan-shell/manhattan-centre-store';
 import {
   ManhattanChatsFooter,
@@ -1005,6 +1009,16 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
                     chatColumn={mingoShell ? (centre?.chatColumn ?? null) : undefined}
                     workAreaMode={centre?.mode}
                     workAreaStorageKey={centre ? MANHATTAN_WORK_AREA_STORAGE_KEY : undefined}
+                    // Past the other column's min width the divider squeezes it (down to 30% of it), its
+                    // content scrolled sideways, so the column being widened keeps growing.
+                    workAreaSqueezeFloor={centre ? MANHATTAN_WORK_AREA_SQUEEZE_FLOOR : undefined}
+                    // Dragged on past the squeezed column: the sidebar on that side folds to its rail, so
+                    // the column being widened keeps growing (the chats on the left, the navigation on the right).
+                    onWorkAreaSqueezePast={
+                      centre
+                        ? side => (side === 'start' ? setSidebarCollapsed(true) : setNavCollapsed(true))
+                        : undefined
+                    }
                     pageHeader={mingoShell ? (centre?.pageHeader ?? null) : undefined}
                     // A chat page: Mingo's background and glow from the top of the thread
                     // to the bottom of the window, under the docked composer too.

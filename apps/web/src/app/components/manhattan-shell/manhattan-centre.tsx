@@ -33,6 +33,13 @@ export interface ManhattanCentreSlots {
 export const MANHATTAN_WORK_AREA_STORAGE_KEY = 'of.manhattan.workArea';
 
 /**
+ * How far the divider squeezes the chat or the page past its min width: to 30% of it.
+ * The column keeps its content at the min width, scrolled sideways, and a shadow along
+ * the divider marks it, so the other column keeps growing.
+ */
+export const MANHATTAN_WORK_AREA_SQUEEZE_FLOOR = 0.3;
+
+/**
  * The Manhattan v2 centre (flag `manhattan-v2`): the chat column and the page column of
  * `AppLayout`'s work area, which shows when (plan D5, table T), and their headers (matrix H).
  * Mounted unconditionally around the layout inside `MingoChatProvider` (it reads the open
