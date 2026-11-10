@@ -54,8 +54,8 @@ describe('readOnlyTooltip', () => {
     );
   });
 
-  it('still explains a group with no reason', () => {
-    expect(readOnlyTooltip([])).toBe('OpenFrame reads this group and does not change it');
+  it('says where a group with no reason is managed: OpenFrame never changes a group', () => {
+    expect(readOnlyTooltip([])).toBe('Managed in the directory: OpenFrame does not change groups');
   });
 });
 

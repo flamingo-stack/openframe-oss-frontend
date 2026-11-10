@@ -18,7 +18,7 @@ import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { OrgUserSource, OrgUserStatus, OrgUserStatusReason } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
 import { readOnlyTooltip } from '../../utils/group-presentation';
-import { NO_CUSTOMER_REASON } from '../user-edit/edit-user-form';
+import { DEPROVISIONED_REASON, isDeprovisioned, NO_CUSTOMER_REASON } from '../user-edit/edit-user-form';
 import { useSuspendUser } from './use-suspend-user';
 
 const userDetailHeaderFragment = graphql`
@@ -62,6 +62,7 @@ const UNSUSPEND_ICON = <LockOpenIcon className="h-5 w-5" />;
 const SUSPEND_ACTION: PageActionButton = { label: SUSPEND_LABEL, variant: 'outline', icon: SUSPEND_ICON };
 
 const NO_CUSTOMER_SUSPEND_REASON = "No customer claims this user yet, so its sign-in can't be changed.";
+const DEPROVISIONED_SUSPEND_REASON = "Deprovisioned in the directory, so its sign-in can't be changed.";
 
 // Google reports an Archived User licence as a suspension, and unsuspending does not lift it: only a licence change
 // in the Admin console does, so the button would report a success that changed nothing.
@@ -187,7 +188,10 @@ export function UserDetailHeader({ person: personKey }: { person: userDetailHead
     const label = suspended ? UNSUSPEND_LABEL : SUSPEND_LABEL;
     const icon = suspended ? UNSUSPEND_ICON : SUSPEND_ICON;
     if (!organizationId) {
-      selector.push(<UnavailableAction key="suspend" label={label} icon={icon} reason={NO_CUSTOMER_SUSPEND_REASON} />);
+      const reason = isDeprovisioned(account.readOnlyReasons)
+        ? DEPROVISIONED_SUSPEND_REASON
+        : NO_CUSTOMER_SUSPEND_REASON;
+      selector.push(<UnavailableAction key="suspend" label={label} icon={icon} reason={reason} />);
     } else if (account.readOnlyReasons.length > 0) {
       // The first read-only reason turns Suspend off as it does the provider fields (readOnlyReasons, contract §1),
       // both ways.
@@ -224,9 +228,8 @@ export function UserDetailHeader({ person: personKey }: { person: userDetailHead
   }
 
   if (!account || !organizationId) {
-    selector.push(
-      <UnavailableAction key="edit" label={EDIT_USER_LABEL} icon={EDIT_USER_ICON} reason={NO_CUSTOMER_REASON} />,
-    );
+    const reason = account && isDeprovisioned(account.readOnlyReasons) ? DEPROVISIONED_REASON : NO_CUSTOMER_REASON;
+    selector.push(<UnavailableAction key="edit" label={EDIT_USER_LABEL} icon={EDIT_USER_ICON} reason={reason} />);
   } else {
     actions.push({
       ...EDIT_USER_ACTION,

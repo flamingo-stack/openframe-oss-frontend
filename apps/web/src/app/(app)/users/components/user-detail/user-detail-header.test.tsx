@@ -262,6 +262,23 @@ describe('UserDetailHeader', () => {
     expect(buttonNamed('Edit User')?.disabled).toBe(true);
   });
 
+  const deprovisioned = () => person({ status: 'DEPROVISIONED', readOnlyReasons: ['DEPROVISIONED'], customers: 0 });
+
+  it('turns Suspend off on a deprovisioned account with that reason, not the missing customer, and sends nothing', () => {
+    act(() => root.render(<UserDetailHeader person={deprovisioned()} />));
+    const suspend = buttonNamed('Suspend');
+    expect(suspend?.disabled).toBe(true);
+    expect(offReason('Suspend')).toBe("Deprovisioned in the directory, so its sign-in can't be changed.");
+    act(() => suspend?.click());
+    expect(relay.commit).not.toHaveBeenCalled();
+  });
+
+  it('turns Edit User off on a deprovisioned account with that reason, not the missing customer', () => {
+    act(() => root.render(<UserDetailHeader person={deprovisioned()} />));
+    expect(buttonNamed('Edit User')?.disabled).toBe(true);
+    expect(offReason('Edit User')).toBe("Deprovisioned in the directory, so it can't be edited.");
+  });
+
   it("offers Suspend in the phone's menu, asked there too", () => {
     act(() => root.render(<UserDetailHeader person={person()} />));
     const row = phoneMenuRow('Suspend');

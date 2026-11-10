@@ -56,10 +56,13 @@ const READ_ONLY_REASONS = {
   [DirectoryReadOnlyReason.EXCHANGE_MANAGED]: 'Managed in Exchange',
 } satisfies Record<DirectoryReadOnlyReason, string>;
 
-/** Why a record cannot be changed: the first reason says it (contract §4); a group with none is read-only regardless. */
+/**
+ * Why a record cannot be changed: the first reason says it (contract §4). A group with none is read-only regardless:
+ * there are no group writes (D8).
+ */
 export function readOnlyTooltip(reasons: readonly string[]): string {
   const [first] = reasons;
-  if (first === undefined) return 'OpenFrame reads this group and does not change it';
+  if (first === undefined) return 'Managed in the directory: OpenFrame does not change groups';
   return presentationFor(READ_ONLY_REASONS, first) ?? first;
 }
 
