@@ -70,8 +70,9 @@ function RuleRow({
   const kinds = ruleKindsFor(provider);
   const offered = kind === DirectoryRuleKind.ALL ? [...kinds, DirectoryRuleKind.ALL] : kinds;
 
+  // Top-aligned: the Values field wraps its chips onto more lines, and Match by stays beside its first one.
   return (
-    <div className="grid grid-cols-1 items-end gap-[var(--spacing-system-xsf)] content-md:grid-cols-2">
+    <div className="grid grid-cols-1 items-start gap-[var(--spacing-system-xsf)] content-md:grid-cols-2">
       <Controller
         name={`${base}.kind`}
         control={form.control}
