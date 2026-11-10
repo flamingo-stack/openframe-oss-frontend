@@ -310,8 +310,8 @@ public class NativeAuthPlugin extends Plugin {
      * refreshing on its own. Resolves the stored pair after the attempt, an
      * EMPTY object only when the session is over (the web view answers that by
      * clearing its tokens and turning biometric login off), and REJECTS on
-     * everything that keeps the session: unreached, unknown, held, gated,
-     * no host, replaced. See TokenLifecycle.Code.
+     * everything that keeps the session: unreached, answered error, unknown,
+     * held, gated, no host, replaced. See TokenLifecycle.Code.
      */
     @PluginMethod
     public void refreshTokens(PluginCall call) {

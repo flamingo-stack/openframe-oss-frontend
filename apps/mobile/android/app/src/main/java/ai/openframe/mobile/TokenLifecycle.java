@@ -83,9 +83,10 @@ final class TokenLifecycle {
     private static final long[] RETRY_DELAYS_MS = {1_000, 3_000};
     private static final long WALL_CLOCK_BUDGET_MS = 10_000;
     /**
-     * After a POST whose answer was lost, when — counted from the moment it
-     * went out — the shell presents the same refresh token again, on its own;
-     * every caller before that is held back. Inside the auth server's 60s
+     * After a POST whose rotation is in doubt, when — counted from the moment
+     * it went out — the shell presents the same refresh token again, on its
+     * own; after one that got no answer every caller before that is held back
+     * ({@link #holdsCallers}). Inside the auth server's 60s
      * grace for a rotated-away token
      * ({@code openframe.authz.refresh-token-grace-seconds}), and past the
      * gateway's 30s wait on the auth server, so the lost POST should not
@@ -94,15 +95,15 @@ final class TokenLifecycle {
      */
     private static final long LOST_ROTATION_RETRY_AFTER_MS = 35_000;
     /**
-     * How long after a lost POST the shell may still re-present on its own: a
-     * few seconds inside the 60s grace, for the POST to reach the server. The
-     * shell's own re-presentation keeps this window, so if its answer is lost
-     * too the hold ends past it and the shell stops; a persistent 5xx or 403
-     * is not re-posted forever, and callers carry on.
+     * How long after a POST in doubt the shell may still re-present on its
+     * own: a few seconds inside the 60s grace, for the POST to reach the
+     * server. The shell's own re-presentation keeps this window, so if it
+     * settles nothing either the shell stops; a gateway that keeps answering
+     * nothing is not re-posted forever, and callers carry on.
      */
     private static final long LOST_ROTATION_RETRY_WITHIN_MS = 55_000;
-    /** The trigger the shell's own re-presentation runs under; a loss on its flight keeps the window of the loss it retries. */
-    private static final String LOST_ROTATION_RETRY_TRIGGER = "a refresh whose answer was lost";
+    /** The trigger the shell's own re-presentation runs under; its flight keeps the window of the POST it retries. */
+    private static final String LOST_ROTATION_RETRY_TRIGGER = "a refresh in doubt";
     /** The claim carrying the user UUID in our own access token ({@code sub} is the email). */
     static final String CLAIM_USER_ID = "userId";
     /** The web bundle's own acceptance rule for a header version (client-identity.ts). */
@@ -114,6 +115,7 @@ final class TokenLifecycle {
     static final class Code {
         static final String UNREACHED = "REFRESH_UNREACHED";
         static final String UNKNOWN = "REFRESH_UNKNOWN";
+        static final String ANSWERED_ERROR = "REFRESH_ANSWERED_ERROR";
         static final String HELD = "REFRESH_HELD";
         static final String DEVICE_LOCKED = "DEVICE_LOCKED";
         static final String BIOMETRIC_LOCKED = "BIOMETRIC_LOCKED";
@@ -162,17 +164,19 @@ final class TokenLifecycle {
     /**
      * What one POST to /oauth/refresh settled as. The split between UNREACHED
      * and UNKNOWN is the whole point: retrying a request the gateway never saw
-     * costs nothing; retrying one it may have answered re-presents a refresh
-     * token the server may already have retired, which comes back as a 401 and
-     * reads exactly like a revoked session.
+     * costs nothing; retrying one it may still be serving, on its heels, can
+     * be rotated over by it, which leaves this side holding a refresh token
+     * the server has retired. ANSWERED_ERROR is an answer that is not about
+     * the token (502, 503, 429, the WAF's 403): re-presented like UNKNOWN, but
+     * it holds no caller ({@link #holdsCallers}).
      */
-    private static final class Outcome {
-        enum Kind { ROTATED, REJECTED, UNREACHED, UNKNOWN }
+    static final class Outcome {
+        enum Kind { ROTATED, REJECTED, UNREACHED, ANSWERED_ERROR, UNKNOWN }
 
         final Kind kind;
         final TokenPair pair;
         final String reason;
-        /** UNKNOWN only: when the POST went out (elapsedRealtime). */
+        /** ANSWERED_ERROR and UNKNOWN: when the POST went out (elapsedRealtime). */
         final long sentAt;
 
         private Outcome(Kind kind, TokenPair pair, String reason, long sentAt) {
@@ -192,6 +196,10 @@ final class TokenLifecycle {
 
         static Outcome unreached(String reason) {
             return new Outcome(Kind.UNREACHED, null, reason, 0);
+        }
+
+        static Outcome answeredError(String reason, long sentAt) {
+            return new Outcome(Kind.ANSWERED_ERROR, null, reason, sentAt);
         }
 
         static Outcome unknown(String reason, long sentAt) {
@@ -268,12 +276,14 @@ final class TokenLifecycle {
     /**
      * Until when callers are held back (elapsedRealtime):
      * LOST_ROTATION_RETRY_AFTER_MS past the last refresh that went out and got
-     * no answer back. Null once nothing is in doubt.
+     * no answer back. Null when no caller is held: nothing is in doubt, or the
+     * POST in doubt was answered with an error.
      */
     private Long lostRotationHoldUntil;
     /**
      * After when the shell no longer re-presents on its own (elapsedRealtime):
-     * LOST_ROTATION_RETRY_WITHIN_MS past the lost POST it is re-presenting for.
+     * LOST_ROTATION_RETRY_WITHIN_MS past the POST it is re-presenting for.
+     * Non-null exactly while a rotation is in doubt.
      */
     private Long lostRotationRetryDeadline;
     /** The scheduled re-presentation. */
@@ -902,9 +912,13 @@ final class TokenLifecycle {
             }
             case REJECTED: {
                 ShellLog.auth.error("the gateway answered 401 to the refresh (trigger: " + trigger + ")");
+                // A rotation behind an answered error is the rarer reading; a
+                // revocation during the outage is as likely.
                 String why = lostRotationHoldUntil != null
                     ? "a refresh whose response was lost had already rotated it"
-                    : "the gateway rejected the refresh token";
+                    : lostRotationRetryDeadline != null
+                        ? "the gateway rejected the refresh token; an earlier refresh it answered with an error may have rotated it"
+                        : "the gateway rejected the refresh token";
                 ShellLog.auth.notice("session over (" + why + ") on a refresh (trigger: " + trigger + ") — clearing stored tokens");
                 endSessionLocked();
                 emit(TokenPair.EMPTY);
@@ -912,33 +926,42 @@ final class TokenLifecycle {
             }
             case UNREACHED:
                 return RefreshResult.failed(Code.UNREACHED, outcome.reason);
+            case ANSWERED_ERROR:
             case UNKNOWN:
-            default:
-                // Stamped on every loss, not just the first: each unanswered POST
-                // is itself newly in doubt.
-                ShellLog.auth.notice("refresh went out with no usable answer (" + outcome.reason + ") — holding the token back until "
-                    + (LOST_ROTATION_RETRY_AFTER_MS / 1000) + "s after it went out (trigger: " + trigger + ")");
-                noteLostRotationLocked(outcome.sentAt, LOST_ROTATION_RETRY_TRIGGER.equals(trigger));
-                return RefreshResult.failed(Code.UNKNOWN, outcome.reason);
+            default: {
+                boolean answered = outcome.kind == Outcome.Kind.ANSWERED_ERROR;
+                boolean holdsCallers = holdsCallers(outcome.kind);
+                boolean onOwnRetry = LOST_ROTATION_RETRY_TRIGGER.equals(trigger);
+                // Noted on every such POST, not just the first: each is itself
+                // newly in doubt.
+                ShellLog.auth.notice((answered ? "the gateway answered the refresh with an error (" : "refresh went out with no usable answer (")
+                    + outcome.reason + ") — "
+                    + (onOwnRetry
+                        ? "the re-presentation settled nothing either"
+                        : "presenting the token again " + (LOST_ROTATION_RETRY_AFTER_MS / 1000) + "s after it went out")
+                    + " (callers held: " + holdsCallers + ", trigger: " + trigger + ")");
+                noteLostRotationLocked(outcome.sentAt, onOwnRetry, holdsCallers);
+                return RefreshResult.failed(answered ? Code.ANSWERED_ERROR : Code.UNKNOWN, outcome.reason);
+            }
         }
     }
 
     /**
-     * Hold callers back until LOST_ROTATION_RETRY_AFTER_MS past {@code sentAt},
-     * and re-present then without waiting for one: a caller may not come
-     * before the grace window closes, and after it the token is dead if the
-     * lost POST rotated. A loss on the shell's own re-presentation keeps the
-     * window of the loss it retried, so each lost caller POST gets one
-     * re-presentation. A process frozen past that moment re-presents when it
-     * runs again, which is all that is left to try.
+     * Re-present LOST_ROTATION_RETRY_AFTER_MS past {@code sentAt} without
+     * waiting for a caller: one may not come before the grace window closes,
+     * and after it the token is dead if that POST rotated. With
+     * {@code holdsCallers}, every caller before then is held back. A loss on
+     * the shell's own re-presentation keeps the window of the POST it retried,
+     * so each caller POST gets one re-presentation. A process frozen past that
+     * moment re-presents when it runs again, which is all that is left to try.
      */
-    private void noteLostRotationLocked(long sentAt, boolean onOwnRetry) {
+    private void noteLostRotationLocked(long sentAt, boolean onOwnRetry, boolean holdsCallers) {
         long deadline = lostRotationRetryDeadline(sentAt, onOwnRetry, lostRotationRetryDeadline);
         clearLostRotationLocked();
-        long holdUntil = lostRotationHoldEnd(sentAt);
-        lostRotationHoldUntil = holdUntil;
+        long retryAt = lostRotationHoldEnd(sentAt);
+        lostRotationHoldUntil = holdsCallers ? retryAt : null;
         lostRotationRetryDeadline = deadline;
-        scheduleLostRotationRetryLocked(holdUntil);
+        scheduleLostRotationRetryLocked(retryAt);
     }
 
     /**
@@ -949,7 +972,7 @@ final class TokenLifecycle {
      */
     private void scheduleLostRotationRetryLocked(long fireAt) {
         if (!mayRetryLostRotation(fireAt, lostRotationRetryDeadline)) {
-            ShellLog.auth.notice("too late to re-present a lost refresh inside the grace window — leaving it to the next caller");
+            ShellLog.auth.notice("too late to re-present a refresh in doubt inside the grace window — leaving it to the next caller");
             return;
         }
         // A safety bound well past the wait and the flight after it; released as soon as that settles.
@@ -960,7 +983,7 @@ final class TokenLifecycle {
             // A throw here is swallowed by the executor, and with it the retry.
             try {
                 refreshLocked(true, null, LOST_ROTATION_RETRY_TRIGGER, result -> {
-                    if (rearmsLostRotationRetry(result, lostRotationHoldUntil != null)) {
+                    if (rearmsLostRotationRetry(result, lostRotationRetryDeadline != null)) {
                         scheduleLostRotationRetryLocked(SystemClock.elapsedRealtime());
                     }
                     // Nothing re-armed, here or by a second loss settling this flight.
@@ -992,14 +1015,14 @@ final class TokenLifecycle {
     // ─── Lost-rotation timing (pure; TokenLifecycleLostRotationTest) ─────────
     // Times are elapsedRealtime milliseconds.
 
-    /** When callers stop being held back after the POST sent at {@code sentAt} lost its answer. */
+    /** When the shell re-presents the POST sent at {@code sentAt}, and when callers held back for it stop being. */
     static long lostRotationHoldEnd(long sentAt) {
         return sentAt + LOST_ROTATION_RETRY_AFTER_MS;
     }
 
     /**
-     * The self-retry window a loss gets: a loss on the shell's own
-     * re-presentation keeps the window of the loss it retried, any other loss
+     * The self-retry window a POST in doubt gets: the shell's own
+     * re-presentation keeps the window of the POST it retried, any other
      * starts its own. Without a window to keep (the doubt was cleared), it starts one.
      */
     static long lostRotationRetryDeadline(long sentAt, boolean onOwnRetry, Long currentDeadline) {
@@ -1019,6 +1042,34 @@ final class TokenLifecycle {
     /** Whether a re-presentation that settled as {@code result} is tried again: only one that never left the device, while the doubt stands. */
     static boolean rearmsLostRotationRetry(RefreshResult result, boolean stillInDoubt) {
         return stillInDoubt && result.kind == RefreshResult.Kind.FAILED && Code.UNREACHED.equals(result.code);
+    }
+
+    /**
+     * Whether callers are held back until the shell has re-presented the
+     * token: only after a POST that got no usable answer, which the gateway
+     * may still be serving. An answered error has settled, so the web view's
+     * Retry goes out.
+     */
+    static boolean holdsCallers(Outcome.Kind kind) {
+        return kind == Outcome.Kind.UNKNOWN;
+    }
+
+    // ─── Answer classification (pure; TokenLifecycleLostRotationTest) ────────
+
+    /**
+     * What an answer that carried no rotated pair settles as, for the POST sent
+     * at {@code sentAt}. A 403 is deliberately not a rejection: the BFF never
+     * answers one on this endpoint, so it is the WAF's, and says nothing about
+     * the credential.
+     */
+    static Outcome outcomeOfAnswerWithoutTokens(int status, long sentAt) {
+        if (status >= 200 && status < 300) {
+            return Outcome.unknown("refresh returned no token headers — is mobile auth enabled on the gateway?", sentAt);
+        }
+        if (status == 401) {
+            return Outcome.rejected();
+        }
+        return Outcome.answeredError("refresh failed: HTTP " + status, sentAt);
     }
 
     /**
@@ -1190,22 +1241,13 @@ final class TokenLifecycle {
         }
 
         private Outcome classifyResponse(Response response, Flight flight) {
-            int status = response.code();
             if (response.isSuccessful()) {
                 TokenPair rotated = rotatedPair(response);
                 if (rotated != null) {
                     return Outcome.rotated(rotated);
                 }
-                return Outcome.unknown("refresh returned no token headers — is mobile auth enabled on the gateway?", flight.startedAt);
             }
-            if (status == 401) {
-                return Outcome.rejected();
-            }
-            // Answered, so a rotation is not ruled out: a 5xx from a front end
-            // can sit in front of a gateway that already did the work. A 403 is
-            // deliberately NOT a rejection — the BFF never answers one on this
-            // endpoint, so it is the WAF's, and says nothing about the credential.
-            return Outcome.unknown("refresh failed: HTTP " + status, flight.startedAt);
+            return outcomeOfAnswerWithoutTokens(response.code(), flight.startedAt);
         }
 
         /**
@@ -1288,7 +1330,7 @@ final class TokenLifecycle {
     static OkHttpClient credentialFreeClient(long timeoutMs) {
         // No redirects: OkHttp strips only Authorization on a cross-host hop, so a
         // 30x would carry the Refresh-Token header to whatever Location names — a
-        // 3xx here is an unknown outcome, not a route. Connect gets a shorter
+        // 3xx here is an answered error, not a route. Connect gets a shorter
         // budget than the call, so a black-hole network fails as a connect timeout
         // (never left the device) before the call watchdog reads as unknown.
         // No keep-alive either: a pooled connection gone half-open across a
@@ -1312,8 +1354,8 @@ final class TokenLifecycle {
      * {@code RequestBody.create} the client transparently re-sends a POST after
      * a "recoverable" failure — a reset, an EOF mid-response, a stale pooled
      * connection — when another route exists, below anything the caller sees.
-     * For a refresh that is a second presentation of a token the gateway may
-     * already have rotated (a 401 that reads as a revoked session); for an
+     * For a refresh that is a second presentation on the heels of the first,
+     * which the first can rotate over (a retired token left here); for an
      * action it is a reply delivered twice. One-shot keeps the classification
      * here as the only retry policy.
      */
