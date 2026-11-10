@@ -11,7 +11,8 @@ import org.junit.Test;
  * answer was lost, the shell holds callers back and re-presents the same
  * refresh token on its own, inside the window in which the auth server still
  * honours a rotated-away token. Get these wrong and a lost answer signs the
- * user out, or a failing refresh is re-posted without end.
+ * user out, or a failing refresh is re-posted without end. Also what an answer
+ * settles as, and which outcomes hold callers back (CU-17tkuw65dnm).
  */
 public class TokenLifecycleLostRotationTest {
 
@@ -102,7 +103,7 @@ public class TokenLifecycleLostRotationTest {
         assertTrue(TokenLifecycle.rearmsLostRotationRetry(unreached, true));
         assertFalse("the doubt was cleared meanwhile", TokenLifecycle.rearmsLostRotationRetry(unreached, false));
         assertFalse(TokenLifecycle.rearmsLostRotationRetry(failed(TokenLifecycle.Code.UNKNOWN), true));
-        assertFalse(TokenLifecycle.rearmsLostRotationRetry(failed(TokenLifecycle.Code.FAILED), true));
+        assertFalse(TokenLifecycle.rearmsLostRotationRetry(failed(TokenLifecycle.Code.ANSWERED_ERROR), true));
         assertFalse(TokenLifecycle.rearmsLostRotationRetry(failed(TokenLifecycle.Code.HELD), true));
         assertFalse(TokenLifecycle.rearmsLostRotationRetry(failed(TokenLifecycle.Code.NO_HOST), true));
         assertFalse(TokenLifecycle.rearmsLostRotationRetry(TokenLifecycle.RefreshResult.tokens(new TokenPair("access", "refresh")), true));
@@ -110,19 +111,30 @@ public class TokenLifecycleLostRotationTest {
     }
 
     /**
-     * A failure the gateway answered with is not an answer that went missing:
+     * An error the gateway answered with is not an answer that went missing:
      * 502 and 503 are how it reports an auth server it could not use. Classed
-     * as unknown, one held every caller back for 35s, the Retry on the web
-     * view's "can't verify your session" screen included.
+     * as unknown, one held every caller back, the Retry on the web view's
+     * "can't verify your session" screen included.
      */
     @Test
-    public void anAnsweredFailureIsNotALostAnswer() {
+    public void anAnsweredErrorIsNotALostAnswer() {
         for (int status : new int[] {502, 503, 500, 429, 403, 404}) {
-            assertEquals("HTTP " + status, TokenLifecycle.Outcome.Kind.FAILED, TokenLifecycle.kindOfAnswerWithoutTokens(status));
+            TokenLifecycle.Outcome outcome = TokenLifecycle.outcomeOfAnswerWithoutTokens(status, SENT);
+
+            assertEquals("HTTP " + status, TokenLifecycle.Outcome.Kind.ANSWERED_ERROR, outcome.kind);
+            assertEquals("the shell still re-presents it, from its send", SENT, outcome.sentAt);
+            assertFalse("HTTP " + status + " would hold callers back", TokenLifecycle.holdsCallers(outcome.kind));
         }
-        assertEquals(TokenLifecycle.Outcome.Kind.REJECTED, TokenLifecycle.kindOfAnswerWithoutTokens(401));
-        // A success without tokens did rotate, and the new pair is what was lost.
-        assertEquals(TokenLifecycle.Outcome.Kind.UNKNOWN, TokenLifecycle.kindOfAnswerWithoutTokens(204));
+        assertEquals(TokenLifecycle.Outcome.Kind.REJECTED, TokenLifecycle.outcomeOfAnswerWithoutTokens(401, SENT).kind);
+    }
+
+    @Test
+    public void aSuccessWithoutTokensRotatedAndHoldsCallersLikeALostAnswer() {
+        TokenLifecycle.Outcome outcome = TokenLifecycle.outcomeOfAnswerWithoutTokens(204, SENT);
+
+        assertEquals(TokenLifecycle.Outcome.Kind.UNKNOWN, outcome.kind);
+        assertEquals(SENT, outcome.sentAt);
+        assertTrue(TokenLifecycle.holdsCallers(outcome.kind));
     }
 
     private static TokenLifecycle.RefreshResult failed(String code) {

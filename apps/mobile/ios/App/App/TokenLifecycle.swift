@@ -48,9 +48,10 @@ final class TokenLifecycle {
     /// as long as the suspension lasted. The session's own timeouts are set to
     /// the same value as a belt to these braces.
     static let wallClockBudget: TimeInterval = 10
-    /// After a POST whose answer was lost, when — counted from the moment it
-    /// went out — the shell presents the same refresh token again, on its own;
-    /// every caller before that is held back. The auth server honours a
+    /// After a POST whose rotation is in doubt, when — counted from the moment
+    /// it went out — the shell presents the same refresh token again, on its
+    /// own; after one that got no answer every caller before that is held back
+    /// (`Outcome.holdsCallers`). The auth server honours a
     /// rotated-away token for 60s after the rotation
     /// (`openframe.authz.refresh-token-grace-seconds`), and the rotation came
     /// after the send, so this lands inside that window whether or not the lost
@@ -64,15 +65,15 @@ final class TokenLifecycle {
     /// Not later: a 60s hold from the moment of giving up always missed the
     /// window, and the 401 that followed signed the user out.
     static let lostRotationRetryAfter: TimeInterval = 35
-    /// How long after a lost POST the shell may still re-present on its own: a
-    /// few seconds inside the 60s grace, for the POST to reach the server. The
-    /// shell's own re-presentation keeps this window, so if its answer is lost
-    /// too the hold ends past it and the shell stops; a gateway that keeps
-    /// answering nothing is not re-posted forever, and callers carry on.
+    /// How long after a POST in doubt the shell may still re-present on its
+    /// own: a few seconds inside the 60s grace, for the POST to reach the
+    /// server. The shell's own re-presentation keeps this window, so if it
+    /// settles nothing either the shell stops; a gateway that keeps answering
+    /// nothing is not re-posted forever, and callers carry on.
     static let lostRotationRetryWithin: TimeInterval = 55
-    /// The trigger the shell's own re-presentation runs under; a loss on its
-    /// flight keeps the window of the loss it retries.
-    private static let lostRotationRetryTrigger = "a refresh whose answer was lost"
+    /// The trigger the shell's own re-presentation runs under; its flight keeps
+    /// the window of the POST it retries.
+    private static let lostRotationRetryTrigger = "a refresh in doubt"
 
     /// Info.plist key carrying the shared auth host, expanded from the
     /// `OPENFRAME_SHARED_HOST_URL` build setting. The release lanes pass it from
@@ -92,7 +93,7 @@ final class TokenLifecycle {
     enum Code {
         static let unreached = "REFRESH_UNREACHED"
         static let unknown = "REFRESH_UNKNOWN"
-        static let failed = "REFRESH_FAILED"
+        static let answeredError = "REFRESH_ANSWERED_ERROR"
         static let held = "REFRESH_HELD"
         static let deviceLocked = "DEVICE_LOCKED"
         static let biometricLocked = "BIOMETRIC_LOCKED"
@@ -113,28 +114,40 @@ final class TokenLifecycle {
 
     /// What one POST to /oauth/refresh settled as. The split between the last two
     /// is the whole point: a refresh is not idempotent — the gateway retires the
-    /// presented refresh token the moment it issues the next — so "the request
-    /// failed" and "the answer never arrived" are different facts. Retrying the
-    /// first costs nothing; retrying the second re-presents a token the server
-    /// may already have retired, which comes back as a 401 and reads exactly like
-    /// a revoked session.
+    /// presented refresh token as it issues the next, and honours it for only
+    /// 60s more — so "the request never arrived" and "the answer never arrived"
+    /// are different facts. Retrying the first costs nothing; retrying the
+    /// second on its heels can be rotated over by the POST still being served,
+    /// which leaves this side holding a token the server has retired.
     private enum Outcome {
         /// Whatever the response headers carried; at least one token is set.
         case rotated(TokenPair)
         /// The gateway refused the refresh token (401).
         case rejected
-        /// The gateway answered with an error that is not about the token: a 502
-        /// or 503 for an auth server it could not use, a 429, the WAF's 403. The
-        /// attempt has settled, so unlike `unknown` nothing is still being
-        /// served that the next presentation could race: no caller is held back
-        /// and the shell does not re-present it. Not retried within the flight.
-        case failed(String)
+        /// The gateway answered the request sent at `sentAt` with an error that
+        /// is not about the token: a 502 or 503 for an auth server it could not
+        /// use, a 429, the WAF's 403. A rotation is still not ruled out behind
+        /// one (a front end's 5xx can sit in front of a gateway that finished),
+        /// so the shell re-presents it as it does an unknown outcome. Not
+        /// retried within the flight.
+        case answeredError(String, sentAt: Date)
         /// The gateway never saw it — no network path, DNS, connect, TLS. Safe to retry.
         case unreached(String)
         /// The request went out at `sentAt` and its fate is unknown: a broken or
         /// timed-out response, or a success carrying no tokens. Never retried
         /// within the flight; re-presented at `lostRotationRetryAfter`.
         case unknown(String, sentAt: Date)
+
+        /// Whether callers are held back until the shell has re-presented the
+        /// token. Only after a request that got no usable answer: the gateway
+        /// may still be serving it, and a caller's presentation could be
+        /// rotated over by it. An answered error has settled; held, one refused
+        /// every caller until the hold ran out, the Retry on the web view's
+        /// "can't verify your session" screen included.
+        var holdsCallers: Bool {
+            if case .unknown = self { return true }
+            return false
+        }
     }
 
     // MARK: - State (on TokenStore.queue)
@@ -150,10 +163,12 @@ final class TokenLifecycle {
     /// belongs to a session that no longer exists.
     private var sessionEpoch: UInt64 = 0
     /// Until when callers are held back: `lostRotationRetryAfter` past the last
-    /// refresh that went out and got no answer back. Nil once nothing is in doubt.
+    /// refresh that went out and got no answer back. Nil when no caller is
+    /// held: nothing is in doubt, or the POST in doubt was answered with an error.
     private var lostRotationHoldUntil: Date?
     /// After when the shell no longer re-presents on its own:
-    /// `lostRotationRetryWithin` past the lost POST it is re-presenting for.
+    /// `lostRotationRetryWithin` past the POST it is re-presenting for. Non-nil
+    /// exactly while a rotation is in doubt.
     private var lostRotationRetryDeadline: Date?
     /// The scheduled re-presentation.
     private var lostRotationRetry: DispatchWorkItem?
@@ -768,41 +783,46 @@ final class TokenLifecycle {
             return .tokens(merged)
         case .rejected:
             ShellLog.auth.error("the gateway answered 401 to the refresh (trigger: \(trigger))")
+            // A rotation behind an answered error is the rarer reading; a
+            // revocation during the outage is as likely.
             let why = lostRotationHoldUntil != nil
                 ? "a refresh whose response was lost had already rotated it"
-                : "the gateway rejected the refresh token"
+                : lostRotationRetryDeadline != nil
+                    ? "the gateway rejected the refresh token; an earlier refresh it answered with an error may have rotated it"
+                    : "the gateway rejected the refresh token"
             ShellLog.auth.notice("session over (\(why)) on a refresh (trigger: \(trigger)) — clearing stored tokens")
             endSessionLocked()
             emit(TokenPair())
             return .sessionOver
         case .unreached(let reason):
             return .failed(code: Code.unreached, message: reason)
-        case .failed(let reason):
-            ShellLog.auth.notice("\(reason) — the gateway answered, so nothing is held back (trigger: \(trigger))")
-            return .failed(code: Code.failed, message: reason)
-        case .unknown(let reason, let sentAt):
-            // Stamped on every loss, not just the first: each unanswered POST is
-            // itself newly in doubt.
-            ShellLog.auth.notice("refresh went out with no usable answer (\(reason)) — holding the token back until \(Int(Self.lostRotationRetryAfter))s after it went out (trigger: \(trigger))")
-            noteLostRotationLocked(sentAt: sentAt, onOwnRetry: trigger == Self.lostRotationRetryTrigger)
-            return .failed(code: Code.unknown, message: reason)
+        case .answeredError(let reason, let sentAt), .unknown(let reason, let sentAt):
+            let answered: Bool
+            if case .answeredError = outcome { answered = true } else { answered = false }
+            let holdsCallers = outcome.holdsCallers
+            let onOwnRetry = trigger == Self.lostRotationRetryTrigger
+            // Noted on every such POST, not just the first: each is itself
+            // newly in doubt.
+            ShellLog.auth.notice("\(answered ? "the gateway answered the refresh with an error" : "refresh went out with no usable answer") (\(reason)) — \(onOwnRetry ? "the re-presentation settled nothing either" : "presenting the token again \(Int(Self.lostRotationRetryAfter))s after it went out") (callers held: \(holdsCallers), trigger: \(trigger))")
+            noteLostRotationLocked(sentAt: sentAt, onOwnRetry: onOwnRetry, holdsCallers: holdsCallers)
+            return .failed(code: answered ? Code.answeredError : Code.unknown, message: reason)
         }
     }
 
-    /// Hold callers back until `lostRotationRetryAfter` past `sentAt`, and
-    /// re-present then without waiting for one: a caller may not come before
-    /// the grace window closes, and after it the token is dead if the lost POST
-    /// rotated. A loss on the shell's own re-presentation keeps the window of
-    /// the loss it retried, so each lost caller POST gets one re-presentation.
-    /// A flight that settles on a resume long after the send re-presents at
-    /// once, which is all that is left to try.
-    private func noteLostRotationLocked(sentAt: Date, onOwnRetry: Bool) {
+    /// Re-present `lostRotationRetryAfter` past `sentAt` without waiting for a
+    /// caller: one may not come before the grace window closes, and after it
+    /// the token is dead if that POST rotated. With `holdsCallers`, every
+    /// caller before then is held back. A loss on the shell's own
+    /// re-presentation keeps the window of the POST it retried, so each caller
+    /// POST gets one re-presentation. A flight that settles on a resume long
+    /// after the send re-presents at once, which is all that is left to try.
+    private func noteLostRotationLocked(sentAt: Date, onOwnRetry: Bool, holdsCallers: Bool) {
         let deadline = onOwnRetry ? lostRotationRetryDeadline : nil
         clearLostRotationLocked()
-        let holdUntil = sentAt.addingTimeInterval(Self.lostRotationRetryAfter)
-        lostRotationHoldUntil = holdUntil
+        let retryAt = sentAt.addingTimeInterval(Self.lostRotationRetryAfter)
+        lostRotationHoldUntil = holdsCallers ? retryAt : nil
         lostRotationRetryDeadline = deadline ?? sentAt.addingTimeInterval(Self.lostRotationRetryWithin)
-        scheduleLostRotationRetryLocked(at: holdUntil)
+        scheduleLostRotationRetryLocked(at: retryAt)
     }
 
     /// Re-present at `fireAt`, unless that is past `lostRotationRetryDeadline`.
@@ -811,7 +831,7 @@ final class TokenLifecycle {
     /// long as the deadline allows.
     private func scheduleLostRotationRetryLocked(at fireAt: Date) {
         guard let deadline = lostRotationRetryDeadline, fireAt < deadline else {
-            ShellLog.auth.notice("too late to re-present a lost refresh inside the grace window — leaving it to the next caller")
+            ShellLog.auth.notice("too late to re-present a refresh in doubt inside the grace window — leaving it to the next caller")
             return
         }
         if lostRotationAssertion == .invalid {
@@ -827,7 +847,7 @@ final class TokenLifecycle {
             guard let self else { return }
             self.lostRotationRetry = nil
             self.refreshLocked(force: true, rejectedAccessToken: nil, trigger: Self.lostRotationRetryTrigger) { result in
-                if case .failed(let code, _) = result, code == Code.unreached, self.lostRotationHoldUntil != nil {
+                if case .failed(let code, _) = result, code == Code.unreached, self.lostRotationRetryDeadline != nil {
                     self.scheduleLostRotationRetryLocked(at: Date())
                 }
             }
@@ -1040,14 +1060,11 @@ final class TokenLifecycle {
             case 200..<300:
                 return .unknown("refresh returned no token headers — is mobile auth enabled on the gateway?", sentAt: flight.startedAt)
             default:
-                // Answered, so the attempt has settled. A rotation is still not
-                // ruled out (a 5xx from a front end can sit in front of a gateway
-                // that already did the work), and for that case sooner is
-                // better: the server honours the token for 60s from the
-                // rotation. A 403 is deliberately NOT a rejection — the BFF
-                // never answers one on this endpoint, so it is the WAF's, and a
-                // WAF verdict says nothing about the credential.
-                return .failed("refresh failed: HTTP \(response.statusCode)")
+                // Answered, so the attempt has settled; see `holdsCallers`. A 403
+                // is deliberately NOT a rejection — the BFF never answers one on
+                // this endpoint, so it is the WAF's, and a WAF verdict says
+                // nothing about the credential.
+                return .answeredError("refresh failed: HTTP \(response.statusCode)", sentAt: flight.startedAt)
             }
         }
 

@@ -157,24 +157,24 @@ device log tags every step `[TokenLifecycle]`.
   it, so re-hydration (post-login full navigation, unlock retry) never prompts again.
   Without it every background rotation would drive a gated `SecItemCopyMatching`.
 - **Outcome taxonomy** per POST: rotated / rejected (401 only) / unreached (never left the
-  device: no path, DNS, connect, TLS — retried at 1s, 3s) / failed (the gateway answered
-  with an error that is not about the token: its 502/503 for an auth server it could not
-  use, a 429, a 5xx, **403** — not retried within the flight) / unknown (went out, no usable
-  answer: timeout, broken response, 2xx with no token headers — not retried within the
-  flight). A 403 is deliberately not a rejection: the BFF never answers one here, so it is
-  the WAF's, and says nothing about the credential.
-- **An answered failure holds nothing back.** A failed outcome has settled: nothing is still
-  being served that a new presentation could race, so no caller gets `REFRESH_HELD` and the
-  shell does not re-present it on its own. The web view sees `REFRESH_FAILED` and its next
-  refresh goes out. Classed as unknown (until 2026-11), one held every caller for 35s, the
-  Retry on the web's "can't verify your session" screen included. A rotation that did land
-  behind an answered failure (a front end's 5xx over a gateway that finished) is left to the
-  next caller, who has the 60s grace. Android pins the classification in
-  `TokenLifecycleLostRotationTest` (`kindOfAnswerWithoutTokens`).
-- **A lost answer is settled inside the grace window.** After an unknown outcome the shell
-  presents the same refresh token again **on its own, 35s after the lost POST went out**
-  (`lostRotationRetryAfter` / `LOST_ROTATION_RETRY_AFTER_MS`); every caller before that gets
-  `REFRESH_HELD`. 35s is past the gateway's 30s wait on the auth server (`WebClientConfig`'s
+  device: no path, DNS, connect, TLS — retried at 1s, 3s) / answered error (the gateway
+  answered with an error that is not about the token: its 502/503 for an auth server it
+  could not use, a 429, a 5xx, **403** — not retried within the flight) / unknown (went out,
+  no usable answer: timeout, broken response, 2xx with no token headers — not retried within
+  the flight). A 403 is deliberately not a rejection: the BFF never answers one here, so it
+  is the WAF's, and says nothing about the credential.
+- **An answered error holds no caller back.** A rotation is still not ruled out behind one
+  (a front end's 5xx over a gateway that finished), so the shell re-presents it exactly as
+  it does an unknown outcome, below. But the attempt has settled and nothing is still being
+  served that a caller could race, so no caller gets `REFRESH_HELD`: the web view sees
+  `REFRESH_ANSWERED_ERROR` and its next refresh goes out. Classed as unknown (until
+  2026-11), one held every caller for 35s, the Retry on the web's "can't verify your
+  session" screen included. Android pins the classification and the hold rule in
+  `TokenLifecycleLostRotationTest` (`outcomeOfAnswerWithoutTokens`, `holdsCallers`).
+- **A lost answer is settled inside the grace window.** After an unknown outcome or an
+  answered error the shell presents the same refresh token again **on its own, 35s after
+  that POST went out** (`lostRotationRetryAfter` / `LOST_ROTATION_RETRY_AFTER_MS`); after an
+  unknown outcome every caller before that gets `REFRESH_HELD`. 35s is past the gateway's 30s wait on the auth server (`WebClientConfig`'s
   `responseTimeout`, oss-lib gateway-service-core), so the lost POST should not rotate over
   the re-presentation, and inside the 60s the server honours the rotated-away token, counted
   from a rotation that came after the send — so it gets a fresh pair whether or not the lost
@@ -200,14 +200,14 @@ device log tags every step `[TokenLifecycle]`.
   shell cannot read *right now* — `errSecInteractionNotAllowed`: before the first unlock
   after a reboot, or an item still on the old `WhenUnlocked` class while the phone is
   locked — is `DEVICE_LOCKED` on both `getTokens` and `refreshTokens`; a gated store not
-  yet unlocked is `BIOMETRIC_LOCKED`; no host is `NO_HOST`; unreached/failed/unknown/held all
+  yet unlocked is `BIOMETRIC_LOCKED`; no host is `NO_HOST`; unreached/answered error/unknown/held all
   **reject**, which the frontend reads as transient. `DEVICE_LOCKED` on the launch read
   parks the frontend behind its unlock gate, and the shell pushes the pair on the first
   activation after the unlock, which lifts it. Field incident 2026-09-09: a Watch reply on
   a locked phone, then a background relaunch, read an empty store and wiped the session.
 - **`rejectedAccessToken`.** The frontend passes the bearer the gateway refused; if the
   stored one already differs, a rotation beat the call and is answered from without a
-  POST. Desktop ignores the argument.
+  POST. Desktop does the same (`tokens::damping_token`).
 - **Custody epoch.** `clearTokens` and a JS `setTokens` (a login) both bump it; a rotation
   that settles under a different epoch is dropped (`SESSION_REPLACED`, transient), never
   written over the new pair or used to clear it.

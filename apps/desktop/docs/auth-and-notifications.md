@@ -70,21 +70,22 @@ what must survive idle:
   gateway never saw it) is retried after 1s and 3s; *rejected* (401/403) is final
   on the first answer, since re-presenting the same token cannot change it;
   *unknown* (a broken or timed-out response, a 200 with no token headers) is not
-  retried on the spot, because a retry on the heels of the lost POST can only
-  turn "maybe rotated" into a rejection: callers are held, and the shell
-  re-presents it 35 seconds after the send instead (see the note below); and
-  *failed* (any other answer: the gateway's 502/503 for an auth server it could
-  not use, a 429, a 5xx) is not retried within the refresh either, but the
-  attempt has settled, so nothing is still being served that a new presentation
-  could race: no caller is held, and the shell does not re-present it on its
-  own. Classing an answered failure as unknown refused every caller while the
-  hold ran, the Retry on the webview's "can't verify your session" screen
-  included. A fifth, *gone* (410), is settled by the gateway's routing filter
-  before anything can rotate, so it is neither a rejection nor an unknown — see
-  **Tenant gone**.
+  retried on the spot, because a retry on the heels of the lost POST can be
+  rotated over by it: callers are held, and the shell re-presents it 35 seconds
+  after the send instead (see the note below); and an
+  *answered error* (any other answer: the gateway's 502/503 for an auth server
+  it could not use, a 429, a 5xx) is not retried within the refresh either. A
+  rotation is still not ruled out behind one (a front end's 5xx can sit in front
+  of a gateway that finished), so the shell re-presents it the same way, but the
+  attempt has settled and nothing is still being served that a caller could
+  race, so no caller is held. Classed as unknown, an answered error refused
+  every caller while the hold ran, the Retry on the webview's "can't verify your
+  session" screen included. A fifth, *gone* (410), is settled by the gateway's
+  routing filter before anything can rotate, so it is neither a rejection nor an
+  unknown — see **Tenant gone**.
 - **Outcome contract**, consumed by the frontend's delegation: rotated → tokens;
   session over (rejected, or a rotation that could not be written to disk) →
-  tokens cleared, empty set returned; unreached/failed/unknown → error, stored
+  tokens cleared, empty set returned; unreached/answered error/unknown → error, stored
   tokens kept. The `refreshTokens` command takes the access token the webview says the
   gateway refused (`rejectedAccessToken`) and dampens against that, not against
   the stored token: if the store already holds a different one, a rotation
@@ -169,21 +170,26 @@ what must survive idle:
 > presents the same refresh token again **on its own, 35 seconds after the lost
 > POST went out** (`LOST_ROTATION_RETRY_AFTER_SECS`,
 > `schedule_lost_rotation_retry`). 35 seconds is past the gateway's 30-second wait
-> on the auth server, so the lost POST cannot rotate over the re-presentation,
-> and inside the 60 seconds the server honours the token, counted from a
-> rotation that came after the send. A rotation, a sign-in or a sign-out cancels
-> it. The rule it replaced held the token for 60 seconds counted from giving up
-> (the send plus the 10-second budget), then waited for a caller, so the next
-> presentation always came after the window had closed and its 401 signed the
-> user out (CU-17tkuw64r3v).
+> on the auth server, so the lost POST should not rotate over the
+> re-presentation, and inside the 60 seconds the server honours the token,
+> counted from a rotation that came after the send. A rotation, a sign-in or a
+> sign-out cancels it. A re-presentation that never leaves the machine is tried
+> again until 55 seconds after the send (`LOST_ROTATION_RETRY_WITHIN_SECS`). An
+> answered error gets the same re-presentation without the hold on callers. The
+> rule the re-presentation replaced held the token for 60 seconds counted from
+> giving up (the send plus the 10-second budget), then waited for a caller, so
+> the next presentation always came after the window had closed and its 401
+> signed the user out (CU-17tkuw64r3v).
 >
 > What is still lost: a machine that sleeps through the window, which is the
-> 2026-08-01 case above (it re-presents the moment it runs again, the best left
-> to try), and a re-presentation whose own answer is lost too. The shell stops
-> there (`arms_lost_rotation_retry`): another would land past the first
-> rotation's window, and a gateway that answers nothing would otherwise be
-> presented the token every 35 seconds with every caller held throughout. The
-> token is left to the next caller once that hold is over, as on mobile.
+> 2026-08-01 case above (it re-presents once it has settled after the resume,
+> the best left to try); a lost POST that rotates over the re-presentation after
+> all, having reached the gateway late in its 10-second budget; and a
+> re-presentation whose own answer is lost too. The shell stops there
+> (`arms_re_presentation`): another would land past the first rotation's
+> window, and a gateway that answers nothing would otherwise be presented the
+> token every 35 seconds with every caller held throughout. The token is left to
+> the next caller once that hold is over, as on mobile.
 
 > **The refresh POST sends a body on purpose.** reqwest/hyper omit
 > `Content-Length` for bodyless POSTs — *and* for an explicit zero-length body.
@@ -353,8 +359,8 @@ dials with a fresh bearer.
 - The dial reads the *stored* bearer and kicks a rotation off in the background
   rather than awaiting one. Awaiting it put a rotation inside this loop, which
   runs precisely when the network has just broken — the one condition under which
-  a rotation's answer goes missing and the session is unrecoverable. A rejected
-  dial costs a backoff; a lost rotation can cost the login.
+  a rotation's answer goes missing. A rejected dial costs a backoff; a lost
+  rotation can cost the login.
 - With nobody signed in, the callback **parks** instead of returning an error.
   Returning one does not stop the fork — it logs and re-enters its connect loop,
   which is how one overnight logout produced a full TLS+WS handshake every 30

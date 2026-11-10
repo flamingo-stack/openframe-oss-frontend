@@ -332,7 +332,7 @@ public class NotificationActionWorker extends Worker {
             case TokenLifecycle.Code.NO_HOST:
                 return "this install has not learned its gateway yet";
             case TokenLifecycle.Code.UNKNOWN:
-            case TokenLifecycle.Code.FAILED:
+            case TokenLifecycle.Code.ANSWERED_ERROR:
             case TokenLifecycle.Code.HELD:
                 return "the session could not be refreshed just now";
             default:
