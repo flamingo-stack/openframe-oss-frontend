@@ -1,9 +1,10 @@
 # Over-the-air web bundles
 
-The mobile shells will update their web bundle without a store release, the way the desktop app
-takes `updater.json`. This page covers the release side, which is in place; the shells' updater
-(`NativeUpdate`) is not built yet, so nothing on a phone reads these files today. Design:
-vault `OpenFrame/Mobile - OTA Web Bundle Updates (plan)`.
+The mobile shells update their web bundle without a store release, the way the desktop app takes
+`updater.json`: every release publishes a signed bundle, the shared gateway says which release an
+environment runs, and each shell's `NativeUpdate` downloads it, verifies it and boots it at the
+next launch. This page covers the release side, the phone side, the format both are held to, and
+the runbooks. Design and rationale: vault `OpenFrame/Mobile - OTA Web Bundle Updates (plan)`.
 
 ## What a release publishes
 
@@ -100,6 +101,152 @@ phones ask for it.
 phone should run. Which release phones take comes from this config and the GitHub release
 assets, as on desktop. So whoever can change those can move phones to any release that ever
 carried `mobile.json`, older ones included, or make them drop their OTA bundles.
+
+## On the phone
+
+`NativeUpdate` is native on purpose: the check runs whatever the bundle does, so a broken bundle
+cannot stop its own fix from arriving. iOS: `ios/App/App/{NativeUpdate,UpdateChecker,UpdateStore,NativeUpdatePlugin}.swift`
+over the `ios/OtaCore` package. Android: `android/app/src/main/java/ai/openframe/mobile/{NativeUpdate,UpdateChecker,UpdateStore,NativeUpdatePlugin}.java`
+over the `ai.openframe.mobile.ota` package. The two cores hold the same pure rules and pass the
+same cases (below).
+
+**What a build needs to take updates.** All three, or `getState().enabled` is false and the log's
+first line says which is missing:
+- **A built-in version.** `scripts/build-web.sh` stamps the staged bundle with the release it was
+  built from: `www/ota-builtin.json`, `{"version":"x.y.z"}` (`scripts/ota-stamp.mjs`). It is a
+  file of the bundle, so a lane that reuses `www/` (`SKIP_WEB=1`) ships the stamp that belongs to
+  it. Only an exact release is stamped: a bundle built from a commit past a tag or from a dirty tree
+  (`1.0.221-4-g0d081e3`) gets none, and that build takes no updates. A store build is cut from a
+  release tag; when the checkout is the tag plus shell-only commits, pass
+  `OPENFRAME_BUNDLE_VERSION=x.y.z` to the lane. The prod lanes stop when `www/` has no stamp, so
+  a store version cannot ship with updates off by accident.
+- **The shared host**, compiled in (Info.plist `OpenFrameSharedHostURL`,
+  `BuildConfig.OPENFRAME_SHARED_HOST_URL`): a bare `https` origin, with no path, query or
+  userinfo. Never the host the web view pushes: where updates come from is not for page script to
+  say.
+- **An env element in the built-in `index.html`** (what `inject-env.mjs` writes), to copy into each
+  downloaded bundle. The placeholder bundle has none.
+
+The public keys are compiled in from `ota/keys.json` (iOS: a build phase copies it into the app as
+`ota-keys.json`; Android: Gradle puts both keys into `BuildConfig` and fails without both slots).
+
+**The check** runs in the background on the first activation of a process, on a later one when the
+previous check started an hour or more ago, and when the page calls `check()`. The manifest is
+always fetched, so a kill or a rollback reaches every phone. Under iOS Low Data Mode, and under
+Android Data Saver on a metered network, the bundle download waits, unless the page asked: then
+the user is looking at the "Update required" screen.
+1. `GET <shared host>/v0/api/assets/download?agent=mobile&file=mobile.json`, redirects followed,
+   `https` at every hop, no cookie, no credential, no custom header, at most 64 KiB.
+2. The manifest is verified against the compiled keys, then the decision (below): download, nothing
+   or drop.
+3. A download streams to `staging/`, stops past the signed size, and is checked for size and
+   SHA-256 before anything is decompressed. It is unpacked as a stream with every check of "The
+   rules", gets the built-in bundle's env element, and moves into `bundles/<version>/` in one
+   rename. Only then does the state name it `pending`.
+4. A correctly signed bundle refused for its content (`XZ`, `TAR`, an entry, `NO_INDEX`,
+   `HAS_ENV`, `NO_HEAD`) is marked bad, so it is not downloaded again at every launch. A size, hash
+   or transport failure is not: the next check tries again.
+
+**The boot** is decided once per process, before the web view exists (iOS
+`MainViewController.instanceDescriptor()`, Android `MainActivity.onCreate` through
+`bridgeBuilder.setServerPath`; never Capacitor's persisted `serverBasePath`, and `DisableDeploy`
+stays on):
+- a bundle at or below the built-in version is dropped (a store update installed over it);
+- so is one that is not **usable**: its `index.html` is gone, or does not carry this binary's env
+  element. A bundle is given its env when it is unpacked, so after a store update whose lane env
+  changed, the bundles the old binary unpacked are dropped and downloaded again under the new one;
+- a `pending` bundle boots **on trial**, and each trial launch is counted on disk: on Android
+  before the web view loads; on iOS when the scene enters the foreground, before page script can
+  call anything, so a launch the system makes in the background (a notification action, a silent
+  push) uses no attempt. A trial whose count cannot be written does not boot. After two trial
+  launches that never reported ready the bundle is marked bad and the active bundle, or the
+  built-in one, boots instead;
+- else the active bundle, else the built-in one.
+
+On Android a launch is a fresh start of the activity, also in a process that was still cached
+(Back, then open again): the boot is decided again, so a pending bundle, a rollback or a drop does
+not wait for the process to die. A recreated activity (a rotation) keeps its bundle and counts
+nothing. On iOS it is a new process.
+
+The bundle confirms itself: `confirmBundleBooted()` in the web app
+(`apps/web/src/lib/native-update.ts`) checks the bridge members it cannot run without and calls
+`notifyReady()`, which makes the trial the active bundle. A downloaded bundle otherwise runs from
+the next cold start, never mid-session (a remote shell or remote desktop session would drop).
+`applyPending()` swaps the running web view to the pending bundle at once; the blocking "Update
+required" screen offers it as **Restart to Update** when a pending bundle would lift the block,
+and until one is there it asks the shell to check again on every return to the app and every 65
+seconds.
+
+**State** lives under `Library/Application Support/ota/` (iOS, excluded from backup) and
+`no_backup/ota/` (Android): `state.json` (`{schema, active, pending: {version, attempts}, bad}`),
+`bundles/<version>/` and `staging/`. On iOS the tree has no data protection (it holds released web
+code and version numbers), so a process launched before the first unlock after a reboot reads it
+like any other. Deleting the directory resets the updater. A directory in
+`bundles/` that is neither active, pending nor the one the running web view is served from is
+deleted.
+
+**Logs**, one line per step and per refusal, with its code:
+
+```bash
+xcrun simctl spawn booted log show --last 10m --predicate 'subsystem BEGINSWITH "ai.openframe.mobile" AND category == "update"'
+```
+
+```bash
+adb logcat -s OpenFrameUpdate
+```
+
+**The bridge level.** Each shell compiles `BRIDGE_LEVEL` (`NativeUpdate.bridgeLevel` /
+`NativeUpdate.BRIDGE_LEVEL`, 1 today), raised in the same change as any bridge addition. A release
+whose `REQUIRED_BRIDGE_LEVEL` is above it is not downloaded.
+
+**Known limits.**
+- Releases up to 1.0.221 do not call `notifyReady()`. A shell that took one would run it for two
+  launches and then revert it. No shell can: an updating shell's built-in bundle is this code or
+  newer, and it never takes a release at or below its built-in one.
+- The unpacked files are not `fsync`ed before the rename. A power loss within seconds of an update
+  can leave a bundle with truncated files that only the two-launch trial would catch.
+- A release the shells cannot decode is skipped for good, so the packing is part of the format.
+  Android reads with a 64 MiB decoder limit, and `ota-tar.mjs` refuses at release time a bundle
+  that needs more than 32 MiB to decode (`MAX_XZ_DECODER_MEMORY`): keep `xz -6`, which needs 8.
+- Nothing in CI runs the shells' own suites (`swift test`, the Gradle unit tests): a change to the
+  format or to the shared cases has to be run against both by hand.
+- On Android every bundle shares the `https://localhost` origin, service workers included. The app
+  registers none; if it ever does, clear them when the active bundle changes.
+
+### Try it on a simulator
+
+A build stamped below the release its gateway serves takes that release. Against stage:
+
+```bash
+OPENFRAME_BUNDLE_VERSION=1.0.220 NEXT_PUBLIC_SHARED_HOST_URL=https://openframe.miami NEXT_PUBLIC_APP_MODE=saas-tenant scripts/build-web.sh
+```
+
+then build with the same host compiled in (`OPENFRAME_SHARED_HOST_URL=…` on `xcodebuild`,
+`-PofSharedHostUrl=…` on Gradle) and launch: the first launch downloads, the second boots the
+bundle on trial. To serve bundles of your own (a rollback, a broken bundle, a kill pin), pack them
+with `ota-pack.mjs` under a key of your own, put its public half in `ota/keys.json` for that build
+only, and serve the manifest and the bundle over `https` from a host the simulator trusts
+(`xcrun simctl keychain booted add-root-cert`; on Android a debug-only network security config).
+
+## Runbooks
+
+- **Publish:** automatic. A release dispatch attaches the bundle and `mobile.json`; phones take them
+  once their environment's frontend tag points at that release, at their next check, and run the
+  bundle from the launch after.
+- **Roll back to an earlier bundle:** override `sources.mobile.tag` in
+  `configs/<env>/openframe-saas-gateway.yml` (openframe-saas-shared). Phones download the older
+  bundle at their next check and boot it at the next launch. A phone that had only downloaded the
+  newer one, and not yet run it, forgets it.
+- **Kill:** pin the first release that carried `mobile.json` (1.0.219). Every updating shell was
+  built from a later release, so each sees a target at or below its built-in version, drops its
+  downloaded bundles and boots the built-in one. Never delete that release's assets.
+- **Never pin a release without `mobile.json`** (anything before 1.0.219): every check then answers
+  502 and calls the GitHub API.
+- **A backend rollback on prod** lowers `sources.mobile.tag` in the same change.
+- **A store-sensitive change** (`apps/web/CLAUDE.md`, "Over-the-air bundles") waits for a store
+  build.
+- **Key leaked:** remove the secret, switch the release to the `next` key (below), and ship a store
+  build with a new `next` slot.
 
 ## Shared test cases
 
@@ -199,8 +346,8 @@ the shells derive the ids of the keys they hold.
 
   Versions compare as three numbers everywhere, so 1.10.0 is above 1.9.0. **The built-in
   version** is the `x.y.z` of the web release the shell's built-in bundle was built from, stamped
-  into the binary at build time. It is never the store version (`versionName`,
-  `CFBundleShortVersionString`), which counts something else.
+  beside that bundle when it is staged (`ota-builtin.json`, "On the phone"). It is never the store
+  version (`versionName`, `CFBundleShortVersionString`), which counts something else.
 
 ### Not pinned
 
@@ -213,18 +360,20 @@ The release never writes these, and the SHA-256 in a signed payload leaves no on
 In the unsigned envelope, a key twice, a lone surrogate escape, invalid UTF-8 (which a case,
 stored as a JSON string, cannot carry) and deep nesting are not pinned either: whatever a shell
 makes of them, the signature must still verify over the same payload bytes, so nothing is gained
-by them. A shell must not crash on them, though: it parses without recursion or refuses nesting
+by them. Both shells refuse JSON nested more than 32 deep, in the envelope and the payload alike;
+the release scripts set no bound, so keep a future payload field far from it. A shell must not crash on them, though: it parses without recursion or refuses nesting
 past a bound with `ENVELOPE`. Only whoever can already write `mobile.json` can send them.
 
 ### Running and changing them
 
 - **Run them** with `npm test` in `apps/mobile`. `ota-fixtures.test.mjs` also fails when
   the committed outcomes, the payload of each manifest or what each bundle decodes to differ from
-  what the generator writes (its keys, signatures and compressed bytes change on every run). The
-  shells' unit tests are to read the same files once their updater exists: iOS from a SwiftPM
-  package through `swift test`, Android as JVM tests with `apps/mobile/ota/fixtures` as a
-  resource directory (the Conscrypt uber jar, 2.5.2, ships natives for linux-x86_64 and
-  osx-x86_64, none for Apple Silicon).
+  what the generator writes (its keys, signatures and compressed bytes change on every run).
+- **The shells read the same files.** iOS: `swift test` in `apps/mobile/ios/OtaCore`. Android:
+  `./gradlew testProdDebugUnitTest` in `apps/mobile/android` (JVM), and on a device or emulator
+  `./gradlew connectedProdDebugAndroidTest`, which runs every case again under the device's own
+  security provider and XZ for Java on ART. Both shells check the signature's DER form themselves
+  before the platform verifier sees it, so the outcome does not depend on the provider.
 - **To change a case**, edit `scripts/ota-fixtures.mjs` (manifest and bundle cases) or the two
   hand-written files, run `npm run ota:fixtures` in `apps/mobile`, and commit everything it
   writes, in the same PR as the change to the scripts and both shells. The generator states each
@@ -260,7 +409,8 @@ enter a repository: `ota-keygen.mjs` refuses a path inside any git work tree, an
    `apps/mobile/ota/keys.json`.
 
 **Rotation:** set the secret from the `next` private key (from the password manager), move the
-`next` public key to `current` in `keys.json` (leaving no `next`), then create a new one with
+`next` public key to `current` in `keys.json` (leaving no `next`), then, in the same commit (an
+Android build needs both slots), create a new one with
 `node apps/mobile/scripts/ota-keygen.mjs next ~/ota-next.pem` and store it as in step 3. The
 phones already trust the old `next` key, so the switch needs no store release; the new `next`
 key reaches them with the next store build.

@@ -22,7 +22,13 @@ lockfile without its `libc` fields.
 
 - `scripts/build-web.sh` in each shell builds `apps/web`'s static export
   (`OPENFRAME_BUILD_TARGET=export`) and stages it into the shell's `www/`, so a shell and its
-  bundle are always one commit.
+  **built-in** bundle are always one commit.
+- **A phone also runs bundles its shell was not built with.** The mobile shells take the release
+  their environment runs over the air (`NativeUpdate`, `apps/mobile/docs/ota.md`): a signed
+  bundle runs on any installed shell whose `BRIDGE_LEVEL` meets the bundle's
+  `REQUIRED_BRIDGE_LEVEL` (`apps/web/src/lib/native-shell.ts`). So a web change reaches shells
+  already in the field, and what may ship that way is limited (`apps/web/CLAUDE.md`, "Over-the-air
+  bundles").
 - **Release** is one `.github/workflows/release.yml` (version from `version.yml`): a dispatch
   publishes one `x.y.z` release, the web image plus the desktop installers and `updater.json`, and
   the mobile over-the-air bundle (`openframe-mobile-<x.y.z>.tar.xz` + signed `mobile.json`,
@@ -36,6 +42,9 @@ lockfile without its `libc` fields.
   pushes the PR image.
 - A bridge name change (Tauri command/event, Capacitor plugin method) touches
   `apps/web/src/lib/native-shell.ts` and the shell implementation in the same PR.
+  On mobile a bridge change is an **addition**, probed by the bundle (`plugin.foo?.()`): bundles
+  older and newer than the shell both run on it. The same PR bumps the shells' `BRIDGE_LEVEL`;
+  `REQUIRED_BRIDGE_LEVEL` rises only when a bundle stops working without the addition.
   A new Tauri command also goes in `src-tauri/build.rs` and, if the page calls it,
   `src-tauri/capabilities/main.json`; without both it is refused at runtime.
 
