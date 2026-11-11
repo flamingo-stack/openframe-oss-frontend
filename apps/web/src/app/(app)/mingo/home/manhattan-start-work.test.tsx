@@ -1,6 +1,6 @@
 /**
  * Start Work, Mingo's home in the Manhattan v2 shell (plan D16): the greeting, "What to ask
- * Mingo?", the onboarding banner and "Needs you"; `live` off, no reads and "Needs you" loading.
+ * Mingo?" and "Needs you", no onboarding banner; `live` off, no reads and "Needs you" loading.
  * Also: `/mingo` draws it only in v2, and `/dashboard` leads to it there (plan D15).
  */
 
@@ -55,16 +55,16 @@ afterEach(() => {
 });
 
 describe('ManhattanStartWork', () => {
-  it('greets, leads to "What to ask Mingo?", then the banner and "Needs you"', () => {
+  it('greets, leads to "What to ask Mingo?", then "Needs you", without the onboarding banner', () => {
     act(() => root.render(<ManhattanStartWork />));
     expect(container.querySelector('h1')?.textContent).toBe('Morning, Ann');
     const link = [...container.querySelectorAll('a')].find(a => a.textContent === 'What to ask Mingo?');
     expect(link?.getAttribute('href')).toBe(routes.mingo.whatToAsk);
-    expect(container.textContent).toContain('intro banner');
+    expect(container.textContent).not.toContain('intro banner');
     expect(container.textContent).toContain('needs you live');
   });
 
-  it('reads nothing while held: no banner, "Needs you" loading', () => {
+  it('reads nothing while held: "Needs you" loading', () => {
     act(() => root.render(<ManhattanStartWork live={false} />));
     expect(container.textContent).not.toContain('intro banner');
     expect(container.textContent).toContain('needs you loading');
