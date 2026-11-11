@@ -19,7 +19,7 @@ import { closeMobileMenu } from '@/app/components/mingo-shell/mobile-menu-store'
 import { useSubscriptionOpen } from '@/app/components/subscription-lock/subscription-guard';
 
 /**
- * The Manhattan v2 shell's left sidebar (flag `manhattan-v2`, Figma "mingo (Manhattan)"
+ * The Manhattan v2 shell's left sidebar (Figma "mingo (Manhattan)"
  * 1408:292998 / 1408:293116): "New Chat" over the chats, the user row at the foot.
  * Built from the Mingo-first shell's own pieces — the launcher's new chat, the chat
  * history section, the account popover, the time tracker and the bell — so every one

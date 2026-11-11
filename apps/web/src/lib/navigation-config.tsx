@@ -488,7 +488,7 @@ export const getGroupedNavigationItems = (
 };
 
 // --------------------------------------------------------------------------
-// Sectioned — the Manhattan v2 shell's right navigation (flag `manhattan-v2`)
+// Sectioned — the Manhattan v2 shell's right navigation
 // --------------------------------------------------------------------------
 
 /**

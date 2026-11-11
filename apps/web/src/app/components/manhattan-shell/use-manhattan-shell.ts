@@ -1,17 +1,6 @@
 'use client';
 
 import { useCallback, useSyncExternalStore } from 'react';
-import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
-
-/**
- * Whether this session draws the Manhattan v2 shell (flag `manhattan-v2`, SaaS
- * tenants only). Only an answered "on" switches it: while the flags load, and with
- * the flag off or absent, the Mingo-first shell renders exactly as before.
- */
-export function useManhattanShell(mingoShell: boolean): boolean {
-  const gate = useFeatureFlagGate('manhattan-v2');
-  return mingoShell && gate === 'on';
-}
 
 /** The chats sidebar's expanded width (Figma 280); the user's dragged width wins (`SIDEBAR_RESIZE`). */
 export const MANHATTAN_CHATS_EXPANDED_WIDTH = 280;

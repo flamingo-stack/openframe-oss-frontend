@@ -48,7 +48,6 @@ import {
   APP_MAIN_CLASS_NAME,
   headerLoadingCells,
   holdsDashboard,
-  holdsForShell,
   isBareChromeRoute,
   mingoHeaderLoadingCells,
 } from './app-shell-chrome';
@@ -71,7 +70,6 @@ import {
   MANHATTAN_NAVIGATION_EXPANDED_WIDTH,
   MANHATTAN_NAVIGATION_FOLDS_KEY,
   useManhattanNavCollapsed,
-  useManhattanShell,
 } from './manhattan-shell/use-manhattan-shell';
 import { useManhattanSqueeze } from './manhattan-shell/use-manhattan-squeeze';
 import { useHistorySearchStore } from './mingo-shell/history-search-store';
@@ -168,10 +166,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // dashboard shell. App mode is known before the first paint, so the chrome never
   // waits for it.
   const mingoShell = isSaasTenantMode();
-  // Manhattan v2 (flag `manhattan-v2`): the chats on the left, the navigation on the right.
-  // Only an answered "on" switches it; otherwise the Mingo-first shell is drawn as before.
-  const manhattan = useManhattanShell(mingoShell);
-  const manhattanGate = useFeatureFlagGate('manhattan-v2');
+  // A SaaS tenant's shell is Manhattan v2: the chats on the left, the chat and the page
+  // side by side in the middle, the navigation on the right.
+  const manhattan = mingoShell;
 
   // The shell now mounts BEFORE the session resolves (see `AppLayoutInner`), so it
   // owns two things it used to get for free from being rendered only afterwards:
@@ -290,10 +287,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     holdsDashboard(pathname, onboardingV2, setupPending, showLockContent),
     CHROME_LOADING_FAIL_OPEN_MS,
   );
-  // A landing page whose content depends on which shell this is (Manhattan v2 or the
-  // Mingo-first one) waits for the `manhattan-v2` answer, so it never shows a frame of the
-  // other shell's page. Bounded like the chrome's own wait.
-  const shellHeld = useFailOpen(holdsForShell(pathname, mingoShell, manhattanGate), CHROME_LOADING_FAIL_OPEN_MS);
   // Every flag this shell's CHROME depends on, read reactively in one place:
   // the sidebar memo below and the header props both consume these, and a
   // `featureFlags.*` snapshot taken before the flags query answers would leave
@@ -609,6 +602,8 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             collapsed: sidebarCollapsed,
             onCollapsedChange: setSidebarCollapsed,
             overlay: squeeze.compact ? 'drawer' : undefined,
+            // No tablet rail between md and lg: v2's sidebars close only with their button.
+            desktopFromMd: true,
             revealSignal: revealSignal + chatsReveal,
             dismissSignal: chatsDismiss,
             className: 'h-full',
@@ -652,6 +647,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             collapsed: navCollapsed,
             onCollapsedChange: setNavCollapsed,
             overlay: squeeze.compact ? 'drawer' : undefined,
+            desktopFromMd: true,
             revealSignal: navReveal,
             className: 'h-full',
           }
@@ -864,7 +860,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     <Suspense fallback={null /* loading-standard-ok(SUSPENSE_FALLBACK): a backstop under the pages' own boundaries */}>
       {showLockContent ? (
         <SubscriptionLockContent />
-      ) : shellHeld ? null /* which page this is depends on the shell: unknown until manhattan-v2 answers */ : dashboardHeld ? (
+      ) : dashboardHeld ? (
         composerRouteOf(pathname) === 'home' ? (
           // A new chat: its greeting, nothing that loads.
           manhattan ? (
@@ -1013,8 +1009,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
                         : mingoShell && dockViewOf(composerRouteOf(pathname)).floats
                     }
                     // Manhattan v2: the chat column beside the page, the page column's header.
-                    // `null` on the Mingo-first shell: the same element tree as v2's, so the page does
-                    // not remount when the `manhattan-v2` flag answers on.
                     chatColumn={mingoShell ? (centre?.chatColumn ?? null) : undefined}
                     workAreaMode={centre?.mode}
                     workAreaStorageKey={centre ? MANHATTAN_WORK_AREA_STORAGE_KEY : undefined}

@@ -74,21 +74,6 @@ export function isLandingRoute(pathname: string | null): boolean {
 }
 
 /**
- * Whether a landing page (the dashboard, Mingo's home) waits for the shell itself: on a
- * SaaS tenant its content is the Manhattan v2 shell's or the Mingo-first one's, and which is
- * known only once the `manhattan-v2` flag answers. Until then the page would draw the
- * Mingo-first content and swap it for v2's a moment later; it draws nothing instead, under
- * the chrome's own loading form. Every other page is the same page in both shells.
- */
-export function holdsForShell(
-  pathname: string | null,
-  mingoShell: boolean,
-  manhattanV2: 'loading' | 'on' | 'off',
-): boolean {
-  return mingoShell && manhattanV2 === 'loading' && isLandingRoute(pathname);
-}
-
-/**
  * Whether the landing page (the dashboard, or Mingo's home) must stay on its
  * skeleton for now: under onboarding v2 it is where a login lands, and whether this session belongs there
  * or on `/setup` is known only once the flag and the onboarding progress have

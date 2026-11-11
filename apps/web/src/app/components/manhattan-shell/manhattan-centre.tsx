@@ -40,11 +40,10 @@ export const MANHATTAN_WORK_AREA_STORAGE_KEY = 'of.manhattan.workArea';
 export const MANHATTAN_WORK_AREA_SQUEEZE_FLOOR = 0.3;
 
 /**
- * The Manhattan v2 centre (flag `manhattan-v2`): the chat column and the page column of
+ * The Manhattan v2 centre: the chat column and the page column of
  * `AppLayout`'s work area, which shows when (plan D5, table T), and their headers (matrix H).
  * Mounted unconditionally around the layout inside `MingoChatProvider` (it reads the open
- * chat) and told whether it is on through `enabled`; off, it hands `null` and the
- * Mingo-first shell renders exactly as before.
+ * chat) and told whether it is on through `enabled` (a SaaS tenant); off, it hands `null`.
  */
 export function ManhattanCentre({
   enabled,

@@ -100,11 +100,6 @@ export const FEATURE_FLAG_NAMES = [
   // report their customer, so the control stays hidden until the agents do. On
   // for dev / qa, absent elsewhere, which reads as off.
   'device-logs-customer-filter',
-  // Project Manhattan v2 (CU-17tkuw64j9g), SaaS tenants only: the three-column shell —
-  // chats on the left, the chat and the page side by side in the middle, the navigation
-  // on the right. Off = today's Mingo-first shell, unchanged. On for dev (and qa through
-  // the release copy), absent elsewhere, which reads as off.
-  'manhattan-v2',
 ] as const;
 
 export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[number];

@@ -1,15 +1,13 @@
 /**
- * The Manhattan v2 shell's switch (flag `manhattan-v2`) and its left sidebar's user row:
- * only an answered "on" draws v2; the footer keeps the account, the one time tracker, the
- * bell and adds the collapse button, laid out as a row expanded and a column in the rail.
+ * The Manhattan v2 shell's left sidebar user row: the footer keeps the account, the one
+ * time tracker, the bell and adds the collapse button, laid out as a row expanded and a
+ * column in the rail.
  */
 
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 import { ManhattanChatsFooter } from './manhattan-chats-sidebar';
-import { useManhattanShell } from './use-manhattan-shell';
 
 const { seen } = vi.hoisted(() => ({
   seen: { tracker: 0, bell: 0, account: [] as Array<Record<string, unknown>> },
@@ -56,25 +54,6 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
-  useFeatureFlagsStore.setState({ flags: {}, isLoaded: false });
-});
-
-function Probe({ mingoShell }: { mingoShell: boolean }) {
-  return <p>{useManhattanShell(mingoShell) ? 'v2' : 'v1'}</p>;
-}
-
-describe('useManhattanShell', () => {
-  it.each([
-    ['flags loading', { flags: {}, isLoaded: false }, true, 'v1'],
-    ['flag absent', { flags: {}, isLoaded: true }, true, 'v1'],
-    ['flag off', { flags: { 'manhattan-v2': false }, isLoaded: true }, true, 'v1'],
-    ['flag on, OSS tenant', { flags: { 'manhattan-v2': true }, isLoaded: true }, false, 'v1'],
-    ['flag on, SaaS tenant', { flags: { 'manhattan-v2': true }, isLoaded: true }, true, 'v2'],
-  ])('%s → %s', (_name, state, mingoShell, expected) => {
-    useFeatureFlagsStore.setState(state);
-    act(() => root.render(<Probe mingoShell={mingoShell} />));
-    expect(container.textContent).toBe(expected);
-  });
 });
 
 describe('ManhattanChatsFooter', () => {

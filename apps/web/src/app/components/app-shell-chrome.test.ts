@@ -3,7 +3,6 @@ import {
   APP_MAIN_CLASS_NAME,
   getMainClassNameOverride,
   holdsDashboard,
-  holdsForShell,
   isBareChromeRoute,
   isLandingRoute,
   mingoHeaderLoadingCells,
@@ -77,20 +76,5 @@ describe('holdsDashboard', () => {
     expect(holdsDashboard('/devices', 'on', 'unknown', false)).toBe(false);
     expect(holdsDashboard('/mingo/chat', 'on', 'setup', false)).toBe(false);
     expect(holdsDashboard(null, 'on', 'setup', false)).toBe(false);
-  });
-});
-
-describe('holdsForShell', () => {
-  it("holds a SaaS landing page until the manhattan-v2 flag answers: its content is that shell's", () => {
-    expect(holdsForShell('/mingo/', true, 'loading')).toBe(true);
-    expect(holdsForShell('/dashboard', true, 'loading')).toBe(true);
-    expect(holdsForShell('/mingo/', true, 'on')).toBe(false);
-    expect(holdsForShell('/dashboard', true, 'off')).toBe(false);
-  });
-
-  it('holds no other page (the same in both shells), and nothing on an OSS tenant', () => {
-    expect(holdsForShell('/devices/', true, 'loading')).toBe(false);
-    expect(holdsForShell('/mingo/chat/', true, 'loading')).toBe(false);
-    expect(holdsForShell('/dashboard', false, 'loading')).toBe(false);
   });
 });
