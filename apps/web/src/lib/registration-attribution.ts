@@ -299,6 +299,11 @@ export function storeDownloadId(id: string): void {
   if (DOWNLOAD_ID_PATTERN.test(normalized)) writeStored(DOWNLOAD_ID_STORAGE_PARAM, normalized);
 }
 
+/** Whether a download id is kept for the signup (one that has not expired). */
+export function hasStoredDownloadId(): boolean {
+  return readStored(DOWNLOAD_ID_STORAGE_PARAM) !== undefined;
+}
+
 /** RFC4122 id, falling back to a random string where `crypto.randomUUID` is unavailable. */
 function generateEventId(): string {
   try {

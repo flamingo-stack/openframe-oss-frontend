@@ -6,6 +6,12 @@
 //! an account made in the app, which no browser cookie reaches. The link carries
 //! an id and nothing else: it brings the app up and drives nothing in it.
 //!
+//! The same link comes back from the gateway's download hand-off, which the page
+//! opens in the default browser once, on an install nobody has signed in on
+//! (`desktop-download-handoff.ts` in the frontend): the gateway reads the id from
+//! that browser's cookie and redirects here. Nothing on this side tells the two
+//! apart.
+//!
 //! The webview keeps the id until signup (in its localStorage), so the shell only
 //! holds the latest one until the page takes it: on load, for a link that
 //! started the app, and on [`EVENT_RECEIVED`] for one that arrives while it
