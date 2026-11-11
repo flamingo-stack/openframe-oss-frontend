@@ -52,7 +52,7 @@ import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { type ReactNode, useLayoutEffect, useState } from 'react';
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useMingoContextMemory } from '@/app/(app)/mingo/context/use-context-memory';
 import {
   type MingoChat,
@@ -64,7 +64,7 @@ import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { isMobileShell } from '@/lib/platform';
 import { isMingoWhatToAsk, routes } from '@/lib/routes';
 import { ResetInitialSetupDialog, useDevOnboardingMenuItems } from '../dev-onboarding-shortcuts';
-import { shownChatViewOf, useManhattanCentreStore, workAreaModeOf } from '../manhattan-shell/manhattan-centre-store';
+import { effectiveModeOf, useManhattanCentreStore, workAreaModeOf } from '../manhattan-shell/manhattan-centre-store';
 import { manhattanHeaderActions } from '../manhattan-shell/manhattan-chat-header-actions';
 import { useManhattanDock } from '../manhattan-shell/manhattan-dock-context';
 import { ResetOnboardingDialog, useCanResetOnboarding } from '../reset-onboarding-dialog';
@@ -243,8 +243,18 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   const compact = useManhattanCentreStore(s => s.compact);
   // Below md: the page alone (the chat takes its own page there).
   const mdDown = useMdUp() === false;
-  const columnMode = workAreaModeOf(route, (chat.state.activeDialogId ?? null) !== null, chatView, compact, mdDown);
-  const showColumn = () => setChatView(shownChatViewOf(route));
+  const shownMode = useManhattanCentreStore(s => s.shownMode);
+  const whatToAskInColumn = useManhattanCentreStore(s => s.whatToAskInColumn);
+  const setWhatToAskInColumn = useManhattanCentreStore(s => s.setWhatToAskInColumn);
+  // As the centre decides it (`ManhattanCentre`): the open chat, its first send on the way, or
+  // the "What to ask Mingo?" answer; none, and the column is Start Work.
+  const hasConversation =
+    (chat.state.activeDialogId ?? null) !== null || whatToAskInColumn || chat.state.messages.length > 0;
+  const columnMode = effectiveModeOf(workAreaModeOf(route, hasConversation, chatView, compact, mdDown), shownMode);
+  // Start Work in the chat column beside a page: the chat draws no header or thread there, the
+  // composer under it starts a new chat, with Mingo's quick actions over it as on Mingo's home.
+  const startWorkColumn = manhattan && columnMode !== 'page' && isSheetRoute(route) && !hasConversation;
+  const showColumn = () => setChatView('split');
   const hideColumn = () => setChatView('hidden');
   // The chat over the page (`MingoComposerSheet`): over plain pages, and over home for
   // a chat collapsed back from its page (`canShowSheet`). In v2: the chat column on screen.
@@ -329,6 +339,19 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
     navigate,
   });
 
+  // Start Work's "What to ask Mingo?" in the column: the answer opens in a new chat there, once
+  // per request (`whatToAskInColumn` stays up until a pick sends or the column lets it go).
+  const whatToAskShownRef = useRef(false);
+  useEffect(() => {
+    if (!whatToAskInColumn) {
+      whatToAskShownRef.current = false;
+      return;
+    }
+    if (!manhattan || !handle || whatToAskShownRef.current) return;
+    whatToAskShownRef.current = true;
+    handle.showWhatToAsk();
+  }, [whatToAskInColumn, manhattan, handle]);
+
   const chatProps = useOpenframeChatProps({
     chat,
     copyDialogLink,
@@ -364,9 +387,17 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
       },
       fullScreen: () => setChatView('full'),
       restoreSplit: showColumn,
+      // Beside a page the chat goes and the page stays alone, the composer under it starting a
+      // new chat ("Show the chat beside the page" brings the column back). In one column the
+      // page is what is left already.
       closeChat: () => {
-        if (route === 'chat') navigate(routes.mingo.home);
-        else handle?.startNewChat();
+        if (route === 'chat') {
+          navigate(routes.mingo.home);
+          return;
+        }
+        handle?.startNewChat();
+        setWhatToAskInColumn(false);
+        if (!compact) setChatView('hidden');
       },
     });
   } else if (sheetOpen) {
@@ -462,10 +493,11 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
 
   return (
     <>
-      {/* Mingo's quick actions over the composer on Mingo's home only. A click sends the action at
+      {/* Mingo's quick actions over the composer on Mingo's home (and Start Work in the v2 chat
+          column) only. A click sends the action at
           once, in a new chat (the dock's own send, which then opens it). Not under the sheet: the
           composer then replies to the chat in it. */}
-      {showsDockQuickActions(route) && !sheetOpen && (
+      {((showsDockQuickActions(route) && !sheetOpen) || startWorkColumn) && (
         <MingoDockQuickActions onSend={text => void target.sendInNewDialog(text)} />
       )}
       {/* The chat module loads lazily and draws nothing until it has. */}
@@ -494,7 +526,7 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
           route === 'chat'
             ? chatPageNode
             : manhattan
-              ? route === 'home'
+              ? route === 'home' || startWorkColumn
                 ? null
                 : sheetNode
               : sheetOpen
@@ -527,11 +559,13 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
         modelTooltip="Change in Settings → AI Settings"
         // Over the page the thread is the chat's: its prompt; behind it, "continue or ask anew".
         composerPlaceholder={
-          sheetOpen
-            ? dockViewOf('chat').placeholder
-            : continuing
-              ? 'Reply, or ask something else about this page…'
-              : view.placeholder
+          startWorkColumn
+            ? dockViewOf('home').placeholder
+            : sheetOpen
+              ? dockViewOf('chat').placeholder
+              : continuing
+                ? 'Reply, or ask something else about this page…'
+                : view.placeholder
         }
         // One bottom inset: in the phone shell the layout root already pads it (and the
         // keyboard's, `.app-shell-root` in globals.css), so the composer must not add it

@@ -936,7 +936,12 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           <MingoChatProvider enabled={chatMounted} identityEnabled={chatIdentityEnabled}>
             {/* Manhattan v2's centre (chat column, page header, the dock's two places).
                 Mounted always, told through `enabled`: see the providers' rule above. */}
-            <ManhattanCentre enabled={manhattan && !bareChrome} compact={squeeze.compact}>
+            <ManhattanCentre
+              enabled={manhattan && !bareChrome}
+              compact={squeeze.compact}
+              chatEnabled={chatEnabled}
+              startWorkLive={!dashboardHeld}
+            >
               {centre =>
                 bareChrome ? (
                   <BareAppShell>{pageContent}</BareAppShell>
@@ -1011,6 +1016,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
                     // Manhattan v2: the chat column beside the page, the page column's header.
                     chatColumn={mingoShell ? (centre?.chatColumn ?? null) : undefined}
                     workAreaMode={centre?.mode}
+                    onWorkAreaShownModeChange={centre?.onShownModeChange}
                     workAreaStorageKey={centre ? MANHATTAN_WORK_AREA_STORAGE_KEY : undefined}
                     // Past the other column's min width the divider squeezes it (down to 30% of it), its
                     // content scrolled sideways, so the column being widened keeps growing.

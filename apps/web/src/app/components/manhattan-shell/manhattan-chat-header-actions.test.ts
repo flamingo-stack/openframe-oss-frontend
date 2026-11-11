@@ -25,9 +25,10 @@ describe('manhattanHeaderActions', () => {
     expect(labels({})).toEqual(['Full screen', 'Close chat']);
   });
 
-  it('over a page: side by side, close; over a full-height page: close only', () => {
+  it('over a page, a full-height one too: side by side, close; in one column: close only', () => {
     expect(labels({ columnMode: 'chat' })).toEqual(['Show side by side', 'Close chat']);
-    expect(labels({ columnMode: 'chat', route: 'full-width' })).toEqual(['Close chat']);
+    expect(labels({ columnMode: 'chat', route: 'full-width' })).toEqual(['Show side by side', 'Close chat']);
+    expect(labels({ columnMode: 'chat', compact: true })).toEqual(['Close chat']);
   });
 
   it("on the chat's page: side by side only with a page to go back to", () => {
