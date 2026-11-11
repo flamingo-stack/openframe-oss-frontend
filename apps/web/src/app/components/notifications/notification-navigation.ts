@@ -1,5 +1,7 @@
 import type { Notification } from '@flamingo-stack/openframe-frontend-core';
 import {
+  DIRECTORY_CUSTOMER_DEACTIVATED_TYPE,
+  DIRECTORY_RULE_VALUE_REMOVED_TYPE,
   INCIDENT_DETECTED_TYPE,
   isApprovalNotificationType,
   isIncidentNotificationType,
@@ -8,11 +10,14 @@ import {
   NEW_PERMISSIONS_REQUIRED_TYPE,
   NOTIFICATION_ATTR,
   RECORDING_NOTIFICATION_TYPES,
+  readConnectionIds,
   readNotificationAttributes,
 } from '@/graphql/notifications/notification-attributes';
+import { featureFlags } from '@/lib/feature-flags';
 import { ensureGlobalIdForType } from '@/lib/relay-id';
 import { mingoDialogLink, routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
+import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 
 // Backend notification `type` discriminators (`TenantNotificationType`). GraphQL rows and NATS
 // payloads carry the same string, so it is the single source of truth for routing.
@@ -119,6 +124,11 @@ const deviceRemoteSessionsAction = (deviceId: string): NotificationAction => ({
   label: 'Remote Sessions',
   route: routes.devices.details(deviceId, { tab: 'remote-sessions' }),
 });
+const TENANT_LIST_ACTION: NotificationAction = { label: 'Cloud Tenants', route: routes.cloudTenantManagement.list };
+const tenantAction = (connectionId: string): NotificationAction => ({
+  label: 'Tenant Details',
+  route: routes.cloudTenantManagement.details(connectionId),
+});
 
 /** Action for a Mingo dialog: the canonical chat link, plus the dialog id. */
 const mingoDialogAction = (dialogId: string): NotificationAction => ({
@@ -183,13 +193,30 @@ export const NOTIFICATION_ACTION_FIELDS = [
   'recordingId',
   'deviceId',
   'link',
+  'connectionId',
 ] as const;
 
-type NotificationFacts = Record<(typeof NOTIFICATION_ACTION_FIELDS)[number], string | null>;
+type NotificationFacts = Record<(typeof NOTIFICATION_ACTION_FIELDS)[number], string | null> & {
+  /**
+   * A deactivated customer's tenants, a JSON list read by `readConnectionIds`. Not in the list above: it has no fixed
+   * size, and a Windows toast past its size cap is dropped, so no shell carries it. Without it the click opens the
+   * tenant list, as a push that dropped it does.
+   */
+  connections: string | null;
+};
+
+/**
+ * The two attribution notices are Tenant Management Phase 2's: with it off they take the unknown-type routing, as on
+ * main. Only an answered "off" counts as off: a cold desktop or push tap resolves once, before the flags answer, and an
+ * environment running phase 2 off never sends them.
+ */
+function routesDirectoryNotices(): boolean {
+  return !useFeatureFlagsStore.getState().isLoaded || featureFlags.tenantManagementV2.enabled();
+}
 
 function resolveAction(
   type: string | null,
-  { ticketId, dialogId, insightId, recordingId, deviceId, link }: NotificationFacts,
+  { ticketId, dialogId, insightId, recordingId, deviceId, link, connectionId, connections }: NotificationFacts,
   category: string | null,
 ): NotificationAction | null {
   // Approval requests live in their ticket when one exists, otherwise the mingo dialog.
@@ -216,7 +243,19 @@ function resolveAction(
 
   // Names no entity: the tenant list is where each connection re-authorizes.
   if (type === NEW_PERMISSIONS_REQUIRED_TYPE) {
-    return { label: 'Cloud Tenants', route: routes.cloudTenantManagement.list };
+    return TENANT_LIST_ACTION;
+  }
+
+  // The deleted group or org unit was a rule of one tenant's: its page shows the rule and is where it is replaced.
+  if (type === DIRECTORY_RULE_VALUE_REMOVED_TYPE && routesDirectoryNotices()) {
+    return connectionId ? tenantAction(connectionId) : TENANT_LIST_ACTION;
+  }
+
+  // The customer's rules matched users on these tenants: one opens its page, several (or a push that dropped the
+  // list) the tenant list.
+  if (type === DIRECTORY_CUSTOMER_DEACTIVATED_TYPE && routesDirectoryNotices()) {
+    const [only, ...others] = readConnectionIds(connections);
+    return only && others.length === 0 ? tenantAction(only) : TENANT_LIST_ACTION;
   }
 
   // The limit is raised (or the pause read) where the arrangement is shown.
@@ -280,6 +319,8 @@ export function resolveNotificationAction(notification: Notification): Notificat
       recordingId: nonEmptyString(meta.recordingId),
       deviceId: nonEmptyString(meta.deviceId),
       link: nonEmptyString(meta.link),
+      connectionId: nonEmptyString(meta.connectionId),
+      connections: nonEmptyString(meta.connections),
     },
     nonEmptyString(notification.category),
   );
@@ -314,6 +355,8 @@ function actionFromWireFields(fields: Record<string, unknown>): NotificationActi
       recordingId: fact('recordingId'),
       deviceId: fact('deviceId'),
       link: fact('link'),
+      connectionId: fact('connectionId'),
+      connections: fact('connections'),
     },
     nonEmptyString(fields.category),
   );

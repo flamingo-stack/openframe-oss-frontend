@@ -8,7 +8,7 @@ import { LoadingLine } from '@/app/components/shared/loading-line';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatWholeCurrency } from '@/lib/format-currency';
 import { formatCompactCount } from '@/lib/format-number';
-import { type AiTopUp, CUSTOM_TOP_UP, TOP_UP_PRESETS_USD } from './use-ai-top-up';
+import { type AiTopUp, CUSTOM_TOP_UP, NO_TOP_UP } from './use-ai-top-up';
 
 /**
  * What the balance is. Stated wherever it is topped up — the billing page's
@@ -40,8 +40,8 @@ interface AiTopUpFieldsProps {
 }
 
 /**
- * The top-up amount, as controls: three presets, a custom choice, and the field
- * behind it.
+ * The top-up amount, as controls: "Don't top up" where the surface allows it,
+ * the presets, a custom choice, and the field behind it.
  *
  * Shared because the billing page's Manage AI Balance modal and the paywall's
  * AI Token Balance card ask the exact same question of the same catalog rate.
@@ -58,7 +58,16 @@ export function AiTopUpFields({ topUp, label, disabled = false, loading: loading
       <div className="flex flex-col gap-[var(--spacing-system-xsf)]">
         <p className="text-ods-text-secondary text-h5">{label}</p>
         <div className="grid grid-cols-1 gap-[var(--spacing-system-xsf)] content-sm:grid-cols-2">
-          {TOP_UP_PRESETS_USD.map(usd => {
+          {topUp.allowNone && (
+            <TopUpTile
+              selected={topUp.selection === NO_TOP_UP}
+              disabled={disabled}
+              title="Don't top up"
+              subtitle="Manage your balance later"
+              onSelect={topUp.selectNone}
+            />
+          )}
+          {topUp.presets.map(usd => {
             const tokens = topUp.tokensForUsd(usd);
             return (
               <TopUpTile

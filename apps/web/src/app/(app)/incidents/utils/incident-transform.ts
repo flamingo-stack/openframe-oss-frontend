@@ -14,9 +14,9 @@ import { insightFieldsFragment } from '@/graphql/insights/insight-fields';
 import { insightRowFieldsFragment } from '@/graphql/insights/insight-row-fields';
 import { insightTransitionsFragment } from '@/graphql/insights/insight-transitions';
 import { toUserSummary } from '@/graphql/users/user-summary-fields';
+import { knownValues } from '@/lib/exhaustive-map';
 import { getFullImageUrl } from '@/lib/image-url';
 import { rawIdOf } from '@/lib/relay-id';
-import { enumMembers } from './incident-labels';
 
 /**
  * A row of the Incidents table. The enum fields keep the artifact's own union
@@ -137,7 +137,7 @@ export function toTransitionTable(ref: insightTransitions_query$key): IncidentTr
   const data = readInlineData(insightTransitionsFragment, ref);
   const table: Record<string, readonly InsightStatus[]> = {};
   for (const entry of data.insightStatusTransitions) {
-    table[entry.from] = enumMembers(entry.to, InsightStatus);
+    table[entry.from] = knownValues(InsightStatus, entry.to);
   }
   return table;
 }

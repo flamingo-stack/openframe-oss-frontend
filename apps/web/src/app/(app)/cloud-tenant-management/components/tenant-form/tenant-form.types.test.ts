@@ -10,7 +10,6 @@ const valid = {
   provider: DirectoryProvider.MICROSOFT_365,
   domain: 'flamingo.cx',
   name: 'Flamingo Team',
-  organizationId: 'org-1',
 };
 
 describe('tenantFormSchema', () => {
@@ -38,17 +37,16 @@ describe('tenantFormSchema', () => {
     }
   });
 
-  it('requires provider, name and customer, and rejects a whitespace-only name', () => {
+  it('requires provider and name, and rejects a whitespace-only name', () => {
     expect(tenantFormSchema.safeParse({ ...valid, provider: 'OKTA' }).success).toBe(false);
     expect(tenantFormSchema.safeParse({ ...valid, name: '   ' }).success).toBe(false);
-    expect(tenantFormSchema.safeParse({ ...valid, organizationId: '' }).success).toBe(false);
   });
 
-  it('reports exactly the three empty required fields on the pristine defaults', () => {
+  it('reports exactly the two empty required fields on the pristine defaults', () => {
     const result = tenantFormSchema.safeParse(TENANT_FORM_DEFAULT_VALUES);
     if (result.success) throw new Error('pristine defaults must not validate');
     const paths = [...new Set(result.error.issues.map(issue => issue.path.join('.')))].sort();
-    expect(paths).toEqual(['domain', 'name', 'organizationId']);
+    expect(paths).toEqual(['domain', 'name']);
   });
 });
 
@@ -59,8 +57,8 @@ describe('editTenantFormSchema', () => {
   });
 
   it('still requires what Edit does send', () => {
-    const result = editTenantFormSchema.safeParse({ ...valid, name: ' ', organizationId: '' });
-    if (result.success) throw new Error('an empty name and customer must not validate');
-    expect(result.error.issues.map(issue => issue.path.join('.')).sort()).toEqual(['name', 'organizationId']);
+    const result = editTenantFormSchema.safeParse({ ...valid, name: ' ' });
+    if (result.success) throw new Error('an empty name must not validate');
+    expect(result.error.issues.map(issue => issue.path.join('.'))).toEqual(['name']);
   });
 });

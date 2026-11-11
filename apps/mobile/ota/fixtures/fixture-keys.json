@@ -1,0 +1,16 @@
+{
+  "keys": {
+    "a": {
+      "keyId": "ead01fd78987a556",
+      "publicKey": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEf0coQRpYnlGVE/GxybVCcY8a6XRx\nMRnaIZQaZmySTAFSIvmVWWHpqM1jwRVX6Lo0pMZAJmM4H+RY1XHPgV8x0g==\n-----END PUBLIC KEY-----\n"
+    },
+    "b": {
+      "keyId": "be5c8fdea02585a3",
+      "publicKey": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE5FVUlV/R6g4gVyTzguwvSMAlR7XX\nyyT/46MiJD/7DV+IjXPGtDeO2qn5NrFgsPhAbprG75fC27fllJ8EJ4y+7A==\n-----END PUBLIC KEY-----\n"
+    },
+    "c": {
+      "keyId": "c70f8ec9354d8807",
+      "publicKey": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEK5quZHpb3hWkCcXBDXapaeOE/8+d\nv0KQtQz8GkydhTOx3OL3ilx8/RYzY89VeWkFSX45yS/sc0hv6Tls9i1XbQ==\n-----END PUBLIC KEY-----\n"
+    }
+  }
+}

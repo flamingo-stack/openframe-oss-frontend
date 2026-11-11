@@ -19,6 +19,11 @@
 		A10000000000000000000004 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000003 /* MainViewController.swift */; };
 		A1000000000000000000001A /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000019 /* SceneDelegate.swift */; };
 		A1000000000000000000001C /* ExternalLinksPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001B /* ExternalLinksPlugin.swift */; };
+		A1000000000000000000001E /* NativeUpdatePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001D /* NativeUpdatePlugin.swift */; };
+		A10000000000000000000020 /* NativeUpdate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001F /* NativeUpdate.swift */; };
+		A10000000000000000000022 /* UpdateChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000021 /* UpdateChecker.swift */; };
+		A10000000000000000000024 /* UpdateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000023 /* UpdateStore.swift */; };
+		A10000000000000000000026 /* OtaCore in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000025 /* OtaCore */; };
 		A10000000000000000000008 /* NativeFilesPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000007 /* NativeFilesPlugin.swift */; };
 		A10000000000000000000010 /* TokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000000F /* TokenStore.swift */; };
 		A10000000000000000000012 /* TokenLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000011 /* TokenLifecycle.swift */; };
@@ -44,6 +49,10 @@
 		A10000000000000000000003 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
 		A10000000000000000000019 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		A1000000000000000000001B /* ExternalLinksPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExternalLinksPlugin.swift; sourceTree = "<group>"; };
+		A1000000000000000000001D /* NativeUpdatePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeUpdatePlugin.swift; sourceTree = "<group>"; };
+		A1000000000000000000001F /* NativeUpdate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeUpdate.swift; sourceTree = "<group>"; };
+		A10000000000000000000021 /* UpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateChecker.swift; sourceTree = "<group>"; };
+		A10000000000000000000023 /* UpdateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateStore.swift; sourceTree = "<group>"; };
 		A10000000000000000000007 /* NativeFilesPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeFilesPlugin.swift; sourceTree = "<group>"; };
 		A1000000000000000000000F /* TokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenStore.swift; sourceTree = "<group>"; };
 		A10000000000000000000011 /* TokenLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenLifecycle.swift; sourceTree = "<group>"; };
@@ -60,6 +69,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */,
+				A10000000000000000000026 /* OtaCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -94,6 +104,10 @@
 				A10000000000000000000001 /* NativeAuthPlugin.swift */,
 				A10000000000000000000007 /* NativeFilesPlugin.swift */,
 				A1000000000000000000001B /* ExternalLinksPlugin.swift */,
+				A1000000000000000000001D /* NativeUpdatePlugin.swift */,
+				A1000000000000000000001F /* NativeUpdate.swift */,
+				A10000000000000000000021 /* UpdateChecker.swift */,
+				A10000000000000000000023 /* UpdateStore.swift */,
 				A1000000000000000000000F /* TokenStore.swift */,
 				A10000000000000000000011 /* TokenLifecycle.swift */,
 				A10000000000000000000013 /* NotificationActions.swift */,
@@ -121,6 +135,7 @@
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
 				0F57A6E10000000000000005 /* Select Firebase config */,
+				A10000000000000000000028 /* Copy OTA keys */,
 			);
 			buildRules = (
 			);
@@ -129,6 +144,7 @@
 			name = App;
 			packageProductDependencies = (
 				4D22ABE82AF431CB00220026 /* CapApp-SPM */,
+				A10000000000000000000025 /* OtaCore */,
 			);
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* App.app */;
@@ -161,6 +177,7 @@
 			mainGroup = 504EC2FB1FED79650016851F;
 			packageReferences = (
 				D4C12C0A2AAA248700AAC8A2 /* XCLocalSwiftPackageReference "CapApp-SPM" */,
+				A10000000000000000000027 /* XCLocalSwiftPackageReference "../OtaCore" */,
 			);
 			productRefGroup = 504EC3051FED79650016851F /* Products */;
 			projectDirPath = "";
@@ -205,6 +222,22 @@
 			shellPath = /bin/sh;
 			shellScript = "# Stage/dev configurations ship their own Firebase config: overwrite the prod\n# GoogleService-Info.plist that the Resources phase copied into the app bundle.\n# Per-env plists live in App/GoogleServices/{stage,dev}/ (gitignored, supplied\n# out-of-band) and are mapped by bundle id.\ncase \"${CONFIGURATION}\" in\n  *-stage) OPENFRAME_ENV=stage ;;\n  *-dev)   OPENFRAME_ENV=dev ;;\n  *)       exit 0 ;;\nesac\nSRC=\"${PROJECT_DIR}/App/GoogleServices/${OPENFRAME_ENV}/GoogleService-Info.plist\"\nDST=\"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist\"\nif [ ! -f \"${SRC}\" ]; then\n  echo \"error: missing ${SRC} — per-env Firebase config is supplied out-of-band (see android/app/src/README.md)\" >&2\n  exit 1\nfi\ncp \"${SRC}\" \"${DST}\"\necho \"Selected Firebase config: ${OPENFRAME_ENV}\"";
 		};
+		A10000000000000000000028 /* Copy OTA keys */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Copy OTA keys";
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/ota-keys.json",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# The public keys the over-the-air updater checks a manifest against\n# (NativeUpdate.swift), compiled in from apps/mobile/ota/keys.json, the file the\n# release verifies its signature with. Never a key from the network or a page.\nSRC=\"${SRCROOT}/../../ota/keys.json\"\nDST=\"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ota-keys.json\"\nif [ ! -f \"${SRC}\" ]; then\n  echo \"error: missing ${SRC} — the over-the-air public keys (apps/mobile/docs/ota.md)\" >&2\n  exit 1\nfi\ncp \"${SRC}\" \"${DST}\"";
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -218,6 +251,10 @@
 				A10000000000000000000002 /* NativeAuthPlugin.swift in Sources */,
 				A10000000000000000000008 /* NativeFilesPlugin.swift in Sources */,
 				A1000000000000000000001C /* ExternalLinksPlugin.swift in Sources */,
+				A1000000000000000000001E /* NativeUpdatePlugin.swift in Sources */,
+				A10000000000000000000020 /* NativeUpdate.swift in Sources */,
+				A10000000000000000000022 /* UpdateChecker.swift in Sources */,
+				A10000000000000000000024 /* UpdateStore.swift in Sources */,
 				A10000000000000000000010 /* TokenStore.swift in Sources */,
 				A10000000000000000000012 /* TokenLifecycle.swift in Sources */,
 				A10000000000000000000014 /* NotificationActions.swift in Sources */,
@@ -779,6 +816,10 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = "CapApp-SPM";
 		};
+		A10000000000000000000027 /* XCLocalSwiftPackageReference "../OtaCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../OtaCore;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -786,6 +827,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D4C12C0A2AAA248700AAC8A2 /* XCLocalSwiftPackageReference "CapApp-SPM" */;
 			productName = "CapApp-SPM";
+		};
+		A10000000000000000000025 /* OtaCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A10000000000000000000027 /* XCLocalSwiftPackageReference "../OtaCore" */;
+			productName = OtaCore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

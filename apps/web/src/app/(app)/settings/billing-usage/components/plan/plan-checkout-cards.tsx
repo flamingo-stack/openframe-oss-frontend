@@ -75,7 +75,7 @@ export function PlanCheckoutCards({ query, form }: PlanCheckoutCardsProps) {
           <DeviceManagementCard
             product={deviceProduct}
             subscriptionProduct={deviceSubscriptionProduct}
-            deviceCount={form.deviceCount}
+            firstBillingDate={form.paygFirstBillingDate}
             onUpdatesChange={form.setDeviceUpdates}
           />
         )}
@@ -85,6 +85,7 @@ export function PlanCheckoutCards({ query, form }: PlanCheckoutCardsProps) {
             deviceMode={form.deviceUpdates?.mode ?? null}
             topUp={form.topUp}
             autoTopUp={form.autoTopUp}
+            canAutoTopUp={form.canAutoTopUp}
             onAutoTopUpChange={form.setAutoTopUp}
           />
         )}

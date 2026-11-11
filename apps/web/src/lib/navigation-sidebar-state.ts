@@ -30,6 +30,21 @@ export const SIDEBAR_WIDTH_STORAGE_KEY = 'of.navigationSidebar.width';
 const SIDEBAR_CHOSEN_WIDTH_STORAGE_KEY = `${SIDEBAR_WIDTH_STORAGE_KEY}:chosen`;
 
 /**
+ * The expanded width the user chose for the sidebar (dragged or stepped), clamped to the
+ * bounds; `fallback` when none was chosen or storage refuses. Client only.
+ */
+export function readChosenSidebarWidth(fallback: number): number {
+  try {
+    const chosen: unknown = JSON.parse(window.localStorage.getItem(SIDEBAR_CHOSEN_WIDTH_STORAGE_KEY) ?? 'null');
+    const size = (chosen as { size?: unknown } | null)?.size;
+    if (typeof size !== 'number' || !Number.isFinite(size)) return fallback;
+    return Math.min(SIDEBAR_MAX_EXPANDED_WIDTH, Math.max(SIDEBAR_MIN_EXPANDED_WIDTH, Math.round(size)));
+  } catch {
+    return fallback;
+  }
+}
+
+/**
  * `NavigationSidebarConfig.resizable` for both shells: the bounds above and the key
  * the seed reads. One object, so the two shells and the seed cannot disagree.
  */

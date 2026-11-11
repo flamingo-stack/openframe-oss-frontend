@@ -507,7 +507,7 @@ final class NotificationActions: NSObject, UNUserNotificationCenterDelegate {
         case TokenLifecycle.Code.unreached: return "OpenFrame could not be reached"
         case TokenLifecycle.Code.deviceLocked: return "the device is locked"
         case TokenLifecycle.Code.noHost: return "this install has not learned its gateway yet"
-        case TokenLifecycle.Code.unknown, TokenLifecycle.Code.held: return "the session could not be refreshed just now"
+        case TokenLifecycle.Code.unknown, TokenLifecycle.Code.answeredError, TokenLifecycle.Code.held: return "the session could not be refreshed just now"
         default: return message
         }
     }

@@ -21,7 +21,7 @@ import type {
   User,
 } from '../types/device.types';
 import type { FleetHost } from '../types/fleet.types';
-import { toDeviceTags } from '../utils/device-transform';
+import { toDeviceTags } from '../utils/device-tags';
 import { deviceQueryKeys } from '../utils/query-keys';
 import { getToolConnectionState, isDeviceStillConnecting } from '../utils/tool-connection-status';
 
@@ -245,7 +245,7 @@ export function createDevice(
     organizationImageHash: node.organization?.image?.hash || null,
 
     // Tags
-    tags: toDeviceTags(node.tags),
+    tags: toDeviceTags(node.tagAssignments),
 
     // Tool Connections (enriched with status + lastSeen from Fleet / MeshCentral API)
     toolConnections: (node.toolConnections || []).map(tc => {

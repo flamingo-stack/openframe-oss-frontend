@@ -64,6 +64,9 @@ import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { isMobileShell } from '@/lib/platform';
 import { isMingoWhatToAsk, routes } from '@/lib/routes';
 import { ResetInitialSetupDialog, useDevOnboardingMenuItems } from '../dev-onboarding-shortcuts';
+import { shownChatViewOf, useManhattanCentreStore, workAreaModeOf } from '../manhattan-shell/manhattan-centre-store';
+import { manhattanHeaderActions } from '../manhattan-shell/manhattan-chat-header-actions';
+import { useManhattanDock } from '../manhattan-shell/manhattan-dock-context';
 import { ResetOnboardingDialog, useCanResetOnboarding } from '../reset-onboarding-dialog';
 import { useChatPageNodeStore } from './chat-page-node-store';
 import { MingoDockErrorBoundary } from './mingo-dock-error-boundary';
@@ -76,7 +79,7 @@ import {
   isSheetRoute,
   showsDockQuickActions,
 } from './mingo-dock-route';
-import { isSheetUp, useMingoSheetStore } from './mingo-sheet-store';
+import { isListUp, isSheetUp, useMingoSheetStore } from './mingo-sheet-store';
 import { useChatBehindPage } from './use-chat-behind-page';
 import { useComposerLauncherDrain, usePublishComposerDock } from './use-composer-launcher-drain';
 import { useComposerTarget } from './use-composer-target';
@@ -171,7 +174,11 @@ export function MingoComposerDock({ held = false }: { held?: boolean }) {
   // are that chat already. Decided in CSS, so the first paint is right; hidden, it
   // stays mounted (the draft and the uploads with it) and takes no room.
   const sheetUp = useMingoSheetStore(s => isSheetUp(s, pathname)) && canShowSheet(route);
-  const offOnPhone = isSheetRoute(route) && !sheetUp;
+  // v2: the phone's chat list opens over Mingo's own pages too, and fills the screen there as
+  // over a page: the composer under it steps out of the way while it is up.
+  const manhattan = useManhattanDock();
+  const listUp = useMingoSheetStore(s => isListUp(s, pathname));
+  const offOnPhone = (isSheetRoute(route) && !sheetUp) || (manhattan && listUp);
 
   return (
     // Centred at the route's width, a step below the page's last line. No overflow
@@ -225,13 +232,31 @@ function DockChat({ route, chat }: DockChatProps) {
   const pathname = usePathname();
   const navigate = (href: string) => router.push(href);
   const view = dockViewOf(route);
+  // Manhattan v2: the open chat sits in the chat column beside the page (or over it, or
+  // behind it: `chatView`), not in the sheet. What the sheet did maps onto the column below.
+  const manhattan = useManhattanDock();
+  const columnNode = useManhattanCentreStore(s => s.threadNode);
+  const chatView = useManhattanCentreStore(s => s.chatView);
+  const setChatView = useManhattanCentreStore(s => s.setChatView);
+  const compact = useManhattanCentreStore(s => s.compact);
+  // Below md: the page alone (the chat takes its own page there).
+  const mdDown = useMdUp() === false;
+  const columnMode = workAreaModeOf(route, (chat.state.activeDialogId ?? null) !== null, chatView, compact, mdDown);
+  const showColumn = () => setChatView(shownChatViewOf(route));
+  const hideColumn = () => setChatView('hidden');
   // The chat over the page (`MingoComposerSheet`): over plain pages, and over home for
-  // a chat collapsed back from its page (`canShowSheet`).
-  const sheetOpen = useMingoSheetStore(s => isSheetUp(s, pathname)) && canShowSheet(route);
-  const sheetNode = useMingoSheetStore(s => s.node);
-  const showSheet = useMingoSheetStore(s => s.show);
-  const hideSheet = useMingoSheetStore(s => s.hide);
-  const showSheetAfterNavigation = useMingoSheetStore(s => s.showAfterNavigation);
+  // a chat collapsed back from its page (`canShowSheet`). In v2: the chat column on screen.
+  const sheetUp = useMingoSheetStore(s => isSheetUp(s, pathname)) && canShowSheet(route);
+  const sheetOpen = manhattan ? columnMode !== 'page' : sheetUp;
+  const v1SheetNode = useMingoSheetStore(s => s.node);
+  const sheetNode = manhattan ? columnNode : v1SheetNode;
+  const v1ShowSheet = useMingoSheetStore(s => s.show);
+  const showSheet = manhattan ? showColumn : v1ShowSheet;
+  const v1HideSheet = useMingoSheetStore(s => s.hide);
+  const hideSheet = manhattan ? hideColumn : v1HideSheet;
+  const v1ShowSheetAfterNavigation = useMingoSheetStore(s => s.showAfterNavigation);
+  // The view is the tab's, not the page's: set now, it holds on the page the navigation lands on.
+  const showSheetAfterNavigation = manhattan ? () => setChatView('split') : v1ShowSheetAfterNavigation;
   const openFull = useMingoSheetStore(s => s.openFull);
   const lastPage = useMingoSheetStore(s => s.lastPage);
   const outsidePage = useMingoSheetStore(s => s.outsidePage);
@@ -239,7 +264,8 @@ function DockChat({ route, chat }: DockChatProps) {
   const query = useSearchParams();
   const whatToAskPage = route === 'chat' && isMingoWhatToAsk(query);
   // A phone has no composer under its pages, and a chat there takes the screen: its page.
-  const phone = useMdUp() === false;
+  // So does Start Work in v2: a chat with messages takes the centre, on its page (plan D8).
+  const phone = mdDown || (manhattan && route === 'home');
   // State, not a ref: the chat module loads lazily, and the launcher drain waits for it.
   const [handle, setHandle] = useState<EmbeddableChatHandle | null>(null);
   // Tells the chat page whether a chat will portal into it (it draws a skeleton until then).
@@ -319,8 +345,27 @@ function DockChat({ route, chat }: DockChatProps) {
   let threadHeaderActions;
   // A phone: none. The top bar's Mingo button is the chat's × there, and a chat has no
   // smaller form to go to.
-  if (phone) threadHeaderActions = undefined;
-  else if (sheetOpen) {
+  if (mdDown) threadHeaderActions = undefined;
+  else if (manhattan) {
+    threadHeaderActions = manhattanHeaderActions({
+      route,
+      columnMode,
+      compact,
+      openDialogId,
+      // The last page outside Mingo: the page the chat goes back beside (home is a new chat).
+      lastPage: outsidePage,
+      showBesidePage: () => {
+        setChatView('split');
+        if (outsidePage) navigate(outsidePage);
+      },
+      fullScreen: () => setChatView('full'),
+      restoreSplit: showColumn,
+      closeChat: () => {
+        if (route === 'chat') navigate(routes.mingo.home);
+        else handle?.startNewChat();
+      },
+    });
+  } else if (sheetOpen) {
     // A chat not created yet (the suggestions of "What to ask Mingo?") has no page of its own.
     threadHeaderActions = [
       ...(openDialogId
@@ -438,15 +483,33 @@ function DockChat({ route, chat }: DockChatProps) {
           aboveComposer={tour.aboveComposer}
           chatMenuExtraItems={chatMenuExtraItems}
           contextMemory={view.showContextMemory ? chatProps.contextMemory : undefined}
-          // An element on the chat page, `null` everywhere else, never `undefined`,
+          // An element on the chat page, `null` everywhere else — never `undefined`,
           // which switches the chat back to its in-place layout and remounts the
           // composer (draft and all).
           // The chat page's node on the chat page, the sheet's while it is up over a page.
-          threadContainer={route === 'chat' ? chatPageNode : sheetOpen ? sheetNode : null}
+          // v2: the chat column on every page but home (the thread stays mounted there while
+          // the column hides behind the page, plan D9), the chat page's node on the chat page.
+          threadContainer={
+            route === 'chat'
+              ? chatPageNode
+              : manhattan
+                ? route === 'home'
+                  ? null
+                  : sheetNode
+                : sheetOpen
+                  ? sheetNode
+                  : null
+          }
           threadHeaderActions={threadHeaderActions}
+          threadHeaderLook={manhattan ? 'column' : undefined}
+          // v2: the thread fades out into the composer under it, as a page under the dock; and
+          // in a narrow column the composer takes the column's own padding as its edge. A phone
+          // has no column (the chat is its own page): the composer keeps its own side inset.
+          threadFadeEnd={manhattan}
+          composerInset={manhattan && !mdDown ? 'wide' : undefined}
           // On the chat page the thread is a column at the composer's width under a full-width
           // header; in the sheet it fills the sheet.
-          threadContentClassName={route === 'chat' ? cn('mx-auto w-full', CHAT_COLUMN_WIDTH) : undefined}
+          threadContentClassName={route === 'chat' && !manhattan ? cn('mx-auto w-full', CHAT_COLUMN_WIDTH) : undefined}
           // "Continue …" for the chat behind the page, then the page itself: one row of chips
           // that scrolls sideways when the strip is too narrow for all of them.
           composerContextLeading={

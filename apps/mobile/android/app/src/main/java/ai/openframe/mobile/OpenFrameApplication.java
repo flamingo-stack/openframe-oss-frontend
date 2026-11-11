@@ -14,6 +14,7 @@ public class OpenFrameApplication extends Application {
     public void onCreate() {
         super.onCreate();
         TokenLifecycle.get(this).installObservers();
+        NativeUpdate.get(this).installObservers();
         PushNotifications.createChannels(this);
     }
 }

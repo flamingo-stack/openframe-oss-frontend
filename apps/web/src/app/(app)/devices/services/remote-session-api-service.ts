@@ -19,6 +19,7 @@ import {
   type RemoteSessionStatus,
 } from '../types/remote-access';
 import { nullableTimestamp, oneOf, type RawWire, text, timestamp } from './remote-access-wire';
+import { currentViewers } from './remote-session-watch-api-service';
 
 /**
  * The technician side of the remote session lifecycle, GraphQL on
@@ -48,6 +49,12 @@ const sessionFragment = graphql`
     recordingEnabled
     recordingSuppressed
     dialogId
+    viewers {
+      userId
+      name
+      avatarUrl
+      leftAt
+    }
   }
 `;
 
@@ -123,6 +130,7 @@ export function fromWireRemoteSession(data: WireSession): RemoteSession {
     // The only reason there is; an unknown one is not shown as storage being full.
     recordingSuppressed: data.recordingSuppressed === 'STORAGE_FULL' ? 'storage_full' : null,
     dialogId: data.dialogId ?? null,
+    viewers: currentViewers(data.viewers ?? []),
   };
 }
 
@@ -165,6 +173,8 @@ export function applyRemoteSessionEvent(session: RemoteSession | null, event: Re
     startedAt: event.startedAt ?? new Date().toISOString(),
     recordingEnabled: event.recordingEnabled,
     dialogId: event.dialogId,
+    // Watchers come with the record (the lookup, the poll) and with the viewer events.
+    viewers: [],
   };
   if (event.type === 'REMOTE_SESSION_STARTED') {
     return session ? { ...session, dialogId: session.dialogId ?? event.dialogId } : base;

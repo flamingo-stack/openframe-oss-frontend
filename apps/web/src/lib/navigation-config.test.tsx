@@ -7,6 +7,7 @@ import { NotificationCategory } from '@/generated/schema-enums';
 import {
   getGroupedNavigationItems,
   getNavigationItems,
+  getSectionedNavigationItems,
   NAVIGATION_LOADING_ROWS,
   type NavigationFlags,
   type OnboardingNavState,
@@ -28,7 +29,9 @@ const ALL_UNREAD: UnreadCountsByCategory = Object.fromEntries(
 
 const FLAG_COMBOS: NavigationFlags[] = [false, true].flatMap(insights =>
   [false, true].flatMap(softwareManagement =>
-    [false, true].map(tenantManagement => ({ insights, softwareManagement, tenantManagement })),
+    [false, true].flatMap(tenantManagement =>
+      [false, true].map(tenantManagementV2 => ({ insights, softwareManagement, tenantManagement, tenantManagementV2 })),
+    ),
   ),
 );
 
@@ -83,7 +86,12 @@ describe('flat navigation (classic shell)', () => {
 
   it('marks the same entry active for every route', () => {
     setAppMode('saas-tenant');
-    const allOn: NavigationFlags = { insights: true, softwareManagement: true, tenantManagement: true };
+    const allOn: NavigationFlags = {
+      insights: true,
+      softwareManagement: true,
+      tenantManagement: true,
+      tenantManagementV2: true,
+    };
     const pathnames = [
       '/',
       '/dashboard',
@@ -135,13 +143,28 @@ describe('flat navigation (classic shell)', () => {
 
   it('is empty in the auth-only app mode', () => {
     setAppMode('saas-shared');
-    const allOn: NavigationFlags = { insights: true, softwareManagement: true, tenantManagement: true };
+    const allOn: NavigationFlags = {
+      insights: true,
+      softwareManagement: true,
+      tenantManagement: true,
+      tenantManagementV2: true,
+    };
     expect(getNavigationItems('/devices', allOn, ALL_UNREAD, { inProgress: true, remaining: 2 })).toEqual([]);
   });
 });
 
-const ALL_ON: NavigationFlags = { insights: true, softwareManagement: true, tenantManagement: true };
-const ALL_OFF: NavigationFlags = { insights: false, softwareManagement: false, tenantManagement: false };
+const ALL_ON: NavigationFlags = {
+  insights: true,
+  softwareManagement: true,
+  tenantManagement: true,
+  tenantManagementV2: true,
+};
+const ALL_OFF: NavigationFlags = {
+  insights: false,
+  softwareManagement: false,
+  tenantManagement: false,
+  tenantManagementV2: false,
+};
 
 /** `group: child, child` per top-level entry; a leaf is its id alone, `[secondary]` marks the bottom block. */
 function outline(items: NavigationSidebarItem[]): string[] {
@@ -155,7 +178,7 @@ describe('grouped navigation (Mingo-first shell)', () => {
   it('arranges every module of the saas tenant in the Figma groups, then Knowledge Base, with no Dashboard', () => {
     setAppMode('saas-tenant');
     expect(outline(getGroupedNavigationItems(ALL_ON))).toEqual([
-      'inventory: organizations, devices, software, integrations',
+      'inventory: organizations, devices, software, users, integrations',
       'service-desk: tickets, worktime',
       'automation: scripts, schedules, policies, queries',
       'monitor: incidents, logs',
@@ -199,9 +222,10 @@ describe('grouped navigation (Mingo-first shell)', () => {
         expect(has(grouped, 'incidents'), context).toBe(saas && flags.insights);
         expect(has(grouped, 'software'), context).toBe(flags.softwareManagement);
         expect(has(grouped, 'integrations'), context).toBe(flags.tenantManagement);
+        expect(has(grouped, 'users'), context).toBe(flags.tenantManagement && flags.tenantManagementV2);
         expect(has(grouped, 'dashboard') || has(grouped, 'monitoring'), context).toBe(false);
         // Every module both sidebars show is gated the same way in both.
-        for (const id of ['tickets', 'incidents', 'software', 'integrations', 'organizations', 'logs']) {
+        for (const id of ['tickets', 'incidents', 'software', 'integrations', 'users', 'organizations', 'logs']) {
           expect(has(grouped, id), `${context} ${id}`).toBe(has(flat, id));
         }
       }
@@ -326,5 +350,58 @@ describe('grouped navigation (Mingo-first shell)', () => {
   it('is empty in the auth-only app mode', () => {
     setAppMode('saas-shared');
     expect(getGroupedNavigationItems(ALL_ON, ALL_UNREAD)).toEqual([]);
+  });
+});
+
+describe('sectioned navigation (Manhattan v2 shell)', () => {
+  it('lists the Figma sections and the bottom three, with the Figma names', () => {
+    setAppMode('saas-tenant');
+    const items = getSectionedNavigationItems(ALL_ON);
+    expect(items.map(item => [item.id, item.label, (item.children ?? []).map(child => child.label)])).toEqual([
+      ['service-desk', 'Service Desk', ['Tickets', 'Worktime']],
+      ['fleet', 'Fleet', ['Customers', 'Devices', 'Software', 'Users', 'Cloud Tenants']],
+      ['monitor', 'Monitor', ['Incidents', 'Logs']],
+      ['skills', 'Skills', ['Scripts', 'Scheduled Scripts', 'Policies', 'Queries']],
+      ['knowledge-base', 'Knowledge Base', []],
+      ['help-center', 'Help Center', []],
+      ['settings', 'Settings', []],
+    ]);
+    expect(items.filter(item => item.section === 'secondary').map(item => item.id)).toEqual([
+      'knowledge-base',
+      'help-center',
+      'settings',
+    ]);
+  });
+
+  it('has no Dashboard, no Needs approval and no Beta stamps', () => {
+    setAppMode('saas-tenant');
+    const all = getSectionedNavigationItems(ALL_ON).flatMap(item => [item, ...(item.children ?? [])]);
+    expect(all.map(item => item.id)).not.toContain('dashboard');
+    expect(all.some(item => item.badge)).toBe(false);
+  });
+
+  it('applies the same gates as the other shells', () => {
+    setAppMode('saas-tenant');
+    const off = getSectionedNavigationItems({
+      insights: false,
+      softwareManagement: false,
+      tenantManagement: false,
+      tenantManagementV2: false,
+    });
+    const ids = off.flatMap(item => [item.id, ...(item.children ?? []).map(child => child.id)]);
+    expect(ids).not.toContain('incidents');
+    expect(ids).not.toContain('software');
+    expect(ids).not.toContain('integrations');
+    expect(ids).not.toContain('users');
+    expect(ids).toContain('devices');
+  });
+
+  it("Fleet's Users is the directory users page; Settings → Employees lights Settings", () => {
+    setAppMode('saas-tenant');
+    const items = getSectionedNavigationItems(ALL_ON);
+    expect(resolveNavigationActive(items, { currentPath: '/users', includeChildren: true }).activeId).toBe('users');
+    expect(resolveNavigationActive(items, { currentPath: '/settings/employees', includeChildren: true }).activeId).toBe(
+      'settings',
+    );
   });
 });

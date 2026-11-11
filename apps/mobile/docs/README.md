@@ -19,6 +19,7 @@ Welcome to the documentation for **OpenFrame SaaS Mobile** (`openframe-mobile`) 
 - [iOS production release (App Store)](./release-ios-prod.md)
 - [Android stage release (Firebase App Distribution)](./release-android-stage.md)
 - [Android production release (Google Play)](./release-android-prod.md)
+- [Over-the-air web bundles](./ota.md) — what each release publishes for the shells' updater, and the signing keys
 
 ### Development
 

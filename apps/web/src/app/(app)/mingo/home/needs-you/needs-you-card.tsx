@@ -16,7 +16,7 @@ import {
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import Link from 'next/link';
-import { type ComponentType, useCallback, useState } from 'react';
+import { type ComponentType, type ReactNode, useCallback, useState } from 'react';
 import { useTicketsOverview } from '@/app/(app)/dashboard/hooks/use-dashboard-stats';
 import { useRevealHeld, useRevealPart } from '@/app/components/shared/reveal-together';
 import { SectionLoadError } from '@/app/components/shared/section-load-error';
@@ -27,10 +27,12 @@ import {
   NEEDS_YOU_SKELETON_ROWS,
   type NeedsYouEntity,
   type NeedsYouFailure,
+  type NeedsYouGates,
   needsYouFooter,
   type NeedsYouReports,
   type NeedsYouRow,
   type NeedsYouSource,
+  type NeedsYouView,
   type ReportSource,
   resolveNeedsYou,
   sameReport,
@@ -48,22 +50,35 @@ const APPROVALS: readonly NeedsYouSource[] = ['approvals'];
 const INSIGHTS: readonly NeedsYouSource[] = ['incidents', 'disk'];
 const TENANTS: readonly NeedsYouSource[] = ['tenants'];
 const SOFTWARE: readonly NeedsYouSource[] = ['software'];
+/** No source runs: what `useNeedsYou(false)` resolves against. */
+const NEEDS_YOU_GATES_LOADING: NeedsYouGates = {
+  approvals: 'loading',
+  incidents: 'loading',
+  tickets: 'loading',
+  tenants: 'loading',
+  software: 'loading',
+  disk: 'loading',
+};
 
 /**
- * "Needs you" on Mingo's home: up to 2 pending approvals, 2 NEW critical incidents, 2
+ * What "Needs you" holds: up to 2 pending approvals, 2 NEW critical incidents, 2
  * escalated Tech Required tickets, 1 cloud tenant whose sync failed, 1 failed software
- * action and 1 device low on disk, in that order (`needs-you-rows.ts`), each opening its
- * entity's page; then a line of counts. Every source is gated like its sidebar entry
- * (`useNeedsYouGates`). Loading until every open source answered; gone when nothing needs
- * the user.
+ * action and 1 device low on disk, in that order (`needs-you-rows.ts`); then a line of
+ * counts. Every source is gated like its sidebar entry (`useNeedsYouGates`). Loading until
+ * every open source answered; hidden when nothing needs the user.
  *
- * The Relay sources render nothing and report what they found (the board's column
- * subscribers do the same): each fetches under its own boundary, so they run side by side
- * and a failing backend costs only its rows. The tickets source is react-query and is read
- * in place.
+ * `sources` must be rendered for the view to fill: the Relay sources render nothing and
+ * report what they found (the board's column subscribers do the same). Each fetches under
+ * its own boundary, so they run side by side and a failing backend costs only its rows.
+ * The tickets source is react-query and is read in place. The Relay sources read
+ * `store-or-network` and the tickets query is shared, so a second reader (the v2 sidebar's
+ * count) costs no request of its own.
+ *
+ * `enabled` off: no source runs and the view stays loading.
  */
-export function NeedsYouCard() {
-  const gates = useNeedsYouGates();
+export function useNeedsYou(enabled = true): { view: NeedsYouView; footer: string | null; sources: ReactNode } {
+  const allGates = useNeedsYouGates();
+  const gates: NeedsYouGates = enabled ? allGates : NEEDS_YOU_GATES_LOADING;
   const [reports, setReports] = useState<NeedsYouReports>({});
   // Stable: the sources report from effects keyed on it.
   const report = useCallback<ReportSource>((source, next) => {
@@ -77,13 +92,6 @@ export function NeedsYouCard() {
   const incidentsReport = reports.incidents;
 
   const view = resolveNeedsYou(gates, { ...reports, tickets }, ticketsOn && ticketStats.isLoading);
-  useRevealPart('needs-you', view.status !== 'loading');
-  // The page's loading state draws the card's own, as its unanswered sources do, and so does
-  // a page still holding its sections (`RevealTogether`).
-  const scoped = useLoadingScope();
-  const held = useRevealHeld();
-  const loading = scoped || held || view.status === 'loading';
-  const ready = view.status === 'ready' ? view : null;
   const footer = needsYouFooter({
     aiHandled: ticketsOn ? ticketStats.aiAssistance : null,
     needTechnician: ticketsOn ? ticketStats.techRequired : null,
@@ -91,7 +99,7 @@ export function NeedsYouCard() {
       gates.incidents === 'on' && incidentsReport?.status === 'ready' ? (incidentsReport.count ?? null) : null,
   });
 
-  return (
+  const sources = (
     <>
       {gates.approvals === 'on' && (
         <NeedsYouSourceBoundary sources={APPROVALS} onReport={report}>
@@ -113,7 +121,31 @@ export function NeedsYouCard() {
           <NeedsYouSoftwareSource onReport={report} />
         </NeedsYouSourceBoundary>
       )}
+    </>
+  );
+  return { view, footer, sources };
+}
 
+/** How many rows "Needs you" shows (0 while it loads, fails only or is hidden), and the sources that feed it. */
+export function useNeedsYouCount(enabled = true): { count: number; sources: ReactNode } {
+  const { view, sources } = useNeedsYou(enabled);
+  return { count: view.status === 'ready' ? view.rows.length : 0, sources };
+}
+
+/** "Needs you" on Mingo's home (`useNeedsYou`), each row opening its entity's page. */
+export function NeedsYouCard() {
+  const { view, footer, sources } = useNeedsYou();
+  useRevealPart('needs-you', view.status !== 'loading');
+  // The page's loading state draws the card's own, as its unanswered sources do, and so does
+  // a page still holding its sections (`RevealTogether`).
+  const scoped = useLoadingScope();
+  const held = useRevealHeld();
+  const loading = scoped || held || view.status === 'loading';
+  const ready = view.status === 'ready' ? view : null;
+
+  return (
+    <>
+      {sources}
       {(loading || ready) && (
         <NeedsYouPanel loading={loading} rows={ready?.rows} failures={ready?.failures} footer={footer} />
       )}

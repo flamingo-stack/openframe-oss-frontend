@@ -11,6 +11,7 @@ import type { NavigationSidebarConfig } from '@flamingo-stack/openframe-frontend
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DashboardOverviews } from '@/app/(app)/dashboard/components/dashboard-content';
+import { ManhattanStartWork } from '@/app/(app)/mingo/home/manhattan-start-work';
 import { MingoDashboard } from '@/app/(app)/mingo/home/mingo-dashboard';
 import { MingoNewChat } from '@/app/(app)/mingo/home/mingo-new-chat';
 import { MingoChatProvider } from '@/app/(app)/mingo/providers/mingo-chat-provider';
@@ -36,8 +37,10 @@ import { isAuthOnlyMode, isOssTenantMode, isSaasTenantMode } from '../../lib/app
 import {
   getGroupedNavigationItems,
   getNavigationItems,
+  getSectionedNavigationItems,
   NAVIGATION_LOADING_ROWS,
   type NavigationFlags,
+  SECTIONED_NAVIGATION_LOADING_ROWS,
 } from '../../lib/navigation-config';
 import { GROUPED_SIDEBAR_EXPANDED_WIDTH, SIDEBAR_RESIZE } from '../../lib/navigation-sidebar-state';
 import { AnnouncementTopBar } from './announcement-top-bar';
@@ -50,6 +53,25 @@ import {
 } from './app-shell-chrome';
 import { AiBalanceBar, BillingBarsHydrator, type BillingBarsState, NO_BARS, TrialEndingBar } from './billing-bars';
 import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
+import {
+  MANHATTAN_WORK_AREA_SQUEEZE_FLOOR,
+  MANHATTAN_WORK_AREA_STORAGE_KEY,
+  ManhattanCentre,
+} from './manhattan-shell/manhattan-centre';
+import { useManhattanCentreStore } from './manhattan-shell/manhattan-centre-store';
+import {
+  ManhattanChatsFooter,
+  ManhattanChatsSection,
+  ManhattanStartWorkRow,
+} from './manhattan-shell/manhattan-chats-sidebar';
+import { ManhattanCompactBar } from './manhattan-shell/manhattan-compact-bar';
+import {
+  MANHATTAN_CHATS_EXPANDED_WIDTH,
+  MANHATTAN_NAVIGATION_EXPANDED_WIDTH,
+  MANHATTAN_NAVIGATION_FOLDS_KEY,
+  useManhattanNavCollapsed,
+} from './manhattan-shell/use-manhattan-shell';
+import { useManhattanSqueeze } from './manhattan-shell/use-manhattan-squeeze';
 import { useHistorySearchStore } from './mingo-shell/history-search-store';
 import { MingoAccountPopover } from './mingo-shell/mingo-account-popover';
 import { MingoComposerDock } from './mingo-shell/mingo-composer-dock';
@@ -144,6 +166,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // dashboard shell. App mode is known before the first paint, so the chrome never
   // waits for it.
   const mingoShell = isSaasTenantMode();
+  // A SaaS tenant's shell is Manhattan v2: the chats on the left, the chat and the page
+  // side by side in the middle, the navigation on the right.
+  const manhattan = mingoShell;
 
   // The shell now mounts BEFORE the session resolves (see `AppLayoutInner`), so it
   // owns two things it used to get for free from being rendered only afterwards:
@@ -274,6 +299,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   const insightsEnabled = useFeatureFlag('insights');
   const softwareManagementEnabled = useFeatureFlag('software-management');
   const tenantManagementEnabled = useFeatureFlag('tenant-management');
+  const tenantManagementV2Enabled = useFeatureFlag('tenant-management-v2');
   const billingsEnabled = useFeatureFlag('billings');
   /**
    * What the app-wide billing banners have to say, reported by the hydrator
@@ -384,8 +410,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       insights: insightsEnabled,
       softwareManagement: softwareManagementEnabled,
       tenantManagement: tenantManagementEnabled,
+      tenantManagementV2: tenantManagementV2Enabled,
     }),
-    [insightsEnabled, softwareManagementEnabled, tenantManagementEnabled],
+    [insightsEnabled, softwareManagementEnabled, tenantManagementEnabled, tenantManagementV2Enabled],
   );
 
   const grouped = mingoShell;
@@ -410,6 +437,16 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // Mingo-first only: the desktop collapse is the shell's (the classic sidebar keeps
   // its own persisted preference — the same one, under the same key).
   const [sidebarCollapsed, setSidebarCollapsed] = useSidebarCollapsed();
+  // Manhattan v2: the right navigation's own collapse.
+  const [navCollapsed, setNavCollapsed] = useManhattanNavCollapsed();
+  // Manhattan v2: the centre keeps 800px on a desktop — the sidebars that would take it
+  // go to their rails and open over the centre instead (plan D19).
+  const squeeze = useManhattanSqueeze(manhattan);
+  // Below two rails + 800px the v2 top bar opens the sidebars as drawers: its buttons' reveals,
+  // and the chats drawer closes once a chat opens from it (`ManhattanCentre`).
+  const [chatsReveal, setChatsReveal] = useState(0);
+  const [navReveal, setNavReveal] = useState(0);
+  const chatsDismiss = useManhattanCentreStore(s => s.chatsDismiss);
   // ⌘K's reveal command (`NavigationSidebarConfig.revealSignal`): every bump shows the
   // expanded sidebar at the current width — the tablet overlay too, which a change of
   // `collapsed` cannot open while the desktop preference is already "expanded".
@@ -515,6 +552,135 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     ],
   );
 
+  // Manhattan v2: the left sidebar holds the chats (Start Work, the history, the user row);
+  // the navigation moves to the right (`endSidebarConfig`). The phone burger keeps the
+  // Mingo-first config above (navigation and chats) until the narrow layout lands.
+  const manhattanSidebarConfig = useMemo<NavigationSidebarConfig | undefined>(
+    () =>
+      manhattan
+        ? {
+            variant: 'grouped',
+            items: [],
+            surface: 'panel',
+            toggle: 'none',
+            footerInset: false,
+            sectionDivider: false,
+            // The chats take the sidebar's spare height: an empty list centres in it (Figma 1409:305752).
+            sectionFill: true,
+            currentPath,
+            expandedWidth: MANHATTAN_CHATS_EXPANDED_WIDTH,
+            resizable: SIDEBAR_RESIZE,
+            onNavigate: handleNavigate,
+            topSlot: ({ minimized }) => (
+              <>
+                <SidebarUpdateButton minimized={minimized} />
+                <ManhattanStartWorkRow
+                  minimized={minimized}
+                  active={composerRouteOf(pathname) === 'home'}
+                  disabled={!chatEnabled}
+                />
+              </>
+            ),
+            // The sidebar's own toggle: the preference on a desktop, the overlay on a tablet.
+            sectionSlot: chatEnabled
+              ? ({ minimized, toggle }) => (
+                  <ManhattanChatsSection
+                    minimized={minimized}
+                    onExpand={toggle ?? (() => setSidebarCollapsed(false))}
+                  />
+                )
+              : undefined,
+            footerSlot: ({ minimized, inDrawer, toggle }) => (
+              <ManhattanChatsFooter
+                minimized={minimized}
+                locked={showLockContent}
+                ownsHeaderCells={isMdUp === true}
+                inDrawer={inDrawer}
+                onToggleCollapsed={toggle ?? (() => setSidebarCollapsed(!sidebarCollapsed))}
+              />
+            ),
+            collapsed: sidebarCollapsed,
+            onCollapsedChange: setSidebarCollapsed,
+            overlay: squeeze.compact ? 'drawer' : undefined,
+            // No tablet rail between md and lg: v2's sidebars close only with their button.
+            desktopFromMd: true,
+            revealSignal: revealSignal + chatsReveal,
+            dismissSignal: chatsDismiss,
+            className: 'h-full',
+          }
+        : undefined,
+    [
+      manhattan,
+      currentPath,
+      handleNavigate,
+      pathname,
+      chatEnabled,
+      setSidebarCollapsed,
+      showLockContent,
+      isMdUp,
+      sidebarCollapsed,
+      revealSignal,
+      squeeze.compact,
+      chatsReveal,
+      chatsDismiss,
+    ],
+  );
+  const sectionedItems = useMemo(
+    () => (manhattan ? getSectionedNavigationItems(navigationFlags, unreadCounts) : []),
+    [manhattan, navigationFlags, unreadCounts],
+  );
+  const endSidebarConfig = useMemo<NavigationSidebarConfig | undefined>(
+    () =>
+      manhattan
+        ? {
+            variant: 'sectioned',
+            surface: 'panel',
+            header: false,
+            toggle: 'icon',
+            expandedWidth: MANHATTAN_NAVIGATION_EXPANDED_WIDTH,
+            items: sectionedItems,
+            currentPath,
+            loading: chromeLoading,
+            loadingRows: SECTIONED_NAVIGATION_LOADING_ROWS,
+            onNavigate: handleNavigate,
+            groupsStorageKey: MANHATTAN_NAVIGATION_FOLDS_KEY,
+            collapsed: navCollapsed,
+            onCollapsedChange: setNavCollapsed,
+            overlay: squeeze.compact ? 'drawer' : undefined,
+            desktopFromMd: true,
+            revealSignal: navReveal,
+            className: 'h-full',
+          }
+        : undefined,
+    [
+      manhattan,
+      sectionedItems,
+      currentPath,
+      chromeLoading,
+      handleNavigate,
+      navCollapsed,
+      setNavCollapsed,
+      squeeze.compact,
+      navReveal,
+    ],
+  );
+
+  // Manhattan v2's phone burger: the desktop navigation (its sections), from the right, with
+  // the account row of the Mingo-first drawer at its foot (Log out stays one tap away).
+  const manhattanMobileMenuConfig = useMemo<NavigationSidebarConfig | undefined>(
+    () =>
+      manhattan && endSidebarConfig
+        ? {
+            ...endSidebarConfig,
+            side: 'right',
+            overlay: undefined,
+            revealSignal: undefined,
+            footerSlot: sidebarConfig.footerSlot,
+          }
+        : undefined,
+    [manhattan, endSidebarConfig, sidebarConfig.footerSlot],
+  );
+
   // Single `topBar` slot, one bar at a time: the billing bars first, since they
   // ask for an action; otherwise the hub announcement — informational and
   // dismissible, so it only ever fills an empty slot (never stacks, never bumps
@@ -613,19 +779,27 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
         showTimeTracker: isMdUp === false,
         showTicketAlerts: isMdUp === false,
         showMingoAI: mingoButton,
+        // Manhattan v2: the button stays Mingo's and always opens the chat list, on any page
+        // (a chat or Mingo's home included); the list closes from its own scrim or a pick.
         onMingoAI: () => {
-          if (listOpen) hideList();
+          if (manhattan) showList();
+          else if (listOpen) hideList();
           else if (sheetUp) hideSheet();
           else if (onMingoPage) router.push(outsidePage ?? routes.dashboard);
           else showList();
         },
-        isMingoAIActive: listOpen || sheetUp || onMingoPage,
-        mingoAICloseWhenActive: true,
+        // Never "active" in v2: the phone's icon-only button would turn into a × (`HeaderMingoButton`).
+        isMingoAIActive: !manhattan && (listOpen || sheetUp || onMingoPage),
+        mingoAICloseWhenActive: !manhattan,
       }),
+      // Manhattan v2 on a phone: the chats at the left (Mingo), the navigation at the right
+      // (the burger, the desktop's sections), on the sidebars' dark panel ground.
+      ...(manhattan && { mobileMenuSide: 'end' as const, surface: 'panel' as const }),
     }),
     [
       chromeLoading,
       mingoShell,
+      manhattan,
       isMdUp,
       mingoButton,
       onMingoPage,
@@ -663,17 +837,18 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // over the dock, so the dock holds its place in its loading form (`held`) rather than
   // arriving under the greeting and moving it.
   let composerDock: React.ReactNode;
+  // The dock itself: Manhattan v2 renders it once and moves it between the dock under the
+  // page and the chat column's foot (`ManhattanCentre`).
+  const dockShown = mingoShell && chatEnabled && (!dashboardHeld || composerRouteOf(pathname) === 'home');
+  const dockChat = <MingoComposerDock held={dashboardHeld} />;
   // Wrapped so the floating walkthrough card can rise above it (`COMPOSER_DOCK_ATTRIBUTE`
   // in walkthrough-video.tsx).
   if (mingoShell) {
-    composerDock =
-      chatEnabled && (!dashboardHeld || composerRouteOf(pathname) === 'home') ? (
-        <div data-composer-dock="">
-          <MingoComposerDock held={dashboardHeld} />
-        </div>
-      ) : null;
+    composerDock = dockShown ? <div data-composer-dock="">{dockChat}</div> : null;
   }
-  // The open chat over a page, raised from the dock: only with it.
+  // The open chat over a page, raised from the dock: only with it. Manhattan v2 raises no
+  // chat in it (the chat column holds the chat); it stays for a phone's chat list (the top
+  // bar's Mingo button).
   const composerSheet = mingoShell && chatEnabled && !dashboardHeld ? <MingoComposerSheet /> : undefined;
 
   // The page segment's boundary - what the chrome, bare or not, puts in its content
@@ -688,7 +863,12 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       ) : dashboardHeld ? (
         composerRouteOf(pathname) === 'home' ? (
           // A new chat: its greeting, nothing that loads.
-          <MingoNewChat />
+          manhattan ? (
+            // Manhattan v2: Start Work, its "Needs you" in its loading form.
+            <ManhattanStartWork live={false} />
+          ) : (
+            <MingoNewChat />
+          )
         ) : (
           <LoadingFallback label="Loading dashboard">
             {isSaasTenantMode() ? <MingoDashboard live={false} /> : <DashboardOverviews />}
@@ -754,51 +934,95 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
               can show it (the dock, the sidebar history, the page). It runs only
               while one of them is mounted. */}
           <MingoChatProvider enabled={chatMounted} identityEnabled={chatIdentityEnabled}>
-            {bareChrome ? (
-              <BareAppShell>{pageContent}</BareAppShell>
-            ) : (
-              <CoreAppLayout
-                // Hook for the native-shell safe-area CSS in globals.css: the layout
-                // root owns the top inset (see `.app-shell-root`). Inert on the web.
-                className="app-shell-root"
-                mainClassName={mainClassName ?? APP_MAIN_CLASS_NAME}
-                sidebarConfig={sidebarConfig}
-                mobileBurgerMenuProps={mobileBurgerMenuProps}
-                headerProps={headerProps}
-                // The Mingo-first shell owns the phone drawer (see `useMobileMenuStore`); the
-                // layout still reports every open and close, and closes it on a change of
-                // `sidebarConfig.currentPath`. The OSS shell leaves it to the layout.
-                mobileMenuOpen={grouped ? mobileMenuOpen : undefined}
-                onMobileMenuOpenChange={grouped ? setMobileMenuOpen : undefined}
-                // Greys the header and nav rail out for the lock: they stay legible —
-                // the user can still see where they are and reach the account menu —
-                // but nothing they lead to is reachable until the workspace is paid for.
-                disabled={showLockContent}
-                // The super user strip is not one of the bars above: it is a
-                // statement about the session, not a notice, so it stacks over
-                // whichever bar won the slot (or none), lock screen included.
-                // Only once the session has answered, so a flag persisted from a
-                // previous session cannot flash it ahead of `/me`.
-                topBar={
-                  <>
-                    {sessionResolved && <SuperUserBanner />}
-                    {topBar}
-                  </>
-                }
-                // The Mingo-first shell: no desktop header (the phone top bar stays; the
-                // bell and the time tracker move into the sidebar footer); the composer is
-                // docked under every page — `null` behind the paywall, which keeps the slot
-                // (and the page's layout) while drawing nothing.
-                desktopHeader={!mingoShell}
-                composerDock={composerDock}
-                composerSheet={composerSheet}
-                // Over the page's end on plain pages and home: the page runs on under it.
-                composerDockFloats={mingoShell && dockViewOf(composerRouteOf(pathname)).floats}
-                // A chat page: Mingo's background and glow from the top of the thread
-                // to the bottom of the window, under the docked composer too.
-                pageSurface={mingoShell && chatEnabled && composerRouteOf(pathname) === 'chat' ? 'mingo' : undefined}
-              >
-                {/* The page segment's boundary. Core used to own it (`loadingFallback`,
+            {/* Manhattan v2's centre (chat column, page header, the dock's two places).
+                Mounted always, told through `enabled`: see the providers' rule above. */}
+            <ManhattanCentre enabled={manhattan && !bareChrome} compact={squeeze.compact}>
+              {centre =>
+                bareChrome ? (
+                  <BareAppShell>{pageContent}</BareAppShell>
+                ) : (
+                  <CoreAppLayout
+                    // Hook for the native-shell safe-area CSS in globals.css: the layout
+                    // root owns the top inset (see `.app-shell-root`). Inert on the web.
+                    className="app-shell-root"
+                    mainClassName={mainClassName ?? APP_MAIN_CLASS_NAME}
+                    sidebarConfig={manhattanSidebarConfig ?? sidebarConfig}
+                    // Manhattan v2: the navigation on the right, the phone burger on the full
+                    // Mingo-first config, the sidebars' width animated.
+                    // While the chat covers the page (chat full screen), no navigation entry is lit:
+                    // the active entry is the page on screen (plan AC10).
+                    endSidebarConfig={
+                      centre?.pageHidden && endSidebarConfig
+                        ? { ...endSidebarConfig, currentPath: '' }
+                        : endSidebarConfig
+                    }
+                    mobileMenuConfig={manhattanMobileMenuConfig}
+                    animateSidebars={manhattan}
+                    mobileBurgerMenuProps={mobileBurgerMenuProps}
+                    headerProps={headerProps}
+                    // The Mingo-first shell owns the phone drawer (see `useMobileMenuStore`); the
+                    // layout still reports every open and close, and closes it on a change of
+                    // `sidebarConfig.currentPath`. The OSS shell leaves it to the layout.
+                    mobileMenuOpen={grouped ? mobileMenuOpen : undefined}
+                    onMobileMenuOpenChange={grouped ? setMobileMenuOpen : undefined}
+                    // Greys the header and nav rail out for the lock: they stay legible —
+                    // the user can still see where they are and reach the account menu —
+                    // but nothing they lead to is reachable until the workspace is paid for.
+                    disabled={showLockContent}
+                    // The super user strip is not one of the bars above: it is a
+                    // statement about the session, not a notice, so it stacks over
+                    // whichever bar won the slot (or none), lock screen included.
+                    // Only once the session has answered, so a flag persisted from a
+                    // previous session cannot flash it ahead of `/me`.
+                    topBar={
+                      <>
+                        {sessionResolved && <SuperUserBanner />}
+                        {topBar}
+                        {centre && squeeze.compact && (
+                          <ManhattanCompactBar
+                            onOpenChats={() => setChatsReveal(n => n + 1)}
+                            onOpenNavigation={() => setNavReveal(n => n + 1)}
+                            chatsDisabled={showLockContent}
+                          />
+                        )}
+                      </>
+                    }
+                    // The Mingo-first shell: no desktop header (the phone top bar stays; the
+                    // bell and the time tracker move into the sidebar footer); the composer is
+                    // docked under every page — `null` behind the paywall, which keeps the slot
+                    // (and the page's layout) while drawing nothing.
+                    desktopHeader={!mingoShell}
+                    composerDock={
+                      centre && mingoShell ? (
+                        dockShown ? (
+                          <div data-composer-dock="">{centre.wrapDock(dockChat)}</div>
+                        ) : null
+                      ) : (
+                        composerDock
+                      )
+                    }
+                    composerSheet={composerSheet}
+                    // Over the page's end on plain pages and home: the page runs on under it.
+                    composerDockFloats={
+                      centre
+                        ? centre.dockFloats(dockViewOf(composerRouteOf(pathname)).floats)
+                        : mingoShell && dockViewOf(composerRouteOf(pathname)).floats
+                    }
+                    // Manhattan v2: the chat column beside the page, the page column's header.
+                    chatColumn={mingoShell ? (centre?.chatColumn ?? null) : undefined}
+                    workAreaMode={centre?.mode}
+                    workAreaStorageKey={centre ? MANHATTAN_WORK_AREA_STORAGE_KEY : undefined}
+                    // Past the other column's min width the divider squeezes it (down to 30% of it), its
+                    // content scrolled sideways, so the column being widened keeps growing.
+                    workAreaSqueezeFloor={centre ? MANHATTAN_WORK_AREA_SQUEEZE_FLOOR : undefined}
+                    pageHeader={mingoShell ? (centre?.pageHeader ?? null) : undefined}
+                    // A chat page: Mingo's background and glow from the top of the thread
+                    // to the bottom of the window, under the docked composer too.
+                    pageSurface={
+                      mingoShell && chatEnabled && composerRouteOf(pathname) === 'chat' ? 'mingo' : undefined
+                    }
+                  >
+                    {/* The page segment's boundary. Core used to own it (`loadingFallback`,
               dropped in 0.0.502 — `<main>` now renders `children` bare), so it
               lives here instead.
 
@@ -817,9 +1041,11 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
               unmounts, so moving between them is a swap inside `<main>` and not
               a re-mount of the sidebar + header — which also means the lock
               arriving late costs a content swap, not a second chrome mount. */}
-                {pageContent}
-              </CoreAppLayout>
-            )}
+                    {pageContent}
+                  </CoreAppLayout>
+                )
+              }
+            </ManhattanCentre>
             {/* The chat history's search modal, once (the section is drawn twice). */}
             {grouped && chatEnabled && !bareChrome && <MingoHistorySearch />}
           </MingoChatProvider>

@@ -2,6 +2,10 @@
 
 import { ActionsMenuDropdown, type ActionsMenuGroup, Button } from '@flamingo-stack/openframe-frontend-core';
 import {
+  type RemoteSessionViewer,
+  RemoteSessionViewers,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
   OpenframeLogoIcon,
   ChatBlankIcon,
   Chevron02DownIcon,
@@ -13,6 +17,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { UnreadDot } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import { useEffect, useRef } from 'react';
 
 interface SessionToolbarProps {
   deviceName: string;
@@ -28,6 +33,8 @@ interface SessionToolbarProps {
   /** The end user wrote while the chat was closed: a dot on the toggle. */
   chatUnread?: boolean;
   onToggleChat?: () => void;
+  /** Who is watching the session, the host first (Watch live); empty while nobody but the host is there. */
+  viewers?: RemoteSessionViewer[];
   /**
    * Auto-hide: slid out of view when false. The bar stays in the DOM so a Tab
    * into it still works - `hold('focus', true)` then brings it back.
@@ -40,8 +47,8 @@ interface SessionToolbarProps {
 /**
  * Compact overlay chrome over the remote-desktop stream (Figma 1755-95622, drawn
  * for fullscreen): a floating semi-transparent bar at top-center (device name,
- * display switcher, actions / chat / fullscreen / settings as 32px icon
- * buttons) plus, in fullscreen, a dimmed OpenFrame logo in the top-left corner.
+ * display switcher, who is watching, actions / chat / fullscreen / settings as
+ * 32px icon buttons) plus, in fullscreen, a dimmed OpenFrame logo in the top-left corner.
  * Rendered inside the stream container, absolutely positioned over the canvas.
  * Windowed, the same bar replaces the pinned header card when the user turns on
  * "Auto-hide toolbar", so the stream gets the full height.
@@ -57,9 +64,30 @@ export function SessionToolbar({
   chatOpen = false,
   chatUnread = false,
   onToggleChat,
+  viewers = [],
   visible = true,
   hold,
 }: SessionToolbarProps) {
+  // The viewers list holds the bar while it is open, like the other menus. When everyone leaves with it open, the
+  // stack is gone without a close, so its hold is let go here - and so are the pointer and focus holds the list took:
+  // React counts the portalled list as inside the bar, and a list removed under the pointer or the focus sends no
+  // leave or blur. They stay only while the pointer or the focus really is on the bar.
+  const barRef = useRef<HTMLDivElement>(null);
+  const viewersMenuOpenRef = useRef(false);
+  const hasViewers = viewers.length > 0;
+  useEffect(() => {
+    if (hasViewers || !viewersMenuOpenRef.current) return;
+    viewersMenuOpenRef.current = false;
+    hold?.('viewers-menu', false);
+    const bar = barRef.current;
+    if (!bar?.contains(document.activeElement)) hold?.('focus', false);
+    if (!bar?.matches(':hover')) hold?.('hover', false);
+  }, [hasViewers, hold]);
+  const onViewersOpenChange = (open: boolean) => {
+    viewersMenuOpenRef.current = open;
+    hold?.('viewers-menu', open);
+  };
+
   return (
     <>
       {fullscreen && (
@@ -70,6 +98,7 @@ export function SessionToolbar({
         />
       )}
       <div
+        ref={barRef}
         data-state={visible ? 'visible' : 'hidden'}
         className={cn(
           'absolute left-1/2 top-0 z-10 w-[calc(100%-7rem)] -translate-x-1/2',
@@ -111,6 +140,7 @@ export function SessionToolbar({
           )}
         </div>
         <div className="flex flex-shrink-0 items-center gap-[var(--spacing-system-xs)]">
+          <RemoteSessionViewers viewers={viewers} onOpenChange={onViewersOpenChange} />
           <ActionsMenuDropdown
             groups={actionsMenuGroups}
             onOpenChange={open => hold?.('actions-menu', open)}

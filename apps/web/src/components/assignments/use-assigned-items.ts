@@ -43,9 +43,9 @@ const ASSIGNED_ITEMS_QUERY = `#graphql
               image { imageUrl hash }
             }
             # The row fields of deviceRowFields_machine — this list renders
-            # DevicesTableBody, which draws no more than that. status, type and
-            # tags are aliased because the union's other members declare the
-            # same names with different types.
+            # DevicesTableBody, which draws no more than that. status and type
+            # are aliased because the union's other members declare the same
+            # names with different types; tagAssignments is Machine's alone.
             ... on Machine {
               machineId
               hostname
@@ -56,7 +56,7 @@ const ASSIGNED_ITEMS_QUERY = `#graphql
               machineType: type
               osType
               organization { id organizationId name image { imageUrl hash } }
-              machineTags: tags { id key description color values createdAt }
+              tagAssignments { id values taggedAt tag { id key description color } }
             }
             # What KnowledgeBaseAssignedTable draws — see toAssignedArticle.
             ... on KnowledgeBaseItem {
@@ -123,7 +123,6 @@ function unaliasFields(target: AssignedTargetNode): Record<string, unknown> {
     ...t,
     status: t.machineStatus ?? t.articleStatus ?? t.status,
     type: t.machineType ?? t.articleType ?? t.type,
-    tags: t.machineTags ?? t.tags,
     organizationId: t.ticketOrganizationId ?? t.organizationId,
   };
 }
@@ -150,7 +149,7 @@ function toMachineRowFields(target: AssignedTargetNode): DeviceRowFields {
     lastSeen: t.lastSeen as DeviceRowFields['lastSeen'],
     type: t.type as DeviceRowFields['type'],
     organization: t.organization as DeviceRowFields['organization'],
-    tags: t.tags as DeviceRowFields['tags'],
+    tagAssignments: t.tagAssignments as DeviceRowFields['tagAssignments'],
   };
 }
 

@@ -1,4 +1,3 @@
-import type { DeviceTag } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { readInlineData } from 'relay-runtime';
 import type { deviceFields_machine$data, deviceFields_machine$key } from '@/__generated__/deviceFields_machine.graphql';
 import type {
@@ -11,6 +10,7 @@ import { deviceFieldsFragment } from '@/graphql/devices/device-fields';
 import { deviceRowFieldsFragment } from '@/graphql/devices/device-row-fields';
 import { deviceSelectorFieldsFragment } from '@/graphql/devices/device-selector-fields';
 import type { Device, ToolConnection, ToolType } from '../types/device.types';
+import { toDeviceTags } from './device-tags';
 
 /**
  * A `Machine` flattened to the `Device` the shared device tables, cards and
@@ -38,37 +38,6 @@ import type { Device, ToolConnection, ToolType } from '../types/device.types';
  * keeps that path honest now that the hand-written mirror of it is gone.
  */
 export type DeviceRowFields = Omit<deviceRowFields_machine$data, ' $fragmentType'>;
-
-/**
- * A `Tag` as the row step selects it, with everything past the two ids optional
- * — the device DETAIL page still reads its node over raw POST and carries a
- * narrower tag. Derived from the fragment rather than restated, so the field
- * names stay bound to the schema.
- */
-type TagFields = NonNullable<NonNullable<DeviceRowFields['tags']>[number]>;
-type TagFieldsLike = Partial<TagFields> & Pick<TagFields, 'id' | 'key'>;
-
-/**
- * Maps GraphQL `Tag` nodes to `DeviceTag`, renaming `id` → `tagId`.
- *
- * Relay hands back readonly arrays, so `values` is copied rather than cast.
- */
-export function toDeviceTags(tags: ReadonlyArray<TagFieldsLike | null | undefined> | null | undefined): DeviceTag[] {
-  return (tags ?? []).flatMap(tag =>
-    tag
-      ? [
-          {
-            tagId: tag.id,
-            key: tag.key,
-            description: tag.description ?? undefined,
-            color: tag.color ?? undefined,
-            values: [...(tag.values ?? [])],
-            createdAt: tag.createdAt ?? undefined,
-          },
-        ]
-      : [],
-  );
-}
 
 function toToolConnections(connections: deviceFields_machine$data['toolConnections']): ToolConnection[] | undefined {
   if (!connections) return undefined;
@@ -121,7 +90,7 @@ export function rowFieldsToDevice(machine: DeviceRowFields): Device {
     organizationImageUrl: machine.organization?.image?.imageUrl ?? null,
     organizationImageHash: machine.organization?.image?.hash ?? null,
 
-    tags: toDeviceTags(machine.tags),
+    tags: toDeviceTags(machine.tagAssignments),
 
     // Misc
     type: machine.type ?? undefined,

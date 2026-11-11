@@ -150,6 +150,30 @@ describe('version policy', () => {
   });
 });
 
+describe('a bundle the shell has already downloaded', () => {
+  // This bundle is 1.0.130.
+  it.each([
+    ['above this bundle and at the minimum', '1.0.131', '1.0.131', true],
+    ['above this bundle and above the minimum', '1.0.140', '1.0.131', true],
+    ['above this bundle, compared as numbers', '1.10.0', '1.9.0', true],
+    ['above this bundle with no minimum known', '1.0.131', undefined, true],
+    ['above this bundle but below the minimum', '1.0.131', '1.0.132', false],
+    ['this bundle itself', '1.0.130', '1.0.120', false],
+    ['older than this bundle', '1.0.129', undefined, false],
+    ['not a version', 'latest', undefined, false],
+    ['absent', null, '1.0.120', false],
+  ])('lifts the block or not: %s', async (_label, pending, min, lifts) => {
+    const { pendingBundleLiftsBlock } = await load();
+    expect(pendingBundleLiftsBlock(pending, min)).toBe(lifts);
+  });
+
+  it('never lifts it for a bundle that does not know its own version', async () => {
+    env.bundleVersion = '-';
+    const { pendingBundleLiftsBlock } = await load();
+    expect(pendingBundleLiftsBlock('1.0.131', undefined)).toBe(false);
+  });
+});
+
 describe('426 Upgrade Required', () => {
   it('flips the app into the blocking state with the body store URL', async () => {
     const { noteUpgradeRequired, isUpdateRequired, resolveStoreUrl } = await load();

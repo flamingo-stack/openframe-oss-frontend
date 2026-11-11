@@ -19,6 +19,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
+import { useTenantManagementV2Gate } from '@/app/(app)/cloud-tenant-management/components/shared/use-tenant-management-gate';
 import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remote-access-approval-gate';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { getFullImageUrl } from '@/lib/image-url';
@@ -81,14 +82,19 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
   const deviceGuardrailsGate = useRemoteAccessApprovalGate();
   const deviceGuardrailsGateLoading = deviceGuardrailsGate === 'loading';
   const showDeviceGuardrails = deviceGuardrailsGate !== 'off';
+  // Directory users and groups (Tenant Management Phase 2, SaaS only): only on a definitive "on". Stage and prod run
+  // the flag off, so drawing them while it reads would flash two tabs main never has.
+  const directoryGate = useTenantManagementV2Gate();
+  const showDirectory = isSaasTenant && directoryGate === 'on';
   const tabs = useMemo(
     () =>
       getCustomerTabs({
+        showDirectory,
         showCustomAiAssistant: isSaasTenant,
         showGuardrails: isSaasTenant,
         showDeviceGuardrails,
       }),
-    [isSaasTenant, showDeviceGuardrails],
+    [showDirectory, isSaasTenant, showDeviceGuardrails],
   );
   const activeTab = (tabs.some(tab => tab.id === requestedTab) ? requestedTab : 'devices') as CustomerDetailTab;
 

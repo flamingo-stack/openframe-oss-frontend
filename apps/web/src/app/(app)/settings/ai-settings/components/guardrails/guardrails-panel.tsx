@@ -49,26 +49,32 @@ export function GuardrailsPanel({ editor, isEditMode }: GuardrailsPanelProps) {
 
   return (
     <LoadingWhen loading={loading} label="Loading guardrails" className="flex flex-col gap-[var(--spacing-system-l)]">
-      <div className="flex items-center gap-[var(--spacing-system-s)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-s)]">
-        <InfoCircleIcon className="size-6 shrink-0 text-ods-text-secondary" />
-        <div className="flex min-w-0 flex-col">
-          <p className="text-ods-text-primary text-h4">Default settings for all customers</p>
+      {/* Figma 4365-22633: 16px padding and gap (12 on a phone), a bold title 4px over its line, a 24px icon (16). */}
+      <div className="flex items-center gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)]">
+        <InfoCircleIcon className="size-4 shrink-0 text-ods-text-secondary content-md:size-6" />
+        <div className="flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]">
+          <p className="text-ods-text-primary text-h3">Default settings for all customers</p>
           <p className="text-ods-text-secondary text-h6">
             Individual customers can be customized separately in their settings.
           </p>
         </div>
       </div>
 
+      {/* Edit Settings swaps the preset card for the picker: the one that comes in fades in, as panels do across the
+          system (keyed, so the swap re-runs it). */}
       {isEditMode ? (
-        <GuardrailsTemplatePicker
-          options={editor.templateOptions}
-          value={editor.selectedTemplateId}
-          disabled={editor.isDetailLoading}
-          onSelect={editor.selectTemplate}
-          onCreateCustomPolicyFrom={editor.createCustomPolicyFrom}
-        />
+        <div key="picker" className="duration-300 animate-in fade-in motion-reduce:animate-none">
+          <GuardrailsTemplatePicker
+            options={editor.templateOptions}
+            value={editor.selectedTemplateId}
+            onSelect={editor.selectTemplate}
+            onCreateCustomPolicyFrom={editor.createCustomPolicyFrom}
+          />
+        </div>
       ) : (
-        <GuardrailsPresetCard label={editor.activePresetLabel} />
+        <div key="preset" className="duration-300 animate-in fade-in motion-reduce:animate-none">
+          <GuardrailsPresetCard label={editor.activePresetLabel} />
+        </div>
       )}
 
       {/* The rules load on their own (a template change re-reads them): one scope, always mounted, in which the
@@ -82,6 +88,7 @@ export function GuardrailsPanel({ editor, isEditMode }: GuardrailsPanelProps) {
           />
         ) : (
           <GuardrailsPolicyGroups
+            switching={editor.isTemplateSwitching}
             groups={editor.policyGroups}
             editMode={editor.canEditRules}
             onPolicyPermissionChange={editor.setPolicyPermission}

@@ -2,7 +2,8 @@ import Capacitor
 import UIKit
 import WebKit
 
-/// Registers app-local plugins with the Capacitor bridge.
+/// Registers app-local plugins with the Capacitor bridge, and points it at the
+/// web bundle this process booted.
 /// Wired up via Main.storyboard (custom class of the bridge view controller).
 class MainViewController: CAPBridgeViewController {
     /// Held for the controller's lifetime — see `restoreContentInsetAfterFullscreen`.
@@ -10,9 +11,23 @@ class MainViewController: CAPBridgeViewController {
     /// The web view's `uiDelegate` is weak; this keeps the router alive.
     private var newWindowRouter: NewWindowRouter?
 
+    /// Serves the web view from the over-the-air bundle this process booted, when
+    /// there is one (NativeUpdate.swift). The decision is the updater's and is
+    /// made once per process: a controller built again later gets the same bundle.
+    /// Never Capacitor's persisted `serverBasePath`, which any page script can
+    /// set: `DisableDeploy` keeps super from reading it.
+    override open func instanceDescriptor() -> InstanceDescriptor {
+        let descriptor = super.instanceDescriptor()
+        if let directory = NativeUpdate.shared.bootDirectory() {
+            descriptor.appLocation = directory
+        }
+        return descriptor
+    }
+
     override open func capacitorDidLoad() {
         bridge?.registerPluginInstance(NativeAuthPlugin())
         bridge?.registerPluginInstance(NativeFilesPlugin())
+        bridge?.registerPluginInstance(NativeUpdatePlugin())
         let externalLinks = ExternalLinksPlugin()
         bridge?.registerPluginInstance(externalLinks)
         if let webView, let capacitorUIDelegate = webView.uiDelegate {

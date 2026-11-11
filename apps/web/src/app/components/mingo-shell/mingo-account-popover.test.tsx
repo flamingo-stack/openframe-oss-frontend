@@ -66,6 +66,13 @@ describe('MingoAccountPopover', () => {
     expect(seen.props?.name).toBe('Ann Lee');
   });
 
+  it('is the avatar alone with Log out only for Manhattan v2 (avatarOnly, logoutOnly), even with unread replies', () => {
+    live.value = { authed: true, unreadTotal: 2, nextUnreadTicketId: 't-9' };
+    act(() => root.render(<MingoAccountPopover collapsed={false} locked={false} avatarOnly logoutOnly />));
+    expect(seen.props?.avatarOnly).toBe(true);
+    expect(seen.props?.items.map(entry => entry.id)).toEqual(['logout']);
+  });
+
   it('adds Support replies with the unread count, opening the newest unread ticket', () => {
     live.value = { authed: true, unreadTotal: 9, nextUnreadTicketId: 't-7' };
     const [replies] = render();

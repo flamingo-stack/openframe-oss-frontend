@@ -35,6 +35,8 @@ vi.mock('@/app/(app)/dashboard/components/dashboard-content', () => ({ default: 
 vi.mock('@/app/(app)/onboarding/components/onboarding-content', () => ({ OnboardingContent: () => <p>tour</p> }));
 vi.mock('@/app/(app)/mingo/home/mingo-new-chat', () => ({ MingoNewChat: () => <p>new chat</p> }));
 vi.mock('@/app/(app)/mingo/home/mingo-dashboard', () => ({ MingoDashboard: () => <p>mingo dashboard</p> }));
+// Manhattan v2's Start Work reads "Needs you" (Relay, the dashboard's queries): not what this file tests.
+vi.mock('@/app/(app)/mingo/home/manhattan-start-work', () => ({ ManhattanStartWork: () => <p>start work</p> }));
 vi.mock('@/app/(app)/mingo/chat/mingo-chat-view', () => ({
   MingoChatView: ({ dialogId }: { dialogId: string | null }) => <p>chat {dialogId ?? 'new'}</p>,
 }));

@@ -9,10 +9,8 @@ type SessionRow = Pick<RecordingSummary, 'recordingState' | 'live' | 'kept' | 'e
 
 /** Watch live is on for the lists: a running session reads LIVE. */
 export interface LiveRows {
-  /** The signed-in technician: their own running session's row leads back into it. */
+  /** The signed-in technician. */
   userId: string | null;
-  /** Remote Control can open here; the mobile shell has none. */
-  remoteControl: boolean;
 }
 
 /** The row reads LIVE: Watch live is on (`liveRows` set) and the session is still running. */
@@ -20,25 +18,13 @@ export function isLiveRow(row: Pick<RecordingSummary, 'live'>, liveRows: LiveRow
   return liveRows !== null && row.live;
 }
 
-/** The signed-in technician runs this session themselves. */
-export function isOwnSession(row: Pick<RecordingSummary, 'technicianId'>, liveRows: LiveRows): boolean {
-  return liveRows.userId !== null && row.technicianId === liveRows.userId;
-}
-
 /**
  * The page a row opens. A finished session opens its recording, when it has one
- * to play. A LIVE row of the signed-in technician opens Remote Control on its
- * device, where the backend hands them back their own session; a colleague's
- * opens the live session page.
+ * to play. Every LIVE row opens the live session page, the signed-in
+ * technician's own included: there they watch their own session from that tab.
  */
-export function sessionHref(
-  row: SessionRow & Pick<RecordingSummary, 'id' | 'deviceId' | 'technicianId'>,
-  liveRows: LiveRows | null,
-): string | null {
-  if (isLiveRow(row, liveRows)) {
-    if (!isOwnSession(row, liveRows)) return routes.devices.liveSession(row.id);
-    return liveRows.remoteControl ? routes.devices.remoteDesktop(row.deviceId) : null;
-  }
+export function sessionHref(row: SessionRow & Pick<RecordingSummary, 'id'>, liveRows: LiveRows | null): string | null {
+  if (isLiveRow(row, liveRows)) return routes.devices.liveSession(row.id);
   return row.recordingId && canOpenSession(row) ? routes.devices.remoteSessionRecording(row.recordingId) : null;
 }
 

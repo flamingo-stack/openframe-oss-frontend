@@ -71,4 +71,12 @@
     <!-- Android 13+ runtime notification permission — required for the
          push-notifications plugin's requestPermissions() prompt to appear. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- TokenLifecycle keeps the CPU up while it waits to re-present a refresh
+         whose answer was lost. androidx.work merges this too; declared here so
+         the wake lock does not rely on that library's merge. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- NativeUpdate reads Data Saver and whether the network is metered before it
+         downloads a bundle (ConnectivityManager throws without this). @capacitor/network
+         merges it too; declared here so the updater does not rely on that plugin's merge. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 </manifest>

@@ -135,6 +135,41 @@ modal** on the billing page (`billing-usage/components/upgrade-plan-modal.tsx`),
 `isBillingHidden()`; anything that changes billing (upgrade/pay/cancel CTA, limit control) also on
 `isBillingReadOnly()`.**
 
+### Over-the-air bundles (the mobile shells run releases they were not built with)
+
+Every release's static export is also published as a signed bundle, and installed mobile apps take
+the one their environment runs without a store release (`apps/mobile/docs/ota.md`). Three rules
+follow for code in this app.
+
+**1. What reaches phones only with a store build.** Apple reviewed the app as its review notes
+describe it (`apps/mobile/AppStore-Review-Notes.txt`), and a bundle that makes a line of them false
+changes the app after review (App Store 2.5.2, 2.3.1). These wait for a store release, however small
+the diff:
+- payment, price, plan or invoice visibility (`lib/billing-visibility.ts`, `lib/platform.ts`,
+  `settings/billing-usage/**`, `checkout/**`, `components/subscription-lock/**`);
+- registration and the auth UI (`(auth)/**`, how `NEXT_PUBLIC_MOBILE_AUTH_UI` is read);
+- account deletion;
+- permission prompts or when they appear (`native-push`, biometrics, `native-files`, camera and
+  microphone flows);
+- a new external service, SDK or data collection that changes the privacy label;
+- a `REQUIRED_BRIDGE_LEVEL` bump.
+
+Fixes, copy, layout, performance and new pages inside the areas the notes describe ship over the air.
+
+**2. A bundle reports that it booted, before anything can hang.** `confirmBundleBooted()`
+(`lib/native-update.ts`, called from `NativeShellInitializer` after the synchronous shell setup and
+before token hydration) checks the
+bridge members this bundle cannot run without and then calls `NativeUpdate.notifyReady()`. A bundle
+that does not report within two launches is marked bad and the shell goes back to the one before it.
+Nothing may be put in front of that call that waits on the network, a prompt or the user.
+
+**3. Persisted state must stay readable by the bundle before it.** A rollback runs release N on
+what release N+1 stored. Bump a zustand `persist` store's `version` on any shape change (with no
+`migrate`, zustand discards a version it does not know, which is safe); a `migrate` returns the
+defaults when the stored version is above its own; raw `localStorage` keys (`native:*`,
+`auth-storage`) only gain fields. A new `window.__ENV` key needs a default: an over-the-air bundle
+runs with the env of the store build it landed on.
+
 ## Architecture & Structure
 
 ### Technology Stack
@@ -497,6 +532,40 @@ know themselves (`DevicesViewConfig` in the root layout: device URLs, image URLs
 - **Remote desktop, the session chat and the knowledge base still render the app's own markup.** The
   lib's `RemoteDesktopView` predates #578's header and #581's recording banner, and its knowledge-base
   views predate #547. Bring the lib view up to date before switching one of these screens to it.
+
+### Images and Avatars (MANDATORY)
+
+An avatar or logo that draws only its initials is almost always one of three things: a backend path the page
+cannot load, a picture loaded without the bearer in a native shell, or a fallback that stuck. Each has one rule.
+
+- **Draw every picture with the core lib**: `SquareAvatar` (people), `EntityImage` (organizations, logos),
+  `PersonCell` / `PeopleCell` / `AvatarStack`, or the boxed `Image` (`embed-shims`). Never a raw `<img>`
+  (`@next/next/no-img-element`) and never `next/image` directly (`openframe-frontend/pictures-through-the-lib`):
+  only the lib's picture resolves and authenticates (`useAuthedAsset`).
+- **Resolve backend image URLs at the data boundary with `getFullImageUrl(imageUrl, hash)`** (`src/lib/image-url.ts`),
+  in the mapper or transform that reads the field. The backend stores `/images/{type}/{id}` with no `/api`
+  (saas-lib `Image.getImageUrl()`), and the gateway serves it only at `{tenantHost}/api/images/...`. As it comes, it hits
+  the SPA catch-all on web and the bundle (`tauri://localhost`) in the desktop shell, so it loads nowhere. The
+  remote-access copies (`RemoteAccessTechnician.avatarUrl`, `RemoteSessionTicketLink.assignedAvatarUrl`) carry
+  `?v=<hash>` already: `getFullImageUrl(url)` with no hash. There is no hash-only helper: a hashed URL without its
+  host is what drew initials on the tickets board. A Google SSO picture is an absolute third-party URL and passes
+  through unchanged.
+- **The lib resolves on render too, as a net.** `resolveBackendImageUrl` is the chat runtime adapter's
+  `resolveAssetUrl` (`openframe-chat-runtime-provider.tsx`), and every lib picture passes its src through it. It is
+  not the contract: a URL that is compared, stored or sent anywhere still goes through `getFullImageUrl`.
+- **Bearer mode (the shells, dev-ticket web)**: a gateway picture waits for the credential, is fetched with it and is
+  drawn from a blob. A picture still waiting for its credential, or refused by an old one, is fetched again when the
+  credential changes: that is the adapter's epoch-gated `subscribe`, so **every write that installs a token must
+  `markTokenRotation()` + `emitTokenChange()`** (`token-store.ts`; cold-start `initTokenStore` included). A silent
+  write leaves every picture rendered before it waiting until it happens to render again: the desktop sidebar avatar
+  stayed on initials for whole sessions that way.
+- **A fallback comes from the lib's `useImageFallback`, keyed on the store's answer**
+  (`useImageFallback(useAuthedImageSrc(src))`), as `SquareAvatar` does: the component keeps holding the picture's
+  store entry, so a fetch that got no answer, or a 401 the session can refresh past, is retried. Keyed on the raw
+  URL, nothing retries it. Never hide a picture or show its fallback by writing to the DOM in `onError`: the write
+  outlives the src it was about.
+- **`RemoteAccessOrganization.logoUrl` is always null** (the backend never sets it on the session's customer copy).
+  The customer's logo is `RemoteSession.device.organization.image`.
 
 ### Embedded Page Components (standalone + tab reuse)
 

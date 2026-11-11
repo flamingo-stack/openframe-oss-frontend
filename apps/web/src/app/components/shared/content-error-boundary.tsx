@@ -23,6 +23,16 @@ import { isOfflineError, loadErrorProps } from '@/lib/query-state';
 const RetryKeyContext = createContext(0);
 
 /**
+ * The newest key any boundary has committed. A boundary starts from it (or from its parent's, if that is newer), and
+ * every retry and every committed failure moves past it, so no boundary reads a key a failed read is retained under.
+ * Counted per instance from zero, a boundary nested under one that retried, or one remounted after its own retry (a tab
+ * shown again), went back to the key that failed and rethrew it; one remounted after a failure it never retried (a tab
+ * switched away and back) started on that key and tripped with no request. Written only on commit and in event
+ * handlers, never during render.
+ */
+let latestRetryKey = 0;
+
+/**
  * Read the enclosing boundary's retry counter. Compose it into a Relay
  * `fetchKey` (see `devices/hooks/use-device-list.ts` for the established shape)
  * so pressing Retry actually re-issues the request.
@@ -42,6 +52,12 @@ interface ContentErrorBoundaryProps {
   message?: string;
   /** Ran alongside the internal retry, for surfaces with their own refetch. */
   onRetry?: () => void;
+  /**
+   * Called with what was caught, in the commit that shows the failed state; never for `notFound()`/`redirect()`. For a
+   * caller whose own state must follow the failure: an update made here renders before the browser paints the
+   * fallback, where one made from the fallback's effect can land a frame after it.
+   */
+  onError?: (error: unknown) => void;
   /** Console prefix identifying the surface. */
   label?: string;
   /**
@@ -130,7 +146,16 @@ function isControlFlowError(error: unknown): boolean {
  * `log-drawer-details.tsx`.
  */
 export class ContentErrorBoundary extends Component<ContentErrorBoundaryProps, ContentErrorBoundaryState> {
-  state: ContentErrorBoundaryState = { failed: false, error: null, resetKey: this.props.resetKey, retryKey: 0 };
+  // The enclosing boundary's key: one recovering in this same render has not committed it yet.
+  static contextType = RetryKeyContext;
+  declare context: number;
+
+  state: ContentErrorBoundaryState = {
+    failed: false,
+    error: null,
+    resetKey: this.props.resetKey,
+    retryKey: Math.max(latestRetryKey, this.context),
+  };
 
   private unsubscribeConnectivity: (() => void) | undefined;
 
@@ -172,10 +197,18 @@ export class ContentErrorBoundary extends Component<ContentErrorBoundaryProps, C
     // moves it: clearing `failed` alone remounts the children onto Relay's
     // RETAINED rejection (see `RetryKeyContext`), so the boundary re-trips on the
     // next render and the user's new search looks like it broke the page.
-    return { failed: false, error: null, resetKey: props.resetKey, retryKey: state.retryKey + 1 };
+    // Pure: React runs this again when it restarts an uncommitted render (a deferred one that suspended), and a new
+    // key on each run would be a new request each time, so the render would never settle. Committed in didUpdate.
+    return {
+      failed: false,
+      error: null,
+      resetKey: props.resetKey,
+      retryKey: Math.max(state.retryKey, latestRetryKey) + 1,
+    };
   }
 
   componentDidMount() {
+    latestRetryKey = Math.max(latestRetryKey, this.state.retryKey);
     // An offline failure is the one state that CANNOT clear itself: the request
     // waited for the link, gave up, and the offline copy deliberately carries no
     // Retry (it could not work). Without this the boundary is a dead end — the
@@ -196,6 +229,7 @@ export class ContentErrorBoundary extends Component<ContentErrorBoundaryProps, C
   }
 
   componentDidUpdate() {
+    latestRetryKey = Math.max(latestRetryKey, this.state.retryKey);
     // Closes a lost edge the listener above cannot see. The two events are
     // CORRELATED, not independent: the request gave up after spending
     // `OFFLINE_GRACE_MS` waiting for exactly this link, so a reconnect landing in
@@ -220,14 +254,18 @@ export class ContentErrorBoundary extends Component<ContentErrorBoundaryProps, C
   }
 
   componentDidCatch(error: unknown) {
+    // Commit phase on mount and on update alike: the failed key is retained, so the next boundary to mount starts past it.
+    latestRetryKey = Math.max(latestRetryKey, this.state.retryKey + 1);
     if (isControlFlowError(error)) return;
     console.error(`[${this.props.label ?? 'ContentErrorBoundary'}]`, error);
+    this.props.onError?.(error);
   }
 
   private retry = () => {
     // The counter moves BEFORE the children remount, so they read the new value
     // on their first render and Relay treats it as a different query.
-    this.setState(prev => ({ failed: false, error: null, retryKey: prev.retryKey + 1 }));
+    latestRetryKey = Math.max(latestRetryKey, this.state.retryKey) + 1;
+    this.setState({ failed: false, error: null, retryKey: latestRetryKey });
     this.props.onRetry?.();
   };
 

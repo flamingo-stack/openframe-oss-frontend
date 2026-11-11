@@ -343,6 +343,7 @@ fn click_payload(envelope: &serde_json::Value) -> Option<serde_json::Value> {
             "deviceId",
             "approvalRequestId",
             "link",
+            "connectionId",
         ] {
             if let Some(value) = source.get(key) {
                 attributes.insert(key.to_string(), value.clone());

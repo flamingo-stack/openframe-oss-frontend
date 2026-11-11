@@ -3,7 +3,9 @@
 import type { ApprovalLevel, PermissionCategory } from '@flamingo-stack/openframe-frontend-core';
 import { PolicyConfigurationPanel } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { LoadingItems, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { noop, NO_ITEMS } from '@/app/components/shared';
+import { policyGroupLabel } from './build-policy-groups';
 
 interface GuardrailsPolicyGroupsProps {
   /** Unread while loading. */
@@ -11,6 +13,8 @@ interface GuardrailsPolicyGroupsProps {
   editMode?: boolean;
   onPolicyPermissionChange?: (categoryId: string, policyId: string, level: ApprovalLevel) => void;
   onCategoryPermissionChange?: (categoryId: string, level: ApprovalLevel) => void;
+  /** Another template's rules are on their way: these stay, dimmed and busy, until they land (no skeleton flash). */
+  switching?: boolean;
 }
 
 const GROUPS_CLASS = 'flex min-w-0 flex-col gap-[var(--spacing-system-l)]';
@@ -21,6 +25,8 @@ const GROUP_CLASS = 'flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]';
  * size: this is a template's typical count. Each group's panel draws its own skeleton categories.
  */
 const GUARDRAILS_SKELETON_GROUPS = 2;
+/** Categories a loading group draws: a template's groups hold three (File Downloads, Uploads, Management). */
+const GUARDRAILS_SKELETON_CATEGORIES = 3;
 
 interface PolicyGroupProps {
   /** The group's label; unread while loading. */
@@ -44,8 +50,9 @@ function PolicyGroup({
   const isLoading = useLoadingScope() || loading;
   return (
     <div className={GROUP_CLASS} data-loading-item>
+      {/* The group is the template's enum (`FILE_OPERATIONS_POLICY`): written as words. */}
       <TruncateText variant="h5" tone="secondary" loading={isLoading}>
-        {name}
+        {policyGroupLabel(name)}
       </TruncateText>
       <PolicyConfigurationPanel
         categories={categories}
@@ -53,6 +60,7 @@ function PolicyGroup({
         onPolicyPermissionChange={onPolicyPermissionChange}
         onCategoryPermissionChange={onCategoryPermissionChange}
         loading={isLoading}
+        skeletonCount={GUARDRAILS_SKELETON_CATEGORIES}
       />
     </div>
   );
@@ -67,17 +75,22 @@ export function GuardrailsPolicyGroups({
   editMode = false,
   onPolicyPermissionChange = noop,
   onCategoryPermissionChange = noop,
+  switching = false,
 }: GuardrailsPolicyGroupsProps) {
   const loading = useLoadingScope() || groups == null;
   return (
-    <div className={GROUPS_CLASS}>
+    <div
+      aria-busy={switching || undefined}
+      className={cn(GROUPS_CLASS, 'transition-opacity duration-200', switching && 'opacity-60')}
+    >
       {loading ? (
         <LoadingItems count={GUARDRAILS_SKELETON_GROUPS}>
           {() => (
             <PolicyGroup
               name=""
               categories={NO_ITEMS}
-              editMode={false}
+              // The loaded rows' columns (the bulk dropdown while a custom policy is edited), locked.
+              editMode={editMode}
               onPolicyPermissionChange={noop}
               onCategoryPermissionChange={noop}
               loading

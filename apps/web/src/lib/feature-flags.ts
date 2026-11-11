@@ -50,6 +50,15 @@ export const FEATURE_FLAG_NAMES = [
   // over the directory API. Registered on dev and qa; absent elsewhere, which
   // reads as off.
   'tenant-management',
+  // Tenant Management Phase 2 on top of `tenant-management`: several customers
+  // per directory by attribution rules, the Users and Groups pages and tabs, the
+  // device Directory tab and USER / SOURCES columns, tenant licences, pause and
+  // disconnect. The backend reads the same key and serves the phase-2 schema only
+  // while it is on, so off renders main's screens over main's operations (the
+  // `v1/` copies). Never set it through the per-tenant override: the frontend
+  // would turn on against a backend that is off. On for dev / qa, absent
+  // elsewhere, which reads as off.
+  'tenant-management-v2',
   // The Software module (`/software/*`: the inventory, its vulnerabilities,
   // install / update runs) and its two Mingo context kinds (SOFTWARE and
   // VULNERABILITY). Off = no sidebar entry, every `/software` route 404s, the
@@ -64,6 +73,11 @@ export const FEATURE_FLAG_NAMES = [
   // fields. Off = the form as before, the submit sends neither. On for dev / qa,
   // absent elsewhere, which reads as off.
   'software-update-settings',
+  // Wait & notify, its deadline and the countdowns in those "Update Settings":
+  // they need the device to notify the user, which the client cannot do yet.
+  // Off = Force Update alone, and a Wait & notify is submitted as Force Update.
+  // Absent everywhere until the notifications ship, which reads as off.
+  'software-update-notifications',
   // "Compact chat memory" under the Mingo composer: summarizes a dialog's AI
   // context on demand. Off = the action is absent; auto-compaction is
   // unaffected either way.
@@ -203,6 +217,17 @@ export const featureFlags = {
   tenantManagement: {
     enabled(): boolean {
       return getFlagValue('tenant-management', () => false);
+    },
+  },
+  /**
+   * Tenant Management Phase 2, which needs phase 1 on as well. Gating goes
+   * through `useTenantManagementV2Gate` (tri-state); this accessor is for
+   * imperative reads outside React (the notification resolver), where
+   * not-yet-loaded reads as off.
+   */
+  tenantManagementV2: {
+    enabled(): boolean {
+      return getFlagValue('tenant-management', () => false) && getFlagValue('tenant-management-v2', () => false);
     },
   },
   /**

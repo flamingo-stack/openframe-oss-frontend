@@ -1,6 +1,6 @@
 /**
- * Pins the record → form mapping (a null domain or an unknown provider still seeds Edit) and keeps
- * the bound customer selectable although the API lists only unbound customers.
+ * Pins the record → form mapping (a null domain or an unknown provider still seeds Edit) and keeps a
+ * stored customer selectable before its picker's list has paged to it.
  */
 
 import { describe, expect, it, vi } from 'vitest';
@@ -23,18 +23,16 @@ function connection(overrides: Partial<StoredConnectionFields> = {}): StoredConn
     provider: DirectoryProvider.GOOGLE_WORKSPACE,
     name: 'Acme Workspace',
     domain: 'acme.com',
-    organizationId: ACME.organizationId,
     ...overrides,
   };
 }
 
 describe('connectionToFormValues', () => {
-  it('maps the record, customer by business id', () => {
+  it('maps the record', () => {
     expect(connectionToFormValues(connection())).toEqual({
       provider: DirectoryProvider.GOOGLE_WORKSPACE,
       domain: 'acme.com',
       name: 'Acme Workspace',
-      organizationId: ACME.organizationId,
     });
   });
 
@@ -52,7 +50,7 @@ describe('connectionToFormValues', () => {
 });
 
 describe('withBoundOrganization', () => {
-  it('puts the bound customer back at the top when the API left it out', () => {
+  it('puts the stored customer back at the top while the list has not reached it', () => {
     expect(withBoundOrganization([GLOBEX], ACME)).toEqual([ACME, GLOBEX]);
   });
 
@@ -60,7 +58,7 @@ describe('withBoundOrganization', () => {
     expect(withBoundOrganization([ACME, GLOBEX], ACME)).toEqual([ACME, GLOBEX]);
   });
 
-  it('leaves the list alone when nothing is bound yet (New before Generate)', () => {
+  it('leaves the list alone when nothing is picked yet', () => {
     expect(withBoundOrganization([GLOBEX], null)).toEqual([GLOBEX]);
   });
 });

@@ -1,0 +1,104 @@
+'use client';
+'use no memo';
+// Main's apps/web/src/app/(app)/cloud-tenant-management/components/tenant-form/provider-field.tsx, rendered while tenant-management-v2 is off. Deleted with the flag.
+
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { Alert, RadioGroupBlock, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useEffect, useMemo } from 'react';
+import { type Control, Controller } from 'react-hook-form';
+import { graphql, useLazyLoadQuery } from 'react-relay';
+import type { providerFieldV1Query as ProviderFieldQueryType } from '@/__generated__/providerFieldV1Query.graphql';
+import { useRetryKey } from '@/app/components/shared';
+import type { DirectoryProvider } from '@/generated/schema-enums';
+import { PROVIDER_ORDER, providerPresentation } from '../../../utils/tenant-presentation';
+import type { TenantFormDataV1 } from './tenant-form-v1.types';
+
+const providerFieldV1Query = graphql`
+  query providerFieldV1Query {
+    directoryConnectionOptions {
+      providers
+    }
+  }
+`;
+
+/** One provider as a radio option: its name and the line that says what connecting it does. */
+function toProviderOption(provider: DirectoryProvider) {
+  const { label, radioDescription } = providerPresentation(provider);
+  return { value: provider, label, description: radioDescription };
+}
+
+interface ProviderFieldProps {
+  control: Control<TenantFormDataV1>;
+  disabled?: boolean;
+  /** The provider is fixed once a connection exists (a record has one). */
+  locked?: boolean;
+  /** The providers this deployment offers, in `PROVIDER_ORDER`; a value this build does not know is left out. */
+  onOffered?: (providers: readonly DirectoryProvider[]) => void;
+}
+
+function ProviderOptions({ control, disabled = false, locked = false, onOffered }: ProviderFieldProps) {
+  const retryKey = useRetryKey();
+  const { directoryConnectionOptions } = useLazyLoadQuery<ProviderFieldQueryType>(
+    providerFieldV1Query,
+    {},
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
+  );
+  const { providers } = directoryConnectionOptions;
+  // Memoised for identity: the effect below reports it up, and a fresh array each render would re-run it.
+  const offered = useMemo(() => PROVIDER_ORDER.filter(provider => providers.includes(provider)), [providers]);
+
+  useEffect(() => {
+    onOffered?.(offered);
+  }, [offered, onOffered]);
+
+  if (offered.length === 0) {
+    return (
+      <Alert variant="warning" className="p-[var(--spacing-system-s)]" role="status">
+        <p className="text-h4">No directory provider is enabled for this workspace yet.</p>
+      </Alert>
+    );
+  }
+
+  return (
+    <Controller
+      name="provider"
+      control={control}
+      render={({ field, fieldState }) => (
+        <RadioGroupBlock
+          name={field.name}
+          value={field.value}
+          onValueChange={field.onChange}
+          options={offered.map(toProviderOption)}
+          variant="grouped"
+          disabled={disabled || locked}
+          error={fieldState.error?.message}
+          aria-label="Provider"
+        />
+      )}
+    />
+  );
+}
+
+/**
+ * The provider radio of the New form, over the providers this deployment has enabled. In a loading scope (its own
+ * Suspense fallback, or the page's) it draws its own loading state and reads nothing.
+ */
+export function ProviderFieldV1(props: ProviderFieldProps) {
+  return (
+    <LoadingSuspense label="Loading providers">
+      <ProviderFieldBody {...props} />
+    </LoadingSuspense>
+  );
+}
+
+// The radio as it will stand, locked and unselected, over every provider this build knows. Which of
+// them the deployment offers is the only thing that changes on arrival.
+const LOADING_OPTIONS = PROVIDER_ORDER.map(toProviderOption);
+
+/** In a loading scope the field is the real radio, disabled, over every provider this build knows; else the read. */
+function ProviderFieldBody(props: ProviderFieldProps) {
+  if (useLoadingScope()) {
+    return <RadioGroupBlock options={LOADING_OPTIONS} variant="grouped" disabled aria-label="Provider" />;
+  }
+  return <ProviderOptions {...props} />;
+}

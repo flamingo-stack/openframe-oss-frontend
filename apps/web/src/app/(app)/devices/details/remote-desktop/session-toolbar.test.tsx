@@ -1,10 +1,12 @@
 /**
- * Pins the overlay toolbar's buttons to Figma 1755-95622: actions, chat,
- * fullscreen, settings - all icon buttons, the chat one only when the session
- * has a chat, and pressed while the chat is open. Windowed, the same bar offers
- * Enter fullscreen and drops the logo; hidden, it slides away but keeps holding
- * the auto-hide while something interacts with it.
+ * Pins the overlay toolbar's buttons to Figma 1755-95622: who is watching,
+ * actions, chat, fullscreen, settings - all icon buttons, the chat one only when
+ * the session has a chat, and pressed while the chat is open. Windowed, the same
+ * bar offers Enter fullscreen and drops the logo; hidden, it slides away but
+ * keeps holding the auto-hide while something interacts with it, the viewers
+ * list included.
  */
+import type { RemoteSessionViewer } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -22,9 +24,18 @@ let root: Root;
 const onToggleChat = vi.fn();
 const hold = vi.fn();
 
+const VIEWERS: RemoteSessionViewer[] = [
+  { id: 'tech-maria', name: 'Maria Host', isHost: true, isYou: true },
+  { id: 'tech-dana', name: 'Dana' },
+];
+
 function render(
   chat: { open: boolean; unread?: boolean } | null,
-  { fullscreen = true, visible = true }: { fullscreen?: boolean; visible?: boolean } = {},
+  {
+    fullscreen = true,
+    visible = true,
+    viewers,
+  }: { fullscreen?: boolean; visible?: boolean; viewers?: RemoteSessionViewer[] } = {},
 ) {
   act(() =>
     root.render(
@@ -39,12 +50,21 @@ function render(
         chatOpen={chat?.open}
         chatUnread={chat?.unread}
         onToggleChat={chat ? onToggleChat : undefined}
+        viewers={viewers}
         visible={visible}
         hold={hold}
       />,
     ),
   );
 }
+
+/** The last hold the viewers list asked for (focus and hover holds come and go around it). */
+const viewersHeld = () => hold.mock.calls.filter(([key]) => key === 'viewers-menu').at(-1)?.[1];
+
+const viewersTrigger = () =>
+  Array.from(container.querySelectorAll('button')).find(button =>
+    button.getAttribute('aria-label')?.startsWith('In this session'),
+  );
 
 const bar = () => container.querySelector<HTMLElement>('[data-state]');
 
@@ -133,5 +153,62 @@ describe('SessionToolbar', () => {
     expect(hold).toHaveBeenLastCalledWith('focus', true);
     act(() => settings?.blur());
     expect(hold).toHaveBeenLastCalledWith('focus', false);
+  });
+
+  it('shows who is watching ahead of the actions, only while somebody watches', () => {
+    render({ open: false }, { viewers: VIEWERS });
+    expect(buttonLabels()).toEqual([
+      'In this session: Maria Host (host), Dana',
+      'Actions',
+      'Open chat',
+      'Exit fullscreen',
+      'Settings',
+    ]);
+
+    render({ open: false }, { viewers: [] });
+    expect(viewersTrigger()).toBeUndefined();
+  });
+
+  it('holds the auto-hide while the viewers list is open, and lets go when it closes or everyone left', () => {
+    render(null, { viewers: VIEWERS });
+    act(() => {
+      viewersTrigger()?.dispatchEvent(
+        new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, pointerType: 'mouse' }),
+      );
+    });
+    expect(viewersHeld()).toBe(true);
+    act(() => {
+      document
+        .querySelector('[role="menu"]')
+        ?.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Escape' }));
+    });
+    expect(viewersHeld()).toBe(false);
+
+    act(() => {
+      viewersTrigger()?.dispatchEvent(
+        new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, pointerType: 'mouse' }),
+      );
+    });
+    expect(viewersHeld()).toBe(true);
+    render(null, { viewers: [] });
+    expect(viewersHeld()).toBe(false);
+  });
+
+  it('lets go of the pointer and focus holds the list took when everyone leaves with it open', () => {
+    render(null, { viewers: VIEWERS });
+    act(() => {
+      viewersTrigger()?.dispatchEvent(
+        new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, pointerType: 'mouse' }),
+      );
+    });
+    // The open list has the focus: React counts the portal as inside the bar, so the bar holds for the focus.
+    act(() => document.querySelector<HTMLElement>('[role="menu"]')?.focus());
+    expect(hold).toHaveBeenLastCalledWith('focus', true);
+
+    hold.mockClear();
+    render(null, { viewers: [] });
+    expect(hold).toHaveBeenCalledWith('viewers-menu', false);
+    expect(hold).toHaveBeenCalledWith('focus', false);
+    expect(hold).toHaveBeenCalledWith('hover', false);
   });
 });

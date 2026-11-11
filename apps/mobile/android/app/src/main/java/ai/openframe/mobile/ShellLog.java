@@ -3,13 +3,14 @@ package ai.openframe.mobile;
 import android.util.Log;
 
 /**
- * The shell's two log streams, mirroring ios/App/App/ShellLog.swift:
- * {@code adb logcat -s OpenFrameAuth OpenFrameNotifications}.
+ * The shell's log streams, mirroring ios/App/App/ShellLog.swift:
+ * {@code adb logcat -s OpenFrameAuth OpenFrameNotifications OpenFrameUpdate}.
  */
 final class ShellLog {
 
     static final ShellLog auth = new ShellLog("OpenFrameAuth");
     static final ShellLog notifications = new ShellLog("OpenFrameNotifications");
+    static final ShellLog update = new ShellLog("OpenFrameUpdate");
 
     private final String tag;
 

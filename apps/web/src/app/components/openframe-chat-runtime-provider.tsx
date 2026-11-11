@@ -64,6 +64,7 @@ import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-s
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
 import { clientIdentityHeaders } from '@/lib/client-identity';
+import { resolveBackendImageUrl } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
 /**
  * Content-href seam for openframe. The type→route map is shared with the Help
@@ -79,7 +80,7 @@ import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { isSessionGone, noteGatewayResponse, SessionGoneError } from '@/lib/session-health';
 import { refreshAccessToken } from '@/lib/token-refresh-manager';
-import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode, subscribeToTokenChange } from '@/lib/token-store';
+import { getBearerTokenSync, getTokenEpoch, isBearerAuthMode, subscribeToTokenChange } from '@/lib/token-store';
 import { isUpdateRequired, noteUpgradeRequired, UpdateRequiredError } from '@/lib/version-check';
 
 /** Stable source identifier used for localStorage namespacing inside the
@@ -94,14 +95,17 @@ const CHAT_SOURCE = 'openframe' as const;
  * outgoing chat request. Read back in `refresh()` so a 401 raised under a
  * credential that has ALREADY been replaced retries instead of rotating again.
  *
- * The adapter is a module singleton and core calls `getHeaders()` from more
- * than the send path (`needsBearerAssetFetch` probes authed images with it), so
- * this is really the last HEADER BUILD rather than the send that produced the
- * 401 — the correlation is deliberately loose. It is
- * still safe: the stored value can only lag the current epoch, and lagging
- * means a rotation happened after that send, which is exactly when a retry is
- * the right answer. The failure mode is a missed short-circuit (one extra
- * refresh, today's behavior), never a retry with a genuinely dead token.
+ * The adapter is a module singleton, so this is really the last HEADER BUILD
+ * rather than the send that produced the 401 — the correlation is deliberately
+ * loose. The stored epoch is still safe: it can only lag the current one, and
+ * lagging means a rotation happened after that send, which is exactly when a
+ * retry is the right answer. The failure mode is a missed short-circuit (one
+ * extra refresh), never a retry with a genuinely dead token.
+ *
+ * Core classifies its pictures through `hasCredential`, which records nothing.
+ * Every mounted picture re-classifies right after each rotation; had that gone
+ * through `getHeaders`, it would have moved this epoch past the send whose 401
+ * it is kept for.
  */
 let lastChatSendEpoch = 0;
 
@@ -109,10 +113,10 @@ let lastChatSendEpoch = 0;
  * The tenant gateway's origin, whenever auth rides in a header instead of a
  * cookie: the native shell and dev-ticket web (`isBearerAuthMode`). Both call
  * the gateway ABSOLUTE and cross-origin, so `embedAuthedFetch`'s guard has to
- * sanction exactly that origin, and `needsBearerAssetFetch` reads the same list
- * to decide that a gateway image (`/api/images/...`, built by
- * `getFullImageUrl`) is fetched with the bearer rather than loaded by a plain
- * `<img>`, which carries no header and gets a 401.
+ * sanction exactly that origin, and core's pictures (`useAuthedAsset`) read the
+ * same list to decide that a gateway image (`/api/images/...`) is fetched with
+ * the bearer rather than loaded by a plain `<img>`, which carries no header and
+ * gets a 401.
  *
  * It was the shell's `CONTENT_ORIGIN` alone, so on dev-ticket web every
  * organization logo and avatar answered 401.
@@ -148,10 +152,10 @@ const CHAT_AUTH_ADAPTER: EmbedAuthAdapter = {
     // gateway prefers over the fresh cookie. Omit it and let
     // `credentials: 'include'` carry the cookie.
     const identity = clientIdentityHeaders();
-    if (!isBearerAuthMode()) return identity;
-    const token = getAccessTokenSync();
+    const token = getBearerTokenSync();
     return token ? { ...identity, Authorization: `Bearer ${token}` } : identity;
   },
+  hasCredential: () => !!getBearerTokenSync(),
   // Send openframe cookies cross-origin to the gateway; CORS +
   // `SameSite=None` on cookies must be configured server-side. (Harmless
   // no-op in production, where the frontend and gateway share one origin.)
@@ -181,6 +185,10 @@ const CHAT_AUTH_ADAPTER: EmbedAuthAdapter = {
   // `bearerGatewayOrigins`). Empty on the cookie-auth web, where the
   // same-origin rule stays absolute.
   allowedOrigins: bearerGatewayOrigins(),
+  // Every picture the lib draws asks this first: a backend image path
+  // (`/images/user/1`) is served at the gateway's `/api`, never at the page's
+  // origin, on web and in the shells alike.
+  resolveAssetUrl: resolveBackendImageUrl,
   // Epoch-gated, per `EmbedAuthAdapter.subscribe`'s "real change only"
   // contract: `adoptNativeTokens` also emits when the shell hands back the SAME
   // token (a shell re-emitting the pair on resume), and the web branch of

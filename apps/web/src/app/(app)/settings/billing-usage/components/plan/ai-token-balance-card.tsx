@@ -30,6 +30,8 @@ interface AiTokenBalanceCardProps {
   topUp: AiTopUp;
   /** Whether that top-up repeats itself once the subscription runs; owned by the paywall for the same reason. */
   autoTopUp: boolean;
+  /** There is a top-up for the switch to repeat; without one ("Don't top up") the switch is not offered. */
+  canAutoTopUp: boolean;
   onAutoTopUpChange: (enabled: boolean) => void;
 }
 
@@ -48,6 +50,7 @@ export function AiTokenBalanceCard({
   deviceMode,
   topUp,
   autoTopUp,
+  canAutoTopUp,
   onAutoTopUpChange,
 }: AiTokenBalanceCardProps) {
   const loading = useLoadingScope() || loadingProp;
@@ -86,7 +89,8 @@ export function AiTokenBalanceCard({
 
       <AiTopUpFields topUp={topUp} label="Top up your balance" disabled={loading} loading={loading} />
 
-      <AutoTopUpCheckbox checked={autoTopUp} onCheckedChange={onAutoTopUpChange} disabled={loading} />
+      {/* Hidden, not disabled, as the mockup has it: with nothing to repeat there is no question to ask. */}
+      {canAutoTopUp && <AutoTopUpCheckbox checked={autoTopUp} onCheckedChange={onAutoTopUpChange} disabled={loading} />}
     </Card>
   );
 }
