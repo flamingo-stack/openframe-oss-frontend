@@ -146,7 +146,8 @@ describe it (`apps/mobile/AppStore-Review-Notes.txt`), and a bundle that makes a
 changes the app after review (App Store 2.5.2, 2.3.1). These wait for a store release, however small
 the diff:
 - payment, price, plan or invoice visibility (`lib/billing-visibility.ts`, `lib/platform.ts`,
-  `settings/billing-usage/**`, `checkout/**`, `components/subscription-lock/**`);
+  `settings/billing-usage/**`, `checkout/**`, `components/subscription-lock/**`), and any link that
+  leads to a pricing or sign-up page (`components/shared/powered-by-flamingo.tsx`);
 - registration and the auth UI (`(auth)/**`, how `NEXT_PUBLIC_MOBILE_AUTH_UI` is read);
 - account deletion;
 - permission prompts or when they appear (`native-push`, biometrics, `native-files`, camera and
