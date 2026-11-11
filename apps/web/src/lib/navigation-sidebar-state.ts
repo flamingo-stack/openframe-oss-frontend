@@ -75,6 +75,12 @@ export const SIDEBAR_RESIZE = {
  * an ellipsis where a custom property belongs — which fails the build.
  */
 const SIDEBAR_WIDTH_CSS_VAR = '--of-navigation-sidebar-width';
+/**
+ * The right navigation's width var (the lib's `NAVIGATION_SIDEBAR_END_WIDTH_VAR`, spelled out
+ * for the same reason). The grouped shell's right navigation starts collapsed on every load
+ * (`useManhattanNavCollapsed`), so the seed is always the rail.
+ */
+const SIDEBAR_END_WIDTH_CSS_VAR = '--of-navigation-sidebar-end-width';
 
 /**
  * The sidebar's root element. Used by viewport-`fixed` overlays that have to
@@ -135,7 +141,10 @@ const runtimeJoin = (parts: TemplateStringsArray, ...values: Array<string | numb
  */
 export function sidebarWidthFoucScript(grouped: boolean): string {
   const expanded = grouped ? GROUPED_SIDEBAR_EXPANDED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
-  return runtimeJoin`(function(){try{var m=localStorage.getItem('${SIDEBAR_MINIMIZED_STORAGE_KEY}')==='true';var w=${expanded};try{var c=JSON.parse(localStorage.getItem('${SIDEBAR_CHOSEN_WIDTH_STORAGE_KEY}'));if(c&&typeof c.size==='number'&&isFinite(c.size)){w=Math.min(${SIDEBAR_MAX_EXPANDED_WIDTH},Math.max(${SIDEBAR_MIN_EXPANDED_WIDTH},Math.round(c.size)));}}catch(e){}document.documentElement.style.setProperty('${SIDEBAR_WIDTH_CSS_VAR}',m?'${SIDEBAR_MINIMIZED_WIDTH}px':w+'px');}catch(e){}})();`;
+  const endSeed = grouped
+    ? runtimeJoin`document.documentElement.style.setProperty('${SIDEBAR_END_WIDTH_CSS_VAR}','${SIDEBAR_MINIMIZED_WIDTH}px');`
+    : '';
+  return runtimeJoin`(function(){try{var m=localStorage.getItem('${SIDEBAR_MINIMIZED_STORAGE_KEY}')==='true';var w=${expanded};try{var c=JSON.parse(localStorage.getItem('${SIDEBAR_CHOSEN_WIDTH_STORAGE_KEY}'));if(c&&typeof c.size==='number'&&isFinite(c.size)){w=Math.min(${SIDEBAR_MAX_EXPANDED_WIDTH},Math.max(${SIDEBAR_MIN_EXPANDED_WIDTH},Math.round(c.size)));}}catch(e){}document.documentElement.style.setProperty('${SIDEBAR_WIDTH_CSS_VAR}',m?'${SIDEBAR_MINIMIZED_WIDTH}px':w+'px');${endSeed}}catch(e){}})();`;
 }
 
 // --------------------------------------------------------------------------
