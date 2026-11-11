@@ -13,6 +13,7 @@ Strategy: `~/flamingo/openframe-desktop/docs/mobile-app-plan.md` + `native-apps-
 - `npm run build:web` — frontend export → `www/` → inject `window.__ENV` → `cap sync`
 - `npm run web:placeholder` — dev stub bundle (no frontend build needed)
 - `npm test` — the over-the-air release scripts' tests and the shared cases (`docs/ota.md`); the hub's code reviewer runs it on pull requests
+- `cd ios/OtaCore && swift test` / `cd android && ./gradlew testProdDebugUnitTest` — the shells' over-the-air cores against the same shared cases
 - `npm run ota:fixtures` — rewrites the shared manifest and bundle cases (the env and decision cases are hand-written)
 - `npx cap sync ios` — copy `www/` → `ios/App/App/public/`, regen configs + `Package.swift`
 - `npx cap run ios` / `npx cap open ios`
@@ -114,6 +115,22 @@ exists.**
   Info.plist; window + `MainViewController` from Main.storyboard via
   `UISceneStoryboardFile`). Hands URL opens and user activities — cold (connection
   options) and warm — to Capacitor's `ApplicationDelegateProxy`. See the UIScene gotcha.
+- **`NativeUpdate`** — over-the-air web bundles, `docs/ota.md` ("On the phone"). iOS
+  `NativeUpdate.swift` (process singleton: boot decision, check), `UpdateChecker.swift`,
+  `UpdateStore.swift`, `NativeUpdatePlugin.swift`, over the local SwiftPM package `ios/OtaCore`
+  (the format, the state rules and the check schedule, `swift test`); Android
+  `NativeUpdate.java`, `UpdateChecker.java`, `UpdateStore.java`, `CheckSchedule.java`,
+  `NativeUpdatePlugin.java` over the pure-Java package `ai.openframe.mobile.ota`. Same jsName and
+  methods on both: `notifyReady`, `getState`, `check`, `applyPending`; none takes a path, a URL or
+  a key from JS. The shell asks its compiled shared
+  host which release the environment runs, verifies the signed manifest against the keys compiled
+  in from `ota/keys.json`, downloads and unpacks the bundle, and boots it from the next launch
+  through its own launch hook (`MainViewController.instanceDescriptor()`, `MainActivity.onCreate`).
+  A bundle boots on trial until the web app reports `notifyReady()`; two trial launches without
+  it and the shell goes back to the bundle before. Both cores pass every case in `ota/fixtures`:
+  a format change goes into the scripts, both shells and the cases in one PR.
+  **`BRIDGE_LEVEL`** (`NativeUpdate.bridgeLevel` on iOS, `NativeUpdate.BRIDGE_LEVEL` on Android) is
+  bumped with any bridge addition.
 - **`OpenFrameApplication.java`** — the Android process-level init point (manifest
   `android:name`): installs the lifecycle's foreground observer and creates the
   notification channels. **`OpenFrameMessagingService.java`**, **`PushNotifications.java`**,
@@ -696,8 +713,8 @@ swapped.
   both `config.xml` by `cap sync`). Without it Capacitor boots the `serverBasePath` that its
   `WebView` plugin lets any page script persist (Android: any existing directory; iOS: one
   under `ionic_built_snapshots/`), so an XSS survives restarts — reproduced on the simulator
-  2026-10-12. A future OTA updater boots bundles through its own launch hook (vault
-  `OpenFrame/Mobile - OTA Web Bundle Updates (plan)`), never this path.
+  2026-10-12. The OTA updater boots bundles through its own launch hook (`NativeUpdate`,
+  `docs/ota.md`), never this path.
 
 ## Debugging on the simulator (autonomous loop)
 
@@ -729,7 +746,7 @@ rebuild instead. WebView inspector: Safari → Develop.
 (plugin pattern) · `docs/run-on-iphone.md` (device/simulator/signing/live-reload/env) ·
 `docs/release-ios-prod.md` · `docs/release-android-prod.md` (store submission checklists) ·
 `docs/release-ios-stage.md` · `docs/release-android-stage.md` · `docs/ota.md` (over-the-air
-bundle each release publishes, signing keys).
+bundles: what a release publishes, how the shells take it, the shared cases, runbooks, signing keys).
 
 **After structural changes** (new plugin, auth change, pipeline change, new platform), update
 the Obsidian note `OpenFrame/openframe-mobile.md` and bump its `updated` field.

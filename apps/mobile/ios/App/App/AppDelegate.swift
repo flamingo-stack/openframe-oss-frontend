@@ -18,6 +18,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // background with its response delivered during that launch. Capacitor's
         // router stays out of the way (`ios.handleApplicationNotifications: false`).
         NotificationActions.shared.install()
+        // The over-the-air updater checks on activation whatever the web view
+        // does: a bundle that cannot even load is replaced by the next one it finds.
+        NativeUpdate.shared.start()
         return true
     }
 

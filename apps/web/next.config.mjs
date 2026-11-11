@@ -20,6 +20,7 @@ const isStaticExport = process.env.OPENFRAME_BUILD_TARGET === 'export';
 // still traces back to a commit (`1.0.125-4-geae0416-dirty`); `--match` keeps
 // non-release tags out of it. No version at all is '' and
 // goes out as `bundle/-`.
+// apps/mobile/scripts/build-web.sh restates this `git describe`: change the two together.
 function resolveBundleVersion() {
   if (process.env.OPENFRAME_BUNDLE_VERSION) return process.env.OPENFRAME_BUNDLE_VERSION;
   try {

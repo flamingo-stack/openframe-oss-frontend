@@ -21,7 +21,7 @@ export const KEY_SLOTS = ['current', 'next'];
 export const MANIFEST_NAME = 'mobile.json';
 export const FORMAT = 1;
 // Three parts of at most nine digits, so each fits a 32-bit int in every shell.
-const VERSION = /^(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})$/;
+export const VERSION = /^(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 const PAYLOAD_KEYS = ['bridgeLevel', 'format', 'sha256', 'size', 'url', 'version'];
 

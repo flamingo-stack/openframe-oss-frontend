@@ -23,6 +23,8 @@ struct ShellLog {
     private static let subsystem = Bundle.main.bundleIdentifier ?? "ai.openframe.mobile"
     static let auth = ShellLog(category: "auth")
     static let notifications = ShellLog(category: "notifications")
+    /// The over-the-air updater (NativeUpdate.swift): every check, decision and refusal code.
+    static let update = ShellLog(category: "update")
 
     private let category: String
     private let logger: Logger

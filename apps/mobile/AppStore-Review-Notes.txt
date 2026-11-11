@@ -16,6 +16,9 @@ EXTERNAL SERVICES:
 - Device management: our backend integrates MeshCentral (Apache 2.0) and Fleet (MIT) on our infrastructure; the app talks only to our gateway.
 - Payment processors: none. Analytics: first-party only.
 
+WEB CONTENT UPDATES:
+The console is web content (HTML and JavaScript) shown in WKWebView. The app updates that content through bundles signed by us and served from our own gateway, verified on the device before use. No native code is downloaded, and an update cannot add a permission or a native capability. Payment and registration surfaces are disabled in code in every bundle, and an update does not change the features described here.
+
 HOW TO SIGN IN:
 - To review a workspace containing data: on the Login screen, enter the demo email from the fields above. The app resolves the workspace as you type and shows "Continue with OpenFrame" under the email field. Tap it and enter the same email and password in the sheet that appears. It closes automatically and the dashboard loads.
 - "Continue with Apple", "Continue with Google" and "Continue with Microsoft" are enabled as soon as the screen opens; nothing needs to be typed first. They sign in users whose administrator created their account with the same email as that identity. The demo account is not linked to an Apple ID, so with your own Apple ID the app shows "No account found" - this is by design, not an error. "Back to Login" returns to the Login screen.

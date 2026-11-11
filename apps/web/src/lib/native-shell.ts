@@ -337,6 +337,60 @@ export interface NetworkPlugin {
 }
 
 /**
+ * What the mobile shell's over-the-air updater reports. A version is the `x.y.z` of the web
+ * release a bundle was built from, never the store version. Nothing checks this shape where the
+ * bridge answers, so read it through `native-update.ts`, which reads a missing or mistyped field
+ * as empty.
+ */
+export interface NativeUpdateState {
+  /** False on a binary that cannot update: no stamped built-in version, no shared host, or no env to copy. */
+  enabled: boolean;
+  /** The bundle the binary shipped with. */
+  builtinVersion: string | null;
+  /** The bridge level the shell compiled in, the other side of `REQUIRED_BRIDGE_LEVEL`. */
+  bridgeLevel: number;
+  /** The bundle this web view runs; null is the built-in one. */
+  bootedVersion: string | null;
+  /** The booted bundle is a downloaded one that has not reported ready yet. */
+  trial: boolean;
+  /** The downloaded bundle that last reported ready. */
+  activeVersion: string | null;
+  /** A downloaded, verified bundle the next cold start (or `applyPending`) boots. */
+  pendingVersion: string | null;
+}
+
+/**
+ * The mobile shells' local NativeUpdate plugin (`apps/mobile`: `NativeUpdatePlugin.swift` /
+ * `NativeUpdatePlugin.java`, design in `apps/mobile/docs/ota.md`). The shell finds, verifies and
+ * boots a bundle by itself; these four calls are all the bundle has to say. No method takes a
+ * path or a URL: what runs is never this side's choice. Every store build before the updater has
+ * none of it, so each method is optional and probed. Access through `native-update.ts`.
+ */
+export interface NativeUpdatePlugin {
+  /**
+   * This bundle works: a downloaded bundle on trial becomes the active one. The shell reverts a
+   * bundle that never says so, after `MAX_TRIAL_ATTEMPTS` launches. A no-op from the built-in or
+   * an already active bundle.
+   */
+  notifyReady?(): Promise<void>;
+  getState?(): Promise<NativeUpdateState>;
+  /**
+   * Looks for a newer bundle now and resolves once the look has finished, download included
+   * (seconds). Joins a check in flight, and answers from the current state when the last one
+   * finished under a minute ago, unless that one left its download for later. Never rejects for a
+   * network or verification failure.
+   */
+  check?(): Promise<NativeUpdateState>;
+  /**
+   * Swaps the running web view to the pending bundle and reloads it, so this document does not
+   * outlive a success. Rejects with `NO_PENDING` when there is no pending bundle it can boot, or
+   * when the shell could not record the switch (the bundle then stays pending), and on iOS with
+   * `UNAVAILABLE` when there is no web view to reload.
+   */
+  applyPending?(): Promise<void>;
+}
+
+/**
  * What the two shells inject onto `window`. Nothing here is guaranteed to exist:
  * the web bundle has none of it, and a shell binary that predates a plugin has
  * only some. Each accessor below narrows its own entry to the interface it
@@ -463,6 +517,11 @@ export function keyboardPlugin(): KeyboardPlugin | null {
 /** Mobile-only. Also null on shell binaries that predate the plugin — callers fall back to `navigator.onLine`. */
 export function networkPlugin(): NetworkPlugin | null {
   return isMobileShell() ? ((capacitorPlugins()?.Network as NetworkPlugin | undefined) ?? null) : null;
+}
+
+/** Mobile-only. Also null on every shell binary that predates the over-the-air updater — callers no-op. */
+export function nativeUpdatePlugin(): NativeUpdatePlugin | null {
+  return isMobileShell() ? ((capacitorPlugins()?.NativeUpdate as NativeUpdatePlugin | undefined) ?? null) : null;
 }
 
 /**
