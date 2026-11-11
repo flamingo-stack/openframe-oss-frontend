@@ -1,8 +1,9 @@
 /// What the shell remembers about its over-the-air bundles (`state.json`), and every rule that
 /// changes it. All of it is pure: the app reads and writes the file and asks the disk whether a
 /// bundle is usable (its directory holds an `index.html` that carries this binary's env element,
-/// `OtaEnv.page(_:carries:)`); nothing here does. The Android shell holds the same rules
-/// (`ai.openframe.mobile.ota`).
+/// `OtaEnv.page(_:carries:)`); nothing here does. The Android shell holds the same decision, state
+/// and directory rules (`ai.openframe.mobile.ota`), but counts a trial's attempt at boot, where iOS
+/// counts it when the scene enters the foreground.
 public struct OtaState: Equatable, Sendable {
     public struct Pending: Equatable, Sendable {
         public var version: OtaVersion
@@ -81,20 +82,28 @@ public enum OtaRules {
         if let active = next.active, active <= builtin { next.active = nil }
         if let pending = next.pending, pending.version <= builtin { next.pending = nil }
         next.bad.removeAll { $0 <= builtin }
-        // Dropped, not marked bad: the directory is gone or was unpacked under another env, the
-        // bundle did not fail.
+        // Not marked bad, for the reason `droppingUnbootablePending` gives.
         if let active = next.active, !usable(active) { next.active = nil }
-        if let pending = next.pending, !usable(pending.version) { next.pending = nil }
-
+        next = droppingUnbootablePending(next, usable: usable)
         if let pending = next.pending {
-            if pending.attempts >= OtaState.maxTrialAttempts {
-                next = next.markingBad(pending.version)
-                next.pending = nil
-            } else {
-                return (next, OtaBoot(version: pending.version, trial: true))
-            }
+            return (next, OtaBoot(version: pending.version, trial: true))
         }
         return (next, OtaBoot(version: next.active, trial: false))
+    }
+
+    /// `state` without its pending bundle when that cannot boot again: one that is not usable is
+    /// dropped, not marked bad (its directory is gone or was unpacked under another env, the bundle
+    /// did not fail); one that has used up its attempts is marked bad.
+    private static func droppingUnbootablePending(_ state: OtaState, usable: (OtaVersion) -> Bool) -> OtaState {
+        guard let pending = state.pending else { return state }
+        var next = state
+        if !usable(pending.version) {
+            next.pending = nil
+        } else if pending.attempts >= OtaState.maxTrialAttempts {
+            next = next.markingBad(pending.version)
+            next.pending = nil
+        }
+        return next
     }
 
     /// The boot when the state `resolveBoot` returned could not be written. Never a trial, which
@@ -164,14 +173,8 @@ public enum OtaRules {
         guard let pending = state.pending, pending.version != boot.version else {
             return (state, nil)
         }
-        var next = state
-        guard usable(pending.version) else {
-            next.pending = nil
-            return (next, nil)
-        }
-        guard pending.attempts < OtaState.maxTrialAttempts else {
-            next = next.markingBad(pending.version)
-            next.pending = nil
+        var next = droppingUnbootablePending(state, usable: usable)
+        guard next.pending != nil else {
             return (next, nil)
         }
         next.pending?.attempts += 1

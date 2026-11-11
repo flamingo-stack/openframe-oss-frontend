@@ -118,17 +118,19 @@ exists.**
 - **`NativeUpdate`** — over-the-air web bundles, `docs/ota.md` ("On the phone"). iOS
   `NativeUpdate.swift` (process singleton: boot decision, check), `UpdateChecker.swift`,
   `UpdateStore.swift`, `NativeUpdatePlugin.swift`, over the local SwiftPM package `ios/OtaCore`
-  (the format and state rules, `swift test`); Android `NativeUpdate.java`, `UpdateChecker.java`,
-  `UpdateStore.java`, `NativeUpdatePlugin.java` over the pure-Java package
-  `ai.openframe.mobile.ota`. Same jsName and methods on both: `notifyReady`, `getState`, `check`,
-  `applyPending`; none takes a path, a URL or a key from JS. The shell asks its compiled shared
+  (the format, the state rules and the check schedule, `swift test`); Android
+  `NativeUpdate.java`, `UpdateChecker.java`, `UpdateStore.java`, `CheckSchedule.java`,
+  `NativeUpdatePlugin.java` over the pure-Java package `ai.openframe.mobile.ota`. Same jsName and
+  methods on both: `notifyReady`, `getState`, `check`, `applyPending`; none takes a path, a URL or
+  a key from JS. The shell asks its compiled shared
   host which release the environment runs, verifies the signed manifest against the keys compiled
   in from `ota/keys.json`, downloads and unpacks the bundle, and boots it from the next launch
   through its own launch hook (`MainViewController.instanceDescriptor()`, `MainActivity.onCreate`).
   A bundle boots on trial until the web app reports `notifyReady()`; two trial launches without
   it and the shell goes back to the bundle before. Both cores pass every case in `ota/fixtures`:
   a format change goes into the scripts, both shells and the cases in one PR.
-  **`BRIDGE_LEVEL`** (in `NativeUpdate`, both platforms) is bumped with any bridge addition.
+  **`BRIDGE_LEVEL`** (`NativeUpdate.bridgeLevel` on iOS, `NativeUpdate.BRIDGE_LEVEL` on Android) is
+  bumped with any bridge addition.
 - **`OpenFrameApplication.java`** — the Android process-level init point (manifest
   `android:name`): installs the lifecycle's foreground observer and creates the
   notification channels. **`OpenFrameMessagingService.java`**, **`PushNotifications.java`**,

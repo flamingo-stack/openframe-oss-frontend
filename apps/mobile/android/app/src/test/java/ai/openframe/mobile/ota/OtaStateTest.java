@@ -19,7 +19,7 @@ import java.util.Set;
 /**
  * The state rules of the over-the-air updater: which bundle a process boots,
  * what a trial costs and how it is confirmed, what each decision of a check
- * leaves behind, and which directories may go. iOS implements the same rules.
+ * leaves behind, and which directories may go.
  */
 public class OtaStateTest {
 
@@ -63,21 +63,21 @@ public class OtaStateTest {
     }
 
     @Test
-    public void aPendingBundleGetsExactlyTheAllowedAttempts() {
-        OtaState state = state("1.2.3", "1.2.4", 0);
-        for (int attempt = 1; attempt <= OtaState.MAX_TRIAL_ATTEMPTS; attempt++) {
-            OtaState.Boot boot = OtaState.resolveBoot(state, BUILTIN, ALL_ON_DISK);
-            assertEquals("attempt " + attempt, "1.2.4", boot.version);
-            assertEquals(attempt, boot.state.attempts);
-            state = boot.state;
-        }
+    public void threeLaunchesWithoutReadyRevertTheBundle() {
+        OtaState.Boot first = OtaState.resolveBoot(state("1.2.3", "1.2.4", 0), BUILTIN, ALL_ON_DISK);
+        OtaState.Boot second = OtaState.resolveBoot(first.state, BUILTIN, ALL_ON_DISK);
+        OtaState.Boot third = OtaState.resolveBoot(second.state, BUILTIN, ALL_ON_DISK);
 
-        OtaState.Boot reverted = OtaState.resolveBoot(state, BUILTIN, ALL_ON_DISK);
-
-        assertEquals("the active bundle boots once the trial is used up", "1.2.3", reverted.version);
-        assertFalse(reverted.trial);
-        assertEquals(state("1.2.3", null, 0, "1.2.4"), reverted.state);
-        assertEquals("the decision names the bundle it marked bad", "1.2.4", reverted.reverted);
+        assertEquals("1.2.4", first.version);
+        assertTrue(first.trial);
+        assertEquals(state("1.2.3", "1.2.4", 1), first.state);
+        assertEquals("1.2.4", second.version);
+        assertTrue(second.trial);
+        assertEquals(state("1.2.3", "1.2.4", 2), second.state);
+        assertEquals("the active bundle boots once two trial launches are used up", "1.2.3", third.version);
+        assertFalse(third.trial);
+        assertEquals(state("1.2.3", null, 0, "1.2.4"), third.state);
+        assertEquals("the decision names the bundle it marked bad", "1.2.4", third.reverted);
     }
 
     @Test
@@ -217,17 +217,17 @@ public class OtaStateTest {
     @Test
     public void badKeepsTheTwentyMostRecentAndEachOnce() {
         OtaState state = OtaState.EMPTY;
-        for (int patch = 1; patch <= OtaState.MAX_BAD + 5; patch++) {
+        for (int patch = 1; patch <= 25; patch++) {
             state = OtaState.markBad(state, "2.0." + patch);
         }
-        assertEquals(OtaState.MAX_BAD, state.bad.size());
+        assertEquals(20, state.bad.size());
         assertEquals("the oldest went first", "2.0.6", state.bad.get(0));
-        assertEquals("2.0.25", state.bad.get(OtaState.MAX_BAD - 1));
+        assertEquals("2.0.25", state.bad.get(19));
 
         OtaState again = OtaState.markBad(state, "2.0.10");
 
-        assertEquals(OtaState.MAX_BAD, again.bad.size());
-        assertEquals("marked again, it is the most recent", "2.0.10", again.bad.get(OtaState.MAX_BAD - 1));
+        assertEquals(20, again.bad.size());
+        assertEquals("marked again, it is the most recent", "2.0.10", again.bad.get(19));
     }
 
     // ─── Directories ─────────────────────────────────────────────────────────

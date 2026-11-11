@@ -3,7 +3,6 @@ package ai.openframe.mobile;
 import android.content.Context;
 import android.net.ConnectivityManager;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -18,6 +17,7 @@ import java.util.function.Supplier;
 import ai.openframe.mobile.ota.Base64Strict;
 import ai.openframe.mobile.ota.BundleCheck;
 import ai.openframe.mobile.ota.BundleReader;
+import ai.openframe.mobile.ota.Bytes;
 import ai.openframe.mobile.ota.Decision;
 import ai.openframe.mobile.ota.DirectorySink;
 import ai.openframe.mobile.ota.EnvCopy;
@@ -210,16 +210,11 @@ final class UpdateChecker {
 
     private byte[] fetchManifest() throws NoUpdate {
         try (Response response = get(manifestClient, manifestUrl, "the manifest")) {
-            ByteArrayOutputStream manifest = new ByteArrayOutputStream();
-            InputStream in = body(response).byteStream();
-            byte[] chunk = new byte[8 * 1024];
-            for (int read; (read = in.read(chunk)) != -1; ) {
-                if (manifest.size() + read > MANIFEST_LIMIT) {
-                    throw new NoUpdate("the manifest is over " + MANIFEST_LIMIT + " bytes");
-                }
-                manifest.write(chunk, 0, read);
+            byte[] manifest = Bytes.readAtMost(body(response).byteStream(), MANIFEST_LIMIT);
+            if (manifest == null) {
+                throw new NoUpdate("the manifest is over " + MANIFEST_LIMIT + " bytes");
             }
-            return manifest.toByteArray();
+            return manifest;
         } catch (IOException e) {
             throw broken("the manifest", e);
         }

@@ -208,25 +208,6 @@ final class ErrorTests: XCTestCase {
 }
 
 final class EnvTests: XCTestCase {
-    func testTheScannerFindsALiteralAcrossPieces() {
-        let literal = Array("<script>window.__ENV".utf8)
-        let page = Array("<html><head></head><body><script>window.__ENV = {};</script></body></html>".utf8)
-        for pieceSize in 1...page.count {
-            var scanner = LiteralScanner(literal)
-            var position = 0
-            while position < page.count {
-                let piece = Array(page[position..<min(position + pieceSize, page.count)])
-                piece.withUnsafeBufferPointer { scanner.scan($0) }
-                position += pieceSize
-            }
-            XCTAssertTrue(scanner.found, "pieces of \(pieceSize)")
-        }
-        var scanner = LiteralScanner(literal)
-        Array("<script>window.__EN".utf8).withUnsafeBufferPointer { scanner.scan($0) }
-        Array("<script>window._ENV".utf8).withUnsafeBufferPointer { scanner.scan($0) }
-        XCTAssertFalse(scanner.found)
-    }
-
     func testMatchingIsOnBytes() throws {
         // For a String the ">" of this "<head>" and the combining mark after it are one
         // character, so a String search does not find the tag. The bytes are there.

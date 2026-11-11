@@ -268,10 +268,9 @@ struct UpdateChecker {
         }
         let directory = store.staging.appendingPathComponent(payload.version.description, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: UpdateStore.unprotected)
-        try OtaBundle.unpack(fileAt: archive, size: payload.size, sha256: payload.sha256, into: DirectorySink(root: directory))
-        let index = directory.appendingPathComponent("index.html")
-        let page = try OtaEnv.insert(element: envElement, into: Array(try Data(contentsOf: index)))
-        try Data(page).write(to: index, options: [.atomic, .noFileProtection])
+        let index = try OtaBundle.unpack(fileAt: archive, size: payload.size, sha256: payload.sha256, into: DirectorySink(root: directory))
+        let page = try OtaEnv.insert(element: envElement, into: index)
+        try Data(page).write(to: directory.appendingPathComponent("index.html"), options: [.atomic, .noFileProtection])
         return directory
     }
 }

@@ -78,11 +78,13 @@ export function NativeShellInitializer() {
       void initNativeChrome();
       // Android hardware/gesture back → overlay dismiss → SPA history → exit.
       initNativeBack();
-      // After the two calls above: a release that throws synchronously in one of
-      // them must not report ready, or the shell keeps it instead of going back
-      // to the bundle before. Ahead of token hydration below: the shell counts
-      // the launches that never report, and hydration can sit behind a Face ID
-      // prompt for as long as the user leaves it there. Nothing in between awaits.
+      // After the two calls above: a release whose initNativeBack (or anything
+      // earlier in this effect) throws synchronously does not report ready, and
+      // the shell goes back to the bundle before. initNativeChrome is async, so a
+      // failure in it is a dropped rejection and the bundle still reports ready.
+      // Ahead of token hydration below: the shell counts the launches that never
+      // report, and hydration can sit behind a Face ID prompt for as long as the
+      // user leaves it there. Nothing in between awaits.
       if (!bundleBootConfirmed) {
         bundleBootConfirmed = true;
         void confirmBundleBooted();

@@ -235,8 +235,8 @@ describe('a desktop notification click', () => {
 });
 
 describe('the report that this bundle booted', () => {
-  // A release that throws in the chrome or back setup stops there, unconfirmed, and the shell
-  // reverts it. Hydration can wait on a biometric prompt, so the report cannot come after it.
+  // A release whose back setup throws stops there, unconfirmed, and the shell reverts it.
+  // Hydration can wait on a biometric prompt, so the report cannot come after it.
   it('goes out on the mobile shell after the chrome and back setup, and before the tokens are hydrated', async () => {
     shell.desktop = false;
     shell.mobile = true;
@@ -244,7 +244,7 @@ describe('the report that this bundle booted', () => {
     expect(shell.boot).toEqual(['native chrome', 'hardware back', 'confirm bundle', 'hydrate tokens']);
   });
 
-  it('is withheld from a bundle whose shell setup throws', async () => {
+  it('is withheld from a bundle whose back setup throws', async () => {
     shell.desktop = false;
     shell.mobile = true;
     shell.backFails = true;

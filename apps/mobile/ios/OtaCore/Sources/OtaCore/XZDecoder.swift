@@ -1,5 +1,9 @@
 import Compression
 
+/// The system gave no decoder (`compression_stream_init` failed). Not an `OtaError`: the bundle
+/// was not looked at, so nothing is known against it and its version must not be marked bad.
+public struct XZDecoderUnavailable: Error {}
+
 /// Decodes exactly one xz stream, as a stream: input goes in chunk by chunk and the decoded bytes
 /// come out through a callback, so neither the archive nor the tar is ever whole in memory.
 ///
@@ -7,10 +11,6 @@ import Compression
 /// stops after the first xz stream without an error, where `xz` decodes every concatenated one.
 /// So the magic is checked first, and the stream must end with every input byte consumed and
 /// nothing after it, not even stream padding (docs/ota.md, "The bundle").
-/// The system gave no decoder (`compression_stream_init` failed). Not an `OtaError`: the bundle
-/// was not looked at, so nothing is known against it and its version must not be marked bad.
-public struct XZDecoderUnavailable: Error {}
-
 final class XZDecoder {
     private static let magic: [UInt8] = [0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00]
     private static let outputCapacity = 64 * 1024

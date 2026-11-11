@@ -151,8 +151,7 @@ describe('the updater state', () => {
     await expect(readUpdateState()).resolves.toEqual(FULL);
   });
 
-  it('reads a field the bridge left out as null', async () => {
-    // What Android sends for a built-in boot with nothing downloaded: its bridge drops null values.
+  it('reads a field missing from the shell answer as null', async () => {
     const sparse = { enabled: true, builtinVersion: '1.0.219', bridgeLevel: 1, trial: false };
     const { readUpdateState } = await loadOnMobile({ NativeUpdate: { getState: () => Promise.resolve(sparse) } });
 

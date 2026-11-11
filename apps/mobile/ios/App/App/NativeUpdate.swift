@@ -10,7 +10,8 @@ import UIKit
  * A process singleton, because none of this belongs to a web view: the boot
  * decision is made before one exists, and it is made once. `MainViewController`
  * asks `bootDirectory()` each time it builds its bridge and gets the same
- * bundle for the life of the process.
+ * bundle for the life of the process, unless the page's `applyPending()` has
+ * moved the process to its pending bundle.
  *
  * - Boot: `OtaRules.resolveBoot` over `state.json`. A downloaded bundle boots
  *   as a trial. Its attempt is counted when the scene comes to the foreground,
@@ -24,12 +25,10 @@ import UIKit
  * - A bundle is usable while its `index.html` carries this binary's own env
  *   element. One unpacked before a store update built for another env is
  *   dropped, deleted and downloaded again.
- * - Check: on the first activation and at most hourly after that, plus
- *   `check()` from the page. Manifest, signature, decision, download, unpack,
- *   env copy, one rename into `bundles/`, then `pending` in the state. A new
- *   bundle runs from the next launch, or from `applyPending()`. Under Low
- *   Data Mode the manifest is still asked for (a kill or a rollback needs
- *   nothing else); the bundle is downloaded only when the page asked.
+ * - Check: when `OtaCheckSchedule` says so, on an activation or on `check()`
+ *   from the page. Manifest, signature, decision, download, unpack, env copy,
+ *   one rename into `bundles/`, then `pending` in the state. A new bundle
+ *   runs from the next launch, or from `applyPending()`.
  * - Nothing here takes a path, a URL, a host or a key from JS.
  *
  * Threads: `queue` owns every field and every write of the state; the main
@@ -50,11 +49,6 @@ final class NativeUpdate {
     /// change as any bridge addition a bundle may come to require; a release
     /// whose `REQUIRED_BRIDGE_LEVEL` is above it is not downloaded.
     static let bridgeLevel: Int64 = 1
-
-    /// From the start of one check to the next one an activation starts.
-    private static let checkInterval: TimeInterval = 60 * 60
-    /// How long a finished check answers `check()` without a new request.
-    private static let checkFreshness: TimeInterval = 60
 
     /// What `getState()` and `check()` resolve with.
     struct Snapshot {
@@ -86,19 +80,12 @@ final class NativeUpdate {
 
     /// The state as last read or written. Nil until a read succeeds.
     private var state: OtaState?
-    /// What this process serves its web view from. Decided once.
+    /// What this process serves its web view from. Decided at boot; only `applyPending` changes it.
     private var boot: OtaBoot?
     /// False for a trial this process booted, until the foreground has counted its attempt.
     private var attemptCounted = true
-    private var checking = false
-    /// The page asked for the check in flight, or joined it: the user is looking
-    /// at the Update Required screen, so its bundle downloads under Low Data Mode too.
-    private var pageIsWaiting = false
-    /// The last check left its bundle alone because of Low Data Mode.
-    private var downloadHeldForLowDataMode = false
+    private var schedule = OtaCheckSchedule()
     private var checkWaiters: [(Snapshot) -> Void] = []
-    private var lastCheckStarted: Date?
-    private var lastCheckFinished: Date?
     private var checkAssertion = UIBackgroundTaskIdentifier.invalid
     private var observing = false
 
@@ -230,28 +217,22 @@ final class NativeUpdate {
     }
 
     /// Runs a check, or joins the one in flight, and answers once it has
-    /// finished. A check that finished under a minute ago answers for this one.
+    /// finished. `OtaCheckSchedule` says when one that has just finished
+    /// answers for this one instead.
     func check(_ completion: @escaping (Snapshot) -> Void) {
         queue.async {
-            if self.checking {
-                self.pageIsWaiting = true
-            } else {
-                let sinceLast = self.lastCheckFinished.map { Date().timeIntervalSince($0) }
-                // A check that left its bundle for Low Data Mode has not answered
-                // what the page asks: whether there is an update to restart into.
-                let fresh = !self.downloadHeldForLowDataMode && (sinceLast.map { $0 >= 0 && $0 < Self.checkFreshness } ?? false)
-                guard !fresh, self.startCheckLocked(trigger: "the page asked", forPage: true) else {
-                    completion(self.snapshotLocked())
-                    return
-                }
+            guard self.askLocked(fromPage: true, trigger: "the page asked") != .answered else {
+                completion(self.snapshotLocked())
+                return
             }
             self.checkWaiters.append(completion)
         }
     }
 
     /// The pending bundle's directory once it has become the bundle this
-    /// process runs, or nil when there is none to apply. The caller reloads the
-    /// web view from it.
+    /// process runs. The caller reloads the web view from it. Nil when there is
+    /// none it can apply, or when the switch could not be written to the state:
+    /// the state and its pending bundle are then as they were.
     func applyPending(_ completion: @escaping (URL?) -> Void) {
         queue.async {
             guard let boot = self.boot, self.config.builtinVersion != nil, let state = self.stateLocked() else {
@@ -259,7 +240,12 @@ final class NativeUpdate {
                 return
             }
             let resolved = OtaRules.resolveApply(state: state, boot: boot, usable: self.usableOrLoggedLocked)
-            guard self.persistLocked(resolved.state), let version = resolved.version else {
+            // persistLocked has logged a write that failed.
+            guard self.persistLocked(resolved.state) else {
+                completion(nil)
+                return
+            }
+            guard let version = resolved.version else {
                 self.log.notice("applyPending: no pending bundle to apply")
                 completion(nil)
                 return
@@ -289,32 +275,37 @@ final class NativeUpdate {
         // Counted as the scene came to the foreground; this is the second try of
         // a count that could not be written then.
         countAttemptLocked()
-        let sinceLast = lastCheckStarted.map { Date().timeIntervalSince($0) }
-        // A clock set back must not hold checks off for longer than the interval.
-        if sinceLast.map({ $0 >= Self.checkInterval || $0 < 0 }) ?? true {
-            _ = startCheckLocked(trigger: "the app became active", forPage: false)
-        }
+        _ = askLocked(fromPage: false, trigger: "the app became active")
     }
 
-    /// False when no check runs: updates are off, or the state cannot be read.
-    private func startCheckLocked(trigger: String, forPage: Bool) -> Bool {
-        guard !checking else { return true }
-        guard boot != nil, config.enabled, stateLocked() != nil else { return false }
-        checking = true
-        pageIsWaiting = forPage
-        downloadHeldForLowDataMode = false
-        lastCheckStarted = Date()
+    /// Asks the schedule for a check and runs the one it starts. Answered when
+    /// no check can run (updates are off, or the state cannot be read), before
+    /// the schedule would count one as started. Once a check can run one always
+    /// can (the boot, the config and a state once read stay), so a check in
+    /// flight is always joined.
+    private func askLocked(fromPage: Bool, trigger: String) -> OtaCheckSchedule.Asked {
+        guard boot != nil, config.enabled, stateLocked() != nil else { return .answered }
+        let asked = schedule.ask(fromPage: fromPage, now: Date())
+        if asked == .started {
+            runCheckLocked(trigger: trigger)
+        }
+        return asked
+    }
+
+    private func runCheckLocked(trigger: String) {
         // A check that began in the foreground gets to finish its download and
-        // unpack after the user leaves; cut short, it starts over next time.
+        // unpack after the user leaves; cut short, it starts over next time. One
+        // run again for the page keeps the assertion of the run before it.
         // The handler joins the queue synchronously: UIKit expects the assertion
         // ended before it returns, and nothing on the queue ever waits on main.
-        checkAssertion = UIApplication.shared.beginBackgroundTask(withName: "ai.openframe.mobile.update-check") { [weak self] in
-            self?.queue.sync { self?.endAssertionLocked() }
+        if checkAssertion == .invalid {
+            checkAssertion = UIApplication.shared.beginBackgroundTask(withName: "ai.openframe.mobile.update-check") { [weak self] in
+                self?.queue.sync { self?.endAssertionLocked() }
+            }
         }
         log.notice("checking for an update (\(trigger))")
         let checker = UpdateChecker(config: config, store: store, log: log)
         worker.async { self.runCheck(checker) }
-        return true
     }
 
     private func endAssertionLocked() {
@@ -332,16 +323,18 @@ final class NativeUpdate {
             return
         }
         checker.fetchManifest(on: worker) { payload in
-            guard let payload, let underLowDataMode = self.queue.sync(execute: { self.decideLocked(payload) ? self.pageIsWaiting : nil }) else {
+            guard let payload,
+                  let mayUseConstrainedNetwork = self.queue.sync(execute: { self.decideLocked(payload) ? self.schedule.mayUseConstrainedNetwork : nil })
+            else {
                 self.finishCheck()
                 return
             }
-            checker.download(payload, constrained: underLowDataMode, on: self.worker) { download in
+            checker.download(payload, constrained: mayUseConstrainedNetwork, on: self.worker) { download in
                 switch download {
                 case .archive(let archive):
                     self.install(archive, payload: payload, checker: checker)
                 case .heldForLowDataMode:
-                    self.queue.sync { self.downloadHeldForLowDataMode = true }
+                    self.queue.sync { self.schedule.downloadWasDeferred() }
                 case .failed:
                     break
                 }
@@ -419,8 +412,10 @@ final class NativeUpdate {
         store.wipeStaging()
         cleanUp()
         queue.async {
-            self.checking = false
-            self.lastCheckFinished = Date()
+            if self.schedule.finish(now: Date()) {
+                self.runCheckLocked(trigger: "the page joined a check whose download Low Data Mode held")
+                return
+            }
             let snapshot = self.snapshotLocked()
             let waiters = self.checkWaiters
             self.checkWaiters = []

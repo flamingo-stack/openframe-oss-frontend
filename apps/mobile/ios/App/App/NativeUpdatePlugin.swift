@@ -17,14 +17,14 @@ import Foundation
  * - getState: `{enabled, builtinVersion, bridgeLevel, bootedVersion, trial,
  *   activeVersion, pendingVersion}`; a null version is the built-in bundle or
  *   no bundle.
- * - check: looks for an update now and resolves the same shape once the check
- *   has finished, a downloaded bundle included. The user is waiting on it, so
- *   unlike the shell's own checks it downloads under Low Data Mode too. Never
- *   rejects for the network or a refused manifest: the state simply has no
- *   pending bundle.
+ * - check: runs a check, or is answered from one that has just finished
+ *   (`OtaCheckSchedule` says which), and resolves the same shape once it has
+ *   finished, a downloaded bundle included. Never rejects for the network or
+ *   a refused manifest: the state simply has no pending bundle.
  * - applyPending: reloads the web view from the pending bundle in this
- *   process (the force-update screen's "Restart to update"). Rejects
- *   `NO_PENDING` when there is none to apply.
+ *   process (the force-update screen's "Restart to Update"). Rejects
+ *   `NO_PENDING` when `NativeUpdate.applyPending` has no bundle to hand over,
+ *   and `UNAVAILABLE` when there is no web view to reload.
  */
 @objc(NativeUpdatePlugin)
 public class NativeUpdatePlugin: CAPPlugin, CAPBridgedPlugin {

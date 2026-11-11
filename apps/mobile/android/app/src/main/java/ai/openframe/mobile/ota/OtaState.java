@@ -10,7 +10,9 @@ import java.util.Map;
 /**
  * What the shell remembers about its over-the-air bundles (state.json), and
  * every rule that changes it, as functions from one state to the next: no I/O,
- * so each is tested directly and iOS follows the same ones.
+ * so each is tested directly. iOS (OtaCore) has the same decision, state and
+ * directory rules, but counts a trial's attempt at another moment: here at
+ * boot, there when the scene enters the foreground.
  *
  * {@code active} is the bundle that reported ready and boots from now on.
  * {@code pending} is a downloaded bundle on trial: it boots first, and

@@ -253,6 +253,23 @@ test('REQUIRED_BRIDGE_LEVEL is readable from native-shell.ts', () => {
   assert.ok(Number.isInteger(readBridgeLevel()) && readBridgeLevel() >= 1);
 });
 
+// A shell does not download a release that requires a bridge level above its own, so a bundle
+// in this tree that asked for more than a shell in this tree offers would stop that platform
+// updating, with nothing but "nothing" in its log.
+test('no shell in this tree offers less than the bundle requires', () => {
+  const level = (path, pattern) => {
+    const match = readFileSync(join(SCRIPTS, '..', path), 'utf8').match(pattern);
+    assert.ok(match, `${path}: no bridge level constant`);
+    return Number(match[1]);
+  };
+  const ios = level('ios/App/App/NativeUpdate.swift', /^\s*static let bridgeLevel: Int64 = (\d+)$/m);
+  const android = level(
+    'android/app/src/main/java/ai/openframe/mobile/NativeUpdate.java',
+    /^\s*static final int BRIDGE_LEVEL = (\d+);$/m,
+  );
+  assert.ok(readBridgeLevel() <= Math.min(ios, android), `required ${readBridgeLevel()}, iOS ${ios}, Android ${android}`);
+});
+
 test('an xz the host cannot run is a plain Error, never XZ: it says nothing about the bundle', () => {
   const dir = tempDir('ota-noexec-');
   writeFileSync(join(dir, 'xz'), '#!/bin/sh\n', { mode: 0o644 });

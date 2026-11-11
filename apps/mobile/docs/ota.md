@@ -108,10 +108,11 @@ carried `mobile.json`, older ones included, or make them drop their OTA bundles.
 cannot stop its own fix from arriving. iOS: `ios/App/App/{NativeUpdate,UpdateChecker,UpdateStore,NativeUpdatePlugin}.swift`
 over the `ios/OtaCore` package. Android: `android/app/src/main/java/ai/openframe/mobile/{NativeUpdate,UpdateChecker,UpdateStore,NativeUpdatePlugin}.java`
 over the `ai.openframe.mobile.ota` package. The two cores hold the same pure rules and pass the
-same cases (below).
+same cases (below). When a check runs is a pure rule too, tested on each side with the same cases:
+`OtaCheckSchedule` in OtaCore, `CheckSchedule.java` beside `NativeUpdate.java`.
 
-**What a build needs to take updates.** All three, or `getState().enabled` is false and the log's
-first line says which is missing:
+**What a build needs to take updates.** All three, or `getState().enabled` is false and the log
+says which is missing (iOS in its first line, Android when the first check is skipped):
 - **A built-in version.** `scripts/build-web.sh` stamps the staged bundle with the release it was
   built from: `www/ota-builtin.json`, `{"version":"x.y.z"}` (`scripts/ota-stamp.mjs`). It is a
   file of the bundle, so a lane that reuses `www/` (`SKIP_WEB=1`) ships the stamp that belongs to
@@ -131,10 +132,12 @@ The public keys are compiled in from `ota/keys.json` (iOS: a build phase copies 
 `ota-keys.json`; Android: Gradle puts both keys into `BuildConfig` and fails without both slots).
 
 **The check** runs in the background on the first activation of a process, on a later one when the
-previous check started an hour or more ago, and when the page calls `check()`. The manifest is
+previous check started an hour or more ago, and when the page calls `check()`. A `check()` within
+a minute of the last check's end is answered from that one, without a request. The manifest is
 always fetched, so a kill or a rollback reaches every phone. Under iOS Low Data Mode, and under
 Android Data Saver on a metered network, the bundle download waits, unless the page asked: then
-the user is looking at the "Update required" screen.
+the user is looking at the "Update required" screen, and a check that had already left its
+download for later is run again for it.
 1. `GET <shared host>/v0/api/assets/download?agent=mobile&file=mobile.json`, redirects followed,
    `https` at every hop, no cookie, no credential, no custom header, at most 64 KiB.
 2. The manifest is verified against the compiled keys, then the decision (below): download, nothing
@@ -147,7 +150,7 @@ the user is looking at the "Update required" screen.
    `HAS_ENV`, `NO_HEAD`) is marked bad, so it is not downloaded again at every launch. A size, hash
    or transport failure is not: the next check tries again.
 
-**The boot** is decided once per process, before the web view exists (iOS
+**The boot** is decided once per launch, before the web view exists (iOS
 `MainViewController.instanceDescriptor()`, Android `MainActivity.onCreate` through
 `bridgeBuilder.setServerPath`; never Capacitor's persisted `serverBasePath`, and `DisableDeploy`
 stays on):
@@ -284,8 +287,9 @@ the shells derive the ids of the keys they hold.
   3. `SIGNATURE`: the DER signature does not verify over the payload's bytes. The high-S form
      verifies (as in Node, CryptoKit and JCA). A needless leading zero, a negative integer, a
      long-form length, a trailing byte or raw r‖s is refused, whether the verifier returns false
-     or throws. SunEC accepts a negative r, so Android's tests run Conscrypt, the device's
-     provider, as the first security provider, and check that it is the one in use.
+     or throws. Providers differ here (SunEC accepts a negative r, Conscrypt does not), so each
+     shell checks the DER form itself before its verifier sees the signature. Android's JVM tests
+     run SunEC; the instrumented ones run the same cases under the device's provider.
   4. `PAYLOAD`: the payload bytes are valid UTF-8 and, parsed by the same strict JSON, an object
      with these fields; types are JSON's, so `true` is not the number 1, which
      `JSONSerialization` would make it:
@@ -360,9 +364,10 @@ The release never writes these, and the SHA-256 in a signed payload leaves no on
 In the unsigned envelope, a key twice, a lone surrogate escape, invalid UTF-8 (which a case,
 stored as a JSON string, cannot carry) and deep nesting are not pinned either: whatever a shell
 makes of them, the signature must still verify over the same payload bytes, so nothing is gained
-by them. Both shells refuse JSON nested more than 32 deep, in the envelope and the payload alike;
-the release scripts set no bound, so keep a future payload field far from it. A shell must not crash on them, though: it parses without recursion or refuses nesting
-past a bound with `ENVELOPE`. Only whoever can already write `mobile.json` can send them.
+by them. A shell must not crash on them, though: both refuse JSON nested more than 32 deep, in
+the envelope (`ENVELOPE`) and the payload (`PAYLOAD`) alike. The release scripts set no bound, so
+keep a future payload field far from it. Only whoever can already write `mobile.json` can send
+them.
 
 ### Running and changing them
 
@@ -386,7 +391,7 @@ past a bound with `ENVELOPE`. Only whoever can already write `mobile.json` can s
 ## Signing keys (one-time setup)
 
 The release signs with `MOBILE_OTA_SIGNING_KEY`, a repository secret like the desktop's
-`TAURI_SIGNING_PRIVATE_KEY`; the shells will trust the two public keys in
+`TAURI_SIGNING_PRIVATE_KEY`; the shells trust the two public keys in
 `apps/mobile/ota/keys.json` (`current` signs, `next` is the rotation key). The private keys never
 enter a repository: `ota-keygen.mjs` refuses a path inside any git work tree, and
 `ota-verify.mjs` refuses a `keys.json` that holds anything but PEM public keys.

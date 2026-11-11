@@ -42,9 +42,10 @@ public class NativeUpdatePlugin extends Plugin {
     }
 
     /**
-     * Checks now, or joins the check in flight, and resolves the state once it
-     * has finished, a downloaded bundle included. Never rejects: a check that
-     * found, fetched or verified nothing leaves the state as it was.
+     * Runs a check, joins the one in flight, or is answered from one that has
+     * just finished ({@link CheckSchedule} says which), and resolves the state
+     * once it has finished, a downloaded bundle included. Never rejects: a check
+     * that found, fetched or verified nothing leaves the state as it was.
      */
     @PluginMethod
     public void check(PluginCall call) {
@@ -52,7 +53,10 @@ public class NativeUpdatePlugin extends Plugin {
         update.check("the page asked", () -> call.resolve(update.state()));
     }
 
-    /** Loads the pending bundle now, in this process, as a trial. {@code NO_PENDING} when there is none to load. */
+    /**
+     * Loads the pending bundle now, in this process, as a trial. {@code NO_PENDING} when
+     * {@link NativeUpdate#applyPending} has no bundle to hand over.
+     */
     @PluginMethod
     public void applyPending(PluginCall call) {
         File directory = update().applyPending();

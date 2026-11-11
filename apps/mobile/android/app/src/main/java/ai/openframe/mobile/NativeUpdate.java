@@ -13,7 +13,6 @@ import com.getcapacitor.JSObject;
 
 import org.json.JSONObject;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -22,6 +21,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import ai.openframe.mobile.ota.Bytes;
 import ai.openframe.mobile.ota.EnvCopy;
 import ai.openframe.mobile.ota.Json;
 import ai.openframe.mobile.ota.OtaError;
@@ -37,7 +37,8 @@ import ai.openframe.mobile.ota.Version;
  *
  * A process singleton, like TokenLifecycle: which bundle the process runs is
  * decided at each launch, before the web view exists, and kept until the next
- * ({@link OtaSession}). MainActivity asks at every creation. A launch decides;
+ * ({@link OtaSession}), unless the page's applyPending has moved the process
+ * to its pending bundle. MainActivity asks at every creation. A launch decides;
  * an Activity the system created again gets the answer of its launch, so it
  * neither changes the bundle under the page nor counts a second attempt
  * against one on trial.
@@ -48,8 +49,7 @@ import ai.openframe.mobile.ota.Version;
  *
  * Changes of state are one at a time under the session's lock. The check,
  * the download and the removal of old directories run one at a time on the
- * worker thread, at background priority, never on the main thread and never
- * on the boot path.
+ * worker thread, never on the main thread and never on the boot path.
  * {@code adb logcat -s OpenFrameUpdate} shows every step.
  */
 final class NativeUpdate {
@@ -82,9 +82,13 @@ final class NativeUpdate {
     private final OtaSession session;
     private final UpdateChecker checker;
     /**
-     * Every task catches RuntimeException: an unchecked throw escaping an
-     * executor task reaches the default handler and kills the process. At
-     * the default priority on purpose: THREAD_PRIORITY_BACKGROUND puts the
+     * Every task catches Throwable: anything escaping an executor task
+     * reaches the default handler and kills the process. An Error too, such
+     * as an OutOfMemoryError while the xz decoder allocates its dictionary:
+     * nothing marks the version bad for it, so the process would die again at
+     * every launch that downloads it.
+     *
+     * At the default priority on purpose: THREAD_PRIORITY_BACKGROUND puts the
      * thread in the throttled background group, which is starved while the
      * foreground is busy, and a check runs at a launch. A short session might
      * then never finish an update, and the "Update required" screen waits on
@@ -117,12 +121,8 @@ final class NativeUpdate {
      */
     private static String builtinVersion(AssetManager assets) {
         try (InputStream in = assets.open(BUILTIN_STAMP)) {
-            ByteArrayOutputStream stamp = new ByteArrayOutputStream();
-            byte[] chunk = new byte[1024];
-            for (int read; (read = in.read(chunk)) != -1 && stamp.size() <= BUILTIN_STAMP_LIMIT; ) {
-                stamp.write(chunk, 0, read);
-            }
-            Object version = stamp.size() > BUILTIN_STAMP_LIMIT ? null : Json.parseObject(stamp.toByteArray()).get("version");
+            byte[] stamp = Bytes.readAtMost(in, BUILTIN_STAMP_LIMIT);
+            Object version = stamp == null ? null : Json.parseObject(stamp).get("version");
             return version instanceof String && Version.isValid((String) version) ? (String) version : null;
         } catch (IOException | Json.Malformed e) {
             return null;
@@ -140,12 +140,7 @@ final class NativeUpdate {
             if (!envElementRead) {
                 envElementRead = true;
                 try (InputStream in = assets.open(BUILTIN_INDEX)) {
-                    ByteArrayOutputStream page = new ByteArrayOutputStream();
-                    byte[] chunk = new byte[8 * 1024];
-                    for (int read; (read = in.read(chunk)) != -1; ) {
-                        page.write(chunk, 0, read);
-                    }
-                    envElement = EnvCopy.element(page.toByteArray());
+                    envElement = EnvCopy.element(Bytes.readAtMost(in, Integer.MAX_VALUE));
                 } catch (IOException | OtaError e) {
                     envElement = null;
                 }
@@ -237,7 +232,11 @@ final class NativeUpdate {
         execute(() -> store.removeStale(session));
     }
 
-    /** Switches the process to the pending bundle, as a trial. Its directory, or null when there is none to switch to. */
+    /**
+     * Switches the process to the pending bundle, as a trial, and returns its directory. Null when there
+     * is none it can switch to, or when the switch could not be written to the state: the state and its
+     * pending bundle are then as they were.
+     */
     File applyPending() {
         OtaSession.Applied applied;
         try {
@@ -344,7 +343,7 @@ final class NativeUpdate {
         worker.execute(() -> {
             try {
                 task.run();
-            } catch (RuntimeException e) {
+            } catch (Throwable e) {
                 // The kind and the place only: an exception's own text is not ours to vouch for.
                 StackTraceElement[] stack = e.getStackTrace();
                 log.error("a background step failed: " + e.getClass().getName() + (stack.length > 0 ? " at " + stack[0] : ""));

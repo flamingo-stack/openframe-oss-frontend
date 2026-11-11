@@ -12,6 +12,10 @@ package ai.openframe.mobile;
  * still asks (a rollback or a kill is all in the manifest) and leaves a
  * download for later; the page's, asked for from the "Update required"
  * screen, downloads all the same.
+ *
+ * The iOS twin is OtaCore's OtaCheckSchedule, with the cases of
+ * NativeUpdateCheckTimingTest again in its CheckScheduleTests: a rule changed
+ * here is changed there.
  */
 final class CheckSchedule {
 
@@ -27,7 +31,10 @@ final class CheckSchedule {
 
     /** An activation checks again once the last check started this long ago. */
     static final long CHECK_EVERY_MS = 60 * 60 * 1000;
-    /** A check the page asks for within this long of the last one's end is answered from the state as it is. */
+    /**
+     * A check the page asks for within this long of the last one's end is answered from the state as it is.
+     * The web's retry (LOOK_AGAIN_MS, 65 s, in apps/web/src/app/components/update-required-screen.tsx) is timed just past it.
+     */
     static final long RECENT_CHECK_MS = 60 * 1000;
     private static final long NEVER = -1;
 

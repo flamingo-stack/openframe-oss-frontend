@@ -17,25 +17,28 @@ import {
   splashScreenPlugin,
 } from './native-shell';
 
+// The members are keys of the plugin's interface: renamed there, a name here stops compiling
+// instead of missing on every phone and reverting every over-the-air release.
+function missingMembers<P extends object>(name: string, plugin: P | null, members: readonly (keyof P & string)[]) {
+  return members.filter(member => typeof plugin?.[member] !== 'function').map(member => `${name}.${member}`);
+}
+
 /**
  * The bridge this bundle cannot run without: sign-in, token custody, lifting the launch splash,
  * and the shell version the force-update policy compares.
  */
-const CORE_SURFACE = [
-  ['NativeAuth', nativeAuthPlugin, ['start', 'exchangeTicket', 'getTokens', 'setTokens', 'clearTokens']],
-  ['SplashScreen', splashScreenPlugin, ['hide']],
-  ['App', appPlugin, ['getInfo']],
-] as const;
-
 function missingCoreSurface(): string[] {
-  const missing: string[] = [];
-  for (const [name, plugin, methods] of CORE_SURFACE) {
-    const bridge = plugin() as Record<string, unknown> | null;
-    for (const method of methods) {
-      if (typeof bridge?.[method] !== 'function') missing.push(`${name}.${method}`);
-    }
-  }
-  return missing;
+  return [
+    ...missingMembers('NativeAuth', nativeAuthPlugin(), [
+      'start',
+      'exchangeTicket',
+      'getTokens',
+      'setTokens',
+      'clearTokens',
+    ]),
+    ...missingMembers('SplashScreen', splashScreenPlugin(), ['hide']),
+    ...missingMembers('App', appPlugin(), ['getInfo']),
+  ];
 }
 
 /**
@@ -66,7 +69,10 @@ function versionOrNull(value: unknown): string | null {
   return typeof value === 'string' && value ? value : null;
 }
 
-/** Android's bridge drops a null field instead of sending it, so an absent version reads as null here. */
+/**
+ * The bridge's answer is whatever the shell put there, and TypeScript cannot check it: a field
+ * that is missing or of another type reads as null, 0 or false.
+ */
 function normalizeState(raw: Partial<NativeUpdateState>): NativeUpdateState {
   return {
     enabled: raw.enabled === true,
@@ -105,7 +111,7 @@ export function checkForUpdate(): Promise<NativeUpdateState | null> {
 /**
  * Swap the web view to the pending bundle. The shell reloads the web view on success, so this
  * document rarely sees the `true`; `false` means it is still on the bundle it had: no updater,
- * or no pending bundle the shell can boot (`NO_PENDING`).
+ * or the shell refused (`NativeUpdatePlugin.applyPending` lists why).
  */
 export async function restartIntoPendingUpdate(): Promise<boolean> {
   try {

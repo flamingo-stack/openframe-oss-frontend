@@ -8,17 +8,9 @@ import { checkForUpdate, readUpdateState, restartIntoPendingUpdate } from '@/lib
 import { openStore, pendingBundleLiftsBlock, useAppUpdateStore } from '@/lib/version-check';
 import { DownloadedUpdateRow, StoreUpdateRow } from './store-update-row';
 
-// Just past the minute for which the shell answers `check()` from its last result.
+// Just past the minute for which the shell answers `check()` from its last result:
+// iOS `OtaCheckSchedule.recentCheck` (OtaCore), Android `CheckSchedule.RECENT_CHECK_MS`, both 60 s.
 const LOOK_AGAIN_MS = 65_000;
-
-// The pending version the shell refused to restart into, for the life of the
-// document: the shell goes on reporting it, and offering it again only gets
-// the same refusal. A different pending version is offered as usual.
-let refusedPendingVersion: string | null = null;
-
-function offerable(pendingVersion: string | null): string | null {
-  return pendingVersion === refusedPendingVersion ? null : pendingVersion;
-}
 
 /**
  * The blocking "Update required" screen: the gateway refuses this bundle (426),
@@ -57,11 +49,10 @@ export function UpdateRequiredScreen() {
   const lookForPendingBundle = useEffectEvent(async () => {
     const held = await readUpdateState();
     if (held) {
-      const pending = offerable(held.pendingVersion);
-      setPendingVersion(pending);
-      if (!pendingBundleLiftsBlock(pending, useAppUpdateStore.getState().policy?.minBundleVersion)) {
+      setPendingVersion(held.pendingVersion);
+      if (!pendingBundleLiftsBlock(held.pendingVersion, useAppUpdateStore.getState().policy?.minBundleVersion)) {
         const checked = await checkForUpdate();
-        if (checked) setPendingVersion(offerable(checked.pendingVersion));
+        if (checked) setPendingVersion(checked.pendingVersion);
       }
     }
     setLooksFinished(finished => finished + 1);
@@ -88,11 +79,10 @@ export function UpdateRequiredScreen() {
 
   const restart = async () => {
     setRestarting(true);
-    // A restart that works reloads the web view, and this screen with it.
-    if (!(await restartIntoPendingUpdate())) {
-      refusedPendingVersion = pendingVersion;
-      setPendingVersion(null);
-    }
+    // A restart that works reloads the web view, and this screen with it. The shell drops a
+    // pending bundle it cannot boot, so one it still reports at the next look was refused for a
+    // passing reason and is offered again.
+    if (!(await restartIntoPendingUpdate())) setPendingVersion(null);
     setRestarting(false);
   };
 

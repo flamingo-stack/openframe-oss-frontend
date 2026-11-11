@@ -18,11 +18,12 @@ public enum OtaBundle {
     /// Checks a downloaded bundle against its payload and hands its files to `sink`, in the order
     /// and with the fault precedence of docs/ota.md: SIZE, then SHA256, before anything is
     /// decompressed; then XZ over TAR over the first entry fault in archive order (ENTRY_TYPE,
-    /// ENTRY_NAME, DUPLICATE) over NO_INDEX, HAS_ENV, NO_HEAD.
+    /// ENTRY_NAME, DUPLICATE) over NO_INDEX, HAS_ENV, NO_HEAD. Returns the root `index.html`, which
+    /// has passed `OtaEnv.checkTarget`.
     ///
     /// Throws an `OtaError` for a refusal. Any other error is the file's, the sink's (I/O) or the
     /// device's (`XZDecoderUnavailable`) and says nothing about the bundle.
-    public static func unpack(fileAt url: URL, size: Int64, sha256: String, into sink: OtaBundleSink) throws {
+    public static func unpack(fileAt url: URL, size: Int64, sha256: String, into sink: OtaBundleSink) throws -> [UInt8] {
         var hasher = SHA256()
         var length: Int64 = 0
         try readChunks(of: url) { chunk in
@@ -57,7 +58,7 @@ public enum OtaBundle {
         try decoder.finish(decoded: decoded)
         if let tarFault { throw tarFault }
         try tar.finish()
-        try entries.finish()
+        return try entries.finish()
     }
 
     private static func readChunks(of url: URL, _ body: (UnsafeRawBufferPointer) throws -> Void) throws {
@@ -90,9 +91,8 @@ private final class EntryChecker: TarEntryHandler {
     private var directories = Set<[UInt8]>()
     private var writing = false
     private var writingIndex = false
-    private var sawIndex = false
-    private var envStart = LiteralScanner(OtaEnv.elementStart)
-    private var head = LiteralScanner(OtaEnv.headTag)
+    /// The root index.html, nil until it begins.
+    private var index: [UInt8]?
 
     init(sink: OtaBundleSink) {
         self.sink = sink
@@ -120,7 +120,7 @@ private final class EntryChecker: TarEntryHandler {
         files.insert(key)
         directories.formUnion(parents)
         writingIndex = path == Self.indexName
-        if writingIndex { sawIndex = true }
+        if writingIndex { index = [] }
         writing = true
         try sink.beginFile(path: String(decoding: path, as: UTF8.self), size: size)
     }
@@ -128,8 +128,7 @@ private final class EntryChecker: TarEntryHandler {
     func entryData(_ bytes: UnsafeBufferPointer<UInt8>) throws {
         guard writing else { return }
         if writingIndex {
-            envStart.scan(bytes)
-            head.scan(bytes)
+            index?.append(contentsOf: bytes)
         }
         try sink.write(UnsafeRawBufferPointer(bytes))
     }
@@ -140,12 +139,13 @@ private final class EntryChecker: TarEntryHandler {
         try sink.endFile()
     }
 
-    /// The outcome once the whole archive has been read without an XZ or TAR fault.
-    func finish() throws {
+    /// The outcome once the whole archive has been read without an XZ or TAR fault: the root
+    /// index.html.
+    func finish() throws -> [UInt8] {
         if let fault { throw fault }
-        guard sawIndex else { throw OtaError(.noIndex, "no index.html at the root of the bundle") }
-        guard !envStart.found else { throw OtaError(.hasEnv, "the bundle already carries window.__ENV") }
-        guard head.found else { throw OtaError(.noHead, "the bundle's index.html has no <head>") }
+        guard let index else { throw OtaError(.noIndex, "no index.html at the root of the bundle") }
+        try OtaEnv.checkTarget(index)
+        return index
     }
 
     /// 1 to 255 bytes, each printable ASCII but space and backslash, and no empty, `.` or `..`
@@ -158,25 +158,6 @@ private final class EntryChecker: TarEntryHandler {
         return path.split(separator: UInt8(ascii: "/"), omittingEmptySubsequences: false).allSatisfy { segment in
             !segment.isEmpty && !segment.elementsEqual([dot]) && !segment.elementsEqual([dot, dot])
         }
-    }
-}
-
-/// Finds a literal in bytes that arrive in pieces, keeping only as much of the last piece as a
-/// match across the seam needs.
-struct LiteralScanner {
-    private let literal: [UInt8]
-    private var carry: [UInt8] = []
-    private(set) var found = false
-
-    init(_ literal: [UInt8]) {
-        self.literal = literal
-    }
-
-    mutating func scan(_ bytes: UnsafeBufferPointer<UInt8>) {
-        guard !found else { return }
-        let window = carry + bytes
-        found = window.offset(of: literal) != nil
-        carry = Array(window.suffix(literal.count - 1))
     }
 }
 

@@ -1,8 +1,9 @@
 /**
  * The blocking "Update required" screen's one action. It is the store, unless the shell's
  * over-the-air updater holds a downloaded bundle that lifts the block: then it is a restart into
- * that bundle. While it is the store, the screen keeps asking the shell for one, and a bundle the
- * shell refused to restart into is not offered again. Run against the real `native-update` and
+ * that bundle. While it is the store, the screen keeps asking the shell for one. A refused restart
+ * falls back to the store at once, and the next look offers the restart again only if the shell
+ * still reports a pending bundle that lifts the block. Run against the real `native-update` and
  * `version-check`, over a fake of the shell's `NativeUpdate` plugin.
  */
 
@@ -10,6 +11,10 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NativeUpdatePlugin, NativeUpdateState } from '@/lib/native-shell';
+
+// The shell answers check() from its last result for 60 s after that check ended.
+const SHELL_WINDOW_MS = 60_000;
+const LOOK_AGAIN_MS = 65_000;
 
 const shell = vi.hoisted(() => ({
   update: null as NativeUpdatePlugin | null,
@@ -97,13 +102,6 @@ async function wait(ms: number) {
   });
 }
 
-/** The same document, the screen mounted anew: what the module holds stays, what the component held is gone. */
-async function remount() {
-  act(() => root.unmount());
-  root = createRoot(container);
-  await mount();
-}
-
 // The first import transforms the core library's barrel: seconds on a loaded machine, against a
 // 5 s test timeout. Paid once here.
 beforeAll(async () => {
@@ -111,8 +109,6 @@ beforeAll(async () => {
 }, 60_000);
 
 beforeEach(() => {
-  // A fresh document per test: the screen remembers a refused restart at module scope.
-  vi.resetModules();
   shell.update = null;
   shell.bundleVersion = '1.0.130';
   shell.resume = null;
@@ -219,10 +215,6 @@ describe('with no pending bundle', () => {
 });
 
 describe('while the store action is up', () => {
-  // The shell answers check() from its last result for 60 s after that check ended.
-  const SHELL_WINDOW_MS = 60_000;
-  const LOOK_AGAIN_MS = 65_000;
-
   it('looks again by itself, just past the window in which the shell repeats its last answer', async () => {
     vi.useFakeTimers();
     const shellUpdater = updater(null);
@@ -337,59 +329,51 @@ describe('after the shell refused a restart', () => {
     return shellUpdater;
   }
 
-  it('does not offer that bundle again: on return to the app, on its own look, on a new mount', async () => {
-    vi.useFakeTimers();
+  // The shell drops a pending bundle it cannot boot, so one it still reports was refused for a
+  // passing reason (its state could not be written, say), and the next try may go through.
+  it('offers it again on return to the app while the shell still reports it', async () => {
     const shellUpdater = refusingUpdater('1.0.135');
     await mount();
     await tapAction();
     expect(action().textContent).toBe('Update Now');
 
-    await act(async () => shell.resume?.());
-    expect(action().textContent).toBe('Update Now');
-
-    await wait(65_000);
-    expect(action().textContent).toBe('Update Now');
-
-    await remount();
-    expect(action().textContent).toBe('Update Now');
-
-    expect(shellUpdater.applyPending).toHaveBeenCalledTimes(1);
-  });
-
-  it('asks the shell to check again, as with no pending bundle at all', async () => {
-    const shellUpdater = refusingUpdater('1.0.135');
-    await mount();
-    expect(shellUpdater.check).not.toHaveBeenCalled();
-    await tapAction();
-
-    await act(async () => shell.resume?.());
-
-    expect(shellUpdater.check).toHaveBeenCalledTimes(1);
-  });
-
-  it('offers a different pending bundle as usual', async () => {
-    const shellUpdater = refusingUpdater('1.0.135');
-    await mount();
-    await tapAction();
-    expect(action().textContent).toBe('Update Now');
-
-    shellUpdater.getState.mockResolvedValue(stateWith('1.0.136'));
     await act(async () => shell.resume?.());
     expect(action().textContent).toBe('Restart to Update');
+    expect(shellUpdater.check).not.toHaveBeenCalled();
 
     shellUpdater.applyPending.mockResolvedValue(undefined);
     await tapAction();
     expect(shellUpdater.applyPending).toHaveBeenCalledTimes(2);
   });
 
-  it('offers it when a check brings a different one', async () => {
+  it('offers it again at its own look, timed from the refusal, while the shell still reports it', async () => {
+    vi.useFakeTimers();
     const shellUpdater = refusingUpdater('1.0.135');
     await mount();
     await tapAction();
+    expect(action().textContent).toBe('Update Now');
+
+    await wait(LOOK_AGAIN_MS - 1);
+    expect(action().textContent).toBe('Update Now');
+    await wait(1);
+
+    expect(action().textContent).toBe('Restart to Update');
+    expect(shellUpdater.applyPending).toHaveBeenCalledTimes(1);
+  });
+
+  it('stays on the store action once the shell dropped it, asks for a check, and offers what the check brings', async () => {
+    const shellUpdater = refusingUpdater('1.0.135');
+    await mount();
+    await tapAction();
+    shellUpdater.getState.mockResolvedValue(stateWith(null));
+    shellUpdater.check.mockResolvedValue(stateWith(null));
+
+    await act(async () => shell.resume?.());
+    expect(shellUpdater.check).toHaveBeenCalledTimes(1);
+    expect(action().textContent).toBe('Update Now');
 
     shellUpdater.check.mockResolvedValue(stateWith('1.0.136'));
     await act(async () => shell.resume?.());
-
     expect(action().textContent).toBe('Restart to Update');
   });
 });

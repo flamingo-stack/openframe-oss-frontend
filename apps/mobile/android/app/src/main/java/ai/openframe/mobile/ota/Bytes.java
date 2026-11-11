@@ -1,11 +1,14 @@
 package ai.openframe.mobile.ota;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
-/** Byte helpers of the format code: everything in it is compared as bytes, never as text. */
-final class Bytes {
+/** Byte helpers: the format code compares as bytes, never as text, and the shell reads a stream up to a limit. */
+public final class Bytes {
 
     private static final char[] HEX = "0123456789abcdef".toCharArray();
 
@@ -31,6 +34,24 @@ final class Bytes {
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("every Java platform has SHA-256", e);
         }
+    }
+
+    /**
+     * What is left of {@code in}, or null as soon as it gives more than
+     * {@code limit} bytes, without reading on. {@code Integer.MAX_VALUE} sets
+     * no limit of its own: no array holds more. (InputStream.readAllBytes is
+     * API 33, above minSdk.)
+     */
+    public static byte[] readAtMost(InputStream in, int limit) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] chunk = new byte[8 * 1024];
+        for (int read; (read = in.read(chunk)) != -1; ) {
+            if (read > limit - out.size()) {
+                return null;
+            }
+            out.write(chunk, 0, read);
+        }
+        return out.toByteArray();
     }
 
     /** Where {@code needle} first starts in {@code haystack} at or after {@code from}, or -1. */

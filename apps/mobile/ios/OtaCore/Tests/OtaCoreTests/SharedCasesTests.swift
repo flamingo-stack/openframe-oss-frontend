@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import XCTest
 @testable import OtaCore
@@ -42,7 +43,8 @@ final class SharedCasesTests: XCTestCase {
             let size = try XCTUnwrap(testCase["size"]?.integer, name)
             let sha256 = try XCTUnwrap(testCase["sha256"]?.text, name)
             let sink = RecordingSink()
-            let refusal = code { try OtaBundle.unpack(fileAt: file, size: size, sha256: sha256, into: sink) }
+            var index: [UInt8]?
+            let refusal = code { index = try OtaBundle.unpack(fileAt: file, size: size, sha256: sha256, into: sink) }
             XCTAssertEqual(refusal, testCase.expectedError, name)
             guard let expected = testCase["expect"]?["files"]?.items else {
                 XCTAssertNotNil(testCase.expectedError, "\(name): a case expects files or an error")
@@ -56,6 +58,8 @@ final class SharedCasesTests: XCTestCase {
                 )
             }
             XCTAssertEqual(sink.files, files, name)
+            let root = try XCTUnwrap(files.first { $0.path == "index.html" }, name)
+            XCTAssertEqual(index.map { hex(SHA256.hash(data: $0)) }, root.sha256, "\(name): the root index.html comes back")
         }
     }
 

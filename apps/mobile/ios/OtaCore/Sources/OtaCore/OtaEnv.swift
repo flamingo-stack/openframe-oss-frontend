@@ -17,16 +17,22 @@ public enum OtaEnv {
         return Array(html[start..<close + elementEnd.count])
     }
 
-    /// `staged` with `element` right after its first `<head>`, as it is. Refuses a page that
-    /// carries an env of its own (HAS_ENV) or has no literal `<head>` (NO_HEAD).
-    public static func insert(element: [UInt8], into staged: [UInt8]) throws -> [UInt8] {
+    /// What a bundle's page must be to take an env: free of one of its own (HAS_ENV), with a
+    /// literal `<head>` to put it after (NO_HEAD).
+    public static func checkTarget(_ staged: [UInt8]) throws {
         guard staged.offset(of: elementStart) == nil else {
             throw OtaError(.hasEnv, "the bundle already carries window.__ENV")
         }
-        guard let head = staged.offset(of: headTag) else {
+        guard staged.offset(of: headTag) != nil else {
             throw OtaError(.noHead, "the bundle's index.html has no <head>")
         }
-        let cut = head + headTag.count
+    }
+
+    /// `staged` with `element` right after its first `<head>`, as it is. Refuses a page that
+    /// `checkTarget` refuses.
+    public static func insert(element: [UInt8], into staged: [UInt8]) throws -> [UInt8] {
+        try checkTarget(staged)
+        let cut = staged.offset(of: headTag)! + headTag.count
         return Array(staged[..<cut]) + element + Array(staged[cut...])
     }
 

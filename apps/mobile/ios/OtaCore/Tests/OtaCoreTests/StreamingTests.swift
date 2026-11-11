@@ -175,17 +175,51 @@ final class StreamingTests: XCTestCase {
         try Data(archive).write(to: file)
 
         let sink = RecordingSink()
-        try OtaBundle.unpack(fileAt: file, size: Int64(archive.count), sha256: hex(SHA256.hash(data: archive)), into: sink)
+        let index = try OtaBundle.unpack(fileAt: file, size: Int64(archive.count), sha256: hex(SHA256.hash(data: archive)), into: sink)
         XCTAssertEqual(sink.files, entries.map {
             RecordingSink.File(path: $0.path, size: Int64($0.data.count), sha256: hex(SHA256.hash(data: $0.data)))
         })
+        XCTAssertEqual(index, entries[0].data)
 
         XCTAssertEqual(code {
-            try OtaBundle.unpack(fileAt: file, size: Int64(archive.count) + 1, sha256: hex(SHA256.hash(data: archive)), into: RecordingSink())
+            _ = try OtaBundle.unpack(fileAt: file, size: Int64(archive.count) + 1, sha256: hex(SHA256.hash(data: archive)), into: RecordingSink())
         }, "SIZE")
         XCTAssertEqual(code {
-            try OtaBundle.unpack(fileAt: file, size: Int64(archive.count), sha256: String(repeating: "0", count: 64), into: RecordingSink())
+            _ = try OtaBundle.unpack(fileAt: file, size: Int64(archive.count), sha256: String(repeating: "0", count: 64), into: RecordingSink())
         }, "SHA256")
+    }
+
+    /// An index.html of many chunks reaches the reader in pieces: it is returned whole, and its env
+    /// and `<head>` are looked for in all of it, wherever the seams fall.
+    func testALargeIndexIsReturnedAndCheckedWhole() throws {
+        var generator = SystemRandomNumberGenerator()
+        let letters = Array("abcdefghijklmnopqrstuvwxyz".utf8)
+        let filler = { (count: Int) in (0..<count).map { _ in letters.randomElement(using: &generator)! } }
+        let head = Array("<head>".utf8)
+        let env = Array("<script>window.__ENV".utf8)
+        let length = 5 * OtaBundle.chunkSize
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("ota-core-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        func unpack(_ page: [UInt8]) throws -> [UInt8] {
+            var tar = header("index.html", size: page.count) + page
+            tar += [UInt8](repeating: 0, count: (512 - page.count % 512) % 512 + 1024)
+            let archive = try xz(tar)
+            let file = directory.appendingPathComponent("bundle.tar.xz")
+            try Data(archive).write(to: file)
+            return try OtaBundle.unpack(fileAt: file, size: Int64(archive.count), sha256: hex(SHA256.hash(data: archive)), into: RecordingSink())
+        }
+
+        // At the page's end, and across 64 KiB marks of the tar (after its 512-byte header): the
+        // decoder hands its output on in runs of at most 64 KiB, so the first mark is a seam and
+        // the later ones may be.
+        for offset in [length - head.count, OtaBundle.chunkSize - 515, 3 * OtaBundle.chunkSize - 514] {
+            let page = filler(offset) + head + filler(length - offset - head.count)
+            XCTAssertEqual(try unpack(page), page, "<head> at \(offset)")
+            XCTAssertEqual(code { _ = try unpack(Array(page.prefix(offset)) + env + Array(page.dropFirst(offset))) }, "HAS_ENV", "env at \(offset)")
+        }
+        XCTAssertEqual(code { _ = try unpack(filler(length)) }, "NO_HEAD")
     }
 
     func testNothingReachesTheSinkBeforeSizeAndHashMatch() throws {
@@ -197,7 +231,7 @@ final class StreamingTests: XCTestCase {
         try Data(typical.archive).write(to: file)
         let sink = RecordingSink()
         XCTAssertEqual(code {
-            try OtaBundle.unpack(fileAt: file, size: Int64(typical.archive.count), sha256: String(repeating: "0", count: 64), into: sink)
+            _ = try OtaBundle.unpack(fileAt: file, size: Int64(typical.archive.count), sha256: String(repeating: "0", count: 64), into: sink)
         }, "SHA256")
         XCTAssertEqual(sink.files, [])
     }
@@ -239,7 +273,7 @@ final class StreamingTests: XCTestCase {
         try Data(archive).write(to: file)
         let sink = RecordingSink()
         XCTAssertEqual(code {
-            try OtaBundle.unpack(fileAt: file, size: Int64(archive.count), sha256: hex(SHA256.hash(data: archive)), into: sink)
+            _ = try OtaBundle.unpack(fileAt: file, size: Int64(archive.count), sha256: hex(SHA256.hash(data: archive)), into: sink)
         }, "ENTRY_TYPE")
         XCTAssertEqual(sink.files.map(\.path), ["index.html"])
     }
