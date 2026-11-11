@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { routes } from '@/lib/routes';
 import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
+import { ManhattanDockContext } from '../manhattan-shell/manhattan-dock-context';
 import { useChatPageNodeStore } from './chat-page-node-store';
 import { MingoComposerDock } from './mingo-composer-dock';
 import { composerRouteOf } from './mingo-dock-route';
@@ -761,6 +762,23 @@ describe('MingoComposerDock', () => {
 
       useMingoSheetStore.setState({ open: true });
       render('/scripts/new/');
+      expect(section()?.className).not.toContain('max-md:hidden');
+    });
+
+    it("steps out from under the chat list on Mingo's own pages in Manhattan v2, so the list fills the screen", () => {
+      nav.pathname = '/mingo/';
+      nav.search = '';
+      act(() =>
+        root.render(
+          <ManhattanDockContext.Provider value>
+            <MingoComposerDock />
+          </ManhattanDockContext.Provider>,
+        ),
+      );
+      expect(section()?.className).not.toContain('max-md:hidden');
+      act(() => useMingoSheetStore.getState().showList());
+      expect(section()?.className).toContain('max-md:hidden');
+      act(() => useMingoSheetStore.getState().hideList());
       expect(section()?.className).not.toContain('max-md:hidden');
     });
 

@@ -13,6 +13,7 @@ import {
   HeadsetIcon,
   IdCardIcon,
   LaptopMobileIcon,
+  LightningIcon,
   MonitorIcon,
   Parcel02Icon,
   QuestionCircleIcon,
@@ -86,6 +87,8 @@ interface NavModule {
   label: string;
   /** The label in the grouped (Mingo-first) sidebar, where the Figma names differ. */
   groupedLabel?: string;
+  /** The label in the sectioned (Manhattan v2) navigation, where the Figma names differ. */
+  sectionedLabel?: string;
   icon: ComponentType<{ size?: number }>;
   /** Where the entry leads. */
   path: string;
@@ -222,6 +225,7 @@ const NAV_MODULES = {
   integrations: {
     label: 'Integrations',
     groupedLabel: 'Cloud tenants',
+    sectionedLabel: 'Cloud Tenants',
     icon: CodingForkIcon,
     path: routes.cloudTenantManagement.list,
     prefixes: ['/cloud-tenant-management'],
@@ -481,4 +485,84 @@ export const getGroupedNavigationItems = (
 
   // No Onboarding row: the Mingo-first shell has no Get Started tour.
   return [...groups, ...GROUPED_LAYOUT.leaves.filter(shown).map(id => groupedLeaf(id, unreadCounts, { iconSize: 20 }))];
+};
+
+// --------------------------------------------------------------------------
+// Sectioned — the Manhattan v2 shell's right navigation
+// --------------------------------------------------------------------------
+
+/**
+ * The right navigation of the three-column shell (Figma "mingo (Manhattan)", frame
+ * 1408:293075): four sections — Service Desk, Fleet, Monitor, Skills — then Knowledge
+ * Base, Help Center and Settings at the bottom. No Dashboard (Start Work replaces it)
+ * and no Beta stamps (the design has none). Gates and badges as everywhere else.
+ */
+const SECTIONED_LAYOUT: { groups: readonly NavGroup[]; secondary: readonly NavModuleId[] } = {
+  groups: [
+    { id: 'service-desk', label: 'Service Desk', icon: HeadsetIcon, children: ['tickets', 'worktime'] },
+    {
+      id: 'fleet',
+      label: 'Fleet',
+      icon: LaptopMobileIcon,
+      children: ['organizations', 'devices', 'software', 'users', 'integrations'],
+    },
+    { id: 'monitor', label: 'Monitor', icon: ActivityIcon, children: ['incidents', 'logs'] },
+    { id: 'skills', label: 'Skills', icon: LightningIcon, children: ['scripts', 'schedules', 'policies', 'queries'] },
+  ],
+  secondary: ['knowledge-base', 'help-center', 'settings'],
+};
+
+/** The sectioned navigation's placeholder rows: the four sections and the bottom three. */
+export const SECTIONED_NAVIGATION_LOADING_ROWS = {
+  primary: SECTIONED_LAYOUT.groups.length,
+  secondary: SECTIONED_LAYOUT.secondary.length,
+} as const;
+
+/** The Figma names of the sectioned navigation, where they differ from the module's. */
+const SECTIONED_LABELS: Partial<Record<NavModuleId, string>> = { schedules: 'Scheduled Scripts' };
+
+/** A module's name as Manhattan v2's right navigation shows it (the page column's title too). */
+export function navModuleSectionedLabel(id: NavModuleId): string {
+  const entry: NavModule = NAV_MODULES[id];
+  return SECTIONED_LABELS[id] ?? entry.sectionedLabel ?? entry.label;
+}
+
+function sectionedEntry(
+  id: NavModuleId,
+  unreadCounts: UnreadCountsByCategory | undefined,
+  section?: 'secondary',
+): NavigationSidebarItem {
+  const entry: NavModule = NAV_MODULES[id];
+  const Icon = entry.icon;
+  const unreadCount = unreadOf(entry, unreadCounts, 'grouped');
+  return {
+    id,
+    label: navModuleSectionedLabel(id),
+    icon: <Icon size={20} />,
+    path: entry.path,
+    match: entry.match ?? entry.prefixes,
+    ...(unreadCount ? { unreadCount } : {}),
+    ...(section ? { section } : {}),
+  };
+}
+
+/** The Manhattan v2 shell's navigation (`NavigationSidebarConfig.variant: 'sectioned'`). */
+export const getSectionedNavigationItems = (
+  flags: NavigationFlags,
+  unreadCounts?: UnreadCountsByCategory,
+): NavigationSidebarItem[] => {
+  if (isAuthOnlyMode()) {
+    return [];
+  }
+  const shown = (id: NavModuleId) => moduleShown(NAV_MODULES[id], flags);
+  const sections = SECTIONED_LAYOUT.groups.flatMap((group): NavigationSidebarItem[] => {
+    const children = group.children.filter(shown).map(id => sectionedEntry(id, unreadCounts));
+    if (children.length === 0) return [];
+    const Icon = group.icon;
+    return [{ id: group.id, label: group.label, icon: <Icon size={20} />, children }];
+  });
+  return [
+    ...sections,
+    ...SECTIONED_LAYOUT.secondary.filter(shown).map(id => sectionedEntry(id, unreadCounts, 'secondary')),
+  ];
 };
