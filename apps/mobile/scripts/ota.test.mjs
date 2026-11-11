@@ -22,7 +22,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { copyEnvScript, envScript, insertEnvScript } from './ota-env.mjs';
 import { LEFT_OUT, pack, readBridgeLevel } from './ota-pack.mjs';
-import { packTarXz, readTar, writeTar, xzDecompress } from './ota-tar.mjs';
+import { MAX_XZ_DECODER_MEMORY, packTarXz, readTar, writeTar, xzDecompress } from './ota-tar.mjs';
 import { checkBundleContents, keyIdOf, loadKeys, verifyBundle, verifyManifest } from './ota-verify.mjs';
 
 const SCRIPTS = dirname(fileURLToPath(import.meta.url));
@@ -319,4 +319,17 @@ test('keygen fills a slot, keeps the private key out of every git work tree, and
   assert.match(existing.stderr, /EEXIST/);
   assert.equal(readFileSync(join(dir, 'current.pem'), 'utf8'), currentPem);
   assert.ok(!existsSync(freshKeys));
+});
+
+// The Android shell decodes with a memory limit and marks what it cannot decode as bad for good, so
+// a bundle the release verified but a phone cannot afford would stop that platform updating.
+test('a bundle packed with a dictionary the shells cannot afford is refused at release time', () => {
+  const tar = writeTar([{ name: 'index.html', data: Buffer.from('<html><head></head></html>') }]);
+  const packed = preset => {
+    const result = spawnSync('xz', [preset, '-T1', '--check=crc64', '-c'], { input: tar });
+    assert.equal(result.status, 0);
+    return result.stdout;
+  };
+  assert.deepEqual(xzDecompress(packed('-6')), tar);
+  assert.throws(() => xzDecompress(packed('-9')), { code: 'XZ', message: new RegExp(String(MAX_XZ_DECODER_MEMORY)) });
 });
