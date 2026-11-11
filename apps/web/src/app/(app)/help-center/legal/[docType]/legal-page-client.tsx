@@ -15,6 +15,8 @@ import { shownLegalDocumentTypes } from '../../legal-documents';
 export function LegalPageClient() {
   const { docType } = useParams<{ docType: string }>();
   // The export prerenders every type, so a document this build does not show still has a path to answer.
+  // The bare predicate, not `useIsMobileShell()`: the hook keeps a rendered subtree from being regenerated at
+  // hydration, and this renders nothing, it throws. Through the hook the document would draw once first.
   if (isLegalDocumentType(docType) && !shownLegalDocumentTypes(isBillingHidden()).includes(docType)) {
     notFound();
   }
