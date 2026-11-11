@@ -18,7 +18,8 @@ interface ManhattanHeaderActionsOptions {
 /**
  * The v2 chat column header's cells after the chat's ⋯ (plan matrix H, table T): on the
  * chat's own page "Show side by side" (the last page beside it) and "Close chat" (Start
- * Work); in split "Full screen" and "Close chat" (the page alone, no open chat); over a
+ * Work); in split "Full screen" and "Close chat" (the page alone by the user's choice, the
+ * composer under it, no open chat); over a
  * page "Show side by side" and "Close chat". A chat not created yet has none of them but
  * its close.
  */
@@ -43,6 +44,7 @@ export function manhattanHeaderActions({
   if (route === 'chat') return openDialogId && lastPage && !compact ? [sideBySide(showBesidePage), close] : [close];
   if (columnMode === 'split')
     return [{ id: 'full-screen', label: 'Full screen', icon: <Expand01Icon size={20} />, onClick: fullScreen }, close];
-  if (columnMode === 'chat') return route === 'full-width' || compact ? [close] : [sideBySide(restoreSplit), close];
+  // Over the page (the chat full screen): back beside it, any page — full-height ones too.
+  if (columnMode === 'chat') return compact ? [close] : [sideBySide(restoreSplit), close];
   return undefined;
 }
