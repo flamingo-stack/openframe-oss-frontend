@@ -6,11 +6,15 @@ import { NATS_TOPICS } from '@/app/(app)/tickets/constants';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useNatsAppConfig } from '@/lib/nats/nats-app-config';
+import { sessionPollsAllowed } from '@/lib/session-poll';
 import { useRemoteAccessSession } from '../components/remote-access/remote-access-session-context';
 import { decodeRemoteSessionChatChunk, remoteSessionChatApiService } from '../services/remote-session-chat-api-service';
 import type { RemoteSessionChatMessage, RemoteSessionChatTechnician } from '../types/remote-session-chat';
 
 const CHAT_CHUNKS_STREAM = 'CHAT_CHUNKS';
+
+/** How often the history page is read while the live feed is not up. */
+export const HISTORY_FALLBACK_MS = 10_000;
 
 /**
  * The chat dialog of the current remote session: the id the session record
@@ -158,7 +162,7 @@ export function useRemoteSessionChat(
   // The dialog's feed, from the page's tail once the page is in.
   const { getWsUrl, onBeforeReconnect } = useNatsAppConfig();
   const current = store.dialogId === dialogId ? store : EMPTY_STORE;
-  const { caughtUpCount } = useJetStreamDialogSubscription({
+  const { caughtUpCount, isSubscribed } = useJetStreamDialogSubscription({
     enabled: dialogId !== null && current.historyLoaded,
     dialogId,
     streamName: CHAT_CHUNKS_STREAM,
@@ -182,6 +186,19 @@ export function useRemoteSessionChat(
     lastCatchUpRef.current = caughtUpCount;
     setHistoryRevision(n => n + 1);
   }, [caughtUpCount]);
+
+  // While the feed is not up (the socket never connected, or dropped and is
+  // retrying), the page is read again every 10 s, so the chat still moves
+  // behind a network that blocks the WebSocket. It stops once the feed is in;
+  // a paused session sends nothing.
+  const feedDown = dialogId !== null && current.historyLoaded && !isSubscribed;
+  useEffect(() => {
+    if (!feedDown) return undefined;
+    const timer = setInterval(() => {
+      if (sessionPollsAllowed()) setHistoryRevision(n => n + 1);
+    }, HISTORY_FALLBACK_MS);
+    return () => clearInterval(timer);
+  }, [feedDown]);
 
   const send = useCallback(
     async (body: string) => {

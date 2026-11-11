@@ -5,27 +5,33 @@
  * raise it; opening (or closing) the panel clears it. A live line of the
  * technician's that carries no name is named after the session's host when
  * the page passes one (a colleague watching), else after the signed-in one.
+ * While the feed is not up, the history page is read again every 10 s.
  */
 
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RemoteSessionChatMessage, RemoteSessionChatTechnician } from '../types/remote-session-chat';
-import { type RemoteSessionChatState, useRemoteSessionChat } from './use-remote-session-chat';
+import { HISTORY_FALLBACK_MS, type RemoteSessionChatState, useRemoteSessionChat } from './use-remote-session-chat';
 
 const feed = vi.hoisted(() => ({
   onEvent: null as ((payload: unknown) => void) | null,
   history: vi.fn(),
   /** Who the decoder was told the technician is. */
   decodedWith: undefined as RemoteSessionChatTechnician | undefined,
+  /** Whether the dialog's consumer is up. */
+  subscribed: true,
+  /** The session-health gate for background requests. */
+  pollsAllowed: true,
 }));
 
 vi.mock('@flamingo-stack/openframe-frontend-core', () => ({
   useJetStreamDialogSubscription: (options: { onEvent: (payload: unknown) => void }) => {
     feed.onEvent = options.onEvent;
-    return { caughtUpCount: 0 };
+    return { caughtUpCount: 0, isSubscribed: feed.subscribed };
   },
 }));
+vi.mock('@/lib/session-poll', () => ({ sessionPollsAllowed: () => feed.pollsAllowed }));
 vi.mock('@/lib/nats/nats-app-config', () => ({
   useNatsAppConfig: () => ({ getWsUrl: () => 'ws://test', onBeforeReconnect: undefined }),
 }));
@@ -74,6 +80,8 @@ beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   feed.onEvent = null;
   feed.decodedWith = undefined;
+  feed.subscribed = true;
+  feed.pollsAllowed = true;
   // The page the panel opens with: an older end-user line, already seen.
   feed.history.mockReset().mockResolvedValue({ messages: [row(1, 'user')], lastSeq: 1 });
   root = createRoot(document.createElement('div'));
@@ -127,5 +135,53 @@ describe("useRemoteSessionChat technician's lines", () => {
     deliver(row(2, 'technician'));
     expect(feed.decodedWith?.name).toBe('Technician');
     expect(state.chat?.technician.name).toBe('Technician');
+  });
+});
+
+describe('useRemoteSessionChat while the feed is down', () => {
+  const settle = async () => {
+    for (let i = 0; i < 5; i += 1) await Promise.resolve();
+  };
+  const tick = (ms: number) =>
+    act(async () => {
+      vi.advanceTimersByTime(ms);
+      await settle();
+    });
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('reads the history page again every 10 s, and stops once the feed is in', async () => {
+    feed.subscribed = false;
+    await mount(true);
+    expect(feed.history).toHaveBeenCalledTimes(1);
+
+    feed.history.mockResolvedValue({ messages: [row(1, 'user'), row(2, 'technician')], lastSeq: 2 });
+    await tick(HISTORY_FALLBACK_MS);
+    expect(feed.history).toHaveBeenCalledTimes(2);
+    expect(state.chat?.messages.map(message => message.id)).toEqual(['seq-1', 'seq-2']);
+
+    feed.subscribed = true;
+    await mount(true);
+    await tick(HISTORY_FALLBACK_MS * 3);
+    expect(feed.history).toHaveBeenCalledTimes(2);
+  });
+
+  it('reads nothing more while the feed is up', async () => {
+    await mount(true);
+    await tick(HISTORY_FALLBACK_MS * 3);
+    expect(feed.history).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends nothing while the session is paused', async () => {
+    feed.subscribed = false;
+    feed.pollsAllowed = false;
+    await mount(true);
+    await tick(HISTORY_FALLBACK_MS * 3);
+    expect(feed.history).toHaveBeenCalledTimes(1);
   });
 });
