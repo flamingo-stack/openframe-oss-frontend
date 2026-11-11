@@ -34,13 +34,14 @@ function subscribe(onChange: () => void): () => void {
   return () => window.removeEventListener('resize', onChange);
 }
 
-const snapshot = () => window.innerWidth;
+// The form, not the width: a resize re-renders only when it crosses a step (the forms are
+// shared constants, so the snapshot stays the same object between steps).
+const snapshot = () => squeezeOf({ windowWidth: window.innerWidth });
 /** Not compact on the server and through hydration: the sidebars' own first paint stands. */
-const serverSnapshot = () => 0;
+const serverSnapshot = () => NOT_COMPACT;
 
-/** {@link squeezeOf} for this window, live. `enabled` off (the Mingo-first shell): never compact. */
+/** {@link squeezeOf} for this window, live. `enabled` off (an OSS tenant): never compact. */
 export function useManhattanSqueeze(enabled: boolean): ManhattanSqueeze {
-  const windowWidth = useSyncExternalStore(subscribe, snapshot, serverSnapshot);
-  if (!enabled || windowWidth === 0) return NOT_COMPACT;
-  return squeezeOf({ windowWidth });
+  const squeeze = useSyncExternalStore(subscribe, snapshot, serverSnapshot);
+  return enabled ? squeeze : NOT_COMPACT;
 }

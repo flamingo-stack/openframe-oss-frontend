@@ -369,8 +369,7 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
         else handle?.startNewChat();
       },
     });
-  } else if (phone) threadHeaderActions = undefined;
-  else if (sheetOpen) {
+  } else if (sheetOpen) {
     // A chat not created yet (the suggestions of "What to ask Mingo?") has no page of its own.
     threadHeaderActions = [
       ...(openDialogId
