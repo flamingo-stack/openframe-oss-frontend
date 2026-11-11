@@ -267,6 +267,32 @@ describe('LiveSessionView while the session runs', () => {
     expect(chat.markRead).not.toHaveBeenCalled();
   });
 
+  it('leaves a reader scrolled back up where they are when the page re-renders with nothing new in the chat', () => {
+    const scrolls = vi.fn();
+    const scrollTop = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
+    Object.defineProperty(Element.prototype, 'scrollTop', { configurable: true, get: () => 0, set: scrolls });
+    try {
+      live.data = session();
+      chat.messages = [USER_LINE, HOST_LINE];
+      render();
+      expect(scrolls).toHaveBeenCalledTimes(1);
+
+      // The watch and the 10 s poll re-render the page; the chat hands back the same transcript.
+      watch.state = 'streaming';
+      render();
+      live.data = session();
+      render();
+      expect(scrolls).toHaveBeenCalledTimes(1);
+
+      // A new line is news: the transcript opens on it.
+      chat.messages = [...chat.messages, { ...USER_LINE, id: 'm-3', body: 'thanks' }];
+      render();
+      expect(scrolls).toHaveBeenCalledTimes(2);
+    } finally {
+      if (scrollTop) Object.defineProperty(Element.prototype, 'scrollTop', scrollTop);
+    }
+  });
+
   it('follows no chat when the backend provisioned none', () => {
     live.data = session({ dialogId: null });
     render();

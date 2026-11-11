@@ -20,7 +20,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useNow } from '@/app/hooks/use-now';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -210,7 +210,9 @@ export function LiveSessionView({ sessionId }: LiveSessionViewProps) {
   // the session ended, so the processing screen keeps the chat until the recording page takes over.
   const host = session ? { name: session.employee.name, avatarUrl: session.employee.avatarUrl } : undefined;
   const chat = useRemoteSessionChat(session?.dialogId ?? null, true, host);
-  const messages = chat.messages.map(toRecordingChatMessage);
+  // Memoized on purpose: SessionChat scrolls to the end whenever its transcript changes identity, so a re-render of
+  // this page (the poll, the watch) must hand it the same array, or a reader scrolled back up is snapped down.
+  const messages = useMemo(() => chat.messages.map(toRecordingChatMessage), [chat.messages]);
   const showChat = !!session && messages.length > 0;
 
   const userId = useAuthStore(s => s.user?.id ?? null);
