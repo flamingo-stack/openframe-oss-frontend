@@ -333,6 +333,52 @@ describe('ManhattanCentre', () => {
     expect(currentMode()).toBe('split');
   });
 
+  it('a link from the chat full screen to another detail page (a query change) shows it beside the chat', () => {
+    chatState.activeDialogId = 'd-1';
+    nav.pathname = '/devices/details/';
+    nav.search = 'id=m-1';
+    useManhattanCentreStore.setState({ chatView: 'full' });
+    renderCentre();
+    expect(currentMode()).toBe('chat');
+    nav.search = 'id=m-2';
+    renderCentre();
+    expect(useManhattanCentreStore.getState().chatView).toBe('split');
+    expect(currentMode()).toBe('split');
+  });
+
+  it('a link in the chat to the page already behind it shows that page (no URL change)', () => {
+    chatState.activeDialogId = 'd-1';
+    nav.pathname = '/devices/details/';
+    nav.search = 'id=m-1';
+    useManhattanCentreStore.setState({ chatView: 'full' });
+    renderCentre();
+    act(() => useManhattanCentreStore.getState().requestLinkedPage());
+    renderCentre();
+    expect(currentMode()).toBe('split');
+  });
+
+  it('one column: a link from the chat over the page shows the page instead of it', () => {
+    chatState.activeDialogId = 'd-1';
+    nav.pathname = '/devices/details/';
+    nav.search = 'id=m-1';
+    const centre = () => (
+      <ManhattanCentre enabled compact>
+        {slots => <p data-testid="mode">{slots?.mode}</p>}
+      </ManhattanCentre>
+    );
+    render(centre());
+    expect(currentMode()).toBe('chat');
+    nav.search = 'id=m-2';
+    render(centre());
+    expect(currentMode()).toBe('page');
+    act(() => useManhattanCentreStore.setState({ chatView: 'split' }));
+    render(centre());
+    expect(currentMode()).toBe('chat');
+    act(() => useManhattanCentreStore.getState().requestLinkedPage());
+    render(centre());
+    expect(currentMode()).toBe('page');
+  });
+
   it('a query change on the same page keeps the page full screen', () => {
     chatState.activeDialogId = 'd-1';
     useManhattanCentreStore.setState({ chatView: 'hidden' });

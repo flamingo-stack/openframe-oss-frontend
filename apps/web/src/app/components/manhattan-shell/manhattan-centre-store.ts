@@ -55,6 +55,13 @@ interface ManhattanCentreStore {
   /** Start Work's "What to ask Mingo?" was answered in the chat column (a chat not created yet). */
   whatToAskInColumn: boolean;
   setWhatToAskInColumn: (open: boolean) => void;
+  /**
+   * Bumped when a link in the chat (a Mingo answer's entity link, a doc card) navigates in the
+   * app: the page it leads to must be on screen, also when it is the page already behind the
+   * chat (the URL does not change then).
+   */
+  linkedPageRequests: number;
+  requestLinkedPage: () => void;
 }
 
 export const useManhattanCentreStore = create<ManhattanCentreStore>()(set => ({
@@ -73,6 +80,8 @@ export const useManhattanCentreStore = create<ManhattanCentreStore>()(set => ({
   setShownMode: shownMode => set({ shownMode }),
   whatToAskInColumn: false,
   setWhatToAskInColumn: whatToAskInColumn => set({ whatToAskInColumn }),
+  linkedPageRequests: 0,
+  requestLinkedPage: () => set(state => ({ linkedPageRequests: state.linkedPageRequests + 1 })),
 }));
 
 /**

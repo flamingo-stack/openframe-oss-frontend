@@ -62,6 +62,7 @@ import { CONTENT_ORIGIN, IMAGE_PROXY_SKIP_DOMAINS } from '@/app/(app)/help-cente
 import { composeOpenframeInAppContentUrl } from '@/app/(app)/help-center/help-center-content-href';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
+import { useManhattanCentreStore } from '@/app/components/manhattan-shell/manhattan-centre-store';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
 import { clientIdentityHeaders } from '@/lib/client-identity';
 import { resolveBackendImageUrl } from '@/lib/image-url';
@@ -255,6 +256,10 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
       //    + synthetic `hashchange` so FAQ auto-expand / scroll-to-hash still fire).
       if (!isCrossOriginUrl(href)) {
         const target = stripSameOriginToPath(href);
+        // Manhattan v2: the page a chat link leads to comes on screen, even when the chat covers
+        // it and the link is to the page already behind it, which navigates nowhere (no-op
+        // without the v2 centre).
+        useManhattanCentreStore.getState().requestLinkedPage();
         if (navigateSamePageHash(target)) return true;
         router.push(target);
         return true;

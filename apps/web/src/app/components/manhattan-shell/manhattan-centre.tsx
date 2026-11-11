@@ -121,6 +121,36 @@ export function ManhattanCentre({
     } else if (chatView !== 'split') setChatView('split');
   }, [enabled, oneColumn, pathname, route, chatView, setChatView]);
 
+  // While the chat covers the page (the chat full screen; in one column the chat over the page)
+  // the page cannot move the URL itself: a change there is the chat's — a link in a Mingo
+  // answer, a notification — and the page it leads to comes on screen, beside the chat (in
+  // one column instead of it). A detail page's link to another one changes only the query
+  // (`/devices/details?id=`), so the pathname rule above does not see it (CU-17tkuw6611c).
+  // A page alone (`hidden`) keeps its own query changes (tabs, filters) to itself.
+  const coversPage = oneColumn ? chatView !== 'hidden' && hasConversation : chatView === 'full';
+  const showLinkedPage = () => {
+    if (oneColumn) setChatView('hidden');
+    else setChatView('split');
+  };
+  const previousSearchRef = useRef({ pathname, search });
+  useEffect(() => {
+    const previous = previousSearchRef.current;
+    if (previous.pathname === pathname && previous.search === search) return;
+    previousSearchRef.current = { pathname, search };
+    // A new pathname is the rule above's.
+    if (!enabled || previous.pathname !== pathname) return;
+    if (route !== 'page' && route !== 'full-width') return;
+    if (coversPage) showLinkedPage();
+  });
+  // A link in the chat to the page already behind it changes nothing in the URL: the chat says so.
+  const linkedPageRequests = useManhattanCentreStore(s => s.linkedPageRequests);
+  const previousLinkRequestsRef = useRef(linkedPageRequests);
+  useEffect(() => {
+    if (previousLinkRequestsRef.current === linkedPageRequests) return;
+    previousLinkRequestsRef.current = linkedPageRequests;
+    if (enabled && coversPage) showLinkedPage();
+  });
+
   // One column's own `hidden` (the page shown, the chat behind it) is not the user's choice:
   // widened back to two columns, the chat comes beside the page again.
   const previousOneColumnRef = useRef(oneColumn);
