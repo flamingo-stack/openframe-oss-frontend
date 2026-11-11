@@ -95,14 +95,31 @@ const dialogsQuery = (extraNodeFields: string) => `
 export const GET_MINGO_DIALOGS_QUERY = dialogsQuery('');
 
 /**
- * The chat list: each chat's pending approval rides along, for the row status. Not
- * asked by the other lists (the archive, incidents), which need no row status.
+ * The chat list: each chat's pending approval and its unread replies ride along, for
+ * the row status. Not asked by the other lists (the archive, incidents), which need no
+ * row status. `unreadMessageCount` on a Mingo chat is the caller's own: replies
+ * finished since they last read it, and 0 on a chat someone else owns.
  */
 export const GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY = dialogsQuery(`
      pendingApproval {
       id
       approvalType
-     }`);
+     }
+     unreadMessageCount`);
+
+/**
+ * One chat's unread replies, read again after its reply ended where no list poll is
+ * due (`refreshMingoDialogUnread`). `dialogId` is what the list caches are matched on.
+ */
+export const GET_MINGO_DIALOG_UNREAD_QUERY = `
+  query GetDialogUnread($id: ID!) {
+    dialog(id: $id) {
+      id
+      dialogId
+      unreadMessageCount
+    }
+  }
+`;
 
 export const RENAME_MINGO_DIALOG_MUTATION = `
   mutation RenameDialog($input: RenameDialogInput!) {

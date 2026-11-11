@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { DialogNode } from '../types';
-import { DIALOGS_BY_LAST_ACTIVITY, transformToDialogItem } from './use-mingo-dialogs';
+import {
+  DIALOGS_BY_LAST_ACTIVITY,
+  DIALOGS_FAST_POLL_MS,
+  DIALOGS_POLL_MS,
+  dialogsPollInterval,
+  transformToDialogItem,
+} from './use-mingo-dialogs';
 
 function dialog(fields: Partial<DialogNode> = {}): DialogNode {
   return {
@@ -46,6 +52,49 @@ describe('transformToDialogItem', () => {
       dialog({ owner: { type: 'ADMIN', userId: 'u-1', user: { id: 'u-1', firstName: 'Firsto', lastName: 'Lasto' } } }),
     );
     expect(item.owner).toMatchObject({ id: 'u-1', name: 'Firsto Lasto' });
+  });
+});
+
+describe('transformToDialogItem: unread replies', () => {
+  it('never hands the lib a count: the row status draws the new reply', () => {
+    expect(transformToDialogItem(dialog({ unreadMessageCount: 3 })).unreadMessagesCount).toBe(0);
+  });
+});
+
+describe('dialogsPollInterval', () => {
+  const mine = { type: 'ADMIN', userId: 'u-1' } as const;
+  const theirs = { type: 'ADMIN', userId: 'u-2' } as const;
+  const page = (...dialogs: DialogNode[]) => [{ dialogs, pageInfo: { hasNextPage: false } }];
+
+  it('is the slow poll while nothing in the list is about to change', () => {
+    expect(dialogsPollInterval(page(dialog({ owner: mine })), 'u-1')).toBe(DIALOGS_POLL_MS);
+    expect(dialogsPollInterval(undefined, 'u-1')).toBe(DIALOGS_POLL_MS);
+  });
+
+  it('is the fast poll while a chat of mine is answering', () => {
+    const pages = page(dialog({ owner: mine }), dialog({ owner: mine, streamState: 'STREAMING' }));
+    expect(dialogsPollInterval(pages, 'u-1')).toBe(DIALOGS_FAST_POLL_MS);
+  });
+
+  it('finds my answering chat on any loaded page', () => {
+    const pages = [...page(dialog({ owner: mine })), ...page(dialog({ owner: mine, streamState: 'STREAMING' }))];
+    expect(dialogsPollInterval(pages, 'u-1')).toBe(DIALOGS_FAST_POLL_MS);
+  });
+
+  it('stays slow for a chat someone else owns: its row never shows me a new reply', () => {
+    expect(dialogsPollInterval(page(dialog({ owner: theirs, streamState: 'STREAMING' })), 'u-1')).toBe(DIALOGS_POLL_MS);
+  });
+
+  it('stays slow while the user is not known', () => {
+    expect(dialogsPollInterval(page(dialog({ owner: mine, streamState: 'STREAMING' })), undefined)).toBe(
+      DIALOGS_POLL_MS,
+    );
+    expect(dialogsPollInterval(page(dialog({ streamState: 'STREAMING' })), undefined)).toBe(DIALOGS_POLL_MS);
+  });
+
+  it('is still the fast poll while a title is being generated', () => {
+    const fresh = dialog({ title: '', createdAt: new Date().toISOString() });
+    expect(dialogsPollInterval(page(fresh), 'u-1')).toBe(DIALOGS_FAST_POLL_MS);
   });
 });
 

@@ -4,10 +4,12 @@ import { describe, expect, it } from 'vitest';
 import type { DialogNode } from '../types';
 import {
   dialogRowStatus,
+  hasUnreadReply,
   liveRowState,
   type MingoDialogsPage,
   serverRowState,
   withLiveRowState,
+  withUnreadCount,
 } from './dialog-row-status';
 
 function node(id: string, fields: Partial<DialogNode> = {}): DialogNode {
@@ -50,8 +52,59 @@ describe('dialogRowStatus', () => {
     expect(dialogRowStatus({ streaming: false, awaitingApproval: true })).toBe('approval');
   });
 
-  it('leaves an idle chat to the lib (unread replies)', () => {
+  it('shows nothing on an idle chat with nothing to read', () => {
     expect(dialogRowStatus({ streaming: false, awaitingApproval: false })).toBeUndefined();
+    expect(dialogRowStatus({ streaming: false, awaitingApproval: false }, false)).toBeUndefined();
+  });
+
+  it('shows the new reply once nothing else is happening in the chat', () => {
+    expect(dialogRowStatus({ streaming: false, awaitingApproval: false }, true)).toBe('unread');
+  });
+
+  it('keeps the dots and the approval over a new reply', () => {
+    expect(dialogRowStatus({ streaming: true, awaitingApproval: false }, true)).toBe('working');
+    expect(dialogRowStatus({ streaming: false, awaitingApproval: true }, true)).toBe('approval');
+  });
+});
+
+describe('hasUnreadReply', () => {
+  it('is one glyph for any count above zero', () => {
+    expect(hasUnreadReply(node('d-1', { unreadMessageCount: 1 }))).toBe(true);
+    expect(hasUnreadReply(node('d-1', { unreadMessageCount: 2 }))).toBe(true);
+  });
+
+  it('is false at zero and on a row whose query did not ask', () => {
+    expect(hasUnreadReply(node('d-1', { unreadMessageCount: 0 }))).toBe(false);
+    expect(hasUnreadReply(node('d-1'))).toBe(false);
+  });
+});
+
+describe('withUnreadCount', () => {
+  it('sets the count on the row, on whichever page holds it', () => {
+    const data = pages([node('d-1')], [node('d-2', { unreadMessageCount: 2 })]);
+    const next = withUnreadCount(data, 'd-2', 0);
+    expect(next?.pages[1].dialogs[0].unreadMessageCount).toBe(0);
+    expect(next?.pages[0]).toBe(data.pages[0]);
+  });
+
+  it('matches the raw dialogId, as a row inserted for a new chat carries no Relay id', () => {
+    const data = pages([{ ...node('d-1', { unreadMessageCount: 1 }), id: 'd-1' }]);
+    expect(withUnreadCount(data, 'd-1', 0)?.pages[0].dialogs[0].unreadMessageCount).toBe(0);
+    expect(withUnreadCount(data, 'global-d-1', 0)).toBe(data);
+  });
+
+  it('keeps everything else the row says', () => {
+    const waiting = node('d-1', { unreadMessageCount: 1, pendingApproval: { id: 'ar-1' }, streamState: 'STREAMING' });
+    const row = withUnreadCount(pages([waiting]), 'd-1', 0)?.pages[0].dialogs[0];
+    expect(row).toEqual({ ...waiting, unreadMessageCount: 0 });
+  });
+
+  it('returns the same data when the row already says the same', () => {
+    const data = pages([node('d-1'), node('d-2', { unreadMessageCount: 1 })]);
+    expect(withUnreadCount(data, 'd-1', 0)).toBe(data);
+    expect(withUnreadCount(data, 'd-2', 1)).toBe(data);
+    expect(withUnreadCount(data, 'missing', 0)).toBe(data);
+    expect(withUnreadCount(undefined, 'd-1', 0)).toBeUndefined();
   });
 });
 

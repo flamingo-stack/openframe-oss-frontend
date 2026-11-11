@@ -1,7 +1,8 @@
 /**
  * The chat list row status: the open chat answers from its own thread once its
  * history has loaded, every other row from the list query, and the open chat's
- * live state is written onto its list row so it holds after switching chats.
+ * live state is written onto its list row so it holds after switching chats. A
+ * reply nobody has read shows on every row but the chat on screen.
  */
 
 import type { DialogItem, Message, MessageSegment } from '@flamingo-stack/openframe-frontend-core/components/chat';
@@ -96,7 +97,7 @@ describe('useMingoDialogRowStatus', () => {
       node('d-2', { streamState: 'STREAMING' }),
       node('d-3'),
     ];
-    const { statusOf } = mount({ activeDialogId: null, nodes, activeThreadLoaded: false });
+    const { statusOf } = mount({ activeDialogId: null, nodes, activeThreadLoaded: false, onScreen: false });
     expect(statusOf()(row('d-1'))).toBe('approval');
     expect(statusOf()(row('d-2'))).toBe('working');
     expect(statusOf()(row('d-3'))).toBeUndefined();
@@ -104,14 +105,19 @@ describe('useMingoDialogRowStatus', () => {
 
   it('answers the open chat from its thread, over a stale list row', () => {
     openChat('d-1', 'idle', [batch('ar-2', 'pending')]);
-    const { statusOf } = mount({ activeDialogId: 'd-1', nodes: [node('d-1')], activeThreadLoaded: true });
+    const { statusOf } = mount({
+      activeDialogId: 'd-1',
+      nodes: [node('d-1')],
+      activeThreadLoaded: true,
+      onScreen: true,
+    });
     expect(statusOf()(row('d-1'))).toBe('approval');
   });
 
   it('keeps the list row until the open chat has loaded its history', () => {
     openChat('d-1', 'idle', []);
     const nodes = [node('d-1', { pendingApproval: { id: 'ar-1', approvalType: 'ADMIN' } })];
-    const { statusOf } = mount({ activeDialogId: 'd-1', nodes, activeThreadLoaded: false });
+    const { statusOf } = mount({ activeDialogId: 'd-1', nodes, activeThreadLoaded: false, onScreen: true });
     expect(statusOf()(row('d-1'))).toBe('approval');
   });
 
@@ -124,10 +130,68 @@ describe('useMingoDialogRowStatus', () => {
     queryClient.setQueryData(incidentKey, incidentData);
 
     openChat('d-1', 'idle', [batch('ar-2', 'rejected')]);
-    mount({ activeDialogId: 'd-1', nodes: [], activeThreadLoaded: true }, queryClient);
+    mount({ activeDialogId: 'd-1', nodes: [], activeThreadLoaded: true, onScreen: true }, queryClient);
 
     const list = queryClient.getQueryData<InfiniteData<MingoDialogsPage>>(listKey);
     expect(list?.pages[0].dialogs[0].pendingApproval).toBeNull();
     expect(queryClient.getQueryData(incidentKey)).toBe(incidentData);
+  });
+});
+
+describe('useMingoDialogRowStatus: a reply nobody has read', () => {
+  it('shows on the rows of other chats, behind the dots and the approval', () => {
+    const nodes = [
+      node('d-1', { unreadMessageCount: 1 }),
+      node('d-2', { unreadMessageCount: 1, streamState: 'STREAMING' }),
+      node('d-3', { unreadMessageCount: 2, pendingApproval: { id: 'ar-1', approvalType: 'ADMIN' } }),
+      node('d-4', { unreadMessageCount: 0 }),
+    ];
+    const { statusOf } = mount({ activeDialogId: null, nodes, activeThreadLoaded: false, onScreen: false });
+    expect(statusOf()(row('d-1'))).toBe('unread');
+    expect(statusOf()(row('d-2'))).toBe('working');
+    expect(statusOf()(row('d-3'))).toBe('approval');
+    expect(statusOf()(row('d-4'))).toBeUndefined();
+  });
+
+  it('never shows on the chat on screen, from the moment it is selected', () => {
+    // Selected, its thread not loaded yet and the read mark not answered: the list
+    // row still counts the reply.
+    const nodes = [node('d-1', { unreadMessageCount: 1 })];
+    const { statusOf } = mount({ activeDialogId: 'd-1', nodes, activeThreadLoaded: false, onScreen: true });
+    expect(statusOf()(row('d-1'))).toBeUndefined();
+  });
+
+  it('stays off the chat on screen once its thread has loaded', () => {
+    openChat('d-1', 'idle', []);
+    const nodes = [node('d-1', { unreadMessageCount: 1 })];
+    const { statusOf } = mount({ activeDialogId: 'd-1', nodes, activeThreadLoaded: true, onScreen: true });
+    expect(statusOf()(row('d-1'))).toBeUndefined();
+  });
+
+  it('shows on the open chat while a page hides it', () => {
+    openChat('d-1', 'idle', []);
+    const nodes = [node('d-1', { unreadMessageCount: 1 })];
+    const { statusOf } = mount({ activeDialogId: 'd-1', nodes, activeThreadLoaded: true, onScreen: false });
+    expect(statusOf()(row('d-1'))).toBe('unread');
+  });
+
+  it('keeps the hidden open chat on its live dots and approval first', () => {
+    const nodes = [node('d-1', { unreadMessageCount: 1 })];
+    openChat('d-1', 'streaming', []);
+    const working = mount({ activeDialogId: 'd-1', nodes, activeThreadLoaded: true, onScreen: false });
+    expect(working.statusOf()(row('d-1'))).toBe('working');
+    act(() => {
+      root?.unmount();
+    });
+
+    openChat('d-1', 'idle', [batch('ar-2', 'pending')]);
+    const waiting = mount({ activeDialogId: 'd-1', nodes, activeThreadLoaded: true, onScreen: false });
+    expect(waiting.statusOf()(row('d-1'))).toBe('approval');
+  });
+
+  it('leaves the other rows alone while a chat is on screen', () => {
+    const nodes = [node('d-1', { unreadMessageCount: 1 }), node('d-2', { unreadMessageCount: 1 })];
+    const { statusOf } = mount({ activeDialogId: 'd-1', nodes, activeThreadLoaded: false, onScreen: true });
+    expect(statusOf()(row('d-2'))).toBe('unread');
   });
 });

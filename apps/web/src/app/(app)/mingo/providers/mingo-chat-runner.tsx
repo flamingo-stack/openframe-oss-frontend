@@ -53,7 +53,7 @@ function useDialogErrorToast({ dialogError, state: { activeDialogId, selectDialo
  * only while a surface is registered — its mount and unmount are the surfaces'.
  */
 export function MingoChatRunner({ store, onScreen }: { store: MingoChatStore; onScreen: boolean }) {
-  const { subscription, ...chat } = useMingoUnifiedChatState();
+  const { subscription, ...chat } = useMingoUnifiedChatState({ onScreen });
 
   // A layout effect, so a surface that registered in this same pass renders the
   // state before the browser paints: the store notifies `useSyncExternalStore`,

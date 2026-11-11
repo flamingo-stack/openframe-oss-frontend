@@ -57,11 +57,43 @@ export function liveRowState(phase: string, messages: readonly Message[]): Dialo
   return { streaming: phase !== 'idle', awaitingApproval: approval.awaiting, approvalRequestId: approval.id };
 }
 
-/** Working wins: a chat Mingo answers in is not waiting. No status leaves the lib to show unread replies. */
-export function dialogRowStatus(state: DialogRowState): MingoDialogStatus | undefined {
+/** The list row holds a reply its reader has not seen (`Dialog.unreadMessageCount`). */
+export function hasUnreadReply(node: Pick<DialogNode, 'unreadMessageCount'>): boolean {
+  return (node.unreadMessageCount ?? 0) > 0;
+}
+
+/**
+ * Working wins: a chat Mingo answers in is not waiting. Then the approval it waits
+ * on, then a reply nobody has read: the reply is only news once nothing else is
+ * happening in the chat.
+ */
+export function dialogRowStatus(state: DialogRowState, unread = false): MingoDialogStatus | undefined {
   if (state.streaming) return 'working';
   if (state.awaitingApproval) return 'approval';
-  return undefined;
+  return unread ? 'unread' : undefined;
+}
+
+/**
+ * The list pages with one row's unread count set, on whichever page holds it. Rows
+ * are matched on the raw `dialogId`: a row inserted for a chat created moments ago
+ * carries it as its `id` too. Unchanged pages come back by reference.
+ */
+export function withUnreadCount(
+  data: InfiniteData<MingoDialogsPage> | undefined,
+  dialogId: string,
+  unreadMessageCount: number,
+): InfiniteData<MingoDialogsPage> | undefined {
+  if (!data) return data;
+  let changed = false;
+  const pages = data.pages.map(page => {
+    const index = page.dialogs.findIndex(node => node.dialogId === dialogId);
+    if (index === -1 || (page.dialogs[index].unreadMessageCount ?? 0) === unreadMessageCount) return page;
+    changed = true;
+    const dialogs = [...page.dialogs];
+    dialogs[index] = { ...dialogs[index], unreadMessageCount };
+    return { ...page, dialogs };
+  });
+  return changed ? { ...data, pages } : data;
 }
 
 function livePendingApproval(node: DialogNode, live: DialogRowState): DialogNode['pendingApproval'] {

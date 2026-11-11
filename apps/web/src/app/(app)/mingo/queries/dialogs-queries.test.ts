@@ -16,6 +16,7 @@ import { GET_DIALOG_MESSAGES_QUERY } from '../../tickets/queries/dialogs-queries
 import { GET_PENDING_APPROVAL_TICKETS_QUERY } from '../../tickets/queries/ticket-queries';
 import {
   ASK_INTRO_ALIAS,
+  GET_MINGO_DIALOG_UNREAD_QUERY,
   GET_MINGO_DIALOGS_QUERY,
   GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY,
   getMingoDialogMessagesQuery,
@@ -140,12 +141,22 @@ describe('the chat list queries', () => {
     expect(GET_MINGO_DIALOGS_QUERY).toContain('streamState');
   });
 
-  it('add it to the v2 list query and nothing else', () => {
-    const withoutField = GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY.replace(
-      /\s*pendingApproval \{\s*id\s*approvalType\s*\}/,
+  it('leave the unread replies out of the base query', () => {
+    expect(GET_MINGO_DIALOGS_QUERY).not.toContain('unreadMessageCount');
+  });
+
+  it('add both to the v2 list query and nothing else', () => {
+    const withoutFields = GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY.replace(
+      /\s*pendingApproval \{\s*id\s*approvalType\s*\}\s*unreadMessageCount/,
       '',
     );
     expect(GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY).toContain('pendingApproval');
-    expect(withoutField.replace(/\s+/g, ' ')).toBe(GET_MINGO_DIALOGS_QUERY.replace(/\s+/g, ' '));
+    expect(GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY).toContain('unreadMessageCount');
+    expect(withoutFields.replace(/\s+/g, ' ')).toBe(GET_MINGO_DIALOGS_QUERY.replace(/\s+/g, ' '));
+  });
+
+  it('read one chat again by the raw id its list row is matched on', () => {
+    expect(GET_MINGO_DIALOG_UNREAD_QUERY).toContain('dialogId');
+    expect(GET_MINGO_DIALOG_UNREAD_QUERY).toContain('unreadMessageCount');
   });
 });

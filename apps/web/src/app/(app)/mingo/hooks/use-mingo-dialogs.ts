@@ -1,8 +1,9 @@
 'use client';
 
-import { type DialogItem, useOptionalNotifications } from '@flamingo-stack/openframe-frontend-core';
+import type { DialogItem } from '@flamingo-stack/openframe-frontend-core';
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
 import { getFullImageUrl } from '@/lib/image-url';
 import { sessionPollMeta, sessionPollsAllowed, sessionRetry } from '@/lib/session-poll';
@@ -13,11 +14,6 @@ import type { MingoDialogsPage } from '../utils/dialog-row-status';
 import { keepCreatedDialogs } from '../utils/insert-new-dialog';
 import { mingoDialogQueryKeys } from '../utils/query-keys';
 import { isAwaitingGeneratedTitle } from './use-mingo-dialog-selection';
-
-// TODO(unread-from-entity): re-enable per-dialog unread highlighting once the backend exposes
-// unread counts on the dialog entity itself. Matching unread notifications to dialogs by id is a
-// temporary workaround — disabled for now; flip this flag to restore it.
-const HIGHLIGHT_UNREAD_FROM_NOTIFICATIONS: boolean = false;
 
 /**
  * The statuses the chat list shows. Sent explicitly because the backend
@@ -35,12 +31,39 @@ export const DIALOGS_BY_LAST_ACTIVITY = { field: 'lastActivityAt', direction: 'D
  */
 export const MINGO_DIALOGS_PAGE_SIZE = 20;
 
+/** The list's poll while nothing in it is about to change. */
+export const DIALOGS_POLL_MS = 60 * 1000;
+/** The list's poll while a row is about to change with no event to say so. */
+export const DIALOGS_FAST_POLL_MS = 10 * 1000;
+
+/**
+ * How soon the chat list is read again. Two changes reach it by poll alone, and both
+ * are awaited by the person looking at the list, so it polls faster while one is due:
+ * a title the backend is still generating, and the end of a reply in a chat of the
+ * caller's own, which is when its row trades the working dots for the new-reply
+ * glyph. Only the open chat is subscribed to its stream. Someone else's streaming
+ * chat does not count: its row never shows the caller a new reply.
+ */
+export function dialogsPollInterval(
+  pages: readonly MingoDialogsPage[] | undefined,
+  currentUserId: string | undefined,
+): number {
+  const due = pages?.some(page =>
+    page.dialogs.some(
+      dialog =>
+        isAwaitingGeneratedTitle(dialog) ||
+        (dialog.streamState === 'STREAMING' && !!currentUserId && dialog.owner?.userId === currentUserId),
+    ),
+  );
+  return due ? DIALOGS_FAST_POLL_MS : DIALOGS_POLL_MS;
+}
+
 /**
  * A dialog as the lib's list rows and header read it. Also the open conversation's
  * own record (`UnifiedChatState.activeDialog`), which is where the lib learns that a
  * conversation reached by link, notification or reload is archived.
  */
-export function transformToDialogItem(dialog: DialogNode, unreadCount: number = 0): DialogItem {
+export function transformToDialogItem(dialog: DialogNode): DialogItem {
   // Admin owner → trailing avatar in the chat-history rows.
   // Client-owned dialogs (machine) carry no admin user — no avatar.
   const ownerUser = dialog.owner?.user;
@@ -57,7 +80,10 @@ export function transformToDialogItem(dialog: DialogNode, unreadCount: number = 
     // error-looking "Untitled Dialog".
     title: dialog.title || 'New Chat',
     timestamp: new Date(dialog.lastActivityAt ?? dialog.createdAt),
-    unreadMessagesCount: unreadCount,
+    // Always 0: a row's unread reply is one of its statuses (`dialogRowStatus`), behind
+    // the working dots and the approval it waits on, and never the open chat's. A count
+    // here would let the lib draw it past all three.
+    unreadMessagesCount: 0,
     owner: dialog.owner?.userId
       ? {
           // Who it is, not only what they are called: with the viewer's id the chat
@@ -72,20 +98,7 @@ export function transformToDialogItem(dialog: DialogNode, unreadCount: number = 
 
 export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
   const { enabled = true, search, limit = MINGO_DIALOGS_PAGE_SIZE, scope = 'all' } = options;
-  const notifications = useOptionalNotifications();
-  // Per-dialog unread badge = count of unread notifications (mingo message / approval request)
-  // that carry this dialog's id. Opening a dialog marks those read (EntityViewAutoReader),
-  // which clears the badge in lockstep with the sidebar nav count.
-  const unreadByDialog = useMemo(() => {
-    const counts = new Map<string, number>();
-    if (!HIGHLIGHT_UNREAD_FROM_NOTIFICATIONS) return counts;
-    for (const notification of notifications?.notifications ?? []) {
-      if (notification.read) continue;
-      const dialogId = notification.meta?.dialogId;
-      if (typeof dialogId === 'string') counts.set(dialogId, (counts.get(dialogId) ?? 0) + 1);
-    }
-    return counts;
-  }, [notifications?.notifications]);
+  const currentUserId = useAuthStore(state => state.user?.id);
 
   const query = useInfiniteQuery({
     // `scope` is part of the key: MY/ALL are different server-side datasets
@@ -107,7 +120,7 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
         sort: DIALOGS_BY_LAST_ACTIVITY,
       };
 
-      // Each row's pending approval rides along, for the row status.
+      // Each row's pending approval and unread replies ride along, for the row status.
       const { edges, pageInfo } = extractGraphQlData(
         await apiClient.post<DialogsResponse>('/chat/graphql', {
           query: GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY,
@@ -127,20 +140,15 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
     // Keep the list cached for the session: a long staleTime means a remount (the
     // phone drawer's second instance, the chat search) doesn't refetch, and a long
     // gcTime keeps the data (no skeleton) while nothing shows it. Freshness comes
-    // from the 60s poll, the realtime subscription, and mutation invalidations
-    // (rename/archive/new).
+    // from the poll (`dialogsPollInterval`), the realtime subscription, and mutation
+    // invalidations (rename/archive/new).
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     retry: sessionRetry(3),
     meta: sessionPollMeta,
-    // Titles are generated asynchronously on the backend with no realtime
-    // event — while the list holds a fresh title-less dialog ("New Chat"),
-    // poll faster so the generated title replaces it promptly.
     refetchInterval: liveQuery => {
       if (!sessionPollsAllowed()) return false;
-      const pages = liveQuery.state.data?.pages;
-      const awaitingTitle = pages?.some(page => page.dialogs.some(dialog => isAwaitingGeneratedTitle(dialog)));
-      return awaitingTitle ? 10 * 1000 : 60 * 1000;
+      return dialogsPollInterval(liveQuery.state.data?.pages, currentUserId);
     },
     // Keep the current list visible while a new `search` term refetches, so
     // typing doesn't flash an empty list / "No chats found" between keystrokes.
@@ -148,13 +156,10 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
   });
 
   const nodes = useMemo(() => query.data?.pages.flatMap(page => page.dialogs) ?? [], [query.data]);
-  const dialogsWithUnread = useMemo(
-    () => nodes.map(dialog => transformToDialogItem(dialog, unreadByDialog.get(dialog.dialogId) ?? 0)),
-    [nodes, unreadByDialog],
-  );
+  const dialogs = useMemo(() => nodes.map(dialog => transformToDialogItem(dialog)), [nodes]);
 
   return {
-    dialogs: dialogsWithUnread,
+    dialogs,
     /** The same rows as the server sent them: what a row's status is read from. */
     nodes,
     isLoading: query.isLoading,

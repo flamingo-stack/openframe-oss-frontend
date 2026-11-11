@@ -70,6 +70,7 @@ import { useMingoMessagesStore } from '../stores/mingo-messages-store';
 import type { DialogNode } from '../types';
 import { type MingoSendContext, type ProcessedMessage, useMingoDialogChat } from './use-mingo-chat';
 import { useMingoDialogActions } from './use-mingo-dialog-actions';
+import { useMingoDialogAutoRead } from './use-mingo-dialog-read';
 import { useMingoDialogRowStatus } from './use-mingo-dialog-row-status';
 import { useMingoDialogSelection } from './use-mingo-dialog-selection';
 import { transformToDialogItem, useMingoDialogs } from './use-mingo-dialogs';
@@ -334,7 +335,15 @@ export function snapshotSendContext(options?: UnifiedSendMessageOptions): MingoS
   };
 }
 
-export function useMingoUnifiedChatState(): MingoUnifiedChat {
+interface UseMingoUnifiedChatStateOptions {
+  /**
+   * The open chat's thread is in front of the user (the provider's `onScreen`): what
+   * decides whether a reply that ends in it has been seen.
+   */
+  onScreen: boolean;
+}
+
+export function useMingoUnifiedChatState({ onScreen }: UseMingoUnifiedChatStateOptions): MingoUnifiedChat {
   const { aiModel } = useAiModelStatus();
 
   // Same react-query entry `<EmbeddableChat>`'s onboarding-card list reads
@@ -413,6 +422,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     activeDialogId,
     nodes: dialogNodes,
     activeThreadLoaded: isMessagesFetched,
+    onScreen,
   });
 
   const { subscribeToDialog, subscribedDialogs, onConnectionChange, connectionState } =
@@ -442,6 +452,14 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     const ownerId = dialogData.owner?.userId;
     if (needsAllChatsScope(ownerId, currentUserId)) setDialogScope('all');
   }
+
+  // The record is the open chat's own (the query is keyed on it), checked all the
+  // same: a read mark sent for another chat cannot be taken back.
+  useMingoDialogAutoRead({
+    dialog: dialogData && dialogData.dialogId === activeDialogId ? dialogData : null,
+    currentUserId,
+    onScreen,
+  });
 
   // ─── Live model metadata (refined per-turn by `metadata` frames) ──────────
   const [liveModel, setLiveModel] = useState<{ displayName: string; provider: string } | null>(null);

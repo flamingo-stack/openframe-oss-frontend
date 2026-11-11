@@ -21,6 +21,11 @@ export interface DialogNode {
   streamState: DialogStreamState;
   /** The approval request the dialog waits on; null when none is pending. */
   pendingApproval?: { id: string; approvalType?: string } | null;
+  /**
+   * Replies the caller has not read: on a Mingo chat they own, the replies finished
+   * since they last read it; 0 on anyone else's. Only the chat list asks for it.
+   */
+  unreadMessageCount?: number;
   /** DialogOwner union — ClientDialogOwner (machine fields) or AdminDialogOwner
    *  (userId/user fields), depending on the query's inline fragments. */
   owner?: {
