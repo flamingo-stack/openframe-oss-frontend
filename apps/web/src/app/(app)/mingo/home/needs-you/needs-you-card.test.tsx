@@ -211,6 +211,21 @@ describe('NeedsYouCard loading', () => {
     expect(caption()).toBeDefined();
     expect(loadingRows()).toHaveLength(NEEDS_YOU_PREVIEW_ROWS);
   });
+
+  it("draws its rows in the loaded rows' shape: a leading icon, the name over its detail, a tag on the right", async () => {
+    await act(async () => {
+      root.render(<NeedsYouPanel loading />);
+    });
+    const rows = loadingRows();
+    expect(rows).toHaveLength(NEEDS_YOU_PREVIEW_ROWS);
+    for (const loadingRow of Array.from(rows)) {
+      // The icon's box, the name's (h4) and detail's (h6) bars, the tag's box on the right.
+      expect(loadingRow.querySelector('span.shrink-0 .ods-skeleton')).not.toBeNull();
+      expect(loadingRow.querySelector('.text-h4 .ods-skeleton')).not.toBeNull();
+      expect(loadingRow.querySelector('.text-h6 .ods-skeleton')).not.toBeNull();
+      expect(loadingRow.lastElementChild?.className).toContain('items-end');
+    }
+  });
 });
 
 describe('NeedsYouCard content', () => {
@@ -271,7 +286,20 @@ describe('NeedsYouCard content', () => {
     await render();
     expect(isLoading()).toBe(false);
     expect(links()).toEqual([['software s-1', routes.software.action('s-1')]]);
-    expect(container.textContent).toContain("Couldn't load everything that needs you.");
+    expect(container.textContent).toContain("Couldn't load everything that needs you");
     expect(container.querySelector('button[aria-label^="Retry"]')).not.toBeNull();
+    // The failure is a row of the card, ahead of the rows, so it is never under the fade.
+    const firstRow = container.querySelector('[data-loading-item]');
+    expect(firstRow?.textContent).toContain("Couldn't load everything that needs you");
+  });
+
+  it("a failure with nothing else is the card's one row, not an empty card", async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    env.tenantsFail = true;
+    delete env.reports.tenants;
+    await render();
+    expect(container.querySelectorAll('[data-loading-item]')).toHaveLength(1);
+    expect(container.textContent).toContain("Couldn't load everything that needs you");
+    expect(container.textContent).not.toContain('Nothing needs you right now');
   });
 });

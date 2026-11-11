@@ -1,6 +1,6 @@
 'use client';
 
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { MediaSkeleton, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   AlertTriangleIcon,
@@ -11,6 +11,7 @@ import {
   TicketIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  Button,
   LoadingWhen,
   type PanelRow,
   StackedRowsPanel,
@@ -21,7 +22,6 @@ import Link from 'next/link';
 import { type ComponentType, type ReactNode, useCallback, useState } from 'react';
 import { useTicketsOverview } from '@/app/(app)/dashboard/hooks/use-dashboard-stats';
 import { useRevealHeld, useRevealPart } from '@/app/components/shared/reveal-together';
-import { SectionLoadError } from '@/app/components/shared/section-load-error';
 import { loadErrorProps } from '@/lib/query-state';
 import { NeedsYouApprovalsSource } from './needs-you-approvals-source';
 import { NeedsYouInsightsSource } from './needs-you-insights-source';
@@ -215,11 +215,54 @@ const ALL_CLEAR_ROW: PanelRow = {
   ],
 };
 
+/**
+ * The loading form: rows in the shape of the loaded ones (the icon, the name over its detail,
+ * the tag on the right), their text not here yet, so the lib draws bars in its place.
+ */
+const LOADING_ROWS: PanelRow[] = Array.from({ length: NEEDS_YOU_PREVIEW_ROWS }, (_, index) => ({
+  id: `loading-${index}`,
+  columns: [
+    { key: 'entity', leadingIcon: <MediaSkeleton.Icon />, value: null, label: null },
+    { key: 'reason', content: <Tag label="" />, width: 'shrink-0', align: 'right' },
+  ],
+}));
+
+/** Sources that did not answer: a row in the shape of the others, first, so it is never under the fade. */
+function failureRow(failures: readonly NeedsYouFailure[]): PanelRow {
+  const { message, onRetry } = loadErrorProps(
+    failures.some(failure => failure.isOffline),
+    "Couldn't load everything that needs you",
+    () => {
+      for (const failure of failures) failure.retry();
+    },
+  );
+  return {
+    id: 'failures',
+    columns: [
+      { key: 'entity', leadingIcon: <AlertTriangleIcon className={ICON_CLASS} />, value: message },
+      ...(onRetry
+        ? [
+            {
+              key: 'retry',
+              content: (
+                <Button variant="outline" size="small" onClick={onRetry} aria-label={`Retry: ${message}`}>
+                  Retry
+                </Button>
+              ),
+              width: 'shrink-0',
+              align: 'right' as const,
+            },
+          ]
+        : []),
+    ],
+  };
+}
+
 interface NeedsYouPanelProps {
   rows?: readonly NeedsYouRow[];
   failures?: readonly NeedsYouFailure[];
   footer?: string | null;
-  /** Still being read: `NEEDS_YOU_PREVIEW_ROWS` rows of bars and the counts' bar, beside the real caption. */
+  /** Still being read: `NEEDS_YOU_PREVIEW_ROWS` rows in the loaded rows' shape and the counts' bar, beside the real caption. */
   loading?: boolean;
 }
 
@@ -230,14 +273,16 @@ interface NeedsYouPanelProps {
  * sources answer.
  */
 export function NeedsYouPanel({ rows = [], failures = [], footer = null, loading = false }: NeedsYouPanelProps) {
-  const panelRows = rows.length > 0 || failures.length > 0 ? rows.map(toPanelRow) : [ALL_CLEAR_ROW];
-  const isOffline = failures.some(failure => failure.isOffline);
   const loadingForm = useLoadingScope() || loading;
+  let panelRows: PanelRow[];
+  if (loadingForm) panelRows = LOADING_ROWS;
+  else if (rows.length === 0 && failures.length === 0) panelRows = [ALL_CLEAR_ROW];
+  else panelRows = [...(failures.length > 0 ? [failureRow(failures)] : []), ...rows.map(toPanelRow)];
 
   return (
     <section aria-label={CAPTION}>
       <LoadingWhen
-        loading={loading}
+        loading={loadingForm}
         label="Loading what needs you"
         className="flex flex-col gap-[var(--spacing-system-xxs)]"
       >
@@ -253,20 +298,7 @@ export function NeedsYouPanel({ rows = [], failures = [], footer = null, loading
             )
           )}
         </div>
-        <StackedRowsPanel
-          rows={panelRows}
-          loading={loading}
-          previewRows={NEEDS_YOU_PREVIEW_ROWS}
-          skeleton={{ columns: 2 }}
-          listItems
-        />
-        {!loadingForm && failures.length > 0 && (
-          <SectionLoadError
-            {...loadErrorProps(isOffline, "Couldn't load everything that needs you.", () => {
-              for (const failure of failures) failure.retry();
-            })}
-          />
-        )}
+        <StackedRowsPanel rows={panelRows} previewRows={NEEDS_YOU_PREVIEW_ROWS} listItems />
       </LoadingWhen>
     </section>
   );
