@@ -6,11 +6,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 
-/**
- * Writes a bundle's files under one directory, with the process's own
- * permissions: nothing of a tar header is applied. The reader hands it only
- * paths that stay inside the directory and collide with no other.
- */
+// Files are written with the process's own permissions: nothing of a tar header is applied. The reader
+// hands it only paths that stay inside the directory and collide with no other.
 public final class DirectorySink implements BundleReader.Sink, Closeable {
 
     private final File root;
@@ -42,7 +39,7 @@ public final class DirectorySink implements BundleReader.Sink, Closeable {
         file.close();
     }
 
-    /** Closes the file the reader left open when it refused the bundle halfway through it. */
+    // Closes the file the reader left open when it refused the bundle halfway through it.
     @Override
     public void close() throws IOException {
         if (out != null) {

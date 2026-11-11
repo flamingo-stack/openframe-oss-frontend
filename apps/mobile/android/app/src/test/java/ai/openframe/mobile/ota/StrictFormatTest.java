@@ -15,11 +15,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-/**
- * The strictness the shared cases cannot carry or do not pin: input a JSON
- * string cannot hold (bytes that are not UTF-8, nesting deep enough to
- * overflow a stack), and the edges of this shell's own parsers.
- */
 public class StrictFormatTest {
 
     private static byte[] utf8(String text) {
@@ -31,11 +26,8 @@ public class StrictFormatTest {
             Json.parse(json);
             fail(what + " was taken as JSON");
         } catch (Json.Malformed expected) {
-            // Refused, as it must be.
         }
     }
-
-    // ─── JSON ────────────────────────────────────────────────────────────────
 
     @Test
     public void jsonKeepsItsOwnTypes() throws Json.Malformed {
@@ -134,7 +126,6 @@ public class StrictFormatTest {
         }
     }
 
-    /** {@code depth} arrays, or objects under the name "a", one inside the other. */
     private static String nested(char open, char close, int depth) {
         StringBuilder text = new StringBuilder();
         for (int i = 0; i < depth; i++) {
@@ -161,8 +152,6 @@ public class StrictFormatTest {
     private static Json.Num number(String text) throws Json.Malformed {
         return (Json.Num) Json.parse(utf8(text));
     }
-
-    // ─── base64 ──────────────────────────────────────────────────────────────
 
     @Test
     public void base64DecodesWhatAnEncoderWrites() {
@@ -201,8 +190,6 @@ public class StrictFormatTest {
         }
     }
 
-    // ─── Versions ────────────────────────────────────────────────────────────
-
     @Test
     public void aVersionIsThreePlainNumbers() {
         for (String version : new String[] {"0.0.0", "1.2.3", "10.20.30", "999999999.999999999.999999999"}) {
@@ -226,8 +213,6 @@ public class StrictFormatTest {
         assertTrue(Version.compare("1.2.10", "1.2.9") > 0);
         assertTrue(Version.compare("999999999.0.0", "999999998.999999999.999999999") > 0);
     }
-
-    // ─── Signatures ──────────────────────────────────────────────────────────
 
     @Test
     public void onlyTheOneDerEncodingOfASignatureIsTaken() {
@@ -263,8 +248,6 @@ public class StrictFormatTest {
         OtaKeys.of(new byte[91]);
     }
 
-    // ─── What a refusal means for the release ────────────────────────────────
-
     @Test
     public void onlyARefusalOfTheSignedBytesMarksAReleaseBad() {
         List<OtaError.Code> bad = Arrays.asList(
@@ -275,8 +258,6 @@ public class StrictFormatTest {
             assertEquals(code.name(), bad.contains(code), new OtaError(code, "").isContentRefusal());
         }
     }
-
-    // ─── Paths ───────────────────────────────────────────────────────────────
 
     @Test
     public void aBundlePathStaysInsideItsDirectory() {

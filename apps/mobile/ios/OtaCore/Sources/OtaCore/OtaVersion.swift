@@ -1,5 +1,4 @@
-/// A release version `x.y.z`: three parts, each `0` or an ASCII 1-9 followed by at most eight
-/// ASCII digits, so each fits 32 bits. Compared as three numbers: 1.10.0 is above 1.9.0.
+/// Each part is at most nine ASCII digits, so it fits 32 bits.
 public struct OtaVersion: Hashable, Comparable, CustomStringConvertible, Sendable {
     public let major: UInt32
     public let minor: UInt32

@@ -15,10 +15,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/**
- * A bundle directory is deleted page first: whenever the deletion stops, what
- * is left has no index.html and is never taken for a bundle again.
- */
 public class BundleRemovalTest {
 
     @Rule
@@ -32,7 +28,7 @@ public class BundleRemovalTest {
         }
     }
 
-    /** A bundle with files that sort before and after its root page, at the root and below it. */
+    // Files that sort before and after the root page, at the root and below it.
     private File bundle() throws IOException {
         File bundle = new File(disk.getRoot(), "1.2.3");
         for (String path : new String[] {"404.html", "_next/static/chunks/a.js", "assets/logo.svg", "devices/index.html", "index.html", "index.txt", "zz/z.js"}) {
@@ -76,7 +72,6 @@ public class BundleRemovalTest {
         File bundle = bundle();
         List<File> order = BundleRemoval.order(bundle);
 
-        // The process dies after the first deletion.
         assertTrue(order.get(0).delete());
 
         assertFalse(new File(bundle, "index.html").exists());

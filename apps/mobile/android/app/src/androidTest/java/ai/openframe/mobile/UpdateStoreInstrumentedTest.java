@@ -25,12 +25,8 @@ import java.util.Collections;
 import ai.openframe.mobile.ota.OtaSession;
 import ai.openframe.mobile.ota.OtaState;
 
-/**
- * The updater's files on a real file system: state.json through AtomicFile,
- * the bundle directories, and what a process does with them from one launch
- * to the next. Each test works in a directory of its own under the app's
- * cache (the tests run as the app), never in the app's ota directory.
- */
+// Each test works in a directory of its own under the app's cache (the tests run as the app), never in
+// the app's ota directory.
 @RunWith(AndroidJUnit4.class)
 public class UpdateStoreInstrumentedTest {
 
@@ -74,7 +70,6 @@ public class UpdateStoreInstrumentedTest {
         }
     }
 
-    /** A bundle as a check of this build leaves it in the work area, moved into place. */
     private void installBundle(String version) throws IOException {
         installBundle(version, ENV);
     }
@@ -86,7 +81,6 @@ public class UpdateStoreInstrumentedTest {
         store.install(unpacked, version);
     }
 
-    /** A process of the build whose built-in page carries {@link #ENV}. */
     private static OtaSession session(UpdateStore store) {
         return new OtaSession(BUILTIN, () -> ENV.getBytes(StandardCharsets.UTF_8), store);
     }

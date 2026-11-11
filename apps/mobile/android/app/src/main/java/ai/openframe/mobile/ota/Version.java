@@ -1,11 +1,8 @@
 package ai.openframe.mobile.ota;
 
-/**
- * A release version, {@code x.y.z}: three parts joined by a dot, each
- * {@code 0} or an ASCII 1-9 followed by at most eight ASCII digits, so each
- * fits an int. No sign, no suffix, no other digit: {@code Integer.parseInt}
- * would take a plus sign and any Unicode digit.
- */
+// x.y.z: three parts joined by a dot, each 0 or an ASCII 1-9 followed by at most eight ASCII digits,
+// so each fits an int. No sign, no suffix, no other digit: Integer.parseInt would take a plus sign and
+// any Unicode digit.
 public final class Version {
 
     private Version() {
@@ -15,7 +12,6 @@ public final class Version {
         return text != null && parts(text) != null;
     }
 
-    /** Below zero, zero or above as {@code a} is below, at or above {@code b}: by number, so 1.10.0 is above 1.9.0. */
     public static int compare(String a, String b) {
         int[] left = parts(a);
         int[] right = parts(b);

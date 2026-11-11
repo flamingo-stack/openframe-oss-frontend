@@ -1,8 +1,6 @@
 import CryptoKit
 import Foundation
 
-/// A public key the shell trusts, with the id a manifest names it by: the first 16 lowercase hex
-/// digits of SHA-256 over its SPKI DER.
 public struct OtaKey {
     public let id: String
     let key: P256.Signing.PublicKey
@@ -36,7 +34,7 @@ public struct OtaKey {
     }
 
     /// The keys of `apps/mobile/ota/keys.json`: `current`, and `next` unless a rotation has just
-    /// used it up. A slot that is present must hold a valid key.
+    /// used it up.
     public static func keys(fromKeysJSON bytes: [UInt8]) throws -> [OtaKey] {
         guard let json = StrictJSON.parse(bytes), case .object = json else {
             throw OtaError(.keys, "keys.json is not a JSON object")
@@ -53,7 +51,6 @@ public struct OtaKey {
     }
 }
 
-/// The signed payload of a `mobile.json`, every field already checked.
 public struct OtaPayload: Equatable, Sendable {
     public let version: OtaVersion
     public let bridgeLevel: Int64
@@ -67,8 +64,7 @@ public enum OtaManifest {
     /// More than a manifest ever is: a shell reads at most this much of one.
     public static let maxBytes = 64 * 1024
 
-    /// The verified payload of a `mobile.json` envelope `{keyId, payload, signature}`. The checks
-    /// run in the order docs/ota.md gives: ENVELOPE, UNKNOWN_KEY, SIGNATURE, PAYLOAD.
+    /// The checks run in the order docs/ota.md gives: ENVELOPE, UNKNOWN_KEY, SIGNATURE, PAYLOAD.
     public static func verify(_ manifest: [UInt8], keys: [OtaKey]) throws -> OtaPayload {
         guard let envelope = StrictJSON.parse(manifest), case .object = envelope else {
             throw OtaError(.envelope, "the manifest is not a JSON object")
@@ -142,8 +138,8 @@ enum CanonicalBase64 {
     private static let alphabet = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".utf8)
     private static let pad = UInt8(ascii: "=")
 
-    /// The bytes `text` encodes, or nil unless it is their one canonical spelling: the standard
-    /// alphabet, padded, no line breaks, zero padding bits. Decode, re-encode, compare.
+    /// nil unless `text` is the one canonical spelling of its bytes: the standard alphabet,
+    /// padded, no line breaks, zero padding bits.
     static func decode(_ text: [UInt8]) -> [UInt8]? {
         guard text.count % 4 == 0 else { return nil }
         var out: [UInt8] = []
@@ -169,11 +165,10 @@ enum CanonicalBase64 {
 }
 
 enum StrictDER {
-    /// Whether `der` is exactly `SEQUENCE { INTEGER r, INTEGER s }` in DER, r and s positive and
-    /// at most 32 bytes. docs/ota.md names the forms that must be refused: a needless leading
-    /// zero, a negative integer, a long-form length, a trailing byte, raw r‖s. CryptoKit refuses
-    /// them all on the SDK the shared cases run on, but how strictly it reads DER is not part of
-    /// its contract and the app runs from iOS 16.4 up, so the rule is held here, not left to it.
+    /// docs/ota.md names the forms that must be refused: a needless leading zero, a negative
+    /// integer, a long-form length, a trailing byte, raw r‖s. CryptoKit refuses them all on the
+    /// SDK the shared cases run on, but how strictly it reads DER is not part of its contract and
+    /// the app runs from iOS 16.4 up, so the rule is held here, not left to it.
     /// A P-256 signature is at most 70 bytes of content, so every length is short-form.
     static func isECDSASignature(_ der: [UInt8]) -> Bool {
         guard der.count >= 2, der[0] == 0x30, der[1] < 0x80, Int(der[1]) == der.count - 2 else { return false }

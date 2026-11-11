@@ -7,11 +7,11 @@ import XCTest
 /// shell run too (docs/ota.md, "Shared test cases"). Read from the repository, not copied.
 enum Fixtures {
     static let mobile = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent() // OtaCoreTests
-        .deletingLastPathComponent() // Tests
-        .deletingLastPathComponent() // OtaCore
-        .deletingLastPathComponent() // ios
-        .deletingLastPathComponent() // apps/mobile
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
     static let directory = mobile.appendingPathComponent("ota/fixtures")
 
     /// Parsed by the strict parser, byte for byte: `JSONSerialization` drops a byte order mark at
@@ -21,7 +21,7 @@ enum Fixtures {
         return try XCTUnwrap(StrictJSON.parse(Array(data)), name)
     }
 
-    /// The cases of a file. An empty list fails: a renamed key must not pass as "no cases".
+    /// An empty list fails: a renamed key must not pass as "no cases".
     static func cases(_ name: String) throws -> [JSONValue] {
         let cases = try XCTUnwrap(try json(name)["cases"]?.items, name)
         XCTAssertFalse(cases.isEmpty, name)
@@ -54,7 +54,6 @@ extension JSONValue {
 
     var caseName: String { self["name"]?.text ?? "(unnamed case)" }
 
-    /// The error code a case expects, or nil when it expects an acceptance.
     var expectedError: String? { self["expect"]?["error"]?.text }
 }
 
@@ -73,7 +72,6 @@ func hex(_ digest: some Sequence<UInt8>) -> String {
     digest.map { String(format: "%02x", $0) }.joined()
 }
 
-/// Records each file as the cases list them: path, size and SHA-256, in archive order.
 final class RecordingSink: OtaBundleSink {
     struct File: Equatable {
         let path: String

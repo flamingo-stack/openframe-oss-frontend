@@ -9,17 +9,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * JSON as RFC 8259 writes it and nothing else: valid UTF-8 with no byte order
- * mark, no comment, no trailing comma, no single quote, and only whitespace
- * after the value. Not {@code org.json}, which takes all of those.
- *
- * Values keep JSON's own types: an object is a {@link Map}, an array a
- * {@link List}, a string a {@link String}, a number a {@link Num} holding the
- * text it was written as, {@code true} and {@code false} a {@link Boolean},
- * and {@code null} is {@link #NULL}. So {@code true} is never the number 1,
- * and a missing member ({@code Map.get} returning null) is never {@code null}.
- */
+// JSON as RFC 8259 writes it and nothing else: valid UTF-8 with no byte order mark, no comment, no
+// trailing comma, no single quote, and only whitespace after the value. Not org.json, which takes all
+// of those.
+//
+// Values keep JSON's own types, so true is never the number 1, and a missing member (Map.get returning
+// null) is never JSON's null, which is NULL.
 public final class Json {
 
     public static final Object NULL = new Object() {
@@ -29,14 +24,10 @@ public final class Json {
         }
     };
 
-    /**
-     * How deep arrays and objects may nest. The parser descends once per
-     * level, so the bound is what keeps a manifest of ten thousand brackets
-     * from overflowing the stack. Nothing this format reads nests past two.
-     */
+    // The parser descends once per level, so the bound is what keeps a manifest of ten thousand brackets
+    // from overflowing the stack. Nothing this format reads nests past two.
     static final int MAX_DEPTH = 32;
 
-    /** A number, as the text it was written as. */
     public static final class Num {
         public final String text;
 
@@ -44,12 +35,8 @@ public final class Json {
             this.text = text;
         }
 
-        /**
-         * The value, when it is written as a whole number above zero: digits
-         * only, at most eighteen of them, so it fits a long. -1 for anything
-         * else, including the spellings {@code 1.0} and {@code 1e0}, which the
-         * release never writes.
-         */
+        // Digits only, at most eighteen of them, so it fits a long. -1 for anything else, including the
+        // spellings 1.0 and 1e0, which the release never writes.
         public long positiveInteger() {
             if (text.isEmpty() || text.length() > 18 || text.charAt(0) < '1' || text.charAt(0) > '9') {
                 return -1;
@@ -104,7 +91,6 @@ public final class Json {
         return value;
     }
 
-    /** The members of the JSON object {@code utf8} holds. */
     @SuppressWarnings("unchecked")
     public static Map<String, Object> parseObject(byte[] utf8) throws Malformed {
         Object value = parse(utf8);
@@ -249,7 +235,7 @@ public final class Json {
         return new Num(text.subSequence(start, at).toString());
     }
 
-    /** Skips ASCII digits; false when there was none. Character.isDigit would take any Unicode digit. */
+    // Character.isDigit would take any Unicode digit.
     private boolean digits() {
         int start = at;
         while (peek() >= '0' && peek() <= '9') {
@@ -306,11 +292,8 @@ public final class Json {
         }
     }
 
-    /**
-     * A {@code \\uXXXX} escape, already past its {@code \\u}. Half a surrogate
-     * pair is refused, so every string this parser returns encodes back to the
-     * UTF-8 it stands for and the byte comparisons made on it stay exact.
-     */
+    // Half a surrogate pair is refused, so every string this parser returns encodes back to the UTF-8 it
+    // stands for and the byte comparisons made on it stay exact.
     private void escapedUnit(StringBuilder out) throws Malformed {
         char unit = hex4();
         if (Character.isLowSurrogate(unit)) {

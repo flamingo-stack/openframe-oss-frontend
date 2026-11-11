@@ -3,8 +3,6 @@ import Foundation
 import XCTest
 @testable import OtaCore
 
-/// Every case of `apps/mobile/ota/fixtures`, by outcome: what is accepted, or the code of the
-/// first check that refuses it. Never a message.
 final class SharedCasesTests: XCTestCase {
     func testKeyIds() throws {
         let keys = try Fixtures.keys()
@@ -103,7 +101,6 @@ final class SharedCasesTests: XCTestCase {
         }
     }
 
-    /// The keys this binary would compile in must be ones the shell can load.
     func testCommittedKeysLoad() throws {
         let bytes = Array(try Data(contentsOf: Fixtures.mobile.appendingPathComponent("ota/keys.json")))
         let keys = try OtaKey.keys(fromKeysJSON: bytes)

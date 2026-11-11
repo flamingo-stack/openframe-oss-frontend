@@ -1,13 +1,9 @@
-/// What the shell remembers about its over-the-air bundles (`state.json`), and every rule that
-/// changes it. All of it is pure: the app reads and writes the file and asks the disk whether a
-/// bundle is usable (its directory holds an `index.html` that carries this binary's env element,
-/// `OtaEnv.page(_:carries:)`); nothing here does. The Android shell holds the same decision, state
-/// and directory rules (`ai.openframe.mobile.ota`), but counts a trial's attempt at boot, where iOS
-/// counts it when the scene enters the foreground.
+/// The Android shell holds the same decision, state and directory rules
+/// (`ai.openframe.mobile.ota`), but counts a trial's attempt at boot, where iOS counts it when the
+/// scene enters the foreground.
 public struct OtaState: Equatable, Sendable {
     public struct Pending: Equatable, Sendable {
         public var version: OtaVersion
-        /// Boots of this bundle that have not reported ready.
         public var attempts: Int
 
         public init(version: OtaVersion, attempts: Int) {
@@ -20,11 +16,9 @@ public struct OtaState: Equatable, Sendable {
     public static let maxTrialAttempts = 2
     public static let maxBad = 20
 
-    /// The bundle that boots: downloaded, booted and confirmed by `notifyReady`.
     public var active: OtaVersion?
-    /// A downloaded bundle not yet confirmed. It boots next, as a trial.
     public var pending: Pending?
-    /// Versions never to download again, oldest first.
+    /// Oldest first.
     public var bad: [OtaVersion]
 
     public init(active: OtaVersion? = nil, pending: Pending? = nil, bad: [OtaVersion] = []) {
@@ -42,11 +36,8 @@ public struct OtaState: Equatable, Sendable {
     }
 }
 
-/// What this process serves its web view from.
 public struct OtaBoot: Equatable, Sendable {
-    /// nil is the built-in bundle.
     public var version: OtaVersion?
-    /// A downloaded bundle that has not yet reported ready.
     public var trial: Bool
 
     public static let builtin = OtaBoot(version: nil, trial: false)
@@ -72,8 +63,7 @@ public enum OtaRules {
         return .download
     }
 
-    /// The bundle a new process boots, and the state to write before its web view loads.
-    /// `usable` says whether a bundle can be served by this binary. A trial's attempt is not
+    /// The state returned is to be written before the web view loads. A trial's attempt is not
     /// counted here but when the app comes to the foreground (`countingAttempt`), so that a launch
     /// nobody saw does not use one up.
     public static func resolveBoot(state: OtaState, builtin: OtaVersion, usable: (OtaVersion) -> Bool) -> (state: OtaState, boot: OtaBoot) {
@@ -91,9 +81,8 @@ public enum OtaRules {
         return (next, OtaBoot(version: next.active, trial: false))
     }
 
-    /// `state` without its pending bundle when that cannot boot again: one that is not usable is
-    /// dropped, not marked bad (its directory is gone or was unpacked under another env, the bundle
-    /// did not fail); one that has used up its attempts is marked bad.
+    /// A pending bundle that is not usable is dropped, not marked bad: its directory is gone or
+    /// was unpacked under another env, the bundle did not fail.
     private static func droppingUnbootablePending(_ state: OtaState, usable: (OtaVersion) -> Bool) -> OtaState {
         guard let pending = state.pending else { return state }
         var next = state
@@ -106,14 +95,13 @@ public enum OtaRules {
         return next
     }
 
-    /// The boot when the state `resolveBoot` returned could not be written. Never a trial, which
-    /// could then fail at every launch without ever being counted and reverted: the active
-    /// bundle, which that state names only when it is usable, else the built-in one.
+    /// Never a trial, which could then fail at every launch without ever being counted and
+    /// reverted: the active bundle, which the resolved state names only when it is usable, else
+    /// the built-in one.
     public static func bootWithoutWrite(resolved state: OtaState) -> OtaBoot {
         OtaBoot(version: state.active, trial: false)
     }
 
-    /// The attempt of the trial this process booted, counted once the app is in the foreground.
     public static func countingAttempt(state: OtaState, boot: OtaBoot) -> OtaState {
         var next = state
         if boot.trial, let pending = next.pending, pending.version == boot.version {
@@ -122,8 +110,8 @@ public enum OtaRules {
         return next
     }
 
-    /// The booted bundle reports that it works. Only the trial this page booted from is
-    /// confirmed: a bundle downloaded during the session has not run yet.
+    /// Only the trial this page booted from is confirmed: a bundle downloaded during the session
+    /// has not run yet.
     public static func applyReady(state: OtaState, boot: OtaBoot) -> OtaState {
         var next = state
         if boot.trial, let pending = next.pending, pending.version == boot.version {
@@ -133,7 +121,6 @@ public enum OtaRules {
         return next
     }
 
-    /// The state after a decision other than a download.
     public static func applyDecision(_ decision: OtaDecision, state: OtaState, version: OtaVersion, boot: OtaBoot) -> OtaState {
         var next = state
         switch decision {
@@ -153,22 +140,16 @@ public enum OtaRules {
         return next
     }
 
-    /// The state once a bundle is verified, unpacked and in place.
     public static func applyDownloaded(state: OtaState, version: OtaVersion) -> OtaState {
         var next = state
         next.pending = OtaState.Pending(version: version, attempts: 0)
         return next
     }
 
-    /// The state after a correctly signed bundle was refused for its content.
     public static func applyRefused(state: OtaState, version: OtaVersion) -> OtaState {
         state.markingBad(version)
     }
 
-    /// `applyPending`: the pending bundle to swap the running web view to, with the same
-    /// bookkeeping as a boot. `version` is nil when there is none to apply: no pending bundle, the
-    /// one this process already runs, one that is not usable, which is dropped as a boot drops
-    /// it, or one that has used up its attempts, which is marked bad.
     public static func resolveApply(state: OtaState, boot: OtaBoot, usable: (OtaVersion) -> Bool) -> (state: OtaState, version: OtaVersion?) {
         guard let pending = state.pending, pending.version != boot.version else {
             return (state, nil)
@@ -181,8 +162,7 @@ public enum OtaRules {
         return (next, pending.version)
     }
 
-    /// The directories of `bundles/` to delete: every one that is not the active bundle, the
-    /// pending one or the one this process serves its web view from.
+    /// Never the directory this process serves its web view from.
     public static func directoriesToDelete(present: [String], state: OtaState, boot: OtaBoot) -> [String] {
         let kept = Set([state.active, state.pending?.version, boot.version].compactMap { $0?.description })
         return present.filter { !kept.contains($0) }
@@ -190,8 +170,8 @@ public enum OtaRules {
 }
 
 extension OtaState {
-    /// The state a `state.json` holds. A file that is not exactly what `serialized` writes is an
-    /// empty state: the bundles it named are deleted by the next cleanup and downloaded again.
+    /// A file that is not exactly what `serialized` writes is an empty state: the bundles it named
+    /// are deleted by the next cleanup and downloaded again.
     public static func parse(_ bytes: [UInt8]) -> OtaState {
         guard let json = StrictJSON.parse(bytes), json["schema"]?.integer == schema,
               let active = version(json["active"]), let bad = json["bad"], case .array(let entries) = bad

@@ -3,22 +3,19 @@ import OtaCore
 
 /**
  * What the binary was built with, and nothing a page script or the network can
- * change: the release its built-in bundle came from, the env element of that
- * bundle, the shared host to ask for a manifest, the public keys to check one
- * against. Read once per process.
+ * change.
  */
 struct UpdateConfig {
-    /// The `x.y.z` in the built-in bundle's `ota-builtin.json`
+    /// From the built-in bundle's `ota-builtin.json`
     /// (apps/mobile/scripts/ota-stamp.mjs). Nil when the bundle was not built
     /// from a release: such a binary cannot tell whether a release is above or
     /// below what it carries, and takes no updates.
     let builtinVersion: OtaVersion?
-    /// The `window.__ENV` script of the built-in `index.html`, copied into every
-    /// downloaded bundle. Nil when the built-in page has none (the placeholder).
+    /// Nil when the built-in page has none (the placeholder).
     let envElement: [UInt8]?
-    /// The manifest of the release this binary's environment runs. Nil without
-    /// an https `OpenFrameSharedHostURL`. Never the host the web view pushes
-    /// (`setTenantHost`): what the app updates from must not come from JS.
+    /// Nil without an https `OpenFrameSharedHostURL`. Never the host the web
+    /// view pushes (`setTenantHost`): what the app updates from must not come
+    /// from JS.
     let manifestURL: URL?
     let keys: [OtaKey]
 
@@ -68,16 +65,13 @@ struct UpdateConfig {
 }
 
 /**
- * One GET, the only kind of request the updater makes. No cookies and no
- * credentials (`URLSessionConfiguration.credentialFree`), no headers of its
- * own, https at every hop, and never more than `limit` bytes of body. A request
- * made with `constrained` false is refused under Low Data Mode before it leaves
- * the device, and its failure says so (`lowDataMode`).
+ * No cookies and no credentials (`URLSessionConfiguration.credentialFree`), no
+ * headers of its own, https at every hop, and never more than `limit` bytes of
+ * body.
  */
 final class UpdateFetch: NSObject, URLSessionDataDelegate {
     struct Failure: Error, CustomStringConvertible {
         let description: String
-        /// The system refused the request because the network is in Low Data Mode.
         var lowDataMode = false
     }
 
@@ -94,8 +88,6 @@ final class UpdateFetch: NSObject, URLSessionDataDelegate {
         self.completion = completion
     }
 
-    /// The body goes to `file` when there is one, else it is the result.
-    /// `completion` runs on `queue`.
     static func get(_ url: URL, limit: Int64, into file: FileHandle? = nil, constrained: Bool, timeout: TimeInterval, on queue: DispatchQueue, completion: @escaping (Result<Data, Failure>) -> Void) {
         guard isHTTPS(url) else {
             queue.async { completion(.failure(Failure(description: "not an https URL"))) }
@@ -180,9 +172,8 @@ final class UpdateFetch: NSObject, URLSessionDataDelegate {
 }
 
 /**
- * The parts of a check that touch the network and the disk. Which bundle a
- * manifest means, and what becomes of the state, is `NativeUpdate`'s: nothing
- * here reads or writes `state.json`.
+ * Which bundle a manifest means, and what becomes of the state, is
+ * `NativeUpdate`'s: nothing here reads or writes `state.json`.
  */
 struct UpdateChecker {
     private static let manifestTimeout: TimeInterval = 15
@@ -194,10 +185,8 @@ struct UpdateChecker {
     let store: UpdateStore
     let log: ShellLog
 
-    /// The verified payload of the release this environment runs, or nil for
-    /// "no update": no answer, any status but 2xx, or a manifest that is
-    /// refused. Asked under Low Data Mode too: it is a few hundred bytes, and a
-    /// kill or a rollback needs nothing else. `completion` runs on `queue`.
+    /// Asked under Low Data Mode too: it is a few hundred bytes, and a kill or a
+    /// rollback needs nothing else.
     func fetchManifest(on queue: DispatchQueue, completion: @escaping (OtaPayload?) -> Void) {
         guard let url = config.manifestURL else {
             queue.async { completion(nil) }
@@ -228,9 +217,6 @@ struct UpdateChecker {
         case failed
     }
 
-    /// Streams the bundle a payload names into the staging area, giving up once
-    /// more than `payload.size` bytes arrive. `constrained` is whether it may
-    /// download under Low Data Mode: only when the user is waiting for it.
     func download(_ payload: OtaPayload, constrained: Bool, on queue: DispatchQueue, completion: @escaping (Download) -> Void) {
         let archive = store.staging.appendingPathComponent(Self.archiveName)
         guard let url = URL(string: payload.url),
@@ -257,11 +243,8 @@ struct UpdateChecker {
         }
     }
 
-    /// Checks a downloaded archive against its payload and unpacks it into
-    /// `staging/<version>/`, with this binary's env in its `index.html`. The
-    /// directory it returns is whole and ready to be moved into place. Throws
-    /// an `OtaError` for a refusal, anything else for a failure of the disk or
-    /// of the decoder to start, which says nothing about the bundle.
+    /// Throws an `OtaError` for a refusal, anything else for a failure of the
+    /// disk or of the decoder to start, which says nothing about the bundle.
     func unpack(_ archive: URL, payload: OtaPayload) throws -> URL {
         guard let envElement = config.envElement else {
             throw OtaError(.noEnv, "the built-in index.html has no window.__ENV script")

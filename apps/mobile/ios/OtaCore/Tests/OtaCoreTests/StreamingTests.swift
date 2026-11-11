@@ -4,9 +4,6 @@ import Foundation
 import XCTest
 @testable import OtaCore
 
-/// The shared bundles are a few hundred bytes, so each reaches the decoder and the tar reader in
-/// one piece. A real bundle is megabytes: these run the same readers over inputs cut at every
-/// kind of seam.
 final class StreamingTests: XCTestCase {
     private final class Events: TarEntryHandler {
         var files: [RecordingSink.File] = []
@@ -189,8 +186,6 @@ final class StreamingTests: XCTestCase {
         }, "SHA256")
     }
 
-    /// An index.html of many chunks reaches the reader in pieces: it is returned whole, and its env
-    /// and `<head>` are looked for in all of it, wherever the seams fall.
     func testALargeIndexIsReturnedAndCheckedWhole() throws {
         var generator = SystemRandomNumberGenerator()
         let letters = Array("abcdefghijklmnopqrstuvwxyz".utf8)
@@ -256,7 +251,6 @@ final class StreamingTests: XCTestCase {
     }
 
     func testNoFileReachesTheSinkAfterTheFirstEntryFault() throws {
-        // index.html, then a symbolic link, then a regular file the checker must no longer hand over.
         var tar = header("index.html", size: 13) + Array("<head></head>".utf8) + [UInt8](repeating: 0, count: 512 - 13)
         var link = header("link", size: 0)
         link[156] = UInt8(ascii: "2")

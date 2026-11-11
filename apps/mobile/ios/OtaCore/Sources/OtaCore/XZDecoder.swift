@@ -4,9 +4,6 @@ import Compression
 /// was not looked at, so nothing is known against it and its version must not be marked bad.
 public struct XZDecoderUnavailable: Error {}
 
-/// Decodes exactly one xz stream, as a stream: input goes in chunk by chunk and the decoded bytes
-/// come out through a callback, so neither the archive nor the tar is ever whole in memory.
-///
 /// Apple's `COMPRESSION_LZMA` also decodes the legacy `.lzma` container, which has no magic, and
 /// stops after the first xz stream without an error, where `xz` decodes every concatenated one.
 /// So the magic is checked first, and the stream must end with every input byte consumed and
@@ -36,8 +33,6 @@ final class XZDecoder {
         output.deallocate()
     }
 
-    /// Decodes the next bytes of the archive. `decoded` is called with each run of output; what it
-    /// throws stops the decoding and is rethrown.
     func decode(_ input: UnsafeRawBufferPointer, decoded: (UnsafeBufferPointer<UInt8>) throws -> Void) throws {
         guard input.count > 0 else { return }
         if header.count < Self.magic.count {
@@ -53,7 +48,6 @@ final class XZDecoder {
         guard stream.pointee.src_size == 0 else { throw OtaError(.xz, "bytes after the end of the xz stream") }
     }
 
-    /// Call once the archive has no more bytes: the stream must have ended by then.
     func finish(decoded: (UnsafeBufferPointer<UInt8>) throws -> Void) throws {
         guard header.count == Self.magic.count else { throw OtaError(.xz, "not an xz stream") }
         if !ended {

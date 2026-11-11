@@ -18,18 +18,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-/**
- * What the shared cases cannot say about the bundle reader: a disk that fails
- * is not a bad bundle (marking a release bad for it would keep a phone off
- * that release for good), and a downloaded file that is not the signed one is
- * refused before a byte of it is decoded.
- */
 public class BundleReaderTest {
 
     @Rule
     public final TemporaryFolder disk = new TemporaryFolder();
 
-    /** Fails the test at the first file: nothing may be decoded into it. */
     private static final BundleReader.Sink UNTOUCHED = new BundleReader.Sink() {
         @Override
         public void begin(String path, long size) {

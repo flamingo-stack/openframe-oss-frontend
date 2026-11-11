@@ -5,11 +5,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-/**
- * Every shared case of apps/mobile/ota/fixtures on the JVM, where the
- * signature verifier is SunEC. On a phone it is Conscrypt, and
- * SharedCasesInstrumentedTest runs the same cases there.
- */
+// On the JVM the signature verifier is SunEC. On a phone it is Conscrypt, and
+// SharedCasesInstrumentedTest runs the same cases there.
 public class SharedCasesTest {
 
     @Rule

@@ -1,5 +1,5 @@
-/// The refusal codes of the over-the-air format, the same ones `scripts/ota-error.mjs` and the
-/// Android shell give. The shared cases in `apps/mobile/ota/fixtures` expect codes, never messages.
+/// The same codes `scripts/ota-error.mjs` and the Android shell give. The shared cases in
+/// `apps/mobile/ota/fixtures` expect codes, never messages.
 public enum OtaCode: String, CaseIterable, Sendable {
     case envelope = "ENVELOPE"
     case unknownKey = "UNKNOWN_KEY"

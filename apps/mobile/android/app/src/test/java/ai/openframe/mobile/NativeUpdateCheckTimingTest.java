@@ -10,14 +10,6 @@ import org.junit.Test;
 
 import ai.openframe.mobile.CheckSchedule.Asked;
 
-/**
- * When the updater asks the gateway. The shell's own check runs on the first
- * activation of a process and then at most hourly; a check the page asks for
- * always runs, unless one has only just finished. Data Saver holds back the
- * download of the shell's own check, never the asking and never the page's.
- * And it asks one place only: the shared host the binary was compiled with,
- * a bare https origin.
- */
 public class NativeUpdateCheckTimingTest {
 
     private static final long MINUTE = 60_000;
@@ -25,7 +17,6 @@ public class NativeUpdateCheckTimingTest {
     private static final long NOW = 10 * HOUR;
     private static final boolean DATA_SAVER = true;
 
-    /** A schedule whose last check started at {@code startedAt} and ended at {@code finishedAt}, having had nothing to download. */
     private static CheckSchedule checkedAt(long startedAt, long finishedAt) {
         CheckSchedule schedule = new CheckSchedule();
         assertEquals(Asked.STARTED, schedule.ask(false, startedAt));
@@ -70,8 +61,6 @@ public class NativeUpdateCheckTimingTest {
         assertFalse(schedule.finish(NOW + 3));
         assertEquals("the one that ran answers the page for the next minute", Asked.ANSWERED, schedule.ask(true, NOW + 4));
     }
-
-    // ─── Data Saver ──────────────────────────────────────────────────────────
 
     @Test
     public void withoutDataSaverEveryCheckDownloads() {
@@ -145,8 +134,6 @@ public class NativeUpdateCheckTimingTest {
 
         assertFalse("the page's wish ended with its check", schedule.mayDownload(DATA_SAVER));
     }
-
-    // ─── The shared host ─────────────────────────────────────────────────────
 
     @Test
     public void theManifestIsAskedOfAnHttpsSharedHostOnly() {

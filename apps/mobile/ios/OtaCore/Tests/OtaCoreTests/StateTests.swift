@@ -15,7 +15,6 @@ final class ResolveBootTests: XCTestCase {
         OtaRules.resolveBoot(state: state, builtin: builtin, usable: usable ?? everyBundle)
     }
 
-    /// A launch the user sees: the boot, then the attempt the foreground counts.
     private func launch(_ state: OtaState) -> (state: OtaState, boot: OtaBoot) {
         let result = boot(state)
         return (OtaRules.countingAttempt(state: result.state, boot: result.boot), result.boot)
@@ -131,7 +130,6 @@ final class ResolveBootTests: XCTestCase {
         XCTAssertEqual(result.boot, .builtin)
     }
 
-    /// Every pair of bundles, usable or not, with every count of attempts.
     private func eachBoot(_ body: (_ result: (state: OtaState, boot: OtaBoot), _ usable: (OtaVersion) -> Bool) -> Void) {
         let versions = ["1.2.3", "1.2.4"].map(v)
         for activeUsable in [true, false] {

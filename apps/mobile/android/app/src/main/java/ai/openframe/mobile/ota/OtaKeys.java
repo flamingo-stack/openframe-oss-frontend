@@ -8,12 +8,9 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * The public keys a shell verifies manifests with, by the id a manifest names
- * its key by: the first 16 lowercase hex digits of SHA-256 over the key's SPKI
- * DER. Only the one 91-byte encoding of a P-256 key is taken (named curve,
- * uncompressed point), the one every implementation hashes to the same id.
- */
+// A key's id is the first 16 lowercase hex digits of SHA-256 over its SPKI DER. Only the one 91-byte
+// encoding of a P-256 key is taken (named curve, uncompressed point), the one every implementation
+// hashes to the same id.
 public final class OtaKeys {
 
     private static final byte[] P256_SPKI_PREFIX = {
@@ -29,11 +26,6 @@ public final class OtaKeys {
         return Bytes.hex(Bytes.sha256().digest(spki)).substring(0, 16);
     }
 
-    /**
-     * The keys, by id, of the given SPKI DER encodings.
-     *
-     * @throws IllegalArgumentException for anything but a P-256 key in the 91-byte encoding
-     */
     public static Map<String, PublicKey> of(byte[]... spkis) {
         Map<String, PublicKey> keys = new LinkedHashMap<>();
         for (byte[] spki : spkis) {

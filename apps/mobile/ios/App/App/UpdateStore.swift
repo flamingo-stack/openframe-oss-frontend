@@ -2,22 +2,15 @@ import Foundation
 import OtaCore
 
 /**
- * Where the over-the-air updater keeps its files: `Application Support/ota/`,
- * left out of backups (a restored bundle would run under another device's
- * state, and every one of them downloads again in seconds).
- *
- *     state.json          what boots (OtaState), written atomically
- *     bundles/<version>/  verified, unpacked bundles, the env already in index.html
- *     staging/            a check's work area, wiped when one starts and at boot
+ * `Application Support/ota/` is left out of backups: a restored bundle would
+ * run under another device's state, and every one of them downloads again in
+ * seconds.
  *
  * Every directory and file here has no data protection (`unprotected`). The
  * default class cannot be read before the first unlock after a reboot, and a
  * process the system launches then (a notification action, a silent push)
  * would boot the built-in bundle and keep showing it once the user opens the
  * app. Nothing here is secret: released web code, host names, version numbers.
- *
- * Dumb file access only: which bundle boots and what a check may change is
- * decided by `OtaRules`, on `NativeUpdate`'s queue.
  */
 struct UpdateStore {
     enum StateRead {
@@ -63,10 +56,6 @@ struct UpdateStore {
         bundles.appendingPathComponent(version.description, isDirectory: true)
     }
 
-    /// Whether this binary can serve a bundle: its directory holds an
-    /// `index.html` that carries `envElement`, the built-in page's own. One
-    /// unpacked by a binary built for another env carries that one's, and a
-    /// binary without an element can serve none.
     func isUsable(_ version: OtaVersion, envElement: [UInt8]?) -> Bool {
         let index = bundleDirectory(version).appendingPathComponent(Self.indexName)
         guard let envElement, let page = try? Data(contentsOf: index) else { return false }
@@ -87,7 +76,6 @@ struct UpdateStore {
         }
     }
 
-    /// An empty work area for a check.
     func resetStaging() throws {
         wipeStaging()
         try makeDirectory(staging)
@@ -97,8 +85,8 @@ struct UpdateStore {
         try? FileManager.default.removeItem(at: staging)
     }
 
-    /// Moves a verified, unpacked bundle from staging into place: one rename
-    /// on one volume, so `bundles/<version>` is either absent or whole.
+    /// One rename on one volume, so `bundles/<version>` is either absent or
+    /// whole.
     func install(staged: URL, as version: OtaVersion) throws {
         try makeDirectory(bundles)
         let destination = bundleDirectory(version)
@@ -108,7 +96,6 @@ struct UpdateStore {
         try FileManager.default.moveItem(at: staged, to: destination)
     }
 
-    /// `root`, or a directory right under it.
     private func makeDirectory(_ directory: URL) throws {
         let files = FileManager.default
         // Application Support is not ours: made first, so that it keeps the
@@ -128,9 +115,8 @@ struct UpdateStore {
     }
 }
 
-/// Writes a bundle's files under one directory as `OtaBundle.unpack` reads
-/// them. Files get the shell's own permissions: nothing from a tar header
-/// reaches this type.
+/// Files get the shell's own permissions: nothing from a tar header reaches
+/// this type.
 final class DirectorySink: OtaBundleSink {
     private let root: URL
     private var made = Set<String>()

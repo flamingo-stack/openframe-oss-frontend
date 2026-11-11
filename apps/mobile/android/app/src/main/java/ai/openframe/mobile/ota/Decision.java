@@ -1,10 +1,9 @@
 package ai.openframe.mobile.ota;
 
-/** What a shell does about the release a verified manifest names (docs/ota.md, "The decision"). */
+// The rules are those of docs/ota.md, "The decision".
 public enum Decision {
     DOWNLOAD,
     NOTHING,
-    /** Every over-the-air bundle goes; the built-in one boots at the next launch. */
     DROP;
 
     public static Decision decide(

@@ -29,36 +29,19 @@ import ai.openframe.mobile.ota.OtaSession;
 import ai.openframe.mobile.ota.OtaState;
 import ai.openframe.mobile.ota.Version;
 
-/**
- * Over-the-air web bundles: the shell boots a newer, signed web bundle than
- * the one in the APK when the environment runs one, without a store release.
- * The Android twin of ios/App/App/NativeUpdate.swift, with the same state and
- * rules (ai.openframe.mobile.ota, shared cases in apps/mobile/ota/fixtures).
- *
- * A process singleton, like TokenLifecycle: which bundle the process runs is
- * decided at each launch, before the web view exists, and kept until the next
- * ({@link OtaSession}), unless the page's applyPending has moved the process
- * to its pending bundle. MainActivity asks at every creation. A launch decides;
- * an Activity the system created again gets the answer of its launch, so it
- * neither changes the bundle under the page nor counts a second attempt
- * against one on trial.
- *
- * A downloaded bundle is on trial: it boots, and becomes the active bundle
- * when its page calls notifyReady. One that has booted twice without doing so
- * is marked bad at the next boot, and the previous bundle boots instead.
- *
- * Changes of state are one at a time under the session's lock. The check,
- * the download and the removal of old directories run one at a time on the
- * worker thread, never on the main thread and never on the boot path.
- * {@code adb logcat -s OpenFrameUpdate} shows every step.
- */
+// The Android twin of ios/App/App/NativeUpdate.swift, with the same state and rules
+// (ai.openframe.mobile.ota, shared cases in apps/mobile/ota/fixtures).
+//
+// A launch decides which bundle the process runs; an Activity the system created again gets the answer
+// of its launch, so it neither changes the bundle under the page nor counts a second attempt against
+// one on trial.
+//
+// The check, the download and the removal of old directories run one at a time on the worker thread,
+// never on the main thread and never on the boot path.
 final class NativeUpdate {
 
-    /**
-     * What the native bridge offers, as one number: a bundle that needs a
-     * higher level is not downloaded. Bumped with any addition to the bridge
-     * (a plugin, a method, an event), in step with the iOS shell.
-     */
+    // Bumped with any addition to the bridge (a plugin, a method, an event), in step with the iOS shell:
+    // a bundle that needs a higher level is not downloaded.
     static final int BRIDGE_LEVEL = 1;
 
     private static final String BUILTIN_STAMP = "public/ota-builtin.json";
@@ -76,24 +59,20 @@ final class NativeUpdate {
 
     private final ShellLog log = ShellLog.update;
     private final AssetManager assets;
-    /** The release the APK's own web bundle was built from, or null: then nothing here reads or writes any state. */
+    // When null, nothing here reads or writes any state.
     private final String builtinVersion;
     private final UpdateStore store;
     private final OtaSession session;
     private final UpdateChecker checker;
-    /**
-     * Every task catches Throwable: anything escaping an executor task
-     * reaches the default handler and kills the process. An Error too, such
-     * as an OutOfMemoryError while the xz decoder allocates its dictionary:
-     * nothing marks the version bad for it, so the process would die again at
-     * every launch that downloads it.
-     *
-     * At the default priority on purpose: THREAD_PRIORITY_BACKGROUND puts the
-     * thread in the throttled background group, which is starved while the
-     * foreground is busy, and a check runs at a launch. A short session might
-     * then never finish an update, and the "Update required" screen waits on
-     * this thread.
-     */
+    // Every task catches Throwable: anything escaping an executor task reaches the default handler and
+    // kills the process. An Error too, such as an OutOfMemoryError while the xz decoder allocates its
+    // dictionary: nothing marks the version bad for it, so the process would die again at every launch
+    // that downloads it.
+    //
+    // At the default priority on purpose: THREAD_PRIORITY_BACKGROUND puts the thread in the throttled
+    // background group, which is starved while the foreground is busy, and a check runs at a launch.
+    // A short session might then never finish an update, and the "Update required" screen waits on
+    // this thread.
     private final ExecutorService worker = Executors.newSingleThreadExecutor(task -> new Thread(task, "OpenFrameUpdate"));
 
     private final Object envLock = new Object();
@@ -113,12 +92,8 @@ final class NativeUpdate {
         checker = new UpdateChecker(context, store, session, builtinVersion != null, this::envElement);
     }
 
-    /**
-     * The version in the built-in bundle's stamp, which the lane writes when
-     * it stages a release (scripts/ota-stamp.mjs). A bundle built from anything
-     * else has none, and a shell that cannot say what it carries takes no
-     * updates: it could not tell a newer release from an older one.
-     */
+    // The lane writes the stamp when it stages a release (scripts/ota-stamp.mjs). A shell that cannot say
+    // what it carries takes no updates: it could not tell a newer release from an older one.
     private static String builtinVersion(AssetManager assets) {
         try (InputStream in = assets.open(BUILTIN_STAMP)) {
             byte[] stamp = Bytes.readAtMost(in, BUILTIN_STAMP_LIMIT);
@@ -129,12 +104,8 @@ final class NativeUpdate {
         }
     }
 
-    /**
-     * The env element of the built-in page: every unpacked bundle gets it, and
-     * a bundle on disk is usable only while it holds it. Null when the page
-     * has none. Read when first asked for, which a process with no bundle on
-     * disk and no check to run never does: the page is some 200 KB.
-     */
+    // Read when first asked for, which a process with no bundle on disk and no check to run never does:
+    // the page is some 200 KB.
     private byte[] envElement() {
         synchronized (envLock) {
             if (!envElementRead) {
@@ -149,16 +120,8 @@ final class NativeUpdate {
         }
     }
 
-    // ─── Boot ────────────────────────────────────────────────────────────────
-
-    /**
-     * The directory the web view is served from, or null for the bundle in the
-     * APK. MainActivity calls this before the bridge exists, at every creation.
-     *
-     * @param recreated the system is creating the Activity again and handed it its saved state: a rotation it
-     *                  does not handle itself, or a task restored. Without one this is a launch, also in a
-     *                  process that has run the app before: after Back the Activity is gone and the process stays.
-     */
+    // Null for the bundle in the APK. Not recreated is a launch, also in a process that has run the app
+    // before: after Back the Activity is gone and the process stays.
     File bootDirectory(boolean recreated) {
         OtaSession.Booted before = session.booted();
         OtaSession.Booted booted = recreated ? session.recreated() : session.boot();
@@ -198,8 +161,6 @@ final class NativeUpdate {
         log.error(step + ": bundle " + version + " never reported ready in " + OtaState.MAX_TRIAL_ATTEMPTS + " boots: marked bad");
     }
 
-    // ─── The bridge ──────────────────────────────────────────────────────────
-
     JSObject state() {
         OtaSession.Booted booted = session.booted();
         OtaState state = session.state();
@@ -214,12 +175,11 @@ final class NativeUpdate {
         return js;
     }
 
-    /** JSObject drops a key put with a Java null; the page is promised the key, holding null. */
+    // JSObject drops a key put with a Java null; the page is promised the key, holding null.
     private static Object orNull(String value) {
         return value == null ? JSONObject.NULL : value;
     }
 
-    /** The page of the booted bundle works. */
     void notifyReady() {
         try {
             if (!session.notifyReady()) {
@@ -232,11 +192,8 @@ final class NativeUpdate {
         execute(() -> store.removeStale(session));
     }
 
-    /**
-     * Switches the process to the pending bundle, as a trial, and returns its directory. Null when there
-     * is none it can switch to, or when the switch could not be written to the state: the state and its
-     * pending bundle are then as they were.
-     */
+    // Null also when the switch could not be written to the state: the state and its pending bundle are
+    // then as they were.
     File applyPending() {
         OtaSession.Applied applied;
         try {
@@ -255,8 +212,6 @@ final class NativeUpdate {
         return store.bundleDir(applied.version);
     }
 
-    // ─── The check ───────────────────────────────────────────────────────────
-
     void installObservers() {
         if (observersInstalled) {
             return;
@@ -270,12 +225,6 @@ final class NativeUpdate {
         });
     }
 
-    /**
-     * Runs a check unless one is running or was run lately enough.
-     *
-     * @param whenSettled from the page: called once the check it started or joined has finished, or at once
-     *                    when the last one has only just finished. Null for the shell's own activation check.
-     */
     void check(String trigger, Runnable whenSettled) {
         boolean fromPage = whenSettled != null;
         CheckSchedule.Asked asked;

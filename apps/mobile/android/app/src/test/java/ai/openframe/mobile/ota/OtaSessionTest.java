@@ -17,13 +17,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * One process of the updater against its store: each launch decides the boot
- * and an Activity created again keeps it, a trial is counted in the store
- * before the web view loads, a bundle boots only while its page holds this
- * build's env, and a store that cannot be read or written never leaves a
- * bundle on an uncounted trial.
- */
 public class OtaSessionTest {
 
     private static final String BUILTIN = "1.2.0";
@@ -35,27 +28,22 @@ public class OtaSessionTest {
         return text.getBytes(StandardCharsets.US_ASCII);
     }
 
-    /** The root page of a bundle as a check leaves it: the env of the build that unpacked it right after its head tag. */
     private static byte[] pageWith(String envElement) {
         return ascii("<!DOCTYPE html><html><head>" + envElement + "<title>OpenFrame</title></head><body></body></html>");
     }
 
-    /** A process of the build whose built-in page carries {@link #ENV}. */
     private static OtaSession session(MemoryStore store) {
         return new OtaSession(BUILTIN, () -> ascii(ENV), store);
     }
 
-    /** state.json and the bundle directories, in memory. One store outlives the sessions, as the disk outlives processes. */
     private static final class MemoryStore implements OtaSession.Store {
         OtaState stored = OtaState.EMPTY;
-        /** The index.html of each bundle directory that has one. */
         final Map<String, byte[]> onDisk = new HashMap<>();
         final List<OtaState> writes = new ArrayList<>();
         int reads;
         boolean unreadable;
         boolean unwritable;
 
-        /** @param unpackedByThisBuild the versions on disk, each with this build's env in its page */
         MemoryStore(OtaState stored, String... unpackedByThisBuild) {
             this.stored = stored;
             for (String version : unpackedByThisBuild) {
@@ -90,8 +78,6 @@ public class OtaSessionTest {
     private static OtaState state(String active, String pending, int attempts, String... bad) {
         return OtaState.of(active, pending, attempts, Arrays.asList(bad));
     }
-
-    // ─── Boot ────────────────────────────────────────────────────────────────
 
     @Test
     public void anActivityRecreationDuringATrialDoesNotCountASecondAttempt() {
@@ -138,8 +124,6 @@ public class OtaSessionTest {
         assertEquals("the web view loads it anew, so the attempt counts", state("1.2.3", "1.2.4", 1), store.stored);
     }
 
-    // ─── A launch in a process the system kept ───────────────────────────────
-
     @Test
     public void aFreshStartInTheSameProcessBootsTheBundleDownloadedMeanwhile() throws IOException {
         MemoryStore store = new MemoryStore(state("1.2.3", null, 0), "1.2.3");
@@ -148,7 +132,6 @@ public class OtaSessionTest {
         store.onDisk.put("1.2.4", pageWith(ENV));
         process.downloaded("1.2.4");
 
-        // Back finished the Activity; the process stayed, and the user opens the app again.
         OtaSession.Booted relaunched = process.boot();
 
         assertEquals("1.2.4", relaunched.version);
@@ -208,11 +191,8 @@ public class OtaSessionTest {
         assertTrue(process.isLive());
     }
 
-    // ─── The env a bundle carries ────────────────────────────────────────────
-
     @Test
     public void aBundleUnpackedByABuildWithAnotherEnvIsDroppedAndNotMarkedBad() {
-        // A store update changed the lane's env: both bundles still hold the env of the build that unpacked them.
         MemoryStore store = new MemoryStore(state("1.2.3", "1.2.4", 0));
         store.onDisk.put("1.2.3", pageWith(OTHER_ENV));
         store.onDisk.put("1.2.4", pageWith(OTHER_ENV));
@@ -283,8 +263,6 @@ public class OtaSessionTest {
         assertEquals(state("1.2.3", null, 0), store.stored);
         assertEquals("1.2.3", session.booted().version);
     }
-
-    // ─── A bundle that stops being usable under a running process ────────────
 
     @Test
     public void aRecreationWhoseBundleLostItsPageRunsTheBuiltinBundleAndItsReadyConfirmsNothing() throws IOException {
@@ -399,8 +377,6 @@ public class OtaSessionTest {
         assertFalse(booted.trial);
     }
 
-    // ─── notifyReady ─────────────────────────────────────────────────────────
-
     @Test
     public void readyConfirmsTheTrialThisProcessBooted() throws IOException {
         MemoryStore store = new MemoryStore(state("1.2.3", "1.2.4", 0), "1.2.3", "1.2.4");
@@ -438,8 +414,6 @@ public class OtaSessionTest {
 
         assertEquals(state("1.2.3", "1.2.4", 0), store.stored);
     }
-
-    // ─── applyPending ────────────────────────────────────────────────────────
 
     @Test
     public void applyPendingSwitchesToTheDownloadedBundleAsACountedTrial() throws IOException {
@@ -528,8 +502,6 @@ public class OtaSessionTest {
             assertFalse(session.booted().trial);
         }
     }
-
-    // ─── The check's decisions ───────────────────────────────────────────────
 
     @Test
     public void aCheckDecidesAgainstTheBuiltinVersionAndTheStoredBundles() throws IOException {

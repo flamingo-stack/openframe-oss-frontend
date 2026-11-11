@@ -5,7 +5,6 @@ import static org.junit.Assert.fail;
 
 import org.junit.Test;
 
-/** The download is given up at the first byte past the signed size: nothing longer is ever kept, hashed or decoded. */
 public class BundleCheckTest {
 
     private static final String SHA256_OF_ABC = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";

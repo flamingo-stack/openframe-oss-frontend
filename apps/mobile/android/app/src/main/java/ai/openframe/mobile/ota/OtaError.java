@@ -1,10 +1,7 @@
 package ai.openframe.mobile.ota;
 
-/**
- * A refusal of the over-the-air format, named by the code the shared cases in
- * apps/mobile/ota/fixtures expect (apps/mobile/docs/ota.md, "Shared test
- * cases"). The message is this shell's own wording, for its log only.
- */
+// The code is the one the shared cases in apps/mobile/ota/fixtures expect (apps/mobile/docs/ota.md,
+// "Shared test cases"). The message is this shell's own wording, for its log only.
 public final class OtaError extends Exception {
 
     public enum Code {
@@ -32,12 +29,9 @@ public final class OtaError extends Exception {
         this.code = code;
     }
 
-    /**
-     * Whether a bundle whose bytes matched its signed payload was refused for
-     * what it holds. The same release would be refused at every check, so its
-     * version is marked bad. A size or SHA-256 mismatch is the download's
-     * fault, and the next check tries again.
-     */
+    // A bundle whose bytes matched its signed payload and was refused for what it holds would be refused
+    // at every check, so its version is marked bad. A size or SHA-256 mismatch is the download's fault,
+    // and the next check tries again.
     public boolean isContentRefusal() {
         switch (code) {
             case XZ:

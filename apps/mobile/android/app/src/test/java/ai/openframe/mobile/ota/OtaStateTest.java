@@ -16,11 +16,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/**
- * The state rules of the over-the-air updater: which bundle a process boots,
- * what a trial costs and how it is confirmed, what each decision of a check
- * leaves behind, and which directories may go.
- */
 public class OtaStateTest {
 
     private static final String BUILTIN = "1.2.0";
@@ -30,8 +25,6 @@ public class OtaStateTest {
     private static OtaState state(String active, String pending, int attempts, String... bad) {
         return OtaState.of(active, pending, attempts, Arrays.asList(bad));
     }
-
-    // ─── resolveBoot ─────────────────────────────────────────────────────────
 
     @Test
     public void withNoBundleTheBuiltinOneBoots() {
@@ -146,8 +139,6 @@ public class OtaStateTest {
         assertEquals(OtaState.EMPTY, boot.state);
     }
 
-    // ─── applyReady ──────────────────────────────────────────────────────────
-
     @Test
     public void readyFromATrialMakesItTheActiveBundle() {
         assertEquals(state("1.2.4", null, 0, "1.2.1"), OtaState.applyReady(state("1.2.3", "1.2.4", 1, "1.2.1"), "1.2.4", true));
@@ -163,7 +154,6 @@ public class OtaStateTest {
 
     @Test
     public void readyDoesNotConfirmABundleDownloadedDuringTheSession() {
-        // The page that reports ready booted from 1.2.3; 1.2.4 arrived since and has never run.
         OtaState state = state("1.2.3", "1.2.4", 0);
 
         assertSame(state, OtaState.applyReady(state, "1.2.3", false));
@@ -172,13 +162,10 @@ public class OtaStateTest {
 
     @Test
     public void readyFromATrialDoesNotConfirmAnotherPendingBundle() {
-        // On trial with 1.2.4 when the check replaced it with 1.2.5.
         OtaState state = state("1.2.3", "1.2.5", 0);
 
         assertSame(state, OtaState.applyReady(state, "1.2.4", true));
     }
-
-    // ─── After a decision ────────────────────────────────────────────────────
 
     @Test
     public void dropForgetsBothBundlesAndKeepsWhatIsBad() {
@@ -187,7 +174,6 @@ public class OtaStateTest {
 
     @Test
     public void nothingAboutTheActiveBundleForgetsAPendingOneThatHasNotBooted() {
-        // The environment went back to 1.2.3 after 1.2.4 was downloaded.
         assertEquals(state("1.2.3", null, 0), OtaState.applyNothing(state("1.2.3", "1.2.4", 0), "1.2.3", "1.2.3", false));
         assertEquals(state("1.2.3", null, 0), OtaState.applyNothing(state("1.2.3", "1.2.4", 1), "1.2.3", "1.2.4", false));
     }
@@ -230,8 +216,6 @@ public class OtaStateTest {
         assertEquals("marked again, it is the most recent", "2.0.10", again.bad.get(19));
     }
 
-    // ─── Directories ─────────────────────────────────────────────────────────
-
     @Test
     public void onlyTheActiveThePendingAndTheBootedDirectoriesAreKept() {
         List<String> onDisk = Arrays.asList("1.2.1", "1.2.2", "1.2.3", "1.2.4", "leftover");
@@ -254,8 +238,6 @@ public class OtaStateTest {
     public void bootedFromTheBuiltinBundleEveryUnnamedDirectoryGoes() {
         assertEquals(Arrays.asList("1.2.3", "1.2.4"), OtaState.staleDirectories(Arrays.asList("1.2.3", "1.2.4"), OtaState.EMPTY, null));
     }
-
-    // ─── state.json ──────────────────────────────────────────────────────────
 
     @Test
     public void aStateReadsBackAsItWasWritten() {

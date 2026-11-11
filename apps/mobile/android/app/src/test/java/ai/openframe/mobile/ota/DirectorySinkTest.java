@@ -23,11 +23,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-/**
- * A bundle unpacked to disk the way a check does it: through the reader into
- * a directory, then this build's env into its root page. And a bundle that is
- * refused leaves nothing outside the directory it was unpacked into.
- */
 public class DirectorySinkTest {
 
     @Rule
@@ -48,7 +43,6 @@ public class DirectorySinkTest {
         }
     }
 
-    /** Every file under {@code directory}, as paths relative to it, sorted. */
     private static List<String> filesUnder(File directory) {
         List<String> files = new ArrayList<>();
         collect(directory, "", files);
@@ -137,7 +131,6 @@ public class DirectorySinkTest {
         }
     }
 
-    /** The files this process holds open, as the system lists them (macOS and Linux). */
     private static int openFiles() {
         return new File("/dev/fd").list().length;
     }

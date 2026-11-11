@@ -4,7 +4,6 @@
 public enum JSONValue: Equatable {
     case null
     case bool(Bool)
-    /// The number as it is spelled.
     case number([UInt8])
     case string([UInt8])
     case array([JSONValue])
@@ -21,7 +20,6 @@ public enum JSONValue: Equatable {
         return bytes
     }
 
-    /// The value of a number spelled as an integer (no fraction, no exponent) that fits 64 bits.
     public var integer: Int64? {
         guard case .number(let literal) = self else { return nil }
         var digits = literal[...]
@@ -43,13 +41,11 @@ public enum JSONValue: Equatable {
     }
 }
 
-/// RFC 8259 and nothing more: valid UTF-8, no byte order mark, no comments, no trailing commas,
-/// nothing but whitespace after the value. Arrays and objects nest at most `maxDepth` deep, which
-/// bounds the parser's recursion on input nobody has signed yet.
+/// RFC 8259 and nothing more. Arrays and objects nest at most `maxDepth` deep, which bounds the
+/// parser's recursion on input nobody has signed yet.
 public enum StrictJSON {
     public static let maxDepth = 32
 
-    /// The value `bytes` spell, or nil when they are not strict JSON.
     public static func parse(_ bytes: [UInt8]) -> JSONValue? {
         guard isValidUTF8(bytes) else { return nil }
         var parser = Parser(bytes: bytes)

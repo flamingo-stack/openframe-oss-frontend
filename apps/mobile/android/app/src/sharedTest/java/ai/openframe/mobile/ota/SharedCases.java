@@ -19,19 +19,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-/**
- * Runs the cases of apps/mobile/ota/fixtures, which the release scripts and
- * both shells must agree on (apps/mobile/docs/ota.md, "Shared test cases"),
- * against this shell's format code. Each case is an input and its outcome:
- * what is accepted, or the code of the first check that refuses it.
- *
- * One runner for two places: the JVM tests read the fixtures as resources,
- * the on-device tests as assets, where the security provider and the runtime
- * are the phone's own. A method fails once, naming every case that went wrong.
- */
+// One runner for two places: the JVM tests read the fixtures as resources, the on-device tests as
+// assets, where the security provider and the runtime are the phone's own.
 public final class SharedCases {
 
-    /** Opens a file of the fixtures directory by its path in it, {@code bundles/typical.tar.xz}. */
     public interface Fixtures {
         InputStream open(String path) throws IOException;
     }
@@ -39,7 +30,6 @@ public final class SharedCases {
     private final Fixtures fixtures;
     private final File workDirectory;
 
-    /** @param workDirectory where a bundle case is put as the file a download would leave; each is deleted after its case */
     public SharedCases(Fixtures fixtures, File workDirectory) {
         this.fixtures = fixtures;
         this.workDirectory = workDirectory;
@@ -107,7 +97,6 @@ public final class SharedCases {
         assertAllPassed("bundle", cases, failures);
     }
 
-    /** What the app does with a downloaded bundle, through the one function it does it with. */
     private String downloadedOutcome(byte[] archive, long size, String sha256) throws IOException {
         File downloaded = File.createTempFile("bundle-case", ".tar.xz", workDirectory);
         try {
@@ -177,7 +166,6 @@ public final class SharedCases {
         assertAllPassed("decision", cases, failures);
     }
 
-    /** Each fixture key's id, worked out from its SPKI DER as the shell works out the ids of the keys it holds. */
     public void keyIds() throws Exception {
         Map<?, ?> keys = (Map<?, ?>) Json.parseObject(read("fixture-keys.json")).get("keys");
         assertTrue("fixture-keys.json holds keys", keys.size() > 0);
@@ -208,7 +196,7 @@ public final class SharedCases {
         return value == Json.NULL ? null : (String) value;
     }
 
-    /** A whole number of a fixture, which is this repository's own file. */
+    // A whole number of a fixture, which is this repository's own file.
     private static long integer(Object number) {
         return Long.parseLong(((Json.Num) number).text);
     }
@@ -217,7 +205,6 @@ public final class SharedCases {
         return text.getBytes(StandardCharsets.UTF_8);
     }
 
-    /** The DER inside a PEM public key. */
     private static byte[] spki(Map<?, ?> key) {
         StringBuilder base64 = new StringBuilder();
         for (String line : ((String) key.get("publicKey")).split("\n")) {
@@ -242,7 +229,6 @@ public final class SharedCases {
         }
     }
 
-    /** An input that never gives more than a few bytes per read. */
     private static final class Trickle extends FilterInputStream {
         private final int bytesPerRead;
 
@@ -257,7 +243,6 @@ public final class SharedCases {
         }
     }
 
-    /** Takes a bundle's files as {@code path size sha256} lines, in archive order: what the cases list. */
     private static final class HashingSink implements BundleReader.Sink {
         final StringBuilder files = new StringBuilder("files");
         private MessageDigest digest;

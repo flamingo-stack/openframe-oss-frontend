@@ -4,27 +4,11 @@ import Foundation
 /**
  * Local Capacitor plugin backing the frontend's `NativeUpdate` bridge
  * (openframe-frontend: src/lib/native-shell.ts), mirrored on Android by
- * `NativeUpdatePlugin.java` (same jsName + method surface). The updater itself
- * is `NativeUpdate.swift`; this is its JS surface and nothing else.
+ * `NativeUpdatePlugin.java` (same jsName + method surface).
  *
  * No method takes a path, a URL or a version: a page script, which also
  * renders remote Help Center and chat content, can ask what is installed and
  * when to look or restart, never what to install or from where.
- *
- * - notifyReady: the booted bundle reports that it works. For a trial boot
- *   this is what makes the bundle the active one; without it the bundle is
- *   reverted after two boots.
- * - getState: `{enabled, builtinVersion, bridgeLevel, bootedVersion, trial,
- *   activeVersion, pendingVersion}`; a null version is the built-in bundle or
- *   no bundle.
- * - check: runs a check, or is answered from one that has just finished
- *   (`OtaCheckSchedule` says which), and resolves the same shape once it has
- *   finished, a downloaded bundle included. Never rejects for the network or
- *   a refused manifest: the state simply has no pending bundle.
- * - applyPending: reloads the web view from the pending bundle in this
- *   process (the force-update screen's "Restart to Update"). Rejects
- *   `NO_PENDING` when `NativeUpdate.applyPending` has no bundle to hand over,
- *   and `UNAVAILABLE` when there is no web view to reload.
  */
 @objc(NativeUpdatePlugin)
 public class NativeUpdatePlugin: CAPPlugin, CAPBridgedPlugin {

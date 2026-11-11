@@ -7,7 +7,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
-/** Byte helpers: the format code compares as bytes, never as text, and the shell reads a stream up to a limit. */
 public final class Bytes {
 
     private static final char[] HEX = "0123456789abcdef".toCharArray();
@@ -36,12 +35,8 @@ public final class Bytes {
         }
     }
 
-    /**
-     * What is left of {@code in}, or null as soon as it gives more than
-     * {@code limit} bytes, without reading on. {@code Integer.MAX_VALUE} sets
-     * no limit of its own: no array holds more. (InputStream.readAllBytes is
-     * API 33, above minSdk.)
-     */
+    // Null as soon as in gives more than limit bytes, without reading on. Integer.MAX_VALUE sets no limit
+    // of its own: no array holds more. (InputStream.readAllBytes is API 33, above minSdk.)
     public static byte[] readAtMost(InputStream in, int limit) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         byte[] chunk = new byte[8 * 1024];
@@ -54,7 +49,6 @@ public final class Bytes {
         return out.toByteArray();
     }
 
-    /** Where {@code needle} first starts in {@code haystack} at or after {@code from}, or -1. */
     static int indexOf(byte[] haystack, byte[] needle, int from) {
         for (int start = from; start <= haystack.length - needle.length; start++) {
             int matched = 0;

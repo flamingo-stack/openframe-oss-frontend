@@ -190,8 +190,6 @@ final class EncodingTests: XCTestCase {
 }
 
 final class ErrorTests: XCTestCase {
-    /// A refusal for what a signed bundle holds marks its version bad; one a cut or swapped
-    /// download gives, or one about the manifest, the keys or the built-in page, never does.
     func testOnlyAContentRefusalMarksABundleBad() {
         let content: Set<OtaCode> = [.xz, .tar, .entryType, .entryName, .duplicate, .noIndex, .hasEnv, .noHead]
         for code in OtaCode.allCases {

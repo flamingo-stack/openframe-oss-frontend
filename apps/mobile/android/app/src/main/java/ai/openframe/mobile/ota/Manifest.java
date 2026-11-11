@@ -5,18 +5,13 @@ import java.security.PublicKey;
 import java.security.Signature;
 import java.util.Map;
 
-/**
- * mobile.json: the envelope {@code {keyId, payload, signature}} every release
- * publishes, and the payload it signs. {@link #verify} makes the checks of
- * apps/mobile/docs/ota.md "The manifest" in their order; fixtures/manifest-cases.json
- * holds this shell, the iOS one and the release scripts to the same outcome.
- */
+// verify makes the checks of apps/mobile/docs/ota.md "The manifest" in their order;
+// fixtures/manifest-cases.json holds this shell, the iOS one and the release scripts to the same outcome.
 public final class Manifest {
 
     private static final String FORMAT = "1";
     private static final String SHA256_DIGITS = "0123456789abcdef";
 
-    /** The fields of a verified payload this format knows. */
     public static final class Payload {
         public final String version;
         public final int bridgeLevel;
@@ -40,10 +35,6 @@ public final class Manifest {
         return "openframe-mobile-" + version + ".tar.xz";
     }
 
-    /**
-     * The payload of the manifest {@code manifest}, once its signature verifies
-     * with one of {@code keys} (by key id, as {@link OtaKeys#of} gives them).
-     */
     public static Payload verify(byte[] manifest, Map<String, PublicKey> keys) throws OtaError {
         Map<String, Object> envelope;
         try {
@@ -75,13 +66,10 @@ public final class Manifest {
         return (String) value;
     }
 
-    /**
-     * Whether {@code signature} is the one DER encoding of an ECDSA signature:
-     * a SEQUENCE of two INTEGERs, each positive and in its shortest form, every
-     * length in the short form, and no byte after it. Checked here, before the
-     * provider sees it, because providers differ on the rest: SunEC verifies a
-     * signature whose r is written as a negative integer, Conscrypt does not.
-     */
+    // Only the one DER encoding of an ECDSA signature passes: a SEQUENCE of two INTEGERs, each positive and
+    // in its shortest form, every length in the short form, and no byte after it. Checked here, before the
+    // provider sees it, because providers differ on the rest: SunEC verifies a signature whose r is written
+    // as a negative integer, Conscrypt does not.
     static boolean isStrictDer(byte[] signature) {
         if (signature.length < 2 || signature[0] != 0x30) {
             return false;
@@ -94,7 +82,6 @@ public final class Manifest {
         return afterR != -1 && derIntegerEnd(signature, afterR) == signature.length;
     }
 
-    /** The offset after the minimal positive INTEGER at {@code at}, or -1 when there is none. */
     private static int derIntegerEnd(byte[] der, int at) {
         if (at + 2 > der.length || der[at] != 0x02) {
             return -1;
@@ -177,7 +164,7 @@ public final class Manifest {
         return true;
     }
 
-    /** Compared as text, never parsed: no query or fragment can carry the file name instead. */
+    // Compared as text, never parsed: no query or fragment can carry the file name instead.
     private static boolean namesBundle(String url, String version) {
         return url.startsWith("https://")
             && url.indexOf('?') == -1

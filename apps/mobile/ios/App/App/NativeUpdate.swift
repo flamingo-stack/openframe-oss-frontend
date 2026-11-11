@@ -3,33 +3,12 @@ import OtaCore
 import UIKit
 
 /**
- * Over-the-air web bundles (apps/mobile/docs/ota.md): the shell boots the
- * newest bundle it has verified, and in the background asks its environment's
- * shared host which release to run.
+ * Over-the-air web bundles: apps/mobile/docs/ota.md.
  *
  * A process singleton, because none of this belongs to a web view: the boot
- * decision is made before one exists, and it is made once. `MainViewController`
- * asks `bootDirectory()` each time it builds its bridge and gets the same
- * bundle for the life of the process, unless the page's `applyPending()` has
- * moved the process to its pending bundle.
+ * decision is made before one exists.
  *
- * - Boot: `OtaRules.resolveBoot` over `state.json`. A downloaded bundle boots
- *   as a trial. Its attempt is counted when the scene comes to the foreground,
- *   on disk before any call from its page reaches the shell, so a bundle that
- *   crashes the app at launch is counted too, while a launch the system made
- *   in the background (a notification action, a silent push) uses none. The
- *   boot does not count, but it writes the state to prove that it can be
- *   written: a trial whose attempt could not be recorded does not run, the
- *   active bundle or the built-in one does. After two counted boots that never
- *   reported ready the trial is marked bad and the previous bundle is back.
- * - A bundle is usable while its `index.html` carries this binary's own env
- *   element. One unpacked before a store update built for another env is
- *   dropped, deleted and downloaded again.
- * - Check: when `OtaCheckSchedule` says so, on an activation or on `check()`
- *   from the page. Manifest, signature, decision, download, unpack, env copy,
- *   one rename into `bundles/`, then `pending` in the state. A new bundle
- *   runs from the next launch, or from `applyPending()`.
- * - Nothing here takes a path, a URL, a host or a key from JS.
+ * Nothing here takes a path, a URL, a host or a key from JS.
  *
  * Threads: `queue` owns every field and every write of the state; the main
  * thread joins it once per bridge (`bootDirectory`) and each time the scene
@@ -37,20 +16,15 @@ import UIKit
  * what is slow (unpacking, deleting directories) one block at a time, and
  * steps onto `queue` for the state. `queue` never waits on either of the
  * other two.
- *
- * Read the log with
- *     xcrun simctl spawn booted log show --last 10m \
- *       --predicate 'subsystem BEGINSWITH "ai.openframe.mobile" AND category == "update"'
  */
 final class NativeUpdate {
     static let shared = NativeUpdate()
 
-    /// The native bridge surface this binary offers. Raised by one in the same
-    /// change as any bridge addition a bundle may come to require; a release
-    /// whose `REQUIRED_BRIDGE_LEVEL` is above it is not downloaded.
+    /// Raised by one in the same change as any bridge addition a bundle may
+    /// come to require; a release whose `REQUIRED_BRIDGE_LEVEL` is above it is
+    /// not downloaded.
     static let bridgeLevel: Int64 = 1
 
-    /// What `getState()` and `check()` resolve with.
     struct Snapshot {
         let enabled: Bool
         let builtinVersion: String?
@@ -78,11 +52,8 @@ final class NativeUpdate {
     private let store = UpdateStore()
     private lazy var config = UpdateConfig.load(log: log)
 
-    /// The state as last read or written. Nil until a read succeeds.
     private var state: OtaState?
-    /// What this process serves its web view from. Decided at boot; only `applyPending` changes it.
     private var boot: OtaBoot?
-    /// False for a trial this process booted, until the foreground has counted its attempt.
     private var attemptCounted = true
     private var schedule = OtaCheckSchedule()
     private var checkWaiters: [(Snapshot) -> Void] = []
@@ -113,8 +84,6 @@ final class NativeUpdate {
 
     // MARK: - Boot
 
-    /// The directory the web view is served from, or nil for the built-in
-    /// bundle. Main thread, before the web view exists.
     func bootDirectory() -> URL? {
         queue.sync {
             guard let version = resolveBootLocked().version else { return nil }
@@ -144,7 +113,6 @@ final class NativeUpdate {
     }
 
     private func resolveLocked() -> OtaBoot {
-        // No built-in version, no boot logic at all: nothing is read or written.
         guard let builtin = config.builtinVersion else { return .builtin }
         // A state that cannot be read right now says nothing about what is safe
         // to boot, and writing over it would lose it.
@@ -167,13 +135,10 @@ final class NativeUpdate {
         return resolved.boot
     }
 
-    /// Whether this binary can serve a bundle: `UpdateStore.isUsable` with the
-    /// built-in page's env element.
     private func usableLocked(_ version: OtaVersion) -> Bool {
         store.isUsable(version, envElement: config.envElement)
     }
 
-    /// `usableLocked` for a rule that drops what is not usable.
     private func usableOrLoggedLocked(_ version: OtaVersion) -> Bool {
         let usable = usableLocked(version)
         if !usable {
@@ -182,8 +147,6 @@ final class NativeUpdate {
         return usable
     }
 
-    /// Counts the attempt of the trial this process booted, once. A count that
-    /// cannot be written is tried again at the next activation.
     private func countAttemptLocked() {
         let boot = resolveBootLocked()
         guard boot.trial, !attemptCounted, let state = stateLocked() else { return }
@@ -201,7 +164,6 @@ final class NativeUpdate {
         queue.async { completion(self.snapshotLocked()) }
     }
 
-    /// The booted bundle reports that it works.
     func notifyReady(_ completion: @escaping () -> Void) {
         queue.async {
             if let boot = self.boot, boot.trial, let state = self.stateLocked() {
@@ -216,9 +178,6 @@ final class NativeUpdate {
         }
     }
 
-    /// Runs a check, or joins the one in flight, and answers once it has
-    /// finished. `OtaCheckSchedule` says when one that has just finished
-    /// answers for this one instead.
     func check(_ completion: @escaping (Snapshot) -> Void) {
         queue.async {
             guard self.askLocked(fromPage: true, trigger: "the page asked") != .answered else {
@@ -229,10 +188,6 @@ final class NativeUpdate {
         }
     }
 
-    /// The pending bundle's directory once it has become the bundle this
-    /// process runs. The caller reloads the web view from it. Nil when there is
-    /// none it can apply, or when the switch could not be written to the state:
-    /// the state and its pending bundle are then as they were.
     func applyPending(_ completion: @escaping (URL?) -> Void) {
         queue.async {
             guard let boot = self.boot, self.config.builtinVersion != nil, let state = self.stateLocked() else {
@@ -240,7 +195,6 @@ final class NativeUpdate {
                 return
             }
             let resolved = OtaRules.resolveApply(state: state, boot: boot, usable: self.usableOrLoggedLocked)
-            // persistLocked has logged a write that failed.
             guard self.persistLocked(resolved.state) else {
                 completion(nil)
                 return
@@ -278,11 +232,10 @@ final class NativeUpdate {
         _ = askLocked(fromPage: false, trigger: "the app became active")
     }
 
-    /// Asks the schedule for a check and runs the one it starts. Answered when
-    /// no check can run (updates are off, or the state cannot be read), before
-    /// the schedule would count one as started. Once a check can run one always
-    /// can (the boot, the config and a state once read stay), so a check in
-    /// flight is always joined.
+    /// Answered when no check can run (updates are off, or the state cannot be
+    /// read), before the schedule would count one as started. Once a check can
+    /// run one always can (the boot, the config and a state once read stay), so
+    /// a check in flight is always joined.
     private func askLocked(fromPage: Bool, trigger: String) -> OtaCheckSchedule.Asked {
         guard boot != nil, config.enabled, stateLocked() != nil else { return .answered }
         let asked = schedule.ask(fromPage: fromPage, now: Date())
@@ -343,8 +296,7 @@ final class NativeUpdate {
         }
     }
 
-    /// Applies what a verified manifest asks for. True when its bundle is to be
-    /// downloaded.
+    /// True when the manifest's bundle is to be downloaded.
     private func decideLocked(_ payload: OtaPayload) -> Bool {
         guard let builtin = config.builtinVersion, let boot, let state = stateLocked() else { return false }
         let decision = OtaRules.decide(
@@ -430,9 +382,7 @@ final class NativeUpdate {
         worker.async { self.cleanUp() }
     }
 
-    /// Deletes the bundle directories nothing refers to: not the active bundle,
-    /// not the pending one, never the one the web view is served from. On
-    /// `worker`, like every step that makes a directory count (a bundle moved
+    /// On `worker`, like every step that makes a directory count (a bundle moved
     /// into place or adopted), so the list cannot go stale before it is used.
     private func cleanUp() {
         let doomed: [String] = queue.sync {
@@ -458,9 +408,6 @@ final class NativeUpdate {
         }
     }
 
-    /// Writes the state if it differs from the one held, or in any case with
-    /// `always`. False when it could not be written; the state held then stays
-    /// the one on disk.
     private func persistLocked(_ next: OtaState, always: Bool = false) -> Bool {
         guard always || next != state else { return true }
         do {

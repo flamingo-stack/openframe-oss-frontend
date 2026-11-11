@@ -2,13 +2,10 @@ package ai.openframe.mobile.ota;
 
 import java.io.ByteArrayOutputStream;
 
-/**
- * The {@code window.__ENV} script element: a store build's lane writes it into
- * the built-in index.html (scripts/inject-env.mjs), and the shell copies it,
- * as it is, into an over-the-air bundle's page, so a bundle runs with the env
- * of the binary it lands in and can never bring its own. All of it on bytes,
- * with literal matches: fixtures/env-cases.json pins every outcome.
- */
+// A store build's lane writes the window.__ENV script element into the built-in index.html
+// (scripts/inject-env.mjs), and the shell copies it, as it is, into an over-the-air bundle's page, so a
+// bundle runs with the env of the binary it lands in and can never bring its own. All of it on bytes,
+// with literal matches: fixtures/env-cases.json pins every outcome.
 public final class EnvCopy {
 
     private static final byte[] ELEMENT_START = Bytes.ascii("<script>window.__ENV");
@@ -18,7 +15,6 @@ public final class EnvCopy {
     private EnvCopy() {
     }
 
-    /** The built-in page's element: from its first start through the next {@code </script>}. */
     public static byte[] element(byte[] builtinHtml) throws OtaError {
         int start = Bytes.indexOf(builtinHtml, ELEMENT_START, 0);
         int end = start == -1 ? -1 : Bytes.indexOf(builtinHtml, ELEMENT_END, start + ELEMENT_START.length);
@@ -30,7 +26,6 @@ public final class EnvCopy {
         return element;
     }
 
-    /** What a bundle's page must be to take an env: free of one of its own, with a {@code <head>} to put it after. */
     public static void assertTarget(byte[] stagedHtml) throws OtaError {
         if (Bytes.indexOf(stagedHtml, ELEMENT_START, 0) != -1) {
             throw new OtaError(OtaError.Code.HAS_ENV, "the bundle already carries window.__ENV");
@@ -40,7 +35,6 @@ public final class EnvCopy {
         }
     }
 
-    /** The staged page with {@code element} right after its first {@code <head>}. */
     public static byte[] insert(byte[] element, byte[] stagedHtml) throws OtaError {
         assertTarget(stagedHtml);
         int afterHead = Bytes.indexOf(stagedHtml, HEAD_TAG, 0) + HEAD_TAG.length;
@@ -51,17 +45,11 @@ public final class EnvCopy {
         return out.toByteArray();
     }
 
-    /**
-     * Whether {@code html} holds {@code element}, byte for byte: the page of a
-     * bundle that was unpacked by a build with this env. One unpacked by a
-     * build with another env (a store update can change it) still holds that
-     * one, and would run against the hosts of the build it came from.
-     */
     public static boolean carries(byte[] html, byte[] element) {
         return Bytes.indexOf(html, element, 0) != -1;
     }
 
-    /** The whole copy, in the order the shared cases pin: NO_ENV, then HAS_ENV, then NO_HEAD. */
+    // In the order the shared cases pin: NO_ENV, then HAS_ENV, then NO_HEAD.
     public static byte[] copy(byte[] builtinHtml, byte[] stagedHtml) throws OtaError {
         return insert(element(builtinHtml), stagedHtml);
     }

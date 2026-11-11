@@ -4,10 +4,8 @@ protocol TarEntryHandler: AnyObject {
     func entryEnded() throws
 }
 
-/// Reads a ustar archive as a stream, in the exact layout `scripts/ota-tar.mjs` writes and no
-/// other (docs/ota.md, the TAR group). Of each header only magic, version, checksum, size, type,
-/// name and prefix are read; mode, owner, times and the rest are never looked at, let alone
-/// applied. Every refusal is TAR; what the handler throws is rethrown as it is.
+/// Reads the exact layout `scripts/ota-tar.mjs` writes and no other (docs/ota.md, the TAR group).
+/// A header's mode, owner, times and the rest are never looked at, let alone applied.
 struct TarReader {
     private static let block = 512
     private static let magic = Array("ustar\0".utf8) + Array("00".utf8)
@@ -59,7 +57,6 @@ struct TarReader {
         }
     }
 
-    /// Call once the tar has no more bytes: it must have ended in two or more whole zero blocks.
     func finish() throws {
         guard case .end(let length) = phase, length >= 2 * Int64(Self.block), length % Int64(Self.block) == 0 else {
             throw OtaError(.tar, "the tar does not end in two or more whole zero blocks")
@@ -98,7 +95,6 @@ struct TarReader {
         phase = .data(remaining: size, padding: padding)
     }
 
-    /// The value of a field of ASCII `0`-`7` only: no sign, no space, no NUL.
     private static func octal(_ digits: ArraySlice<UInt8>) -> Int64? {
         var value: Int64 = 0
         for byte in digits {
@@ -108,7 +104,6 @@ struct TarReader {
         return value
     }
 
-    /// A text field, read up to its first NUL.
     private static func field(_ bytes: ArraySlice<UInt8>) -> [UInt8] {
         Array(bytes.prefix(while: { $0 != 0 }))
     }

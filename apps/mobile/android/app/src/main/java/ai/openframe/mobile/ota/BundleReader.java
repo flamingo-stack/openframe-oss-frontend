@@ -13,26 +13,17 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
 
-/**
- * Reads an over-the-air bundle, a ustar archive in one xz stream, as it
- * decodes: neither the archive nor the tar is ever held in memory (a real
- * bundle unpacks to about 96 MB in 4,200 files). Every file that passes its
- * checks goes to the {@link Sink}, which the app points at its staging
- * directory and the tests at a hash, so both run the same code.
- *
- * The checks and their precedence are those of apps/mobile/docs/ota.md "The
- * bundle", pinned by fixtures/bundle-cases.json: a fault of the xz stream
- * outranks a fault of the tar, which outranks the first entry fault in archive
- * order, which outranks a missing or unusable index.html. So after an entry
- * fault the tar is still read to its end, and after a tar fault the xz stream
- * is still drained to its end. The size and SHA-256 of the compressed file
- * come before any of this: {@link #readVerified} is the whole sequence.
- */
+// Read as it decodes: neither the archive nor the tar is ever held in memory (a real bundle unpacks to
+// about 96 MB in 4,200 files).
+//
+// The checks and their precedence are those of apps/mobile/docs/ota.md "The bundle", pinned by
+// fixtures/bundle-cases.json: a fault of the xz stream outranks a fault of the tar, which outranks the
+// first entry fault in archive order, which outranks a missing or unusable index.html. So after an entry
+// fault the tar is still read to its end, and after a tar fault the xz stream is still drained to its end.
 public final class BundleReader {
 
-    /** Takes the files of a bundle, in archive order. Whatever it has taken when {@link #read} throws is to be thrown away. */
+    // Whatever it has taken when read throws is to be thrown away.
     public interface Sink {
-        /** Starts the file at {@code path}: relative, {@code /}-separated, and safe to create under the sink's own root. */
         void begin(String path, long size) throws IOException;
 
         void write(byte[] buffer, int offset, int length) throws IOException;
@@ -41,12 +32,12 @@ public final class BundleReader {
     }
 
     private static final int BLOCK = 512;
-    /** {@code xz -6}, what the release packs with, decodes in about 9 MiB; a stream asking for more than this is refused as XZ. */
+    // xz -6, what the release packs with, decodes in about 9 MiB; a stream asking for more than this is refused as XZ.
     private static final int XZ_MEMORY_LIMIT_KIB = 64 * 1024;
     private static final int MAX_PATH = 255;
     private static final String INDEX = "index.html";
 
-    /** The compressed input, remembering whether it failed itself: that is an I/O error, not a fault of the bundle. */
+    // Remembers whether the compressed input failed itself: that is an I/O error, not a fault of the bundle.
     private static final class Source extends InputStream {
         private final InputStream in;
         boolean failed;
@@ -81,7 +72,7 @@ public final class BundleReader {
     private InputStream tar;
     private final byte[] header = new byte[BLOCK];
     private final byte[] buffer = new byte[64 * 1024];
-    /** Paths and the directories they need, ASCII lower-cased: a volume that ignores case would land Index.html on index.html. */
+    // ASCII lower-cased: a volume that ignores case would land Index.html on index.html.
     private final Set<String> paths = new HashSet<>();
     private final Set<String> directories = new HashSet<>();
     private OtaError entryFault;
@@ -92,15 +83,8 @@ public final class BundleReader {
         this.sink = sink;
     }
 
-    /**
-     * What a shell does with a downloaded bundle, in the one order the format
-     * allows: its size (SIZE), then its SHA-256 (SHA256), against the signed
-     * payload, and only then is a byte of it decoded, into {@code sink}.
-     * Returns its root index.html, as {@link #read} does.
-     *
-     * @throws OtaError    the first refusal: the size, the hash, then the reader's by its own precedence
-     * @throws IOException {@code archive} could not be read or the sink could not take a file
-     */
+    // The one order the format allows: the size (SIZE), then the SHA-256 (SHA256), against the signed
+    // payload, and only then is a byte of it decoded.
     public static byte[] readVerified(File archive, long size, String sha256, Sink sink) throws OtaError, IOException {
         BundleCheck check = new BundleCheck(size, sha256);
         try (InputStream in = new FileInputStream(archive)) {
@@ -115,15 +99,7 @@ public final class BundleReader {
         }
     }
 
-    /**
-     * Reads the whole bundle from {@code archive} into {@code sink} and returns
-     * its root index.html, which has passed the env copy's checks on a target.
-     * Only for bytes whose size and SHA-256 are the signed ones: the app comes
-     * here through {@link #readVerified}.
-     *
-     * @throws OtaError    the first refusal, by the precedence above
-     * @throws IOException {@code archive} could not be read or the sink could not take a file
-     */
+    // Only for bytes whose size and SHA-256 are the signed ones: the app comes here through readVerified.
     static byte[] read(InputStream archive, Sink sink) throws OtaError, IOException {
         return new BundleReader(archive, sink).read();
     }
@@ -157,7 +133,6 @@ public final class BundleReader {
         return index;
     }
 
-    /** Reads entries until the tar ends or is found malformed, and returns that fault, or null for a well-formed tar. */
     private OtaError readTar() throws OtaError, IOException {
         for (;;) {
             if (readFully(header, BLOCK) < BLOCK) {
@@ -207,7 +182,6 @@ public final class BundleReader {
         }
     }
 
-    /** Past the first zero block: two or more whole zero blocks and nothing else, to the end of the stream. */
     private OtaError readEndOfArchive() throws OtaError, IOException {
         long length = BLOCK;
         boolean zero = true;
@@ -219,10 +193,7 @@ public final class BundleReader {
             : tarFault("anything but two or more zero blocks after the last entry");
     }
 
-    /**
-     * Whether the entry in {@code header} is a file to write. The first entry
-     * that is not becomes the entry fault, and no entry after it is checked.
-     */
+    // The first entry that is not a file to write becomes the entry fault, and no entry after it is checked.
     private boolean takes(String path) {
         // Only '0' is a regular file; the NUL that pre-POSIX tars wrote for one is refused with the rest.
         if (header[156] != '0') {
@@ -249,12 +220,7 @@ public final class BundleReader {
         return true;
     }
 
-    /**
-     * A relative path the shell may write as it is: 1 to 255 bytes, each
-     * printable ASCII other than space and backslash, and split on {@code /}
-     * no part empty, {@code .} or {@code ..}. So nothing absolute, no
-     * directory entry and no way out of the bundle's directory.
-     */
+    // Nothing absolute, no directory entry and no way out of the bundle's directory.
     static boolean isSafePath(String path) {
         if (path.isEmpty() || path.length() > MAX_PATH) {
             return false;
@@ -277,14 +243,13 @@ public final class BundleReader {
         return true;
     }
 
-    /** The entry's path: its name field, after its prefix field and a {@code /} when that is not empty. One char per byte. */
+    // One char per byte.
     private String path() {
         String prefix = field(345, 155);
         String name = field(0, 100);
         return prefix.isEmpty() ? name : prefix + "/" + name;
     }
 
-    /** A header field up to its first NUL. */
     private String field(int offset, int length) {
         int end = offset;
         while (end < offset + length && header[end] != 0) {
@@ -293,12 +258,10 @@ public final class BundleReader {
         return new String(header, offset, end - offset, StandardCharsets.ISO_8859_1);
     }
 
-    /** The magic, five letters and a NUL, then the version. */
     private boolean hasUstarMagic() {
         return field(257, 6).equals("ustar") && header[263] == '0' && header[264] == '0';
     }
 
-    /** Six octal digits, a NUL and a space, equal to the sum of the header's bytes with this field counted as spaces. */
     private boolean hasValidChecksum() {
         long stated = octal(148, 6);
         if (stated < 0 || header[154] != 0 || header[155] != ' ') {
@@ -311,7 +274,6 @@ public final class BundleReader {
         return stated == sum;
     }
 
-    /** The value of {@code digits} octal digits at {@code offset}, or -1 unless every one is an ASCII 0-7. */
     private long octal(int offset, int digits) {
         long value = 0;
         for (int i = offset; i < offset + digits; i++) {
@@ -336,7 +298,6 @@ public final class BundleReader {
         return new OtaError(OtaError.Code.TAR, message);
     }
 
-    /** Reads {@code length} bytes of the tar, or as many as there are before the xz stream ends. */
     private int readFully(byte[] into, int length) throws OtaError, IOException {
         int total = 0;
         while (total < length) {
@@ -349,7 +310,6 @@ public final class BundleReader {
         return total;
     }
 
-    /** Bytes of the tar, or -1 once the xz stream has ended, as it must: with its index and footer verified. */
     private int readSome(byte[] into, int offset, int length) throws OtaError, IOException {
         try {
             return tar.read(into, offset, length);
@@ -358,7 +318,6 @@ public final class BundleReader {
         }
     }
 
-    /** What a failed read of the xz stream is: the input's own failure as it came, anything else a refusal of the stream. */
     private OtaError xzFault(IOException e) throws IOException {
         if (source.failed) {
             throw e;

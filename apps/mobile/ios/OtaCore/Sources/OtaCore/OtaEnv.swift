@@ -7,7 +7,6 @@ public enum OtaEnv {
     static let elementEnd = Array("</script>".utf8)
     static let headTag = Array("<head>".utf8)
 
-    /// The built-in page's element: the first `<script>window.__ENV` through the next `</script>`.
     public static func element(inBuiltin html: [UInt8]) throws -> [UInt8] {
         guard let start = html.offset(of: elementStart),
               let close = html.offset(of: elementEnd, from: start + elementStart.count)
@@ -17,8 +16,6 @@ public enum OtaEnv {
         return Array(html[start..<close + elementEnd.count])
     }
 
-    /// What a bundle's page must be to take an env: free of one of its own (HAS_ENV), with a
-    /// literal `<head>` to put it after (NO_HEAD).
     public static func checkTarget(_ staged: [UInt8]) throws {
         guard staged.offset(of: elementStart) == nil else {
             throw OtaError(.hasEnv, "the bundle already carries window.__ENV")
@@ -28,17 +25,14 @@ public enum OtaEnv {
         }
     }
 
-    /// `staged` with `element` right after its first `<head>`, as it is. Refuses a page that
-    /// `checkTarget` refuses.
     public static func insert(element: [UInt8], into staged: [UInt8]) throws -> [UInt8] {
         try checkTarget(staged)
         let cut = staged.offset(of: headTag)! + headTag.count
         return Array(staged[..<cut]) + element + Array(staged[cut...])
     }
 
-    /// Whether an unpacked bundle's page holds `element`, this binary's own. A bundle keeps the
-    /// element of the binary that unpacked it, so after a store update built for another env it
-    /// holds a stale one and must not boot.
+    /// A bundle keeps the element of the binary that unpacked it, so after a store update built
+    /// for another env it holds a stale one and must not boot.
     public static func page(_ html: [UInt8], carries element: [UInt8]) -> Bool {
         html.offset(of: element) != nil
     }

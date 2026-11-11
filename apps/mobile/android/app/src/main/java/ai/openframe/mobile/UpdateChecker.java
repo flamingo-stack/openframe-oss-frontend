@@ -32,26 +32,11 @@ import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
 
-/**
- * One check for a newer web bundle: ask the shared gateway which release this
- * environment runs, verify its signed manifest, and when that release is not
- * on the phone yet, download, verify and unpack it as the pending bundle. All
- * of it in the background; the bundle only ever boots at a later launch, or
- * through applyPending.
- *
- * Nothing here comes from the web view. The gateway is the shared host this
- * binary was compiled with (never the one the page pushes with setTenantHost),
- * the keys are compiled in, and the env an unpacked bundle gets is the one of
- * the built-in bundle. The format rules are in apps/mobile/docs/ota.md.
- */
+// Nothing here comes from the web view. The gateway is the shared host this binary was compiled with
+// (never the one the page pushes with setTenantHost), the keys are compiled in, and the env an unpacked
+// bundle gets is the one of the built-in bundle. The format rules are in apps/mobile/docs/ota.md.
 final class UpdateChecker {
 
-    /**
-     * Asked once by a check that has a bundle to download. Under Data Saver
-     * on a metered network the shell's own check leaves the download for
-     * later; one the page asked for, with the user looking at the "Update
-     * required" screen, downloads all the same.
-     */
     interface DownloadPermit {
         boolean granted(boolean dataSaverRestricts);
     }
@@ -61,7 +46,7 @@ final class UpdateChecker {
     private static final int MANIFEST_LIMIT = 64 * 1024;
     private static final String INDEX = "index.html";
 
-    /** A check that ends without an update, for a reason worded here: safe to log, unlike a transport error's own text. */
+    // A check that ends without an update, for a reason worded here: safe to log, unlike a transport error's own text.
     private static final class NoUpdate extends Exception {
         NoUpdate(String message) {
             super(message);
@@ -73,9 +58,7 @@ final class UpdateChecker {
     private final UpdateStore store;
     private final OtaSession session;
     private final boolean hasBuiltinVersion;
-    /** The env element of the built-in page, which every unpacked bundle gets; null when the page has none. */
     private final Supplier<byte[]> envElement;
-    /** Null unless this binary was compiled with a shared host that is a bare https origin. */
     private final HttpUrl manifestUrl;
     private final Map<String, PublicKey> keys;
     private final OkHttpClient manifestClient;
@@ -104,13 +87,9 @@ final class UpdateChecker {
         this.bundleClient = manifestClient.newBuilder().callTimeout(10, TimeUnit.MINUTES).build();
     }
 
-    /**
-     * The manifest's address on {@code sharedHost}, or null unless that is a
-     * bare https origin: a host, a port at most, and nothing else once its
-     * trailing slashes are off. The address is built on it as text, so a
-     * path, a query or a fragment would not be where the manifest is asked
-     * for, and a user name would be a credential sent with every check.
-     */
+    // Null unless sharedHost is a bare https origin. The address is built on it as text, so a path, a query
+    // or a fragment would not be where the manifest is asked for, and a user name would be a credential
+    // sent with every check.
     static HttpUrl manifestUrl(String sharedHost) {
         String origin = sharedHost;
         while (origin.endsWith("/")) {
@@ -152,7 +131,6 @@ final class UpdateChecker {
         }
     }
 
-    /** Why this build takes no over-the-air updates, or null when it does. */
     String disabledReason() {
         if (!hasBuiltinVersion) {
             return "the built-in bundle carries no release version";
@@ -166,12 +144,9 @@ final class UpdateChecker {
         return null;
     }
 
-    /**
-     * One check, for a build that takes updates ({@link #disabledReason} is
-     * null) in a process that has booted. The manifest is asked for whatever
-     * the network: it is at most 64 KiB, and a rollback or a kill is all in
-     * it. Only the bundle's download waits on {@code permit}.
-     */
+    // Only for a build that takes updates (disabledReason is null) in a process that has booted. The
+    // manifest is asked for whatever the network: it is at most 64 KiB, and a rollback or a kill is all
+    // in it. Only the bundle's download waits on permit.
     void run(String trigger, DownloadPermit permit) {
         log.notice("check (" + trigger + "): asking the shared gateway which release this environment runs");
         store.wipeStaging();
@@ -260,12 +235,8 @@ final class UpdateChecker {
         }
     }
 
-    /**
-     * Streams the bundle to {@code archive}, giving up at the first byte past
-     * its signed size. Nothing else is settled here: whether the file is as
-     * long and hashes as signed is {@link BundleReader#readVerified}'s to say,
-     * before it decodes a byte.
-     */
+    // Gives up at the first byte past the signed size and settles nothing else: whether the file is as long
+    // and hashes as signed is BundleReader.readVerified's to say, before it decodes a byte.
     private void fetchBundle(Manifest.Payload payload, File archive) throws NoUpdate, OtaError, IOException {
         HttpUrl url = HttpUrl.parse(payload.url);
         if (url == null) {
@@ -291,7 +262,6 @@ final class UpdateChecker {
         }
     }
 
-    /** A 2xx answer over https, redirects followed. */
     private static Response get(OkHttpClient client, HttpUrl url, String what) throws NoUpdate {
         Response response;
         try {
@@ -315,7 +285,7 @@ final class UpdateChecker {
         return body;
     }
 
-    /** Only the kind of a transport error is logged: its text can quote the URL of a redirect, query and all. */
+    // Only the kind of a transport error is logged: its text can quote the URL of a redirect, query and all.
     private static NoUpdate broken(String what, IOException e) {
         return new NoUpdate(what + " could not be fetched (" + e.getClass().getSimpleName() + ")");
     }

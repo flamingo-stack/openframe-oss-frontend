@@ -8,12 +8,8 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-/**
- * Every shared case of apps/mobile/ota/fixtures on the device: its own
- * security provider verifies the signatures (Conscrypt, where the JVM tests
- * run SunEC, which takes a DER signature Conscrypt refuses), and XZ for Java
- * runs on ART. The fixtures are assets of the test APK.
- */
+// The device's own security provider verifies the signatures (Conscrypt, where the JVM tests run SunEC,
+// which takes a DER signature Conscrypt refuses), and XZ for Java runs on ART.
 @RunWith(AndroidJUnit4.class)
 public class SharedCasesInstrumentedTest {
 

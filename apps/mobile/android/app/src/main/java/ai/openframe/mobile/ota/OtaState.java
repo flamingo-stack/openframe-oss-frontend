@@ -7,21 +7,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-/**
- * What the shell remembers about its over-the-air bundles (state.json), and
- * every rule that changes it, as functions from one state to the next: no I/O,
- * so each is tested directly. iOS (OtaCore) has the same decision, state and
- * directory rules, but counts a trial's attempt at another moment: here at
- * boot, there when the scene enters the foreground.
- *
- * {@code active} is the bundle that reported ready and boots from now on.
- * {@code pending} is a downloaded bundle on trial: it boots first, and
- * {@code attempts} counts the boots it has had without reporting ready.
- * {@code bad} lists the versions never to download again, oldest first.
- */
+// Every rule that changes the state is a function from one state to the next, with no I/O, so each is
+// tested directly. iOS (OtaCore) has the same decision, state and directory rules, but counts a trial's
+// attempt at another moment: here at boot, there when the scene enters the foreground.
+//
+// bad lists the versions never to download again, oldest first.
 public final class OtaState {
 
-    /** A pending bundle that has booted this often without reporting ready is marked bad at the next boot. */
     public static final int MAX_TRIAL_ATTEMPTS = 2;
     static final int MAX_BAD = 20;
     private static final String SCHEMA = "1";
@@ -30,22 +22,18 @@ public final class OtaState {
 
     public final String active;
     public final String pending;
-    /** 0 without a pending bundle. */
     public final int attempts;
     public final List<String> bad;
 
-    /** Whether the bundle of a version is on disk as one this build can run ({@link OtaSession#isUsable}). */
     public interface Usable {
         boolean test(String version);
     }
 
-    /** A boot decision: the state to store before the web view loads, and the bundle to load (null: the built-in one). */
+    // state is stored before the web view loads; version null is the built-in bundle.
     public static final class Boot {
         public final OtaState state;
         public final String version;
-        /** The bundle is the pending one and has yet to report ready. */
         public final boolean trial;
-        /** The pending bundle this decision marked bad, its trial used up; null when it marked none. */
         public final String reverted;
 
         Boot(OtaState state, String version, boolean trial, String reverted) {
@@ -63,7 +51,6 @@ public final class OtaState {
         this.bad = Collections.unmodifiableList(bad);
     }
 
-    /** A state of these values. Every version must be a valid one. */
     public static OtaState of(String active, String pending, int attempts, List<String> bad) {
         List<String> versions = new ArrayList<>(bad);
         if (active != null) {
@@ -83,18 +70,8 @@ public final class OtaState {
         return new OtaState(active, pending, attempts, recent(new ArrayList<>(bad)));
     }
 
-    // ─── Boot ────────────────────────────────────────────────────────────────
-
-    /**
-     * Which bundle a process boots, and the state that goes with it.
-     *
-     * A bundle at or below the built-in version is forgotten (a store update
-     * was installed over it), as is one that is no longer usable: its
-     * directory lost its index.html, or the page carries another build's env.
-     * Then the pending bundle boots as a trial, unless it has used up its
-     * attempts, which marks it bad; then the active one; then the built-in.
-     * A trial boot counts its attempt.
-     */
+    // A bundle at or below the built-in version is forgotten (a store update was installed over it), as is
+    // one that is no longer usable: its directory lost its index.html, or the page carries another build's env.
     public static Boot resolveBoot(OtaState state, String builtinVersion, Usable usable) {
         String active = usable(state.active, builtinVersion, usable);
         String pending = usable(state.pending, builtinVersion, usable);
@@ -121,11 +98,8 @@ public final class OtaState {
         return version != null && Version.compare(version, builtinVersion) > 0 && usable.test(version) ? version : null;
     }
 
-    /**
-     * The booted bundle reported ready. A trial becomes the active bundle. A
-     * pending bundle downloaded during this session, which the page that
-     * reported did not boot from, is not confirmed by it.
-     */
+    // A pending bundle downloaded during this session, which the page that reported did not boot from, is
+    // not confirmed by it.
     public static OtaState applyReady(OtaState state, String bootedVersion, boolean bootedTrial) {
         if (bootedTrial && state.pending != null && state.pending.equals(bootedVersion)) {
             return new OtaState(state.pending, null, 0, state.bad);
@@ -133,19 +107,14 @@ public final class OtaState {
         return state;
     }
 
-    // ─── After a decision ────────────────────────────────────────────────────
-
-    /** {@link Decision#DROP}: no over-the-air bundle boots again. What is bad stays bad. */
+    // What is bad stays bad.
     public static OtaState applyDrop(OtaState state) {
         return new OtaState(null, null, 0, state.bad);
     }
 
-    /**
-     * {@link Decision#NOTHING}. When the release is the active bundle's while
-     * another one is pending, the environment went back to the active bundle,
-     * and a pending one that has not booted yet must not: it is forgotten.
-     * Not the bundle this process booted as a trial, which is running.
-     */
+    // When the release is the active bundle's while another one is pending, the environment went back to
+    // the active bundle, and a pending one that has not booted yet must not: it is forgotten. Not the
+    // bundle this process booted as a trial, which is running.
     public static OtaState applyNothing(OtaState state, String payloadVersion, String bootedVersion, boolean bootedTrial) {
         boolean pendingIsOnTrial = bootedTrial && state.pending != null && state.pending.equals(bootedVersion);
         if (payloadVersion.equals(state.active) && state.pending != null && !pendingIsOnTrial) {
@@ -154,12 +123,10 @@ public final class OtaState {
         return state;
     }
 
-    /** {@link Decision#DOWNLOAD}, once the bundle is verified and in place: it is the pending one, yet to boot. */
     public static OtaState applyDownloaded(OtaState state, String version) {
         return new OtaState(state.active, version, 0, state.bad);
     }
 
-    /** The release of {@code version} is never downloaded again. */
     public static OtaState markBad(OtaState state, String version) {
         return new OtaState(state.active, state.pending, state.attempts, withBad(state.bad, version));
     }
@@ -175,13 +142,7 @@ public final class OtaState {
         return bad.size() <= MAX_BAD ? bad : new ArrayList<>(bad.subList(bad.size() - MAX_BAD, bad.size()));
     }
 
-    // ─── Directories ─────────────────────────────────────────────────────────
-
-    /**
-     * The directories of {@code bundles/} to delete: every one that is not the
-     * active bundle's, the pending one's, or the one this process booted from,
-     * which its web view is still served from.
-     */
+    // Never the directory this process booted from, which its web view is still served from.
     public static List<String> staleDirectories(Collection<String> names, OtaState state, String bootedVersion) {
         List<String> stale = new ArrayList<>();
         for (String name : names) {
@@ -192,9 +153,7 @@ public final class OtaState {
         return stale;
     }
 
-    // ─── state.json ──────────────────────────────────────────────────────────
-
-    /** Versions are digits and dots, so nothing here needs escaping. */
+    // Versions are digits and dots, so nothing here needs escaping.
     public byte[] toJson() {
         StringBuilder json = new StringBuilder("{\"schema\":").append(SCHEMA).append(",\"active\":");
         json.append(active == null ? "null" : '"' + active + '"').append(",\"pending\":");
@@ -210,7 +169,6 @@ public final class OtaState {
         return json.append("]}\n").toString().getBytes(StandardCharsets.US_ASCII);
     }
 
-    /** The state {@code json} holds, or {@link #EMPTY} when it is anything but a whole state of this schema. */
     public static OtaState parse(byte[] json) {
         try {
             Map<String, Object> fields = Json.parseObject(json);
@@ -267,8 +225,6 @@ public final class OtaState {
         }
         throw new Json.Malformed("not a count");
     }
-
-    // ─── Value ───────────────────────────────────────────────────────────────
 
     @Override
     public boolean equals(Object other) {

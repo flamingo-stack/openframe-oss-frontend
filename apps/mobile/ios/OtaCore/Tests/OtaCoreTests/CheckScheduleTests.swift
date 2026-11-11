@@ -2,10 +2,7 @@ import Foundation
 import XCTest
 @testable import OtaCore
 
-/// When the updater asks the gateway: the cases of Android's `NativeUpdateCheckTimingTest`. The
-/// shell's own check runs on the first activation of a process and then at most hourly; a check
-/// the page asks for always runs, unless one has only just finished. Low Data Mode holds back the
-/// download of the shell's own check, never the asking and never the page's.
+/// The cases of Android's `NativeUpdateCheckTimingTest`.
 final class CheckScheduleTests: XCTestCase {
     private typealias Asked = OtaCheckSchedule.Asked
 
@@ -17,8 +14,6 @@ final class CheckScheduleTests: XCTestCase {
         now.addingTimeInterval(offset)
     }
 
-    /// A schedule whose last check started at `startedAt` and ended at `finishedAt`, having had
-    /// nothing to download.
     private func checkedAt(_ startedAt: TimeInterval, _ finishedAt: TimeInterval) -> OtaCheckSchedule {
         var schedule = OtaCheckSchedule()
         XCTAssertEqual(schedule.ask(fromPage: false, now: at(startedAt)), .started)
@@ -73,7 +68,6 @@ final class CheckScheduleTests: XCTestCase {
     // MARK: - Low Data Mode
 
     func testWithoutLowDataModeEveryCheckEndsOnce() {
-        // Nothing refuses a download, so no check is run again, whoever asked for it.
         var shell = OtaCheckSchedule()
         _ = shell.ask(fromPage: false, now: at(0))
         _ = shell.ask(fromPage: true, now: at(1))
@@ -132,7 +126,6 @@ final class CheckScheduleTests: XCTestCase {
     }
 
     func testAPageThatJoinsWhileTheRefusedDownloadIsUnderWayGetsACheckThatDownloadsInItsPlace() {
-        // The download was started without the page's permission, which came while it was refused.
         var schedule = OtaCheckSchedule()
         _ = schedule.ask(fromPage: false, now: at(0))
         XCTAssertFalse(schedule.mayUseConstrainedNetwork)

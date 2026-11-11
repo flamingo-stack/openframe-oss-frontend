@@ -10,7 +10,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
-/** Reading a stream up to a limit. */
 public class BytesTest {
 
     private static byte[] bytes(int length) {
@@ -21,7 +20,6 @@ public class BytesTest {
         return bytes;
     }
 
-    /** Gives at most {@code step} bytes a read, as a network stream may. */
     private static final class ShortReads extends InputStream {
         private final byte[] bytes;
         private final int step;

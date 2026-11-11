@@ -1,18 +1,14 @@
 package ai.openframe.mobile.ota;
 
-/**
- * Canonical base64 only: the standard alphabet, padded to a multiple of four,
- * the unused bits of the last digit zero, no whitespace. That is exactly the
- * text an encoder writes, so decoding and re-encoding gives it back, which is
- * the rule the release scripts check by. {@code android.util.Base64} and
- * {@code java.util.Base64} (API 26, above this app's minimum) both take more.
- */
+// Canonical base64 only: the standard alphabet, padded to a multiple of four, the unused bits of the
+// last digit zero, no whitespace. That is exactly the text an encoder writes, so decoding and
+// re-encoding gives it back, which is the rule the release scripts check by. android.util.Base64 and
+// java.util.Base64 (API 26, above this app's minimum) both take more.
 public final class Base64Strict {
 
     private Base64Strict() {
     }
 
-    /** The bytes {@code text} encodes, or null when it is not canonical base64. */
     public static byte[] decode(String text) {
         int length = text.length();
         if (length % 4 != 0) {

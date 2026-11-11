@@ -1,9 +1,8 @@
 import CryptoKit
 import Foundation
 
-/// Where the files of a bundle go as they are read: the app writes them to disk, the tests hash
-/// them, through the same reader. A file's bytes arrive before the rest of the archive has been
-/// checked, so whatever a sink keeps is good only once `OtaBundle.unpack` returns.
+/// A file's bytes arrive before the rest of the archive has been checked, so whatever a sink keeps
+/// is good only once `OtaBundle.unpack` returns.
 public protocol OtaBundleSink: AnyObject {
     /// `path` is relative, `/`-separated printable ASCII, with no empty, `.` or `..` segment, and
     /// collides with no earlier path even on a volume that ignores case.
@@ -15,11 +14,10 @@ public protocol OtaBundleSink: AnyObject {
 public enum OtaBundle {
     static let chunkSize = 64 * 1024
 
-    /// Checks a downloaded bundle against its payload and hands its files to `sink`, in the order
-    /// and with the fault precedence of docs/ota.md: SIZE, then SHA256, before anything is
-    /// decompressed; then XZ over TAR over the first entry fault in archive order (ENTRY_TYPE,
-    /// ENTRY_NAME, DUPLICATE) over NO_INDEX, HAS_ENV, NO_HEAD. Returns the root `index.html`, which
-    /// has passed `OtaEnv.checkTarget`.
+    /// The fault precedence of docs/ota.md: SIZE, then SHA256, before anything is decompressed; then
+    /// XZ over TAR over the first entry fault in archive order (ENTRY_TYPE, ENTRY_NAME, DUPLICATE)
+    /// over NO_INDEX, HAS_ENV, NO_HEAD. Returns the root `index.html`, which has passed
+    /// `OtaEnv.checkTarget`.
     ///
     /// Throws an `OtaError` for a refusal. Any other error is the file's, the sink's (I/O) or the
     /// device's (`XZDecoderUnavailable`) and says nothing about the bundle.
@@ -77,8 +75,8 @@ public enum OtaBundle {
     }
 }
 
-/// The checks on each entry, and the first fault among them. After it no entry is checked or
-/// handed to the sink, but the tar is read on: a TAR fault further on outranks it.
+/// After the first entry fault no entry is checked or handed to the sink, but the tar is read on:
+/// a TAR fault further on outranks it.
 private final class EntryChecker: TarEntryHandler {
     private static let regularFile = UInt8(ascii: "0")
     private static let indexName = Array("index.html".utf8)
@@ -91,7 +89,6 @@ private final class EntryChecker: TarEntryHandler {
     private var directories = Set<[UInt8]>()
     private var writing = false
     private var writingIndex = false
-    /// The root index.html, nil until it begins.
     private var index: [UInt8]?
 
     init(sink: OtaBundleSink) {
@@ -139,8 +136,6 @@ private final class EntryChecker: TarEntryHandler {
         try sink.endFile()
     }
 
-    /// The outcome once the whole archive has been read without an XZ or TAR fault: the root
-    /// index.html.
     func finish() throws -> [UInt8] {
         if let fault { throw fault }
         guard let index else { throw OtaError(.noIndex, "no index.html at the root of the bundle") }
@@ -148,8 +143,8 @@ private final class EntryChecker: TarEntryHandler {
         return index
     }
 
-    /// 1 to 255 bytes, each printable ASCII but space and backslash, and no empty, `.` or `..`
-    /// segment: so no absolute path, no directory entry, no way out of the bundle directory.
+    /// No empty, `.` or `..` segment: so no absolute path, no directory entry, no way out of the
+    /// bundle directory.
     private static func isSafeName(_ path: [UInt8]) -> Bool {
         guard !path.isEmpty, path.count <= maxPathLength,
               path.allSatisfy({ $0 >= 0x21 && $0 <= 0x7E && $0 != UInt8(ascii: "\\") })
@@ -162,7 +157,6 @@ private final class EntryChecker: TarEntryHandler {
 }
 
 extension Array where Element == UInt8 {
-    /// Where `literal` first occurs at or after `start`, compared byte by byte.
     func offset(of literal: [UInt8], from start: Int = 0) -> Int? {
         guard !literal.isEmpty, count >= literal.count, start <= count - literal.count else { return nil }
         for index in start...(count - literal.count) where self[index] == literal[0] {

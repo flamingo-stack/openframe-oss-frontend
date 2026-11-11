@@ -13,17 +13,7 @@ import ai.openframe.mobile.ota.BundleRemoval;
 import ai.openframe.mobile.ota.OtaSession;
 import ai.openframe.mobile.ota.OtaState;
 
-/**
- * Where the over-the-air updater keeps its files, all under {@code ota/} in
- * the no-backup directory (a restored bundle would be one nobody verified on
- * this phone):
- *
- * <pre>
- * state.json          what OtaState describes, replaced atomically
- * bundles/x.y.z/      verified, unpacked bundles, each with this build's env in its index.html
- * staging/            the work area of one check
- * </pre>
- */
+// Under the no-backup directory: a restored bundle would be one nobody verified on this phone.
 final class UpdateStore implements OtaSession.Store {
 
     private static final String INDEX = "index.html";
@@ -91,12 +81,11 @@ final class UpdateStore implements OtaSession.Store {
         }
     }
 
-    /** {@code version} is always one that passed the version grammar: digits and dots, never a path. */
+    // version is always one that passed the version grammar: digits and dots, never a path.
     File bundleDir(String version) {
         return new File(bundles, version);
     }
 
-    /** The work area of a check, which wipes it when it starts and when it ends. */
     File staging() throws IOException {
         if (!staging.isDirectory() && !staging.mkdirs()) {
             throw new IOException("cannot create " + staging);
@@ -108,7 +97,7 @@ final class UpdateStore implements OtaSession.Store {
         BundleRemoval.remove(staging);
     }
 
-    /** Moves an unpacked bundle from the work area into place: a rename within one volume, so all of it or none. */
+    // A rename within one volume, so all of it or none.
     void install(File unpacked, String version) throws IOException {
         File directory = bundleDir(version);
         // Anything already there is not usable (OtaSession.isUsable), or the check would have taken it as it is.
@@ -118,7 +107,7 @@ final class UpdateStore implements OtaSession.Store {
         }
     }
 
-    /** Deletes the bundle directories the session no longer needs. Never the one the web view is served from. */
+    // Never the directory the web view is served from.
     void removeStale(OtaSession session) {
         String[] names = bundles.list();
         if (names == null) {
