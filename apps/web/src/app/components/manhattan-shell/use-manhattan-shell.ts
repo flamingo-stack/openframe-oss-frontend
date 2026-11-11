@@ -9,48 +9,28 @@ export const MANHATTAN_NAVIGATION_EXPANDED_WIDTH = 200;
 /** Where the right navigation keeps the sections the user folded. */
 export const MANHATTAN_NAVIGATION_FOLDS_KEY = 'of.manhattan.navigation.folded';
 
-/** The right navigation's collapse, its own preference (the left sidebar keeps the core's key). */
-const NAV_MINIMIZED_STORAGE_KEY = 'of.manhattan.navigation.minimized';
-const NAV_MINIMIZED_EVENT = 'of:manhattan-navigation-minimized';
-
-function readNavMinimized(): boolean {
-  if (typeof window === 'undefined') return false;
-  try {
-    return window.localStorage.getItem(NAV_MINIMIZED_STORAGE_KEY) === 'true';
-  } catch {
-    return false;
-  }
-}
-
-function subscribeNavMinimized(listener: () => void): () => void {
-  const onStorage = (event: StorageEvent) => {
-    if (event.key === null || event.key === NAV_MINIMIZED_STORAGE_KEY) listener();
-  };
-  window.addEventListener('storage', onStorage);
-  window.addEventListener(NAV_MINIMIZED_EVENT, listener);
-  return () => {
-    window.removeEventListener('storage', onStorage);
-    window.removeEventListener(NAV_MINIMIZED_EVENT, listener);
-  };
-}
-
-const expandedOnServer = () => false;
-
 /**
- * `[collapsed, setCollapsed]` for the right navigation (`NavigationSidebarConfig.collapsed`
- * / `onCollapsedChange`), persisted per viewer. Read through `useSyncExternalStore`, so
- * the server and the hydrating client both draw it expanded and the stored choice
- * arrives on the render after.
+ * The right navigation's collapse. Not persisted: every load starts collapsed (expanded it
+ * crowds the centre), and the user's toggle lasts until the next load.
  */
+let navCollapsed = true;
+const navCollapsedListeners = new Set<() => void>();
+
+function subscribeNavCollapsed(listener: () => void): () => void {
+  navCollapsedListeners.add(listener);
+  return () => {
+    navCollapsedListeners.delete(listener);
+  };
+}
+
+const readNavCollapsed = () => navCollapsed;
+
+/** `[collapsed, setCollapsed]` for the right navigation (`NavigationSidebarConfig.collapsed` / `onCollapsedChange`). */
 export function useManhattanNavCollapsed(): readonly [boolean, (collapsed: boolean) => void] {
-  const collapsed = useSyncExternalStore(subscribeNavMinimized, readNavMinimized, expandedOnServer);
+  const collapsed = useSyncExternalStore(subscribeNavCollapsed, readNavCollapsed, readNavCollapsed);
   const setCollapsed = useCallback((next: boolean) => {
-    try {
-      window.localStorage.setItem(NAV_MINIMIZED_STORAGE_KEY, String(next));
-    } catch {
-      // Storage refused: the event below still moves this page's readers.
-    }
-    window.dispatchEvent(new Event(NAV_MINIMIZED_EVENT));
+    navCollapsed = next;
+    for (const listener of navCollapsedListeners) listener();
   }, []);
   return [collapsed, setCollapsed] as const;
 }
