@@ -14,6 +14,7 @@ import {
   takeDesktopDownloadId,
   takeNativeStartupNotificationClick,
 } from '@/lib/native-shell';
+import { confirmBundleBooted } from '@/lib/native-update';
 import { isAppShell, isDesktopShell, isMobileShell, shellKind } from '@/lib/platform';
 import { storeDownloadId } from '@/lib/registration-attribution';
 import { initTokenStore } from '@/lib/token-store';
@@ -29,6 +30,8 @@ import {
 let nativeClickHandlingInitialized = false;
 // Same for the "Open the app" link's download id.
 let downloadLinkHandlingInitialized = false;
+// And for the report that this bundle booted (mobile's over-the-air updater).
+let bundleBootConfirmed = false;
 
 /**
  * Per-shell startup, split by which shell actually owns each step:
@@ -37,7 +40,8 @@ let downloadLinkHandlingInitialized = false;
  *   possible so the first API calls can attach a bearer synchronously. Not a
  *   render gate — if a request wins the race, the normal 401 -> refresh -> retry
  *   path recovers (refresh awaits hydration).
- * - Mobile: status bar + safe-area insets, hardware back, splash hide.
+ * - Mobile: status bar + safe-area insets, hardware back, then the report that
+ *   this bundle booted (`confirmBundleBooted`), splash hide.
  * - Desktop: OS-notification clicks forwarded by the Rust notification plane —
  *   the envelope's `type` + `attributes` resolve to the same action the in-app
  *   drawer would take (`followNotificationTap`): an announcement's link in the
@@ -74,6 +78,15 @@ export function NativeShellInitializer() {
       void initNativeChrome();
       // Android hardware/gesture back → overlay dismiss → SPA history → exit.
       initNativeBack();
+      // After the two calls above: a release that throws synchronously in one of
+      // them must not report ready, or the shell keeps it instead of going back
+      // to the bundle before. Ahead of token hydration below: the shell counts
+      // the launches that never report, and hydration can sit behind a Face ID
+      // prompt for as long as the user leaves it there. Nothing in between awaits.
+      if (!bundleBootConfirmed) {
+        bundleBootConfirmed = true;
+        void confirmBundleBooted();
+      }
     }
 
     // Hide the launch splash once hydration settles — so it also covers a
