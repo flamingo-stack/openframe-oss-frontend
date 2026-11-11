@@ -293,6 +293,14 @@ describe('NeedsYouCard content', () => {
     expect(firstRow?.textContent).toContain("Couldn't load everything that needs you");
   });
 
+  it('offline, the failure row keeps its two columns (the column row height) with no Retry, and is announced', () => {
+    act(() => root.render(<NeedsYouPanel failures={[{ source: 'tenants', isOffline: true, retry: () => {} }]} />));
+    const failureRow = container.querySelector('[data-loading-item]');
+    expect(failureRow?.children).toHaveLength(2);
+    expect(container.querySelector('button[aria-label^="Retry"]')).toBeNull();
+    expect(container.querySelector('[role="status"]')).not.toBeNull();
+  });
+
   it("a failure with nothing else is the card's one row, not an empty card", async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     env.tenantsFail = true;

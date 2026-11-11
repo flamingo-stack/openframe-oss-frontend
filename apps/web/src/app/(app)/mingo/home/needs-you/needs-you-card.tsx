@@ -227,7 +227,10 @@ const LOADING_ROWS: PanelRow[] = Array.from({ length: NEEDS_YOU_PREVIEW_ROWS }, 
   ],
 }));
 
-/** Sources that did not answer: a row in the shape of the others, first, so it is never under the fade. */
+/**
+ * Sources that did not answer: a row in the shape of the others (two columns, so the column row's
+ * height even with no Retry while offline), first, so it is never under the fade, announced.
+ */
 function failureRow(failures: readonly NeedsYouFailure[]): PanelRow {
   const { message, onRetry } = loadErrorProps(
     failures.some(failure => failure.isOffline),
@@ -239,21 +242,21 @@ function failureRow(failures: readonly NeedsYouFailure[]): PanelRow {
   return {
     id: 'failures',
     columns: [
-      { key: 'entity', leadingIcon: <AlertTriangleIcon className={ICON_CLASS} />, value: message },
-      ...(onRetry
-        ? [
-            {
-              key: 'retry',
-              content: (
-                <Button variant="outline" size="small" onClick={onRetry} aria-label={`Retry: ${message}`}>
-                  Retry
-                </Button>
-              ),
-              width: 'shrink-0',
-              align: 'right' as const,
-            },
-          ]
-        : []),
+      {
+        key: 'entity',
+        leadingIcon: <AlertTriangleIcon className={ICON_CLASS} />,
+        value: <span role="status">{message}</span>,
+      },
+      {
+        key: 'retry',
+        content: onRetry && (
+          <Button variant="outline" size="small" onClick={onRetry} aria-label={`Retry: ${message}`}>
+            Retry
+          </Button>
+        ),
+        width: 'shrink-0',
+        align: 'right',
+      },
     ],
   };
 }
