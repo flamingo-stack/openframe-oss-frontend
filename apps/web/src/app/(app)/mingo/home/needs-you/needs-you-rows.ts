@@ -37,9 +37,13 @@ export const NEEDS_YOU_CAPS = {
   disk: 1,
 } as const satisfies Record<NeedsYouSource, number>;
 
+/**
+ * The rows the card shows, loading or loaded; the rest fade out under "Show N more". A fixed
+ * number, so the card takes the same space whatever the sources answer.
+ */
+export const NEEDS_YOU_PREVIEW_ROWS = 3;
+
 /** What a row is about — it picks the row's icon. */
-/** The rows the card draws while it loads: how many it will hold is unknown until every source answers. */
-export const NEEDS_YOU_SKELETON_ROWS = 3;
 
 export type NeedsYouEntity = 'approval' | 'incident' | 'ticket' | 'tenant' | 'software' | 'device';
 
@@ -90,7 +94,7 @@ export interface NeedsYouFailure {
 
 export type NeedsYouView =
   | { status: 'loading' }
-  /** Every source answered and nothing needs the user. */
+  /** No source is open (every gate is off): the card has nothing to say. */
   | { status: 'hidden' }
   | { status: 'ready'; rows: NeedsYouRow[]; failures: NeedsYouFailure[] };
 
@@ -100,12 +104,14 @@ export type NeedsYouView =
  * - **Loading** while any gate is unanswered, any source behind an open gate has not
  *   answered, or `pending` (the footer's own counts) holds. Rows from early sources are
  *   not shown ahead of the rest: they would move when a source above them lands.
- * - **Hidden** once everything answered with nothing. A source that FAILED keeps the card
- *   up with its failure line: "nothing needs you" is a claim a failed source cannot back.
+ * - **Ready** with no rows once everything answered with nothing: the card stays, saying so,
+ *   so the page does not move. A source that FAILED is listed as a failure instead.
+ * - **Hidden** only when every gate is off.
  * - A source behind a gate that is off contributes nothing and is not waited for.
  */
 export function resolveNeedsYou(gates: NeedsYouGates, reports: NeedsYouReports, pending = false): NeedsYouView {
   let loading = pending;
+  let open = false;
   const rows: NeedsYouRow[] = [];
   const failures: NeedsYouFailure[] = [];
   const listed = new Set<string>();
@@ -113,6 +119,7 @@ export function resolveNeedsYou(gates: NeedsYouGates, reports: NeedsYouReports, 
   for (const source of NEEDS_YOU_SOURCES) {
     const gate = gates[source];
     if (gate === 'off') continue;
+    open = true;
     const report = reports[source];
     if (gate === 'loading' || !report || report.status === 'loading') {
       loading = true;
@@ -134,7 +141,7 @@ export function resolveNeedsYou(gates: NeedsYouGates, reports: NeedsYouReports, 
   }
 
   if (loading) return { status: 'loading' };
-  if (rows.length === 0 && failures.length === 0) return { status: 'hidden' };
+  if (!open) return { status: 'hidden' };
   return { status: 'ready', rows, failures };
 }
 
