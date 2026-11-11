@@ -31,8 +31,8 @@ describe('sidebarWidthFoucScript', () => {
     document.documentElement.style.removeProperty(END_WIDTH_VAR);
   });
 
-  it('seeds the Mingo-first width for the grouped sidebar, the classic one otherwise', () => {
-    expect(seed({ grouped: true })).toBe('264px');
+  it('seeds the Manhattan v2 chats width for the grouped sidebar, the classic one otherwise', () => {
+    expect(seed({ grouped: true })).toBe('280px');
     expect(seed({ grouped: false })).toBe('224px');
   });
 
@@ -65,9 +65,9 @@ describe('sidebarWidthFoucScript', () => {
   });
 
   it('ignores an entry that is not a size, and still seeds the collapse', () => {
-    expect(seed({ grouped: true, chosen: 'not json' })).toBe('264px');
-    expect(seed({ grouped: true, chosen: JSON.stringify({ size: '400' }) })).toBe('264px');
-    expect(seed({ grouped: true, chosen: JSON.stringify(400) })).toBe('264px');
+    expect(seed({ grouped: true, chosen: 'not json' })).toBe('280px');
+    expect(seed({ grouped: true, chosen: JSON.stringify({ size: '400' }) })).toBe('280px');
+    expect(seed({ grouped: true, chosen: JSON.stringify(400) })).toBe('280px');
     expect(seed({ grouped: false, minimized: true, chosen: 'not json' })).toBe('56px');
   });
 });

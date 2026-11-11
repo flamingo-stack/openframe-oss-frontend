@@ -2,8 +2,6 @@
 
 import { useCallback, useSyncExternalStore } from 'react';
 
-/** The chats sidebar's expanded width (Figma 280); the user's dragged width wins (`SIDEBAR_RESIZE`). */
-export const MANHATTAN_CHATS_EXPANDED_WIDTH = 280;
 /** The right navigation's expanded width (Figma 200). */
 export const MANHATTAN_NAVIGATION_EXPANDED_WIDTH = 200;
 /** Where the right navigation keeps the sections the user folded. */
