@@ -23,6 +23,9 @@ describe('useManhattanNavCollapsed', () => {
 
     act(() => setCollapsed(false));
     expect(collapsed).toBe(false);
+    act(() => setCollapsed(true));
+    expect(collapsed).toBe(true);
+    // Nothing is persisted: the stored value is still the one written above.
     expect(window.localStorage.getItem('of.manhattan.navigation.minimized')).toBe('false');
     act(() => root.unmount());
   });
