@@ -1,14 +1,17 @@
 'use client';
 
+import { MediaSkeleton, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   AlertTriangleIcon,
+  CheckCircleIcon,
   CodingForkIcon,
   Parcel02Icon,
   ShieldCheckIcon,
   TicketIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  Button,
   LoadingWhen,
   type PanelRow,
   StackedRowsPanel,
@@ -19,12 +22,11 @@ import Link from 'next/link';
 import { type ComponentType, type ReactNode, useCallback, useState } from 'react';
 import { useTicketsOverview } from '@/app/(app)/dashboard/hooks/use-dashboard-stats';
 import { useRevealHeld, useRevealPart } from '@/app/components/shared/reveal-together';
-import { SectionLoadError } from '@/app/components/shared/section-load-error';
 import { loadErrorProps } from '@/lib/query-state';
 import { NeedsYouApprovalsSource } from './needs-you-approvals-source';
 import { NeedsYouInsightsSource } from './needs-you-insights-source';
 import {
-  NEEDS_YOU_SKELETON_ROWS,
+  NEEDS_YOU_PREVIEW_ROWS,
   type NeedsYouEntity,
   type NeedsYouFailure,
   type NeedsYouGates,
@@ -65,7 +67,7 @@ const NEEDS_YOU_GATES_LOADING: NeedsYouGates = {
  * escalated Tech Required tickets, 1 cloud tenant whose sync failed, 1 failed software
  * action and 1 device low on disk, in that order (`needs-you-rows.ts`); then a line of
  * counts. Every source is gated like its sidebar entry (`useNeedsYouGates`). Loading until
- * every open source answered; hidden when nothing needs the user.
+ * every open source answered; hidden only when no source is open.
  *
  * `sources` must be rendered for the view to fill: the Relay sources render nothing and
  * report what they found (the board's column subscribers do the same). Each fetches under
@@ -132,7 +134,10 @@ export function useNeedsYouCount(enabled = true): { count: number; sources: Reac
   return { count: view.status === 'ready' ? view.rows.length : 0, sources };
 }
 
-/** "Needs you" on Mingo's home (`useNeedsYou`), each row opening its entity's page. */
+/**
+ * "Needs you" on Start Work (`useNeedsYou`), each row opening its entity's page. Drawn the same
+ * size loading and loaded (`NeedsYouPanel`), so the page does not move when it answers.
+ */
 export function NeedsYouCard() {
   const { view, footer, sources } = useNeedsYou();
   useRevealPart('needs-you', view.status !== 'loading');
@@ -197,52 +202,106 @@ function toPanelRow(row: NeedsYouRow): PanelRow {
   };
 }
 
+/** Nothing needs the user: one row in the shape of the others, so the card keeps its size. */
+const ALL_CLEAR_ROW: PanelRow = {
+  id: 'all-clear',
+  columns: [
+    {
+      key: 'entity',
+      leadingIcon: <CheckCircleIcon className={ICON_CLASS} />,
+      value: 'Nothing needs you right now',
+      label: 'Approvals, critical incidents and escalations will show up here',
+    },
+  ],
+};
+
+/**
+ * The loading form: rows in the shape of the loaded ones (the icon, the name over its detail,
+ * the tag on the right), their text not here yet, so the lib draws bars in its place.
+ */
+const LOADING_ROWS: PanelRow[] = Array.from({ length: NEEDS_YOU_PREVIEW_ROWS }, (_, index) => ({
+  id: `loading-${index}`,
+  columns: [
+    { key: 'entity', leadingIcon: <MediaSkeleton.Icon />, value: null, label: null },
+    { key: 'reason', content: <Tag label="" />, width: 'shrink-0', align: 'right' },
+  ],
+}));
+
+/**
+ * Sources that did not answer: a row in the shape of the others (two columns, so the column row's
+ * height even with no Retry while offline), first, so it is never under the fade, announced.
+ */
+function failureRow(failures: readonly NeedsYouFailure[]): PanelRow {
+  const { message, onRetry } = loadErrorProps(
+    failures.some(failure => failure.isOffline),
+    "Couldn't load everything that needs you",
+    () => {
+      for (const failure of failures) failure.retry();
+    },
+  );
+  return {
+    id: 'failures',
+    columns: [
+      {
+        key: 'entity',
+        leadingIcon: <AlertTriangleIcon className={ICON_CLASS} />,
+        value: <span role="status">{message}</span>,
+      },
+      {
+        key: 'retry',
+        content: onRetry && (
+          <Button variant="outline" size="small" onClick={onRetry} aria-label={`Retry: ${message}`}>
+            Retry
+          </Button>
+        ),
+        width: 'shrink-0',
+        align: 'right',
+      },
+    ],
+  };
+}
+
 interface NeedsYouPanelProps {
   rows?: readonly NeedsYouRow[];
   failures?: readonly NeedsYouFailure[];
   footer?: string | null;
-  /** Still being read: `NEEDS_YOU_SKELETON_ROWS` rows of bars under the real caption. */
+  /** Still being read: `NEEDS_YOU_PREVIEW_ROWS` rows in the loaded rows' shape and the counts' bar, beside the real caption. */
   loading?: boolean;
 }
 
-/** The card itself, without its sources: what the shell holds in the page's slot (`loading`) needs no request. */
+/**
+ * The card itself, without its sources: what the shell holds in the page's slot (`loading`)
+ * needs no request. The caption with the counts beside it, then `NEEDS_YOU_PREVIEW_ROWS` rows,
+ * the rest faded out under "Show N more": the same size loading and loaded, whatever the
+ * sources answer.
+ */
 export function NeedsYouPanel({ rows = [], failures = [], footer = null, loading = false }: NeedsYouPanelProps) {
-  const panelRows = rows.map(toPanelRow);
-
-  if (failures.length > 0) {
-    const isOffline = failures.some(failure => failure.isOffline);
-    panelRows.push({
-      id: 'failures',
-      className: 'px-[var(--spacing-system-m)] pt-[var(--spacing-system-xs)]',
-      content: (
-        <SectionLoadError
-          {...loadErrorProps(isOffline, "Couldn't load everything that needs you.", () => {
-            for (const failure of failures) failure.retry();
-          })}
-        />
-      ),
-    });
-  }
-
-  if (footer) {
-    panelRows.push({
-      id: 'footer',
-      className: 'p-[var(--spacing-system-m)]',
-      content: <p className="text-ods-text-secondary text-h6">{footer}</p>,
-    });
-  }
+  const loadingForm = useLoadingScope() || loading;
+  let panelRows: PanelRow[];
+  if (loadingForm) panelRows = LOADING_ROWS;
+  else if (rows.length === 0 && failures.length === 0) panelRows = [ALL_CLEAR_ROW];
+  else panelRows = [...(failures.length > 0 ? [failureRow(failures)] : []), ...rows.map(toPanelRow)];
 
   return (
     <section aria-label={CAPTION}>
-      <LoadingWhen loading={loading} label="Loading what needs you">
-        <StackedRowsPanel
-          title={CAPTION}
-          rows={panelRows}
-          loading={loading}
-          loadingRows={NEEDS_YOU_SKELETON_ROWS}
-          skeleton={{ columns: 2 }}
-          listItems
-        />
+      <LoadingWhen
+        loading={loadingForm}
+        label="Loading what needs you"
+        className="flex flex-col gap-[var(--spacing-system-xxs)]"
+      >
+        <div className="flex items-center justify-between gap-[var(--spacing-system-m)]">
+          <p className="shrink-0 text-ods-text-secondary text-h5">{CAPTION}</p>
+          {loadingForm ? (
+            <TextLineSkeleton type="h6" as="span" className="w-1/3" />
+          ) : (
+            footer && (
+              <p className="min-w-0 truncate text-ods-text-secondary text-h6" title={footer}>
+                {footer}
+              </p>
+            )
+          )}
+        </div>
+        <StackedRowsPanel rows={panelRows} previewRows={NEEDS_YOU_PREVIEW_ROWS} listItems />
       </LoadingWhen>
     </section>
   );

@@ -111,7 +111,7 @@ describe('resolveNeedsYou', () => {
     expect(resolveNeedsYou(ALL_ON, fullReports(), true)).toEqual({ status: 'loading' });
   });
 
-  it('hides once every source answered with nothing', () => {
+  it('stays up with no rows once every source answered with nothing', () => {
     const empty: NeedsYouReports = {
       approvals: ready(),
       incidents: ready(),
@@ -120,7 +120,7 @@ describe('resolveNeedsYou', () => {
       software: ready(),
       disk: ready(),
     };
-    expect(resolveNeedsYou(ALL_ON, empty)).toEqual({ status: 'hidden' });
+    expect(resolveNeedsYou(ALL_ON, empty)).toEqual({ status: 'ready', rows: [], failures: [] });
   });
 
   it('hides when every gate is off', () => {

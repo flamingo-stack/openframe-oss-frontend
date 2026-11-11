@@ -1,9 +1,10 @@
 /** The pre-paint width seed: the persisted collapse, the width the user chose, and the Mingo-first default on a SaaS tenant. */
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { sidebarWidthFoucScript } from './navigation-sidebar-state';
 
 const WIDTH_VAR = '--of-navigation-sidebar-width';
+const END_WIDTH_VAR = '--of-navigation-sidebar-end-width';
 const CHOSEN_KEY = 'of.navigationSidebar.width:chosen';
 
 function seed({
@@ -27,11 +28,29 @@ describe('sidebarWidthFoucScript', () => {
   afterEach(() => {
     window.localStorage.clear();
     document.documentElement.style.removeProperty(WIDTH_VAR);
+    document.documentElement.style.removeProperty(END_WIDTH_VAR);
   });
 
-  it('seeds the Mingo-first width for the grouped sidebar, the classic one otherwise', () => {
-    expect(seed({ grouped: true })).toBe('264px');
+  it('seeds the Manhattan v2 chats width for the grouped sidebar, the classic one otherwise', () => {
+    expect(seed({ grouped: true })).toBe('280px');
     expect(seed({ grouped: false })).toBe('224px');
+  });
+
+  it('seeds the right navigation as the rail in the grouped shell, where it starts collapsed', () => {
+    seed({ grouped: true });
+    expect(document.documentElement.style.getPropertyValue(END_WIDTH_VAR)).toBe('56px');
+    document.documentElement.style.removeProperty(END_WIDTH_VAR);
+    seed({ grouped: false });
+    expect(document.documentElement.style.getPropertyValue(END_WIDTH_VAR)).toBe('');
+  });
+
+  it('seeds the right navigation even when storage throws', () => {
+    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('blocked', 'SecurityError');
+    });
+    new Function(sidebarWidthFoucScript(true))();
+    expect(document.documentElement.style.getPropertyValue(END_WIDTH_VAR)).toBe('56px');
+    getItem.mockRestore();
   });
 
   it('seeds the rail for a collapsed sidebar either way', () => {
@@ -55,9 +74,9 @@ describe('sidebarWidthFoucScript', () => {
   });
 
   it('ignores an entry that is not a size, and still seeds the collapse', () => {
-    expect(seed({ grouped: true, chosen: 'not json' })).toBe('264px');
-    expect(seed({ grouped: true, chosen: JSON.stringify({ size: '400' }) })).toBe('264px');
-    expect(seed({ grouped: true, chosen: JSON.stringify(400) })).toBe('264px');
+    expect(seed({ grouped: true, chosen: 'not json' })).toBe('280px');
+    expect(seed({ grouped: true, chosen: JSON.stringify({ size: '400' }) })).toBe('280px');
+    expect(seed({ grouped: true, chosen: JSON.stringify(400) })).toBe('280px');
     expect(seed({ grouped: false, minimized: true, chosen: 'not json' })).toBe('56px');
   });
 });

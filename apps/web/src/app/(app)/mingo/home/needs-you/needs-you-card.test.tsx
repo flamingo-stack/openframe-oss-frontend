@@ -1,7 +1,7 @@
 /**
  * The "Needs you" card on Mingo's home, over the real gates (app mode + the flags store)
  * and stand-in sources: which sources run in OSS / SaaS with each flag on, off or
- * unanswered; the loading state; the card gone when nothing needs the user; a failed
+ * unanswered; the loading state; the card kept, saying so, when nothing needs the user; a failed
  * source; the rows' links and the footer.
  */
 
@@ -12,7 +12,7 @@ import { routes } from '@/lib/routes';
 import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 import { NeedsYouCard, NeedsYouPanel } from './needs-you-card';
 import {
-  NEEDS_YOU_SKELETON_ROWS,
+  NEEDS_YOU_PREVIEW_ROWS,
   type NeedsYouRow,
   type NeedsYouSource,
   type ReportSource,
@@ -192,14 +192,14 @@ describe('NeedsYouCard loading', () => {
   it('draws the set number of rows however many sources are open, under its real caption', async () => {
     delete env.reports.software;
     await render();
-    expect(loadingRows()).toHaveLength(NEEDS_YOU_SKELETON_ROWS);
+    expect(loadingRows()).toHaveLength(NEEDS_YOU_PREVIEW_ROWS);
     expect(caption()).toBeDefined();
 
     setFlags('unanswered');
     act(() => root.unmount());
     root = createRoot(container);
     await render();
-    expect(loadingRows()).toHaveLength(NEEDS_YOU_SKELETON_ROWS);
+    expect(loadingRows()).toHaveLength(NEEDS_YOU_PREVIEW_ROWS);
   });
 
   it('is the panel itself, which the shell can hold with no source behind it', async () => {
@@ -209,14 +209,45 @@ describe('NeedsYouCard loading', () => {
     expect(env.mounted.size).toBe(0);
     expect(isLoading()).toBe(true);
     expect(caption()).toBeDefined();
-    expect(loadingRows()).toHaveLength(NEEDS_YOU_SKELETON_ROWS);
+    expect(loadingRows()).toHaveLength(NEEDS_YOU_PREVIEW_ROWS);
+  });
+
+  it("draws its rows in the loaded rows' shape: a leading icon, the name over its detail, a tag on the right", async () => {
+    await act(async () => {
+      root.render(<NeedsYouPanel loading />);
+    });
+    const rows = loadingRows();
+    expect(rows).toHaveLength(NEEDS_YOU_PREVIEW_ROWS);
+    for (const loadingRow of Array.from(rows)) {
+      // The icon's box, the name's (h4) and detail's (h6) bars, the tag's box on the right.
+      expect(loadingRow.querySelector('span.shrink-0 .ods-skeleton')).not.toBeNull();
+      expect(loadingRow.querySelector('.text-h4 .ods-skeleton')).not.toBeNull();
+      expect(loadingRow.querySelector('.text-h6 .ods-skeleton')).not.toBeNull();
+      expect(loadingRow.lastElementChild?.className).toContain('items-end');
+    }
   });
 });
 
 describe('NeedsYouCard content', () => {
-  it('renders nothing when nothing needs the user', async () => {
+  it('stays up, saying so, when nothing needs the user', async () => {
     await render();
-    expect(container.innerHTML).toBe('');
+    expect(isLoading()).toBe(false);
+    expect(caption()).toBeDefined();
+    expect(links()).toEqual([]);
+    expect(container.textContent).toContain('Nothing needs you right now');
+  });
+
+  it('shows every row under the preview, the ones past it behind "Show N more"', async () => {
+    env.reports.approvals = ready(
+      row('approvals', 'a-1', routes.tickets.dialog('t-1')),
+      row('approvals', 'a-2', routes.tickets.dialog('t-2')),
+    );
+    env.reports.tenants = ready(row('tenants', 'c-1', routes.cloudTenantManagement.details('c-1')));
+    env.reports.software = ready(row('software', 's-1', routes.software.action('s-1')));
+    env.reports.disk = ready(row('disk', 'm-1', routes.devices.details('m-1')));
+    await render();
+    expect(links()).toHaveLength(5);
+    expect(container.querySelector('button[aria-expanded="false"]')).not.toBeNull();
   });
 
   it('lists the rows in source order, each linking to its entity page', async () => {
@@ -255,7 +286,28 @@ describe('NeedsYouCard content', () => {
     await render();
     expect(isLoading()).toBe(false);
     expect(links()).toEqual([['software s-1', routes.software.action('s-1')]]);
-    expect(container.textContent).toContain("Couldn't load everything that needs you.");
+    expect(container.textContent).toContain("Couldn't load everything that needs you");
     expect(container.querySelector('button[aria-label^="Retry"]')).not.toBeNull();
+    // The failure is a row of the card, ahead of the rows, so it is never under the fade.
+    const firstRow = container.querySelector('[data-loading-item]');
+    expect(firstRow?.textContent).toContain("Couldn't load everything that needs you");
+  });
+
+  it('offline, the failure row keeps its two columns (the column row height) with no Retry, and is announced', () => {
+    act(() => root.render(<NeedsYouPanel failures={[{ source: 'tenants', isOffline: true, retry: () => {} }]} />));
+    const failureRow = container.querySelector('[data-loading-item]');
+    expect(failureRow?.children).toHaveLength(2);
+    expect(container.querySelector('button[aria-label^="Retry"]')).toBeNull();
+    expect(container.querySelector('[role="status"]')).not.toBeNull();
+  });
+
+  it("a failure with nothing else is the card's one row, not an empty card", async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    env.tenantsFail = true;
+    delete env.reports.tenants;
+    await render();
+    expect(container.querySelectorAll('[data-loading-item]')).toHaveLength(1);
+    expect(container.textContent).toContain("Couldn't load everything that needs you");
+    expect(container.textContent).not.toContain('Nothing needs you right now');
   });
 });

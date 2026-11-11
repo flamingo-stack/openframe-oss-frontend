@@ -7,6 +7,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback } from 'react';
+import { useManhattanDock } from '@/app/components/manhattan-shell/manhattan-dock-context';
 import { Policies } from './policies';
 import { Queries } from './queries';
 
@@ -30,9 +31,11 @@ interface MonitoringTabNavigationProps {
   onTabChange?: (tab: string) => void;
 }
 
+/** The Policies / Queries tab bar. None in the Manhattan v2 shell: its navigation lists both. */
 export function MonitoringTabNavigation({ activeTab, onTabChange }: MonitoringTabNavigationProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const inNavigation = useManhattanDock();
 
   const defaultHandleTabChange = useCallback(
     (tabId: string) => {
@@ -43,6 +46,7 @@ export function MonitoringTabNavigation({ activeTab, onTabChange }: MonitoringTa
 
   const handleTabChange = onTabChange || defaultHandleTabChange;
 
+  if (inNavigation) return null;
   return (
     <div className="px-[var(--spacing-system-l)]">
       <TabNavigation
