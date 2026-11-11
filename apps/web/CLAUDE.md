@@ -122,7 +122,8 @@ owners/admins, its default "your workspace administrator can restore access" cop
 
 When hidden: Settings shows a **Usage** card (`billing-usage/components/usage-view.tsx` — device/AI
 counters and workspace limits over its own price-free query), `/checkout/*` 404s, and the subscription lock screen renders `WorkspaceInactiveScreen`
-instead of the plan picker. `isRouteAllowedInCurrentMode()` deliberately does NOT gate these: it
+instead of the plan picker. The Help Center has no Payment Terms card or page
+(`help-center/legal-documents.ts`): the document sets out plans, the trial and prices. `isRouteAllowedInCurrentMode()` deliberately does NOT gate these: it
 answers from app mode alone, and consulting a server-loaded flag there once threw "Access restricted"
 over billing routes for as long as the flags query was in flight.
 
@@ -146,7 +147,10 @@ describe it (`apps/mobile/AppStore-Review-Notes.txt`), and a bundle that makes a
 changes the app after review (App Store 2.5.2, 2.3.1). These wait for a store release, however small
 the diff:
 - payment, price, plan or invoice visibility (`lib/billing-visibility.ts`, `lib/platform.ts`,
-  `settings/billing-usage/**`, `checkout/**`, `components/subscription-lock/**`);
+  `settings/billing-usage/**`, `checkout/**`, `components/subscription-lock/**`,
+  `help-center/legal-documents.ts`, `help-center/legal/**`,
+  `help-center/components/help-center-menu.tsx`), and any link that
+  leads to a pricing or sign-up page (`components/shared/powered-by-flamingo.tsx`);
 - registration and the auth UI (`(auth)/**`, how `NEXT_PUBLIC_MOBILE_AUTH_UI` is read);
 - account deletion;
 - permission prompts or when they appear (`native-push`, biometrics, `native-files`, camera and
