@@ -22,7 +22,8 @@ const DEVICES_PAGE_TABS: TabItem[] = [
  * The Devices page's tabs: the device list and the tenant's remote sessions.
  * Separate routes, so this is pure navigation. Shown only where session
  * recordings are on - elsewhere the Devices page has no second tab and keeps
- * its plain header.
+ * its plain header. While the gate is read the strip holds its place (inert),
+ * so the page does not move down when it answers on, the usual answer.
  */
 export function DevicesTabNavigation({ activeTab }: { activeTab: DevicesPageTab }) {
   const router = useRouter();
@@ -36,10 +37,17 @@ export function DevicesTabNavigation({ activeTab }: { activeTab: DevicesPageTab 
     [activeTab, router],
   );
 
-  if (gate !== 'on') return null;
+  if (gate === 'off') return null;
   return (
     <div className="px-[var(--spacing-system-l)]">
-      <TabNavigation urlSync={false} activeTab={activeTab} tabs={DEVICES_PAGE_TABS} onTabChange={handleTabChange} />
+      <TabNavigation
+        urlSync={false}
+        activeTab={activeTab}
+        tabs={DEVICES_PAGE_TABS}
+        onTabChange={handleTabChange}
+        loading={gate === 'loading'}
+        staticLabels
+      />
     </div>
   );
 }
