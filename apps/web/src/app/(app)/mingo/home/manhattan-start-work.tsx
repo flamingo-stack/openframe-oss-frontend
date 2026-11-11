@@ -18,8 +18,24 @@ import { NeedsYouCard, NeedsYouPanel } from './needs-you/needs-you-card';
  *
  * `live` off: no reads (the shell holds the page while it waits on the onboarding answer),
  * "Needs you" in its loading form, so the hand-over moves nothing.
+ *
+ * `variant="column"`: Start Work in the chat column beside a page when no chat is open
+ * (CU-17tkuw65znp). The column has its own "Start Work" header, so the greeting is a
+ * section heading there, and "What to ask Mingo?" answers in the column (`onWhatToAsk`)
+ * instead of leaving the page for the chat page.
  */
-export function ManhattanStartWork({ live = true }: { live?: boolean }) {
+export function ManhattanStartWork({
+  live = true,
+  variant = 'page',
+  onWhatToAsk,
+}: {
+  live?: boolean;
+  variant?: 'page' | 'column';
+  /** The column's "What to ask Mingo?": shown in the column, the page stays. */
+  onWhatToAsk?: () => void;
+}) {
+  const column = variant === 'column';
+  const Heading = column ? 'h2' : 'h1';
   const greeting = useGreeting();
   return (
     <div className="flex min-h-full flex-col justify-center px-[var(--spacing-system-l)] py-[var(--spacing-system-xl)]">
@@ -27,14 +43,15 @@ export function ManhattanStartWork({ live = true }: { live?: boolean }) {
         <div className="flex flex-col items-start">
           <div className="flex items-center gap-[var(--spacing-system-m)]">
             <AgentMark agent="mingo" className="size-8 shrink-0 content-md:size-10" />
-            <h1 className="min-w-0 break-words text-ods-text-primary text-h2">{greeting}</h1>
+            <Heading className="min-w-0 break-words text-ods-text-primary text-h2">{greeting}</Heading>
           </div>
           <p className="mt-[var(--spacing-system-xs)] text-ods-text-secondary text-h6">
             What needs doing across your fleet today?
           </p>
           <Button
             variant="outline"
-            href={routes.mingo.whatToAsk}
+            href={column && onWhatToAsk ? undefined : routes.mingo.whatToAsk}
+            onClick={column ? onWhatToAsk : undefined}
             leftIcon={<AgentMark agent="mingo" className="size-5" />}
             className="mt-[var(--spacing-system-m)]"
           >

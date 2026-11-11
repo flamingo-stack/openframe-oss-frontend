@@ -9,7 +9,8 @@ export const MANHATTAN_NAVIGATION_FOLDS_KEY = 'of.manhattan.navigation.folded';
 
 /**
  * The right navigation's collapse. Not persisted: every load starts collapsed (expanded it
- * crowds the centre), and the user's toggle lasts until the next load.
+ * crowds the centre), and the user's toggle lasts until the next load. One value per page on
+ * purpose: a page has one shell, and its navigation and phone menu read the same collapse.
  */
 let navCollapsed = true;
 const navCollapsedListeners = new Set<() => void>();
