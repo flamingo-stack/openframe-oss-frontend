@@ -1,6 +1,6 @@
 'use client';
 
-import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { DataTable, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { employeeStatusCell_user$key } from '@/__generated__/employeeStatusCell_user.graphql';
 import { EmployeeStatusTag } from './employee-status-tag';
@@ -21,4 +21,11 @@ export function EmployeeStatusCell({ user }: { user: employeeStatusCell_user$key
       <EmployeeStatusTag status={data?.status ?? null} />
     </div>
   );
+}
+
+/** STATUS column in the grid layout: the chip on the row's one line. */
+export function EmployeeStatusGridCell({ user }: { user: employeeStatusCell_user$key }) {
+  // A row still being read (a loading scope) has no fragment to read: the cell draws its loading form.
+  const data = useFragment(employeeStatusCellFragment, useLoadingScope() ? null : user);
+  return <DataTable.Cell tag={<EmployeeStatusTag status={data?.status ?? null} />} />;
 }

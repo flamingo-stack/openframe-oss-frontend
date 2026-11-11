@@ -6,6 +6,8 @@ import {
   type DataTableBodyProps,
   type DataTableInfiniteFooterProps,
   type DataTableInstance,
+  type DataTableLayout,
+  type DataTableSettings,
   type DataTableSortState,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -54,6 +56,23 @@ export type LiveTableRows =
     };
 
 interface LiveTableShellProps<T> {
+  /**
+   * The table's layout. `grid`: one bordered table of 48px one-line rows from `md` up; below `md` the list draws its
+   * card rows in either layout. Default `cards`. What a list's columns need before it switches (a `size`, a one-line
+   * `meta.gridCell`, action columns, a `meta.label`): the core library's `docs/DATA_TABLE_GRID.md`.
+   */
+  layout?: DataTableLayout;
+  /**
+   * Grid layout: the table's height. A length (`360`, `'60vh'`) makes the table its own scroll area; `'fill'` takes
+   * the height the page leaves under the table's top, so the table scrolls and the page does not. Without it the page
+   * scrolls and the header sticks at `stickyHeaderOffset`.
+   */
+  maxHeight?: number | string;
+  /**
+   * Grid layout: puts the settings gear in the header (hide, show and reorder columns). With a `storageKey` the
+   * viewer's layout is kept in the browser: one key per table.
+   */
+  settings?: DataTableSettings;
   /** `false` lets the column header scroll with the rows (a table embedded in a scrolling section). Default `true`. */
   stickyHeader?: boolean;
   /** Pins the column header below the page's sticky toolbar. */
@@ -125,6 +144,10 @@ export type LiveTableProps<T> = LiveTableShellProps<T> &
  * THE live-list table shell: the pending dim, the sticky column header with its row count, the body and the
  * infinite-scroll footer. The loaded list hands it its table; its loading form hands it the same columns with no
  * table, so the loading table and the loaded one are the same markup and cannot lay out differently.
+ *
+ * A list moves to the grid layout by passing `layout="grid"` (with `maxHeight` and `settings` as it needs them), in
+ * both forms. Everything the shell draws works there as it does on cards; the row gap and `rowHeightClassName` are
+ * card-row options the grid does not read.
  */
 export function LiveTable<T>(props: LiveTableProps<T>) {
   if (props.table) return <LiveTableShell {...props} table={props.table} />;
@@ -163,18 +186,32 @@ function LiveTableShell<T>({
   rowHeightClassName,
   footer,
   loadingCells = false,
+  layout = 'cards',
+  maxHeight,
+  settings,
 }: LiveTableShellProps<T> & LiveTableRows & { table: DataTableInstance<T> }) {
   const rows = pageSize ?? skeletonRows;
+  const grid = layout === 'grid';
+  const rowCount = showRowCount && (
+    <DataTable.RowCount itemName={itemName} totalCount={totalCount} loading={loadingCells} />
+  );
   return (
     <PendingDim isPending={isPending}>
-      <DataTable table={table}>
+      {/* The height and the settings belong to the grid: a list left on cards passes neither. */}
+      <DataTable
+        table={table}
+        layout={layout}
+        maxHeight={grid ? maxHeight : undefined}
+        settings={grid ? settings : undefined}
+      >
+        {/* The grid's results count sits above the table (a direct child: the table keeps it out of its scroll area);
+            the card header carries its own in `rightSlot`, which the grid header does not draw. */}
+        {grid && showHeader && rowCount && <DataTable.Meta>{rowCount}</DataTable.Meta>}
         {showHeader && (
           <DataTable.Header
             stickyHeader={stickyHeader}
             stickyHeaderOffset={stickyHeaderOffset}
-            rightSlot={
-              showRowCount && <DataTable.RowCount itemName={itemName} totalCount={totalCount} loading={loadingCells} />
-            }
+            rightSlot={rowCount}
             sort={sort}
             onSortChange={onSortChange}
           />
