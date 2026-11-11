@@ -42,7 +42,11 @@ import {
   type NavigationFlags,
   SECTIONED_NAVIGATION_LOADING_ROWS,
 } from '../../lib/navigation-config';
-import { GROUPED_SIDEBAR_EXPANDED_WIDTH, SIDEBAR_RESIZE } from '../../lib/navigation-sidebar-state';
+import {
+  GROUPED_SIDEBAR_EXPANDED_WIDTH,
+  MANHATTAN_CHATS_EXPANDED_WIDTH,
+  SIDEBAR_RESIZE,
+} from '../../lib/navigation-sidebar-state';
 import { AnnouncementTopBar } from './announcement-top-bar';
 import {
   APP_MAIN_CLASS_NAME,
@@ -66,7 +70,6 @@ import {
 } from './manhattan-shell/manhattan-chats-sidebar';
 import { ManhattanCompactBar } from './manhattan-shell/manhattan-compact-bar';
 import {
-  MANHATTAN_CHATS_EXPANDED_WIDTH,
   MANHATTAN_NAVIGATION_EXPANDED_WIDTH,
   MANHATTAN_NAVIGATION_FOLDS_KEY,
   useManhattanNavCollapsed,

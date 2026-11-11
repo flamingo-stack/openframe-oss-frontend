@@ -11,6 +11,8 @@ const SIDEBAR_MINIMIZED_WIDTH = 56;
 export const SIDEBAR_EXPANDED_WIDTH = 224;
 /** The Mingo-first sidebar's expanded width — a SaaS tenant's (see `AppShell`). */
 export const GROUPED_SIDEBAR_EXPANDED_WIDTH = 264;
+/** The Manhattan v2 chats sidebar's expanded width (Figma 280), what a SaaS tenant gets; the user's dragged width wins (`SIDEBAR_RESIZE`). */
+export const MANHATTAN_CHATS_EXPANDED_WIDTH = 280;
 const SIDEBAR_MINIMIZED_STORAGE_KEY = 'of.navigationSidebar.minimized';
 
 /**
@@ -140,7 +142,7 @@ const runtimeJoin = (parts: TemplateStringsArray, ...values: Array<string | numb
  * loaded at tablet width and then widened the window.
  */
 export function sidebarWidthFoucScript(grouped: boolean): string {
-  const expanded = grouped ? GROUPED_SIDEBAR_EXPANDED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
+  const expanded = grouped ? MANHATTAN_CHATS_EXPANDED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
   const endSeed = grouped
     ? runtimeJoin`document.documentElement.style.setProperty('${SIDEBAR_END_WIDTH_CSS_VAR}','${SIDEBAR_MINIMIZED_WIDTH}px');`
     : '';
