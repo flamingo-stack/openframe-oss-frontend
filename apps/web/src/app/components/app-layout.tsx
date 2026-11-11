@@ -48,6 +48,7 @@ import {
   APP_MAIN_CLASS_NAME,
   headerLoadingCells,
   holdsDashboard,
+  holdsForShell,
   isBareChromeRoute,
   mingoHeaderLoadingCells,
 } from './app-shell-chrome';
@@ -170,6 +171,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // Manhattan v2 (flag `manhattan-v2`): the chats on the left, the navigation on the right.
   // Only an answered "on" switches it; otherwise the Mingo-first shell is drawn as before.
   const manhattan = useManhattanShell(mingoShell);
+  const manhattanGate = useFeatureFlagGate('manhattan-v2');
 
   // The shell now mounts BEFORE the session resolves (see `AppLayoutInner`), so it
   // owns two things it used to get for free from being rendered only afterwards:
@@ -288,6 +290,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     holdsDashboard(pathname, onboardingV2, setupPending, showLockContent),
     CHROME_LOADING_FAIL_OPEN_MS,
   );
+  // A landing page whose content depends on which shell this is (Manhattan v2 or the
+  // Mingo-first one) waits for the `manhattan-v2` answer, so it never shows a frame of the
+  // other shell's page. Bounded like the chrome's own wait.
+  const shellHeld = useFailOpen(holdsForShell(pathname, mingoShell, manhattanGate), CHROME_LOADING_FAIL_OPEN_MS);
   // Every flag this shell's CHROME depends on, read reactively in one place:
   // the sidebar memo below and the header props both consume these, and a
   // `featureFlags.*` snapshot taken before the flags query answers would leave
@@ -858,7 +864,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     <Suspense fallback={null /* loading-standard-ok(SUSPENSE_FALLBACK): a backstop under the pages' own boundaries */}>
       {showLockContent ? (
         <SubscriptionLockContent />
-      ) : dashboardHeld ? (
+      ) : shellHeld ? null /* which page this is depends on the shell: unknown until manhattan-v2 answers */ : dashboardHeld ? (
         composerRouteOf(pathname) === 'home' ? (
           // A new chat: its greeting, nothing that loads.
           manhattan ? (
