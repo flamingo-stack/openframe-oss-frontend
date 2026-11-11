@@ -27,9 +27,11 @@ import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { formatDateTime } from '@/lib/format-date';
 import { loadErrorProps, queryState } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
+import { useRemoteSessionChat } from '../../hooks/use-remote-session-chat';
 import { type UseRemoteSessionWatchResult, useRemoteSessionWatch } from '../../hooks/use-remote-session-watch';
 import { useLiveSession } from '../../hooks/use-session-recordings';
 import { SessionNotFoundError } from '../../services/session-recordings-service';
+import { toRecordingChatMessage } from '../../types/remote-session-chat';
 import type { LiveSessionDetail } from '../../types/session-recording';
 import { formatDurationMs } from './format';
 import { LiveSessionMetaCard } from './recording-meta-card';
@@ -180,9 +182,9 @@ function SessionEndedScreen({ processing }: { processing: boolean }) {
 /**
  * The live session page: a session running on a device, opened from its LIVE row or a link, by the session id. The
  * meta card, the "not being recorded" banner when the recording storage was full, the stream's frame and, once the
- * technician running it opened the chat, the chat so far beside it (under it below desktop). The session is read
- * again every 10 s; when it ends the page turns into the recording's processing screen, and once a file is listed it
- * hands over to the recording page.
+ * technician running it opened the chat, the chat beside it (under it below desktop), followed live and read-only: a
+ * watcher cannot post, and nothing here marks the dialog read. The session is read again every 10 s; when it ends the
+ * page turns into the recording's processing screen, and once a file is listed it hands over to the recording page.
  */
 export function LiveSessionView({ sessionId }: LiveSessionViewProps) {
   const handleBack = useSafeBack(routes.devices.list);
@@ -204,7 +206,12 @@ export function LiveSessionView({ sessionId }: LiveSessionViewProps) {
 
   const ended = !!session && !session.live;
   const tag = session ? titleTag(session) : null;
-  const showChat = !!session && session.chat.length > 0;
+  // The technician's lines are the host's: the session's, not the signed-in watcher's. The dialog stays the same once
+  // the session ended, so the processing screen keeps the chat until the recording page takes over.
+  const host = session ? { name: session.employee.name, avatarUrl: session.employee.avatarUrl } : undefined;
+  const chat = useRemoteSessionChat(session?.dialogId ?? null, true, host);
+  const messages = chat.messages.map(toRecordingChatMessage);
+  const showChat = !!session && messages.length > 0;
 
   const userId = useAuthStore(s => s.user?.id ?? null);
   const watch = useRemoteSessionWatch(sessionId, !!session?.live);
@@ -270,7 +277,7 @@ export function LiveSessionView({ sessionId }: LiveSessionViewProps) {
                   </>
                 )}
               </div>
-              {showChat && <SessionChat messages={session.chat} employee={session.employee} />}
+              {showChat && <SessionChat messages={messages} employee={session.employee} />}
             </div>
           )}
         </>

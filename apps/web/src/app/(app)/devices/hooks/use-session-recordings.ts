@@ -40,9 +40,10 @@ export function useSessionRecording(recordingId: string | null) {
 }
 
 /**
- * One session for the live session page, read again every 10 s while there is something to wait for: the end, the
- * chat opening, or the file the page hands over to once the session ended. An ended session whose recording failed or
- * was never made has nothing more to come. A session the server does not show is an answer, not a failure to retry.
+ * One session for the live session page, read again every 10 s while there is something to wait for: the end, or the
+ * file the page hands over to once the session ended (the chat is followed live, not read here). An ended session
+ * whose recording failed or was never made has nothing more to come. A session the server does not show is an answer,
+ * not a failure to retry.
  */
 export function useLiveSession(sessionId: string | null) {
   return useQuery({

@@ -81,13 +81,22 @@ export interface RemoteSessionChatState {
  * The feed runs whether the panel is open or not, so an end-user message that
  * arrives while `panelOpen` is false raises `hasUnread`; the history the page
  * opens with is old news and never does, nor do the technician's own lines.
+ *
+ * `host` is the technician who runs the session, when that is not the one
+ * signed in (a colleague watching it): a live line of theirs that carries no
+ * name is theirs, not the watcher's. Without it, the signed-in technician.
  */
-export function useRemoteSessionChat(dialogId: string | null, panelOpen = false): RemoteSessionChatState {
+export function useRemoteSessionChat(
+  dialogId: string | null,
+  panelOpen = false,
+  host?: RemoteSessionChatTechnician,
+): RemoteSessionChatState {
   // One record per dialog: a dialog change is a derived reset (no setState in
   // the effect body), live rows arriving before the page stay ordered after it.
   const [store, setStore] = useState<ChatStore>(EMPTY_STORE);
   const [sending, setSending] = useState(false);
-  const technician = useRemoteSessionChatTechnician();
+  const signedIn = useRemoteSessionChatTechnician();
+  const technician = host ?? signedIn;
   const technicianRef = useRef(technician);
   useEffect(() => {
     technicianRef.current = technician;
