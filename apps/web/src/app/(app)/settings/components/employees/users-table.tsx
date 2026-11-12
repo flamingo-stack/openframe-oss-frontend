@@ -1,9 +1,9 @@
 'use client';
 
 import {
+  actionColumn,
   type ColumnDef,
   type DataTableSettings,
-  GRID_ACTION_COLUMN_SIZE,
   GRID_MIN_WIDTH,
   type Row,
   useDataTable,
@@ -54,7 +54,7 @@ const USERS_TABLE_SETTINGS: DataTableSettings = { storageKey: 'employees-users' 
 /**
  * The columns. Each data column states what the grid layout reads beside the card layout's `meta.width`: a `size`
  * (its designed width), a `minSize` where the cell holds more than text, a one-line `gridCell` and a `label` for the
- * settings menu. The card form (`cell`) stays for the card rows below `md`.
+ * settings menu. The table is the grid at every width; `cell` is what a column without a `gridCell` draws.
  */
 function buildColumns(filterOptions: EmployeeFilterOptions): ColumnDef<UserRow>[] {
   return [
@@ -88,21 +88,12 @@ function buildColumns(filterOptions: EmployeeFilterOptions): ColumnDef<UserRow>[
         gridCell: ({ row }: { row: Row<UserRow> }) => <EmployeeStatusGridCell user={row.original} />,
       }),
     },
-    {
+    actionColumn<UserRow>({
       id: EMPLOYEES_COLUMNS.open.id,
-      cell: ({ row }: { row: Row<UserRow> }) => (
-        <OpenRowButton label="Open in new tab" onClick={openInNewTab(detailHref(row.original))} />
+      cell: ({ row }) => (
+        <OpenRowButton grid label="Open in new tab" onClick={openInNewTab(detailHref(row.original))} />
       ),
-      // The grid's action column, kept by hand rather than through `actionColumn()`: the card rows hide this column
-      // below `md` (the layout's `hideAt`), and `actionColumn()` would show it there.
-      size: GRID_ACTION_COLUMN_SIZE,
-      meta: liveColumnMeta(EMPLOYEES_COLUMNS.open, {
-        gridKind: 'action',
-        gridCell: ({ row }: { row: Row<UserRow> }) => (
-          <OpenRowButton grid label="Open in new tab" onClick={openInNewTab(detailHref(row.original))} />
-        ),
-      }),
-    },
+    }),
   ];
 }
 

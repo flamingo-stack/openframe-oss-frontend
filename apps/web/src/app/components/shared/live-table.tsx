@@ -57,9 +57,9 @@ export type LiveTableRows =
 
 interface LiveTableShellProps<T> {
   /**
-   * The table's layout. `grid`: one bordered table of 48px one-line rows from `md` up; below `md` the list draws its
-   * card rows in either layout. Default `cards`. What a list's columns need before it switches (a `size`, a one-line
-   * `meta.gridCell`, action columns, a `meta.label`): the core library's `docs/DATA_TABLE_GRID.md`.
+   * The table's layout. `grid`: one bordered table of 48px one-line rows, at every width (a grid table has no card
+   * form). Default `cards`. What a list's columns need before it switches (a `size`, a one-line `meta.gridCell`,
+   * action columns, a `meta.label`): the core library's `docs/DATA_TABLE_GRID.md`.
    */
   layout?: DataTableLayout;
   /**
@@ -214,6 +214,8 @@ function LiveTableShell<T>({
             rightSlot={rowCount}
             sort={sort}
             onSortChange={onSortChange}
+            // What the body gets: a loading grid table names no column (the card header does not read it).
+            loading={loadingCells}
           />
         )}
         <DataTable.Body

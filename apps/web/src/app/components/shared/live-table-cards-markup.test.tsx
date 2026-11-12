@@ -2,9 +2,8 @@
  * `LiveTable`'s card layout, locked as markup: loaded, loading and empty.
  *
  * These snapshots were recorded BEFORE `LiveTable` learned the grid layout (`layout`, `maxHeight`, `settings`), and
- * that change left them untouched: a list that does not ask for the grid renders what it rendered before. A list that
- * moves to the grid keeps its card rows below `md`. Update a snapshot only for a change that means to alter the card
- * layout.
+ * that change left them untouched: a list that does not ask for the grid renders what it rendered before. Update a
+ * snapshot only for a change that means to alter the card layout.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';

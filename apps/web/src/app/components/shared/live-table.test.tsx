@@ -37,6 +37,9 @@ const fixedViewport = (container: HTMLElement) =>
 const settingsGear = (container: HTMLElement) => container.querySelector('[data-grid-settings-cell]');
 /** The infinite footer's sentinel. */
 const sentinel = (scope: ParentNode) => scope.querySelector('div.h-1[aria-hidden="true"]');
+/** The header cells of a loading grid table: a bar in the label's place. */
+const loadingHeaderCells = (container: HTMLElement) =>
+  gridHeader(container)?.querySelectorAll('[data-grid-header-loading]') ?? [];
 /** The ids of the columns the grid header draws, in order. */
 const headerColumns = (container: HTMLElement) =>
   [...(gridHeader(container)?.querySelectorAll('[data-grid-header-cell]') ?? [])].map(cell =>
@@ -72,11 +75,14 @@ describe('LiveTable, grid layout', () => {
     expect(settingsGear(container)).toBeNull();
   });
 
-  it('keeps the card rows in the tree for a narrow page, without their gap in the grid rows', () => {
-    const { container } = mount(<LoadedLiveTable layout="grid" />);
-    // Both forms are rendered and CSS shows one: the card rows keep `LiveTable`'s row gap, the grid rows touch.
-    expect(container.innerHTML).toContain('content-md:hidden');
-    expect(gridBody(container)?.innerHTML).not.toContain('mb-1');
+  it('is the grid at every width: no card rows in the tree, no card-row gap between the grid rows', () => {
+    const cards = mount(<LoadedLiveTable />);
+    const grid = mount(<LoadedLiveTable layout="grid" />);
+    // `LiveTable`'s row gap is a card-row option: the card rows carry it, the grid rows touch.
+    expect(cards.container.innerHTML).toContain('mb-1');
+    expect(grid.container.innerHTML).not.toContain('mb-1');
+    // Each row is drawn once, as a grid row.
+    expect(grid.container.textContent?.split('Maya Chen')).toHaveLength(2);
   });
 
   it('leaves the results count out when the list hides it, and the whole header with `showHeader={false}`', () => {
@@ -123,8 +129,10 @@ describe('LiveTable, grid layout', () => {
     const { container } = mount(<LoadingLiveTable layout="grid" maxHeight="fill" settings={{}} />);
 
     expect(gridBody(container)?.querySelectorAll('[data-loading-item]')).toHaveLength(FIXTURE_PAGE_SIZE);
-    // The loading table is the loaded table's markup: the same header, viewport and gear.
-    expect(headerColumns(container)).toEqual(['name', 'role']);
+    // The loading table is the loaded table's frame: the same viewport and gear, and a header that names no column
+    // yet (one bar per column, no sort or filter control).
+    expect(loadingHeaderCells(container)).toHaveLength(2);
+    expect(headerColumns(container)).toEqual([null, null]);
     expect(fixedViewport(container)).not.toBeNull();
     expect(settingsGear(container)).not.toBeNull();
     expect(metaRow(container)).not.toBeNull();
@@ -133,6 +141,13 @@ describe('LiveTable, grid layout', () => {
   it('draws a loaded list that is still read (`loadingCells`) as loading rows with their cells', () => {
     const { container } = mount(<LoadedLiveTable layout="grid" loadingCells />);
     expect(gridBody(container)?.querySelectorAll('[data-loading-item]')).toHaveLength(2);
+    // The header gets what the body gets: no column is named while the list is read.
+    expect(loadingHeaderCells(container)).toHaveLength(2);
+  });
+
+  it('names its columns once loaded', () => {
+    const { container } = mount(<LoadedLiveTable layout="grid" />);
+    expect(loadingHeaderCells(container)).toHaveLength(0);
   });
 
   it('dims the rows of a refetch in flight, and only then', () => {
