@@ -22,7 +22,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { copyEnvScript, envScript, insertEnvScript } from './ota-env.mjs';
 import { LEFT_OUT, pack, readBridgeLevel } from './ota-pack.mjs';
-import { packTarXz, readTar, writeTar, xzDecompress } from './ota-tar.mjs';
+import { MAX_XZ_DECODER_MEMORY, packTarXz, readTar, writeTar, xzDecompress } from './ota-tar.mjs';
 import { checkBundleContents, keyIdOf, loadKeys, verifyBundle, verifyManifest } from './ota-verify.mjs';
 
 const SCRIPTS = dirname(fileURLToPath(import.meta.url));
@@ -253,6 +253,23 @@ test('REQUIRED_BRIDGE_LEVEL is readable from native-shell.ts', () => {
   assert.ok(Number.isInteger(readBridgeLevel()) && readBridgeLevel() >= 1);
 });
 
+// A shell does not download a release that requires a bridge level above its own, so a bundle
+// in this tree that asked for more than a shell in this tree offers would stop that platform
+// updating, with nothing but "nothing" in its log.
+test('no shell in this tree offers less than the bundle requires', () => {
+  const level = (path, pattern) => {
+    const match = readFileSync(join(SCRIPTS, '..', path), 'utf8').match(pattern);
+    assert.ok(match, `${path}: no bridge level constant`);
+    return Number(match[1]);
+  };
+  const ios = level('ios/App/App/NativeUpdate.swift', /^\s*static let bridgeLevel: Int64 = (\d+)$/m);
+  const android = level(
+    'android/app/src/main/java/ai/openframe/mobile/NativeUpdate.java',
+    /^\s*static final int BRIDGE_LEVEL = (\d+);$/m,
+  );
+  assert.ok(readBridgeLevel() <= Math.min(ios, android), `required ${readBridgeLevel()}, iOS ${ios}, Android ${android}`);
+});
+
 test('an xz the host cannot run is a plain Error, never XZ: it says nothing about the bundle', () => {
   const dir = tempDir('ota-noexec-');
   writeFileSync(join(dir, 'xz'), '#!/bin/sh\n', { mode: 0o644 });
@@ -319,4 +336,17 @@ test('keygen fills a slot, keeps the private key out of every git work tree, and
   assert.match(existing.stderr, /EEXIST/);
   assert.equal(readFileSync(join(dir, 'current.pem'), 'utf8'), currentPem);
   assert.ok(!existsSync(freshKeys));
+});
+
+// The Android shell decodes with a memory limit and marks what it cannot decode as bad for good, so
+// a bundle the release verified but a phone cannot afford would stop that platform updating.
+test('a bundle packed with a dictionary the shells cannot afford is refused at release time', () => {
+  const tar = writeTar([{ name: 'index.html', data: Buffer.from('<html><head></head></html>') }]);
+  const packed = preset => {
+    const result = spawnSync('xz', [preset, '-T1', '--check=crc64', '-c'], { input: tar });
+    assert.equal(result.status, 0);
+    return result.stdout;
+  };
+  assert.deepEqual(xzDecompress(packed('-6')), tar);
+  assert.throws(() => xzDecompress(packed('-9')), { code: 'XZ', message: new RegExp(String(MAX_XZ_DECODER_MEMORY)) });
 });

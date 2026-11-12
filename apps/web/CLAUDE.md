@@ -122,7 +122,8 @@ owners/admins, its default "your workspace administrator can restore access" cop
 
 When hidden: Settings shows a **Usage** card (`billing-usage/components/usage-view.tsx` — device/AI
 counters and workspace limits over its own price-free query), `/checkout/*` 404s, and the subscription lock screen renders `WorkspaceInactiveScreen`
-instead of the plan picker. `isRouteAllowedInCurrentMode()` deliberately does NOT gate these: it
+instead of the plan picker. The Help Center has no Payment Terms card or page
+(`help-center/legal-documents.ts`): the document sets out plans, the trial and prices. `isRouteAllowedInCurrentMode()` deliberately does NOT gate these: it
 answers from app mode alone, and consulting a server-loaded flag there once threw "Access restricted"
 over billing routes for as long as the flags query was in flight.
 
@@ -134,6 +135,44 @@ modal** on the billing page (`billing-usage/components/upgrade-plan-modal.tsx`),
 **Any new payment-adjacent UI must pick its tier: figures (price, plan, invoice) are gated on
 `isBillingHidden()`; anything that changes billing (upgrade/pay/cancel CTA, limit control) also on
 `isBillingReadOnly()`.**
+
+### Over-the-air bundles (the mobile shells run releases they were not built with)
+
+Every release's static export is also published as a signed bundle, and installed mobile apps take
+the one their environment runs without a store release (`apps/mobile/docs/ota.md`). Three rules
+follow for code in this app.
+
+**1. What reaches phones only with a store build.** Apple reviewed the app as its review notes
+describe it (`apps/mobile/AppStore-Review-Notes.txt`), and a bundle that makes a line of them false
+changes the app after review (App Store 2.5.2, 2.3.1). These wait for a store release, however small
+the diff:
+- payment, price, plan or invoice visibility (`lib/billing-visibility.ts`, `lib/platform.ts`,
+  `settings/billing-usage/**`, `checkout/**`, `components/subscription-lock/**`,
+  `help-center/legal-documents.ts`, `help-center/legal/**`,
+  `help-center/components/help-center-menu.tsx`), and any link that
+  leads to a pricing or sign-up page (`components/shared/powered-by-flamingo.tsx`);
+- registration and the auth UI (`(auth)/**`, how `NEXT_PUBLIC_MOBILE_AUTH_UI` is read);
+- account deletion;
+- permission prompts or when they appear (`native-push`, biometrics, `native-files`, camera and
+  microphone flows);
+- a new external service, SDK or data collection that changes the privacy label;
+- a `REQUIRED_BRIDGE_LEVEL` bump.
+
+Fixes, copy, layout, performance and new pages inside the areas the notes describe ship over the air.
+
+**2. A bundle reports that it booted, before anything can hang.** `confirmBundleBooted()`
+(`lib/native-update.ts`, called from `NativeShellInitializer` after the synchronous shell setup and
+before token hydration) checks the
+bridge members this bundle cannot run without and then calls `NativeUpdate.notifyReady()`. A bundle
+that does not report within two launches is marked bad and the shell goes back to the one before it.
+Nothing may be put in front of that call that waits on the network, a prompt or the user.
+
+**3. Persisted state must stay readable by the bundle before it.** A rollback runs release N on
+what release N+1 stored. Bump a zustand `persist` store's `version` on any shape change (with no
+`migrate`, zustand discards a version it does not know, which is safe); a `migrate` returns the
+defaults when the stored version is above its own; raw `localStorage` keys (`native:*`,
+`auth-storage`) only gain fields. A new `window.__ENV` key needs a default: an over-the-air bundle
+runs with the env of the store build it landed on.
 
 ## Architecture & Structure
 

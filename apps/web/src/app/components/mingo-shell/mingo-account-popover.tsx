@@ -26,6 +26,15 @@ interface MingoAccountPopoverProps {
    * sidebar's Settings and Help Center rows were not.
    */
   locked: boolean;
+  /** Where the rail's avatar sits (`AccountPopover` `collapsedAlign`); the Mingo-first rail keeps `start`. */
+  collapsedAlign?: 'start' | 'center';
+  /** The trigger is the avatar alone at every width (`AccountPopover` `avatarOnly`): Manhattan v2's chats footer. */
+  avatarOnly?: boolean;
+  /**
+   * The menu holds Log out alone under the name and email (Manhattan v2: Settings and Help
+   * Center are in the navigation sidebar).
+   */
+  logoutOnly?: boolean;
 }
 
 /**
@@ -35,7 +44,13 @@ interface MingoAccountPopoverProps {
  * replies" with their count, opening the ticket with the newest one, and the unread dot
  * on the avatar. Also drawn at the foot of the phone drawer.
  */
-export function MingoAccountPopover({ collapsed, locked }: MingoAccountPopoverProps) {
+export function MingoAccountPopover({
+  collapsed,
+  locked,
+  collapsedAlign,
+  avatarOnly = false,
+  logoutOnly = false,
+}: MingoAccountPopoverProps) {
   const firstName = useAuthStore(state => state.user?.firstName);
   const lastName = useAuthStore(state => state.user?.lastName);
   const email = useAuthStore(state => state.user?.email);
@@ -49,45 +64,56 @@ export function MingoAccountPopover({ collapsed, locked }: MingoAccountPopoverPr
 
   // An item that navigates also closes the phone drawer it may sit in: a navigation to
   // the page already on screen does not move the location the layout closes it on.
-  const items: AccountPopoverEntry[] = [
-    ...(unreadReplies > 0
-      ? [
-          {
-            id: 'support-replies',
-            label: 'Support replies',
-            icon: <LifeBuoyIcon />,
-            href: ticketLive?.nextUnreadTicketId
-              ? buildTicketOpenHref(routes.helpCenter.tickets, ticketLive.nextUnreadTicketId)
-              : routes.helpCenter.tickets,
-            count: unreadReplies,
-            onSelect: closeMobileMenu,
-            disabled: locked,
-          },
-        ]
-      : []),
-    {
-      id: 'settings',
-      label: 'Settings',
-      icon: <Settings02Icon />,
-      href: routes.settings.root(),
-      onSelect: closeMobileMenu,
-      disabled: locked,
-    },
-    {
-      id: 'help-center',
-      label: 'Help Center',
-      icon: <QuestionCircleIcon />,
-      href: routes.helpCenter.root,
-      onSelect: closeMobileMenu,
-      disabled: locked,
-    },
-    { type: 'divider', id: 'divider' },
-    { id: 'logout', label: 'Log out', icon: <Logout02Icon />, tone: 'danger', onSelect: openLogoutConfirm },
-  ];
+  const logout: AccountPopoverEntry = {
+    id: 'logout',
+    label: 'Log out',
+    icon: <Logout02Icon />,
+    tone: 'danger',
+    onSelect: openLogoutConfirm,
+  };
+  const items: AccountPopoverEntry[] = logoutOnly
+    ? [logout]
+    : [
+        ...(unreadReplies > 0
+          ? [
+              {
+                id: 'support-replies',
+                label: 'Support replies',
+                icon: <LifeBuoyIcon />,
+                href: ticketLive?.nextUnreadTicketId
+                  ? buildTicketOpenHref(routes.helpCenter.tickets, ticketLive.nextUnreadTicketId)
+                  : routes.helpCenter.tickets,
+                count: unreadReplies,
+                onSelect: closeMobileMenu,
+                disabled: locked,
+              },
+            ]
+          : []),
+        {
+          id: 'settings',
+          label: 'Settings',
+          icon: <Settings02Icon />,
+          href: routes.settings.root(),
+          onSelect: closeMobileMenu,
+          disabled: locked,
+        },
+        {
+          id: 'help-center',
+          label: 'Help Center',
+          icon: <QuestionCircleIcon />,
+          href: routes.helpCenter.root,
+          onSelect: closeMobileMenu,
+          disabled: locked,
+        },
+        { type: 'divider', id: 'divider' },
+        logout,
+      ];
 
   return (
     <AccountPopover
       collapsed={collapsed}
+      collapsedAlign={collapsedAlign}
+      avatarOnly={avatarOnly}
       name={name}
       email={email}
       avatarUrl={getFullImageUrl(imageUrl, imageHash) ?? null}

@@ -40,6 +40,15 @@ if [ "${SKIP_WEB:-0}" != "1" ]; then
   "$HERE/scripts/build-web.sh"
 fi
 
+# A store build takes over-the-air updates only if its bundle says which release it is
+# (docs/ota.md, "On the phone"). A checkout that is not exactly a release tag stamps nothing, and
+# that would ship a whole store version with updates off.
+if [ ! -f "$HERE/www/ota-builtin.json" ]; then
+  echo "✗ www/ has no ota-builtin.json: the bundle was not built from a release tag." >&2
+  echo "  Build from the tag, or pass OPENFRAME_BUNDLE_VERSION=x.y.z, the release this bundle is." >&2
+  exit 1
+fi
+
 if [ "${WEB_ONLY:-0}" = "1" ]; then
   echo "✓ Prod web bundle staged (WEB_ONLY). Local run: Android Studio → prodDebug variant."
   exit 0

@@ -24,7 +24,12 @@ if [ ! -d "$WEB_DIR/node_modules" ]; then
   ( cd "$WEB_DIR" && npm ci )
 fi
 
-echo "▸ Building static export ($WEB_DIR)…"
+# Resolved here, the way next.config.mjs would, and handed to the build, so the version the bundle
+# reports and the one stamped beside it (ota-stamp.mjs) are one value.
+OPENFRAME_BUNDLE_VERSION="${OPENFRAME_BUNDLE_VERSION:-$(git -C "$WEB_DIR" describe --tags --match '[0-9]*' --always --dirty --abbrev=7 2>/dev/null || true)}"
+export OPENFRAME_BUNDLE_VERSION
+
+echo "▸ Building static export ($WEB_DIR), bundle version ${OPENFRAME_BUNDLE_VERSION:-unknown}…"
 ( cd "$WEB_DIR" && OPENFRAME_BUILD_TARGET="export" npm run build )
 
 echo "▸ Staging export bundle → www/"
@@ -33,6 +38,8 @@ cp -R "$WEB_DIR/dist" "$HERE/www"
 
 echo "▸ Injecting runtime env (window.__ENV)…"
 node "$HERE/scripts/inject-env.mjs"
+
+node "$HERE/scripts/ota-stamp.mjs" "$OPENFRAME_BUNDLE_VERSION" "$HERE/www"
 
 echo "▸ Syncing into native projects…"
 ( cd "$HERE" && npx cap sync )

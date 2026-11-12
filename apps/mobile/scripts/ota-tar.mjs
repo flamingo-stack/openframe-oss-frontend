@@ -22,6 +22,10 @@ const END = Buffer.alloc(2 * BLOCK);
 // The magic that opens every xz stream. Apple's COMPRESSION_LZMA also decodes the legacy .lzma
 // container, which has none, and consumes all of it, so the shells look for this first.
 const XZ_MAGIC = Buffer.from([0xfd, 0x37, 0x7a, 0x58, 0x5a, 0x00]);
+// What a shell may need to decode a bundle. The Android shell reads with a 64 MiB decoder limit and
+// marks a release it cannot decode as bad for good, so a bundle packed with a larger dictionary
+// (`xz -9` needs 65 MiB) would pass here and stop every Android phone updating. `-6` needs 8 MiB.
+export const MAX_XZ_DECODER_MEMORY = 32 * 2 ** 20;
 
 /**
  * A relative file path the shells may write as-is: printable ASCII without space or backslash,
@@ -110,7 +114,8 @@ export function packTarXz(entries) {
 }
 
 /**
- * Refuses anything but exactly one xz stream with nothing after it, not even stream padding.
+ * Refuses anything but exactly one xz stream with nothing after it, not even stream padding, and
+ * one the shells can afford to decode (MAX_XZ_DECODER_MEMORY).
  * Decoders disagree past the first stream: `xz` decodes every concatenated stream, Apple's
  * COMPRESSION_LZMA stops after the first without an error, so a second stream would give the
  * phones different files from the ones this script checked.
@@ -121,9 +126,11 @@ function assertOneXzStream(archive) {
   try {
     const file = join(dir, 'bundle.xz');
     writeFileSync(file, archive);
-    const result = xz(['--robot', '--list', file], { encoding: 'utf8' });
-    const line = result.stdout?.split('\n').find(l => l.startsWith('file\t'));
-    if (result.error || result.status !== 0 || !line) {
+    const result = xz(['--robot', '--list', '-vv', file], { encoding: 'utf8' });
+    const lines = result.stdout?.split('\n') ?? [];
+    const line = lines.find(l => l.startsWith('file\t'));
+    const summary = lines.find(l => l.startsWith('summary\t'));
+    if (result.error || result.status !== 0 || !line || !summary) {
       throw new OtaError('XZ', `not an intact xz file: ${xzFailure(result)}`);
     }
     // file, streams, blocks, compressed, uncompressed, ratio, check, padding
@@ -132,6 +139,14 @@ function assertOneXzStream(archive) {
       throw new OtaError(
         'XZ',
         `${streams} xz streams and ${padding} bytes of stream padding: the bundle must be one stream`,
+      );
+    }
+    // summary, memory needed to decode, ...
+    const memory = Number(summary.split('\t')[1]);
+    if (!(memory <= MAX_XZ_DECODER_MEMORY)) {
+      throw new OtaError(
+        'XZ',
+        `decoding needs ${memory} bytes, over the ${MAX_XZ_DECODER_MEMORY} the shells are held to: pack with xz ${XZ_ENCODE[0]}`,
       );
     }
   } finally {

@@ -12,9 +12,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { routes } from '@/lib/routes';
 import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
+import { useManhattanCentreStore } from '../manhattan-shell/manhattan-centre-store';
+import { ManhattanDockContext } from '../manhattan-shell/manhattan-dock-context';
 import { useChatPageNodeStore } from './chat-page-node-store';
 import { MingoComposerDock } from './mingo-composer-dock';
-import { composerRouteOf } from './mingo-dock-route';
+import { composerRouteOf, dockViewOf } from './mingo-dock-route';
 import { useMingoSheetStore } from './mingo-sheet-store';
 
 const {
@@ -97,6 +99,7 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/icons-v2', () => ({
   PackageCheckIcon: () => null,
   Refresh01RightIcon: () => null,
   Collapse02Icon: () => null,
+  Expand01Icon: () => null,
   Expand02Icon: () => null,
   XmarkIcon: () => null,
 }));
@@ -691,6 +694,65 @@ describe('MingoComposerDock', () => {
     });
   });
 
+  describe('Manhattan v2: the chat column beside every page', () => {
+    const columnNode = document.createElement('div');
+    function renderV2(href: string) {
+      const [pathname, search = ''] = href.split('?');
+      nav.pathname = pathname;
+      nav.search = search;
+      act(() =>
+        root.render(
+          <ManhattanDockContext.Provider value>
+            <MingoComposerDock />
+          </ManhattanDockContext.Provider>,
+        ),
+      );
+    }
+    beforeEach(() => {
+      chips.onSend = null;
+      useManhattanCentreStore.setState({
+        chatView: 'split',
+        compact: false,
+        shownMode: null,
+        whatToAskInColumn: false,
+        threadNode: columnNode,
+      });
+    });
+
+    it('with no chat open, Start Work holds the column: no thread portalled, a new chat composer, the quick actions', () => {
+      renderV2('/devices/');
+      expect(props().threadContainer).toBeNull();
+      expect(props().composerPlaceholder).toBe(dockViewOf('home').placeholder);
+      expect(chips.onSend).not.toBeNull();
+    });
+
+    it('a full-height page has the chat beside it too', () => {
+      setSurface({ activeDialogId: 'd-1' });
+      renderV2('/devices/details/remote-shell/?id=m-1');
+      expect(props().threadContainer).toBe(columnNode);
+    });
+
+    it('"Close chat" beside a page lets the chat go and leaves the page alone', () => {
+      setSurface({ activeDialogId: 'd-1' });
+      renderV2('/devices/');
+      expect(props().threadContainer).toBe(columnNode);
+      const close = headerActions().find(action => action.label === 'Close chat');
+      if (!close) throw new Error('no Close chat');
+      act(() => close.onClick());
+      expect(panel.startNewChat).toHaveBeenCalledOnce();
+      expect(useManhattanCentreStore.getState().chatView).toBe('hidden');
+    });
+
+    it('answers Start Work\'s "What to ask Mingo?" in the column, once per request', () => {
+      renderV2('/devices/');
+      act(() => useManhattanCentreStore.setState({ whatToAskInColumn: true }));
+      expect(panel.showWhatToAsk).toHaveBeenCalledOnce();
+      expect(props().threadContainer).toBe(columnNode);
+      renderV2('/devices/');
+      expect(panel.showWhatToAsk).toHaveBeenCalledOnce();
+    });
+  });
+
   describe("Compact: the chat's ⋯, not a button under the input", () => {
     it("hands the session's Compact to the chat's dialog actions", () => {
       setSurface({ activeDialogId: 'd-1' });
@@ -761,6 +823,23 @@ describe('MingoComposerDock', () => {
 
       useMingoSheetStore.setState({ open: true });
       render('/scripts/new/');
+      expect(section()?.className).not.toContain('max-md:hidden');
+    });
+
+    it("steps out from under the chat list on Mingo's own pages in Manhattan v2, so the list fills the screen", () => {
+      nav.pathname = '/mingo/';
+      nav.search = '';
+      act(() =>
+        root.render(
+          <ManhattanDockContext.Provider value>
+            <MingoComposerDock />
+          </ManhattanDockContext.Provider>,
+        ),
+      );
+      expect(section()?.className).not.toContain('max-md:hidden');
+      act(() => useMingoSheetStore.getState().showList());
+      expect(section()?.className).toContain('max-md:hidden');
+      act(() => useMingoSheetStore.getState().hideList());
       expect(section()?.className).not.toContain('max-md:hidden');
     });
 

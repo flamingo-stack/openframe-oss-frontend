@@ -426,15 +426,11 @@ describe('SessionRecordingsApiService', () => {
     await expect(service.get('rec-1')).rejects.toBe(timeout);
   });
 
-  it("reads a live session by its id with its device's hostname, the customer, the chat so far and whether it is recorded", async () => {
+  it("reads a live session by its id with its device's hostname, the customer, its chat dialog and whether it is recorded", async () => {
     queriesAnswer(
       { remoteSession: { ...session({ status: 'ACTIVE', recordings: [] }), recordingSuppressed: null } },
       { device: { hostname: 'Romans-MacBook-Pro.local' } },
     );
-    chat.history.mockResolvedValue({
-      messages: [{ id: 'm1', author: 'user', authorName: 'User', sentAt: '2026-09-25T10:50:10Z', body: 'Hello' }],
-      lastSeq: 0,
-    });
 
     const detail = await service.live('session-1');
     expect(detail).toMatchObject({
@@ -444,8 +440,10 @@ describe('SessionRecordingsApiService', () => {
       hostname: 'Romans-MacBook-Pro.local',
       organization: { id: 'org-1', name: 'Acme' },
       notRecorded: false,
+      dialogId: 'dialog-1',
     });
-    expect(detail.chat.map(message => message.body)).toEqual(['Hello']);
+    // The page follows the chat live; reading the transcript on every poll is what it replaced.
+    expect(chat.history).not.toHaveBeenCalled();
     expect(relay.fetchQuery.mock.calls[0][2]).toEqual({ sessionId: 'session-1' });
     expect(variablesSent('sessionRecordingsApiServiceDeviceQuery')).toEqual([{ machineId: 'machine-1' }]);
   });
@@ -455,7 +453,6 @@ describe('SessionRecordingsApiService', () => {
       { remoteSession: { ...session({ status: 'ACTIVE', recordings: [] }), recordingSuppressed: 'STORAGE_FULL' } },
       { device: null },
     );
-    chat.history.mockResolvedValue({ messages: [], lastSeq: 0 });
     expect((await service.live('session-1')).notRecorded).toBe(true);
   });
 

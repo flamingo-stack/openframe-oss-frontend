@@ -4,6 +4,9 @@
  * signup. An OS notification click: the initializer follows the payload the shell forwards, the
  * click that started the app included. What the shell holds and how the signup sends it are tested
  * on their own sides; verified here is the seam.
+ *
+ * And the mobile shell's one: the report that this bundle booted, which its over-the-air updater
+ * waits for, goes out after the synchronous shell setup and before the tokens are hydrated.
  */
 
 import { act } from 'react';
@@ -12,6 +15,9 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 
 const shell = vi.hoisted(() => ({
   desktop: true,
+  mobile: false,
+  boot: [] as string[],
+  backFails: false,
   calls: [] as string[],
   pending: [] as (string | null)[],
   signal: null as (() => void) | null,
@@ -31,20 +37,39 @@ vi.mock('@/graphql/notifications/mark-notification-read-mutation', () => ({
 }));
 vi.mock('@/lib/client-identity', () => ({ primeShellVersion: vi.fn() }));
 vi.mock('@/lib/keyboard-inset', () => ({ initKeyboardInset: vi.fn() }));
-vi.mock('@/lib/native-back', () => ({ initNativeBack: vi.fn() }));
-vi.mock('@/lib/token-store', () => ({ initTokenStore: () => Promise.resolve() }));
+vi.mock('@/lib/native-back', () => ({
+  initNativeBack: () => {
+    if (shell.backFails) throw new Error('no back bridge');
+    shell.boot.push('hardware back');
+  },
+}));
+vi.mock('@/lib/token-store', () => ({
+  initTokenStore: () => {
+    shell.boot.push('hydrate tokens');
+    return Promise.resolve();
+  },
+}));
+vi.mock('@/lib/native-update', () => ({
+  confirmBundleBooted: () => {
+    shell.boot.push('confirm bundle');
+    return Promise.resolve();
+  },
+}));
 // The tenant host decides whether an announcement's link is a page of the app.
 vi.mock('@/lib/runtime-config', () => ({ runtimeEnv: { tenantHostUrl: () => shell.tenantHost } }));
 vi.mock('@/lib/platform', () => ({
-  isAppShell: () => shell.desktop,
+  isAppShell: () => shell.desktop || shell.mobile,
   isDesktopShell: () => shell.desktop,
-  isMobileShell: () => false,
-  shellKind: () => (shell.desktop ? 'desktop' : 'web'),
+  isMobileShell: () => shell.mobile,
+  shellKind: () => (shell.desktop ? 'desktop' : shell.mobile ? 'mobile' : 'web'),
 }));
 vi.mock('@/lib/registration-attribution', () => ({ storeDownloadId: shell.store }));
 vi.mock('@/lib/native-shell', () => ({
   hideSplashScreen: () => Promise.resolve(),
-  initNativeChrome: () => Promise.resolve(),
+  initNativeChrome: () => {
+    shell.boot.push('native chrome');
+    return Promise.resolve();
+  },
   // Without a transport the notification half stops before it takes anything.
   onNativeNotificationClick: (callback: (payload: unknown) => void) => {
     if (!shell.clickTransport) return Promise.resolve(false);
@@ -83,6 +108,9 @@ beforeAll(async () => {
 beforeEach(() => {
   vi.resetModules();
   shell.desktop = true;
+  shell.mobile = false;
+  shell.boot = [];
+  shell.backFails = false;
   shell.calls = [];
   shell.pending = [];
   shell.signal = null;
@@ -203,5 +231,48 @@ describe('a desktop notification click', () => {
     await mount();
 
     await vi.waitFor(() => expect(open).toHaveBeenCalledWith(LINK, '_blank', 'noopener,noreferrer'));
+  });
+});
+
+describe('the report that this bundle booted', () => {
+  // A release whose back setup throws stops there, unconfirmed, and the shell reverts it.
+  // Hydration can wait on a biometric prompt, so the report cannot come after it.
+  it('goes out on the mobile shell after the chrome and back setup, and before the tokens are hydrated', async () => {
+    shell.desktop = false;
+    shell.mobile = true;
+    await mount();
+    expect(shell.boot).toEqual(['native chrome', 'hardware back', 'confirm bundle', 'hydrate tokens']);
+  });
+
+  it('is withheld from a bundle whose back setup throws', async () => {
+    shell.desktop = false;
+    shell.mobile = true;
+    shell.backFails = true;
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    await expect(mount()).rejects.toThrow('no back bridge');
+    expect(shell.boot).toEqual(['native chrome']);
+  });
+
+  it('goes out once per document, however often the initializer mounts', async () => {
+    shell.desktop = false;
+    shell.mobile = true;
+    await mount();
+    act(() => root.unmount());
+    root = createRoot(container);
+    await mount();
+    expect(shell.boot.filter(step => step === 'confirm bundle')).toHaveLength(1);
+    expect(shell.boot.filter(step => step === 'hydrate tokens')).toHaveLength(2);
+  });
+
+  it('is not made on the desktop shell or in the browser', async () => {
+    await mount();
+    expect(shell.boot).toEqual(['hydrate tokens']);
+
+    act(() => root.unmount());
+    root = createRoot(container);
+    shell.desktop = false;
+    shell.boot = [];
+    await mount();
+    expect(shell.boot).toEqual([]);
   });
 });

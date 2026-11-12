@@ -30,6 +30,7 @@ import { commitMutationPromise } from '@/lib/relay/commit-mutation';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { getAccessTokenSync, isBearerAuthMode } from '@/lib/token-store';
 import { uniqueSessions } from '../components/remote-sessions/live-session-rows';
+import { toRecordingChatMessage } from '../types/remote-session-chat';
 import type {
   LiveSessionDetail,
   RecordingChatMessage,
@@ -322,13 +323,7 @@ async function readTranscript(dialogId: string | null | undefined): Promise<Reco
   if (!dialogId) return [];
   try {
     const { messages } = await remoteSessionChatApiService.history(dialogId);
-    return messages.map(message => ({
-      id: message.id,
-      author: message.authorName,
-      fromTechnician: message.author === 'technician',
-      sentAt: message.sentAt,
-      body: message.body,
-    }));
+    return messages.map(toRecordingChatMessage);
   } catch {
     return [];
   }
@@ -465,13 +460,14 @@ export class SessionRecordingsApiService implements ISessionRecordingsService {
     if (!data?.remoteSession) throw new SessionNotFoundError();
     const { remoteSession } = data;
     const session = readSession(remoteSession);
-    const [device, chat] = await Promise.all([readDevice(session.deviceId), readTranscript(session.dialogId)]);
+    // The chat is not read here: the page follows the dialog live (`useRemoteSessionChat`), from its own first page.
+    const device = await readDevice(session.deviceId);
     return {
       ...fromWireSession(session),
       hostname: device?.hostname ?? undefined,
       organization: fromWireOrganization(session, device),
       notRecorded: remoteSession.recordingSuppressed != null,
-      chat,
+      dialogId: session.dialogId ?? null,
     };
   }
 

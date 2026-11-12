@@ -11,6 +11,8 @@ const SIDEBAR_MINIMIZED_WIDTH = 56;
 export const SIDEBAR_EXPANDED_WIDTH = 224;
 /** The Mingo-first sidebar's expanded width — a SaaS tenant's (see `AppShell`). */
 export const GROUPED_SIDEBAR_EXPANDED_WIDTH = 264;
+/** The Manhattan v2 chats sidebar's expanded width (Figma 280), what a SaaS tenant gets; the user's dragged width wins (`SIDEBAR_RESIZE`). */
+export const MANHATTAN_CHATS_EXPANDED_WIDTH = 280;
 const SIDEBAR_MINIMIZED_STORAGE_KEY = 'of.navigationSidebar.minimized';
 
 /**
@@ -28,6 +30,21 @@ export const SIDEBAR_MAX_EXPANDED_WIDTH = 480;
  */
 export const SIDEBAR_WIDTH_STORAGE_KEY = 'of.navigationSidebar.width';
 const SIDEBAR_CHOSEN_WIDTH_STORAGE_KEY = `${SIDEBAR_WIDTH_STORAGE_KEY}:chosen`;
+
+/**
+ * The expanded width the user chose for the sidebar (dragged or stepped), clamped to the
+ * bounds; `fallback` when none was chosen or storage refuses. Client only.
+ */
+export function readChosenSidebarWidth(fallback: number): number {
+  try {
+    const chosen: unknown = JSON.parse(window.localStorage.getItem(SIDEBAR_CHOSEN_WIDTH_STORAGE_KEY) ?? 'null');
+    const size = (chosen as { size?: unknown } | null)?.size;
+    if (typeof size !== 'number' || !Number.isFinite(size)) return fallback;
+    return Math.min(SIDEBAR_MAX_EXPANDED_WIDTH, Math.max(SIDEBAR_MIN_EXPANDED_WIDTH, Math.round(size)));
+  } catch {
+    return fallback;
+  }
+}
 
 /**
  * `NavigationSidebarConfig.resizable` for both shells: the bounds above and the key
@@ -60,6 +77,12 @@ export const SIDEBAR_RESIZE = {
  * an ellipsis where a custom property belongs — which fails the build.
  */
 const SIDEBAR_WIDTH_CSS_VAR = '--of-navigation-sidebar-width';
+/**
+ * The right navigation's width var (the lib's `NAVIGATION_SIDEBAR_END_WIDTH_VAR`, spelled out
+ * for the same reason). The grouped shell's right navigation starts collapsed on every load
+ * (`useManhattanNavCollapsed`), so the seed is always the rail.
+ */
+const SIDEBAR_END_WIDTH_CSS_VAR = '--of-navigation-sidebar-end-width';
 
 /**
  * The sidebar's root element. Used by viewport-`fixed` overlays that have to
@@ -119,8 +142,11 @@ const runtimeJoin = (parts: TemplateStringsArray, ...values: Array<string | numb
  * loaded at tablet width and then widened the window.
  */
 export function sidebarWidthFoucScript(grouped: boolean): string {
-  const expanded = grouped ? GROUPED_SIDEBAR_EXPANDED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
-  return runtimeJoin`(function(){try{var m=localStorage.getItem('${SIDEBAR_MINIMIZED_STORAGE_KEY}')==='true';var w=${expanded};try{var c=JSON.parse(localStorage.getItem('${SIDEBAR_CHOSEN_WIDTH_STORAGE_KEY}'));if(c&&typeof c.size==='number'&&isFinite(c.size)){w=Math.min(${SIDEBAR_MAX_EXPANDED_WIDTH},Math.max(${SIDEBAR_MIN_EXPANDED_WIDTH},Math.round(c.size)));}}catch(e){}document.documentElement.style.setProperty('${SIDEBAR_WIDTH_CSS_VAR}',m?'${SIDEBAR_MINIMIZED_WIDTH}px':w+'px');}catch(e){}})();`;
+  const expanded = grouped ? MANHATTAN_CHATS_EXPANDED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
+  const endSeed = grouped
+    ? runtimeJoin`document.documentElement.style.setProperty('${SIDEBAR_END_WIDTH_CSS_VAR}','${SIDEBAR_MINIMIZED_WIDTH}px');`
+    : '';
+  return runtimeJoin`(function(){${endSeed}try{var m=localStorage.getItem('${SIDEBAR_MINIMIZED_STORAGE_KEY}')==='true';var w=${expanded};try{var c=JSON.parse(localStorage.getItem('${SIDEBAR_CHOSEN_WIDTH_STORAGE_KEY}'));if(c&&typeof c.size==='number'&&isFinite(c.size)){w=Math.min(${SIDEBAR_MAX_EXPANDED_WIDTH},Math.max(${SIDEBAR_MIN_EXPANDED_WIDTH},Math.round(c.size)));}}catch(e){}document.documentElement.style.setProperty('${SIDEBAR_WIDTH_CSS_VAR}',m?'${SIDEBAR_MINIMIZED_WIDTH}px':w+'px');}catch(e){}})();`;
 }
 
 // --------------------------------------------------------------------------

@@ -1,4 +1,5 @@
 import type { RemoteSessionChatMessage as DesktopChatMessage } from '@flamingo-stack/openframe-frontend-core/components/features';
+import type { RecordingChatMessage } from './session-recording';
 
 // Session chat between the technician and the end user during a remote
 // screen session. The technician side lives on the remote-desktop page; the
@@ -28,6 +29,17 @@ export function toDesktopChatMessage(message: RemoteSessionChatMessage): Desktop
     name: message.authorName,
     text: message.body,
     at: new Date(message.sentAt),
+  };
+}
+
+/** A message as the read-only session transcript shows it: the recording page and the live session page. */
+export function toRecordingChatMessage(message: RemoteSessionChatMessage): RecordingChatMessage {
+  return {
+    id: message.id,
+    author: message.authorName,
+    fromTechnician: message.author === 'technician',
+    sentAt: message.sentAt,
+    body: message.body,
   };
 }
 

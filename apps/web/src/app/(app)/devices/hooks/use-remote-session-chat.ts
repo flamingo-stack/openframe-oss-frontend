@@ -6,11 +6,15 @@ import { NATS_TOPICS } from '@/app/(app)/tickets/constants';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useNatsAppConfig } from '@/lib/nats/nats-app-config';
+import { sessionPollsAllowed } from '@/lib/session-poll';
 import { useRemoteAccessSession } from '../components/remote-access/remote-access-session-context';
 import { decodeRemoteSessionChatChunk, remoteSessionChatApiService } from '../services/remote-session-chat-api-service';
 import type { RemoteSessionChatMessage, RemoteSessionChatTechnician } from '../types/remote-session-chat';
 
 const CHAT_CHUNKS_STREAM = 'CHAT_CHUNKS';
+
+/** How often the history page is read while the live feed is not up. */
+export const HISTORY_FALLBACK_MS = 10_000;
 
 /**
  * The chat dialog of the current remote session: the id the session record
@@ -81,13 +85,22 @@ export interface RemoteSessionChatState {
  * The feed runs whether the panel is open or not, so an end-user message that
  * arrives while `panelOpen` is false raises `hasUnread`; the history the page
  * opens with is old news and never does, nor do the technician's own lines.
+ *
+ * `host` is the technician who runs the session, when that is not the one
+ * signed in (a colleague watching it): a live line of theirs that carries no
+ * name is theirs, not the watcher's. Without it, the signed-in technician.
  */
-export function useRemoteSessionChat(dialogId: string | null, panelOpen = false): RemoteSessionChatState {
+export function useRemoteSessionChat(
+  dialogId: string | null,
+  panelOpen = false,
+  host?: RemoteSessionChatTechnician,
+): RemoteSessionChatState {
   // One record per dialog: a dialog change is a derived reset (no setState in
   // the effect body), live rows arriving before the page stay ordered after it.
   const [store, setStore] = useState<ChatStore>(EMPTY_STORE);
   const [sending, setSending] = useState(false);
-  const technician = useRemoteSessionChatTechnician();
+  const signedIn = useRemoteSessionChatTechnician();
+  const technician = host ?? signedIn;
   const technicianRef = useRef(technician);
   useEffect(() => {
     technicianRef.current = technician;
@@ -149,7 +162,7 @@ export function useRemoteSessionChat(dialogId: string | null, panelOpen = false)
   // The dialog's feed, from the page's tail once the page is in.
   const { getWsUrl, onBeforeReconnect } = useNatsAppConfig();
   const current = store.dialogId === dialogId ? store : EMPTY_STORE;
-  const { caughtUpCount } = useJetStreamDialogSubscription({
+  const { caughtUpCount, isSubscribed } = useJetStreamDialogSubscription({
     enabled: dialogId !== null && current.historyLoaded,
     dialogId,
     streamName: CHAT_CHUNKS_STREAM,
@@ -173,6 +186,19 @@ export function useRemoteSessionChat(dialogId: string | null, panelOpen = false)
     lastCatchUpRef.current = caughtUpCount;
     setHistoryRevision(n => n + 1);
   }, [caughtUpCount]);
+
+  // While the feed is not up (the socket never connected, or dropped and is
+  // retrying), the page is read again every 10 s, so the chat still moves
+  // behind a network that blocks the WebSocket. It stops once the feed is in;
+  // a paused session sends nothing.
+  const feedDown = dialogId !== null && current.historyLoaded && !isSubscribed;
+  useEffect(() => {
+    if (!feedDown) return undefined;
+    const timer = setInterval(() => {
+      if (sessionPollsAllowed()) setHistoryRevision(n => n + 1);
+    }, HISTORY_FALLBACK_MS);
+    return () => clearInterval(timer);
+  }, [feedDown]);
 
   const send = useCallback(
     async (body: string) => {

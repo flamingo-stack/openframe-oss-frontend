@@ -1,6 +1,7 @@
 import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ManhattanDockContext } from '@/app/components/manhattan-shell/manhattan-dock-context';
 import { MingoComposerSheet, SHEET_DEFAULT_HEIGHT } from './mingo-composer-sheet';
 import { useMingoSheetStore } from './mingo-sheet-store';
 
@@ -9,6 +10,7 @@ interface SheetProps {
   height: number | null;
   defaultShare?: number;
   resizable?: boolean;
+  flushTop?: boolean;
   onDismiss: () => void;
   children?: ReactNode;
 }
@@ -72,6 +74,29 @@ describe('MingoComposerSheet height', () => {
     expect(sheet.props?.height).toBeNull();
     expect(sheet.props?.defaultShare).toBe(1);
     expect(sheet.props?.resizable).toBe(false);
+  });
+
+  it('meets the phone top bar flush in Manhattan v2 only (no top corners or border)', () => {
+    viewport.mdUp = false;
+    render();
+    expect(sheet.props?.flushTop).toBe(false);
+    act(() =>
+      root.render(
+        <ManhattanDockContext.Provider value>
+          <MingoComposerSheet />
+        </ManhattanDockContext.Provider>,
+      ),
+    );
+    expect(sheet.props?.flushTop).toBe(true);
+    viewport.mdUp = true;
+    act(() =>
+      root.render(
+        <ManhattanDockContext.Provider value>
+          <MingoComposerSheet />
+        </ManhattanDockContext.Provider>,
+      ),
+    );
+    expect(sheet.props?.flushTop).toBe(false);
   });
 });
 
@@ -160,6 +185,27 @@ describe("MingoComposerSheet: a phone's chat list", () => {
     location.search = 'id=a';
     render();
     expect(useMingoSheetStore.getState().listOpen).toBe(false);
+  });
+
+  it("draws the list over Mingo's own pages in Manhattan v2 only (its top bar button opens it from any page)", () => {
+    location.pathname = '/mingo/chat/';
+    location.search = 'id=a';
+    render();
+    act(() => useMingoSheetStore.getState().showList());
+    expect(container.textContent).not.toContain('chat list');
+
+    act(() => root.unmount());
+    root = createRoot(container);
+    act(() =>
+      root.render(
+        <ManhattanDockContext.Provider value>
+          <MingoComposerSheet />
+        </ManhattanDockContext.Provider>,
+      ),
+    );
+    act(() => useMingoSheetStore.getState().showList());
+    expect(sheet.props?.open).toBe(true);
+    expect(container.textContent).toContain('chat list');
   });
 
   it('draws no list on a desktop, where the sidebar holds the chats', () => {

@@ -1,44 +1,48 @@
 WHAT THE APP IS:
-OpenFrame is a remote monitoring and management (RMM) platform for Managed Service Providers - IT companies that maintain client networks under contract. It puts the technician's console on their phone: device status, tickets and chat, monitoring alerts, and actions such as running a script or approving a fix from the AI copilot. Audience: MSP employees, not consumers.
+OpenFrame is a remote monitoring and management platform for Managed Service Providers (MSPs). The app is the technician's console: devices, tickets, chat, alerts, scripts and the AI assistant. Audience: MSP employees, not consumers.
 
-There is no account or organization registration in the app. OpenFrame is sold directly to MSP businesses by contract; the app signs in employees of organizations that already use it, and their accounts are created by the organization's administrator (Guideline 3.1.3(c) Enterprise Services). It is a free companion to that web-based service, with no purchasing inside the app and no calls to action for purchase outside of it (Guideline 3.1.3(f)).
+No account or organization registration in the app. OpenFrame is sold directly to MSPs by contract; the app signs in their employees, with accounts created by their administrator (Guideline 3.1.3(c)). It is a free companion to that web service: no purchasing in the app, no calls to action for purchase outside it (3.1.3(f)).
 
-CHANGES SINCE THE PREVIOUS SUBMISSION:
-- The Sign Up tab and every in-app organization-creation screen were removed. The app opens on a single Login screen.
-- An Apple, Google or Microsoft identity with no OpenFrame account now sees a "No account found" notice explaining that accounts are created by an administrator, with a "Back to Login" button - not a setup form.
-- An email address with no account gets the same explanation under the email field.
+CHANGES SINCE THE APPROVED VERSION:
+- New home: sign-in opens the AI assistant (a greeting and "What to ask Mingo?"). The menu button (top right) opens the navigation; Settings is last.
+- Web links open in an in-app Safari view.
+- "Update Available" and, for an unsupported version, "Update Required" lead to the app's App Store page; "Update Required" offers "Restart to Update" instead once newer web content is downloaded.
+- Web content updates, below. Sign-in, account deletion, Face ID and permissions work as before.
 
-EXTERNAL SERVICES:
-- Auth: Google, Microsoft and Apple OAuth plus our own OpenFrame IdP. Sign in with Apple uses the native ASAuthorizationController sheet. Google, Microsoft and OpenFrame flows run in ASWebAuthenticationSession against our gateway, which does the code exchange server-side. No third-party identity SDK is embedded.
-- Push: Firebase Cloud Messaging, the only third-party SDK in the binary. No Analytics or Crashlytics.
-- Storage: Google Cloud Storage, via presigned URLs from our backend, for attachments.
-- AI assistant: sends conversation context to an LLM provider each customer organization configures (e.g. OpenAI or Anthropic).
-- Device management: our backend integrates MeshCentral (Apache 2.0) and Fleet (MIT) on our infrastructure; the app talks only to our gateway.
-- Payment processors: none. Analytics: first-party only.
+WEB CONTENT UPDATES:
+The console is web content (HTML, CSS, JavaScript) in WKWebView; a copy ships in the app. On launch the app asks our gateway (openframe.ai), sending no user data, which release our service runs. If it is newer than that copy, the app downloads its bundle, a public release file of our GitHub repository, and shows it from the next launch. It first verifies our signature on the release manifest (public keys built into the app) and the bundle's size and SHA-256.
+No native code is downloaded. The bundle can call only native functions already in this binary, so it cannot add a permission or native capability. Registration and payment surfaces stay disabled in every release; updates change neither its purpose nor the features described here.
 
 HOW TO SIGN IN:
-- To review a workspace containing data: on the Login screen, enter the demo email from the fields above. The app resolves the workspace as you type and shows "Continue with OpenFrame" under the email field. Tap it and enter the same email and password in the sheet that appears. It closes automatically and the dashboard loads.
-- "Continue with Apple", "Continue with Google" and "Continue with Microsoft" are enabled as soon as the screen opens; nothing needs to be typed first. They sign in users whose administrator created their account with the same email as that identity. The demo account is not linked to an Apple ID, so with your own Apple ID the app shows "No account found" - this is by design, not an error. "Back to Login" returns to the Login screen.
+- On the Login screen enter the demo email, tap "Continue with OpenFrame" under the field, then enter the same email and password in the sheet; it closes and the workspace opens.
+- Apple, Google and Microsoft buttons sign in users whose administrator created an account with that email. Your own Apple ID shows "No account found" - by design.
 
 ACCOUNT DELETION:
-Settings -> Profile -> Delete Account. Deletion is immediate and signs the user out everywhere. A workspace OWNER is additionally asked, in the same dialog, to hand ownership to another active member, since a workspace cannot be left ownerless; if the owner is the only member, the dialog explains the two ways to proceed (invite a member first, or email hello@openframe.ai to delete the workspace with the account). The second demo account provided above is a regular member: use it to verify deletion end to end without affecting the primary demo account.
+Menu -> Settings -> actions button on the row with your name -> Delete Account. Deletion is immediate and signs the user out everywhere. An OWNER first picks a new owner in the same dialog; a sole owner is told to invite a member or email hello@openframe.ai. The second demo account, a regular member, can verify deletion.
 
 FACE ID:
-Off by default - nothing to bypass on a fresh install. After the first sign-in the app offers an optional "Enable Face ID login" dialog. If it is ever enabled, the unlock screen has "Log in another way", which returns to email and password.
+Optional, off by default, offered after the first sign-in. The unlock screen has "Log in another way".
 
 NO PURCHASES IN THE APP:
-The app contains no in-app purchases and no purchase surfaces of any kind - no plans, prices, trials, upgrade buttons, invoices or links to external payments. There is also no registration and no link to any registration or purchase page; there is no way to start a subscription from the app. OpenFrame is sold to MSP businesses through direct contracts outside of the app, and every payment-related screen is disabled in the native build.
+No in-app purchases or purchase surfaces: no plans, prices, trials, upgrade buttons or invoices, and no link to a registration or purchase page.
+
+EXTERNAL SERVICES:
+- Auth: Sign in with Apple (native sheet); Google, Microsoft and our IdP in ASWebAuthenticationSession against our gateway.
+- Push: Firebase Cloud Messaging, the only third-party service SDK. No Analytics or Crashlytics.
+- Attachments: Google Cloud Storage. AI assistant: the LLM provider each customer configures.
+- Web content updates: GitHub Releases, download only.
+- Payment processors: none. Analytics: first-party only.
 
 PERMISSIONS:
-- Notifications: requested after the first sign-in, not at launch. Allow or deny, neither affects access;
-- Camera and microphone: used only when a user attaches a photo or video to a support ticket or knowledge base article (Tickets -> a ticket -> Attach). Never accessed otherwise;
-- Face ID: only if the user opts in (above).
+- Notifications: asked after the first sign-in; neither answer affects access.
+- Camera and microphone: only for "Take Photo or Video" when attaching a file (e.g. Tickets -> a ticket -> Add Files).
+- Face ID: opt-in only (above).
 
 USER CONTENT:
-Tickets, attachments and chat exist only inside a single MSP's private workspace. Membership is by administrator invitation only - no public content, no discovery, no profiles, no contact between organizations. Support: hello@openframe.ai.
+Private to one MSP's workspace; membership by administrator invitation. Support: hello@openframe.ai.
 
 DEVICE SUPPORT:
 iPhone only.
 
 REGIONAL DIFFERENCES:
-No regionally gated features, pricing or content. Access is blocked at network level for sanctions compliance and abuse prevention in: AF, BD, BY, CD, CF, CN, CU, ER, HK, ID, IQ, IR, KP, LB, LY, MD, ML, MM, MO, NG, NI, PK, RU, SD, SO, SS, SY, VE, VN, YE, ZW.
+None in features, pricing or content. Access is blocked for sanctions compliance and abuse prevention in: AF, BD, BY, CD, CF, CN, CU, ER, HK, ID, IQ, IR, KP, LB, LY, MD, ML, MM, MO, NG, NI, PK, RU, SD, SO, SS, SY, VE, VN, YE, ZW.

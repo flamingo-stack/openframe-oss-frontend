@@ -14,11 +14,13 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { TRUST_CENTER_TITLE } from '@flamingo-stack/openframe-frontend-core/types';
-import { isLegalDocumentType, LEGAL_DOCUMENT_TYPES } from '@flamingo-stack/openframe-frontend-core/utils';
+import { isLegalDocumentType } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ComponentType } from 'react';
+import { useIsMobileShell } from '@/app/hooks/use-is-mobile-shell';
 import { routes } from '@/lib/routes';
 import { SettingMenuItem } from '../../settings/components/setting-menu-item';
 import { EP } from '../endpoints';
+import { shownLegalDocumentTypes } from '../legal-documents';
 
 type Item = {
   href: string;
@@ -85,16 +87,19 @@ const ITEMS: Item[] = [
  * document's own page. They come last, so the static cards never move when they
  * arrive, and a document the hub publishes later appears with no change here.
  * It switches itself: while the list is read, or in a loading scope (the route
- * drawing itself), the grid draws one card per document type this app has a
- * page for (`LEGAL_DOCUMENT_TYPES`), each its own skeleton, so the grid does
- * not grow when the documents land.
+ * drawing itself), the grid draws one card per document type this build shows
+ * (`shownLegalDocumentTypes`), each its own skeleton, so the grid does not grow
+ * when the documents land.
  */
 export function HelpCenterMenu() {
   const { documents, isLoading } = useLegalDocuments({ apiEndpoint: EP.legalDocuments });
   const loading = useLoadingScope() || isLoading;
-  // A card for every document on the hub's list that this app has a page for
-  // (the route prerenders the lib's `LEGAL_DOCUMENT_TYPES`).
-  const legal = documents.flatMap(doc => (isLegalDocumentType(doc.docType) ? [{ ...doc, docType: doc.docType }] : []));
+  // `isBillingHidden()`, through the hook: the grid is prerendered with no shell.
+  const shownTypes = shownLegalDocumentTypes(useIsMobileShell());
+  // A card for every document on the hub's list that this build has a page for.
+  const legal = documents.flatMap(doc =>
+    isLegalDocumentType(doc.docType) && shownTypes.includes(doc.docType) ? [{ ...doc, docType: doc.docType }] : [],
+  );
   return (
     <div className="grid grid-cols-1 gap-[var(--spacing-system-m)] content-md:grid-cols-2">
       {ITEMS.map(({ href, title, description, Icon }) => (
@@ -107,7 +112,7 @@ export function HelpCenterMenu() {
         />
       ))}
       <LoadingWhen loading={loading}>
-        {(loading ? LEGAL_DOCUMENT_TYPES.map(docType => ({ docType, title: '', summary: '' })) : legal).map(doc => (
+        {(loading ? shownTypes.map(docType => ({ docType, title: '', summary: '' })) : legal).map(doc => (
           <SettingMenuItem
             key={doc.docType}
             href={routes.helpCenter.legal(doc.docType)}

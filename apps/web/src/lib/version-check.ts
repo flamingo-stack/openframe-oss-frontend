@@ -137,6 +137,17 @@ export function resolveStoreUrl(): string {
 }
 
 /**
+ * Whether a bundle the shell has already downloaded (`NativeUpdateState.pendingVersion`) would
+ * lift the block, so the screen can offer a restart into it instead of the store. It must be
+ * newer than this bundle, and not itself below the policy's minimum. An unknown minimum (a 426
+ * with no policy fetched) lets it through: the gateway decides again after the restart, and a
+ * bundle it still refuses lands back on the screen as the running one, with the store action.
+ */
+export function pendingBundleLiftsBlock(pendingVersion: string | null, minBundleVersion: string | undefined): boolean {
+  return isVersionBelow(clientBundleVersion(), pendingVersion) && !isVersionBelow(pendingVersion, minBundleVersion);
+}
+
+/**
  * A top-level navigation off the app's origin: both shells hand it to the OS
  * (iOS `decidePolicyFor` → `UIApplication.open`, Android `launchIntent` →
  * `ACTION_VIEW`), which is what opens `itms-apps:` / `market:` in the store app

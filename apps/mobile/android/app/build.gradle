@@ -1,4 +1,29 @@
+import groovy.json.JsonSlurper
+
 apply plugin: 'com.android.application'
+
+// The two public keys the over-the-air updater verifies mobile.json with (apps/mobile/docs/ota.md,
+// "Signing keys"), as the base64 of their SPKI DER: the PEM of each slot without its armour. Compiled
+// into the binary, so no key ever reaches it from the web view or the network. A missing or
+// malformed slot stops the build: a binary without both keys could take no update, or not the
+// one signed after a key rotation.
+def otaPublicKeys = { File keysFile ->
+    if (!keysFile.isFile()) {
+        throw new GradleException("Over-the-air keys: ${keysFile} is missing; it holds the public keys the app verifies web bundles with.")
+    }
+    def slots = new JsonSlurper().parse(keysFile)
+    ['current', 'next'].collectEntries { slot ->
+        def pem = slots[slot]
+        if (!(pem instanceof String) || !pem.trim().startsWith('-----BEGIN PUBLIC KEY-----')) {
+            throw new GradleException("Over-the-air keys: ${keysFile} has no \"${slot}\" PEM public key (see apps/mobile/docs/ota.md, \"Signing keys\").")
+        }
+        def der = pem.readLines().findAll { !it.startsWith('-----') }.join('').replaceAll(/\s/, '')
+        if (!(der ==~ /[A-Za-z0-9+\/]+={0,2}/) || der.decodeBase64().length != 91) {
+            throw new GradleException("Over-the-air keys: \"${slot}\" in ${keysFile} is not a P-256 public key in its 91-byte SPKI form; make it with scripts/ota-keygen.mjs.")
+        }
+        [slot, der]
+    }
+}
 
 android {
     namespace = "ai.openframe.mobile"
@@ -18,6 +43,9 @@ android {
         // cannot drift; a plain Studio build leaves it empty and the shell uses
         // the shared host the web view pushes at login and hydration.
         buildConfigField "String", "OPENFRAME_SHARED_HOST_URL", "\"${findProperty('ofSharedHostUrl') ?: ''}\""
+        def otaKeys = otaPublicKeys(file('../../ota/keys.json'))
+        buildConfigField "String", "OTA_PUBLIC_KEY_CURRENT", "\"${otaKeys.current}\""
+        buildConfigField "String", "OTA_PUBLIC_KEY_NEXT", "\"${otaKeys.next}\""
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -46,6 +74,15 @@ android {
     }
     buildFeatures {
         buildConfig true
+    }
+    sourceSets {
+        // The shared over-the-air cases (apps/mobile/docs/ota.md, "Shared test cases"): the JVM tests
+        // read them as resources, the on-device tests as assets, and both run them through the one
+        // case runner in src/sharedTest.
+        test.resources.srcDirs += '../../ota/fixtures'
+        test.java.srcDirs += 'src/sharedTest/java'
+        androidTest.assets.srcDirs += '../../ota/fixtures'
+        androidTest.java.srcDirs += 'src/sharedTest/java'
     }
     buildTypes {
         release {
@@ -97,6 +134,8 @@ dependencies {
     // it — the gateway would then read the jar's refresh cookie over the
     // Refresh-Token header. OkHttp with CookieJar.NO_COOKIES carries nothing ambient.
     implementation "com.squareup.okhttp3:okhttp:$okhttpVersion"
+    // XZ for Java decodes the over-the-air bundle, a tar in one xz stream (ai.openframe.mobile.ota.BundleReader).
+    implementation "org.tukaani:xz:$xzVersion"
     // The plugin's FirebaseMessagingService is subclassed here (OpenFrameMessagingService);
     // the plugin declares this as `implementation`, so it is not on the app's classpath otherwise.
     implementation "com.google.firebase:firebase-messaging:$firebaseMessagingVersion"
