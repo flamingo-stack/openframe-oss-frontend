@@ -194,18 +194,24 @@ export function readSidebarMinimized(): boolean {
   }
 }
 
-/** Persist the preference and tell every reader on the page — the subscribers below and the core sidebar's copy. */
-export function writeSidebarMinimized(minimized: boolean): void {
-  const newValue = JSON.stringify(minimized);
+/**
+ * Stores a flag under `key` (JSON `true` / `false`) and tells every reader on the page: the subscribers below and the
+ * core sidebar's copy (`LOCAL_STORAGE_UPDATE_EVENT`). Storage refused (Safari private mode, blocked site data): nothing
+ * is stored, the event still moves every reader.
+ */
+function writeStoredFlag(key: string, value: boolean): void {
+  const newValue = JSON.stringify(value);
   try {
-    window.localStorage.setItem(SIDEBAR_MINIMIZED_STORAGE_KEY, newValue);
+    window.localStorage.setItem(key, newValue);
   } catch {
-    // Storage refused (Safari private mode, blocked site data): the preference lasts
-    // for this page only. The event below still moves every reader.
+    // Refused: the caller decides what lasts for this page.
   }
-  window.dispatchEvent(
-    new CustomEvent(LOCAL_STORAGE_UPDATE_EVENT, { detail: { key: SIDEBAR_MINIMIZED_STORAGE_KEY, newValue } }),
-  );
+  window.dispatchEvent(new CustomEvent(LOCAL_STORAGE_UPDATE_EVENT, { detail: { key, newValue } }));
+}
+
+/** Persist the preference and tell every reader on the page. Refused storage: it lasts for this page only. */
+export function writeSidebarMinimized(minimized: boolean): void {
+  writeStoredFlag(SIDEBAR_MINIMIZED_STORAGE_KEY, minimized);
 }
 
 /** `useSyncExternalStore` subscription to one stored key: writes on this page and in other tabs. */
@@ -265,17 +271,9 @@ export function readManhattanNavCollapsed(): boolean {
 
 /** Stores the right navigation's collapse and moves every reader on this page. */
 export function writeManhattanNavCollapsed(collapsed: boolean): void {
-  const newValue = JSON.stringify(collapsed);
+  // Kept for the page too, for when storage refuses it (`readManhattanNavCollapsed` falls back on it).
   manhattanNavCollapsedChoice = collapsed;
-  try {
-    window.localStorage.setItem(MANHATTAN_NAV_COLLAPSED_STORAGE_KEY, newValue);
-  } catch {
-    // Storage refused: the choice lasts for this page only (`manhattanNavCollapsedChoice`). The event below still
-    // moves every reader.
-  }
-  window.dispatchEvent(
-    new CustomEvent(LOCAL_STORAGE_UPDATE_EVENT, { detail: { key: MANHATTAN_NAV_COLLAPSED_STORAGE_KEY, newValue } }),
-  );
+  writeStoredFlag(MANHATTAN_NAV_COLLAPSED_STORAGE_KEY, collapsed);
 }
 
 /**
