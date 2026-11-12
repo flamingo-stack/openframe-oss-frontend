@@ -1,7 +1,11 @@
 /** The pre-paint width seed: the persisted collapse, the width the user chose, and the Mingo-first default on a SaaS tenant. */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { sidebarWidthFoucScript } from './navigation-sidebar-state';
+import {
+  readManhattanNavCollapsed,
+  sidebarWidthFoucScript,
+  writeManhattanNavCollapsed,
+} from './navigation-sidebar-state';
 
 const WIDTH_VAR = '--of-navigation-sidebar-width';
 const END_WIDTH_VAR = '--of-navigation-sidebar-end-width';
@@ -119,5 +123,25 @@ describe('sidebarWidthFoucScript', () => {
     expect(seed({ grouped: true, chosen: JSON.stringify({ size: '400' }) })).toBe('280px');
     expect(seed({ grouped: true, chosen: JSON.stringify(400) })).toBe('280px');
     expect(seed({ grouped: false, minimized: true, chosen: 'not json' })).toBe('56px');
+  });
+});
+
+describe('writeManhattanNavCollapsed', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    window.localStorage.clear();
+    windowWidth(JSDOM_WIDTH);
+  });
+
+  it('keeps the choice for the page when storage refuses it', () => {
+    windowWidth(1440);
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('blocked', 'QuotaExceededError');
+    });
+    writeManhattanNavCollapsed(true);
+    expect(readManhattanNavCollapsed()).toBe(true);
+    writeManhattanNavCollapsed(false);
+    windowWidth(1000);
+    expect(readManhattanNavCollapsed()).toBe(false);
   });
 });

@@ -13,6 +13,8 @@ export const SIDEBAR_EXPANDED_WIDTH = 224;
 export const GROUPED_SIDEBAR_EXPANDED_WIDTH = 264;
 /** The Manhattan v2 chats sidebar's expanded width (Figma 280), what a SaaS tenant gets; the user's dragged width wins (`SIDEBAR_RESIZE`). */
 export const MANHATTAN_CHATS_EXPANDED_WIDTH = 280;
+/** The Manhattan v2 chats sidebar's width as a drawer (800-911px, the compact top bar opens it over the page). */
+export const MANHATTAN_CHATS_DRAWER_WIDTH = 300;
 const SIDEBAR_MINIMIZED_STORAGE_KEY = 'of.navigationSidebar.minimized';
 /** The Manhattan v2 right navigation's expanded width (Figma 200). */
 export const MANHATTAN_NAVIGATION_EXPANDED_WIDTH = 200;
@@ -234,6 +236,9 @@ export function subscribeSidebarMinimized(listener: () => void): () => void {
 // The Manhattan v2 right navigation's collapse
 // --------------------------------------------------------------------------
 
+/** The user's choice on this page, for when storage refuses it (a private window, blocked site data). */
+let manhattanNavCollapsedChoice: boolean | null = null;
+
 /** The right navigation's default when the user has chosen nothing: the rail below {@link MANHATTAN_NAV_OPEN_FROM_WIDTH}. */
 function manhattanNavCollapsedByWidth(): boolean {
   return typeof window.matchMedia === 'function'
@@ -255,16 +260,18 @@ export function readManhattanNavCollapsed(): boolean {
   }
   if (stored === 'true') return true;
   if (stored === 'false') return false;
-  return manhattanNavCollapsedByWidth();
+  return manhattanNavCollapsedChoice ?? manhattanNavCollapsedByWidth();
 }
 
 /** Stores the right navigation's collapse and moves every reader on this page. */
 export function writeManhattanNavCollapsed(collapsed: boolean): void {
   const newValue = JSON.stringify(collapsed);
+  manhattanNavCollapsedChoice = collapsed;
   try {
     window.localStorage.setItem(MANHATTAN_NAV_COLLAPSED_STORAGE_KEY, newValue);
   } catch {
-    // Storage refused: the choice lasts for this page only. The event below still moves every reader.
+    // Storage refused: the choice lasts for this page only (`manhattanNavCollapsedChoice`). The event below still
+    // moves every reader.
   }
   window.dispatchEvent(
     new CustomEvent(LOCAL_STORAGE_UPDATE_EVENT, { detail: { key: MANHATTAN_NAV_COLLAPSED_STORAGE_KEY, newValue } }),

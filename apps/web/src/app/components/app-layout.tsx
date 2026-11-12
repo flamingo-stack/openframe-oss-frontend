@@ -44,6 +44,7 @@ import {
 } from '../../lib/navigation-config';
 import {
   GROUPED_SIDEBAR_EXPANDED_WIDTH,
+  MANHATTAN_CHATS_DRAWER_WIDTH,
   MANHATTAN_CHATS_EXPANDED_WIDTH,
   SIDEBAR_RESIZE,
 } from '../../lib/navigation-sidebar-state';
@@ -573,6 +574,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             sectionFill: true,
             currentPath,
             expandedWidth: MANHATTAN_CHATS_EXPANDED_WIDTH,
+            drawerWidth: MANHATTAN_CHATS_DRAWER_WIDTH,
             resizable: SIDEBAR_RESIZE,
             onNavigate: handleNavigate,
             topSlot: ({ minimized }) => (
