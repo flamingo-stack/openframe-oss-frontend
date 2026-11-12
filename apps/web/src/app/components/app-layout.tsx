@@ -80,6 +80,7 @@ import { MingoAccountPopover } from './mingo-shell/mingo-account-popover';
 import { MingoComposerDock } from './mingo-shell/mingo-composer-dock';
 import { MingoComposerSheet } from './mingo-shell/mingo-composer-sheet';
 import { composerRouteOf, dockViewOf } from './mingo-shell/mingo-dock-route';
+import { useMingoPhoneChatsPanel } from './mingo-shell/mingo-phone-chats-panel';
 import { isListUp, isSheetUp, useMingoSheetStore } from './mingo-shell/mingo-sheet-store';
 import { MingoSidebarControls } from './mingo-shell/mingo-sidebar-controls';
 import { MingoHistorySearch, MingoSidebarHistorySlot } from './mingo-shell/mingo-sidebar-history';
@@ -782,11 +783,17 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
         showTimeTracker: isMdUp === false,
         showTicketAlerts: isMdUp === false,
         showMingoAI: mingoButton,
-        // Manhattan v2: the button stays Mingo's and always opens the chat list, on any page
-        // (a chat or Mingo's home included); the list closes from its own scrim or a pick.
+        // Manhattan v2: the button stays Mingo's and toggles the chat list, the panel from the left
+        // (`useMingoPhoneChatsPanel`), on any page (a chat or Mingo's home included); opening it
+        // closes the burger's navigation, so one panel is out at a time.
         onMingoAI: () => {
-          if (manhattan) showList();
-          else if (listOpen) hideList();
+          if (manhattan) {
+            if (listOpen) hideList();
+            else {
+              setMobileMenuOpen(false);
+              showList();
+            }
+          } else if (listOpen) hideList();
           else if (sheetUp) hideSheet();
           else if (onMingoPage) router.push(outsidePage ?? routes.dashboard);
           else showList();
@@ -813,6 +820,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       hideList,
       hideSheet,
       router,
+      setMobileMenuOpen,
     ],
   );
 
@@ -853,6 +861,13 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // chat in it (the chat column holds the chat); it stays for a phone's chat list (the top
   // bar's Mingo button).
   const composerSheet = mingoShell && chatEnabled && !dashboardHeld ? <MingoComposerSheet /> : undefined;
+  // Manhattan v2's phone chat list, a panel from the left: with the Mingo button (`mingoButton`).
+  const phoneChatsPanel = useMingoPhoneChatsPanel(manhattan && mingoButton);
+  // Opening the burger's navigation puts the chat list away, so one panel is out at a time.
+  const onMobileMenuOpenChange = (open: boolean) => {
+    if (open && manhattan) hideList();
+    setMobileMenuOpen(open);
+  };
 
   // The page segment's boundary - what the chrome, bare or not, puts in its content
   // slot. Its placement rules are on the core layout below. Every page draws its own
@@ -972,7 +987,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
                     // layout still reports every open and close, and closes it on a change of
                     // `sidebarConfig.currentPath`. The OSS shell leaves it to the layout.
                     mobileMenuOpen={grouped ? mobileMenuOpen : undefined}
-                    onMobileMenuOpenChange={grouped ? setMobileMenuOpen : undefined}
+                    onMobileMenuOpenChange={grouped ? onMobileMenuOpenChange : undefined}
+                    // Manhattan v2 on a phone: the chat list from the left (the burger's navigation is on the right).
+                    mobileStartPanel={phoneChatsPanel}
                     // Greys the header and nav rail out for the lock: they stay legible —
                     // the user can still see where they are and reach the account menu —
                     // but nothing they lead to is reachable until the workspace is paid for.

@@ -860,7 +860,7 @@ describe('MingoComposerDock', () => {
       expect(section()?.className).not.toContain('max-md:hidden');
     });
 
-    it("steps out from under the chat list on Mingo's own pages in Manhattan v2, so the list fills the screen", () => {
+    it("stays under v2's chat list, a panel over the page and its scrim (the composer does not step out)", () => {
       nav.pathname = '/mingo/';
       nav.search = '';
       act(() =>
@@ -872,7 +872,7 @@ describe('MingoComposerDock', () => {
       );
       expect(section()?.className).not.toContain('max-md:hidden');
       act(() => useMingoSheetStore.getState().showList());
-      expect(section()?.className).toContain('max-md:hidden');
+      expect(section()?.className).not.toContain('max-md:hidden');
       act(() => useMingoSheetStore.getState().hideList());
       expect(section()?.className).not.toContain('max-md:hidden');
     });

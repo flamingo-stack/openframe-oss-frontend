@@ -79,7 +79,7 @@ import {
   isSheetRoute,
   showsDockQuickActions,
 } from './mingo-dock-route';
-import { isListUp, isSheetUp, useMingoSheetStore } from './mingo-sheet-store';
+import { isSheetUp, useMingoSheetStore } from './mingo-sheet-store';
 import { useChatBehindPage } from './use-chat-behind-page';
 import { useComposerLauncherDrain, usePublishComposerDock } from './use-composer-launcher-drain';
 import { useComposerTarget } from './use-composer-target';
@@ -184,11 +184,9 @@ export function MingoComposerDock({ held = false }: { held?: boolean }) {
   // are that chat already. Decided in CSS, so the first paint is right; hidden, it
   // stays mounted (the draft and the uploads with it) and takes no room.
   const sheetUp = useMingoSheetStore(s => isSheetUp(s, pathname)) && canShowSheet(route);
-  // v2: the phone's chat list opens over Mingo's own pages too, and fills the screen there as
-  // over a page: the composer under it steps out of the way while it is up.
-  const manhattan = useManhattanDock();
-  const listUp = useMingoSheetStore(s => isListUp(s, pathname));
-  const offOnPhone = (isSheetRoute(route) && !sheetUp) || (manhattan && listUp);
+  // v2's phone chat list is a panel from the left over the page and its scrim (`useMingoPhoneChatsPanel`): the
+  // composer under it stays where it is.
+  const offOnPhone = isSheetRoute(route) && !sheetUp;
 
   return (
     // The dock's ground (Figma `chat/dock`, node 4368:14042): the page's background across the
