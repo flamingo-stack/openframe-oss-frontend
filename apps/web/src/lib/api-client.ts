@@ -274,7 +274,7 @@ class ApiClient {
         // and a 401 that lands after it finished short-circuits on `sentAtEpoch`
         // to a plain retry. Parking these in an ApiClient-owned queue meant only
         // an ApiClient-driven refresh could release them — when the rotation was
-        // started by Relay, the chat adapter, auth-api-client or the MeshCentral
+        // started by Relay, the embed auth adapter, auth-api-client or the MeshCentral
         // socket (all sharing this same flag), nothing drained the queue and the
         // caller's promise never settled, hanging its react-query `queryFn`.
         const outcome = await refreshTokens(sentAtEpoch);
