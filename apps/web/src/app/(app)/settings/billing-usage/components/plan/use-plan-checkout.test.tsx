@@ -17,13 +17,17 @@ vi.mock('react-relay', () => ({
   readInlineData: () => ({ packageOptions: [], payAsYouGoOption: { price: 10 }, unitSize: 1_000_000 }),
 }));
 
-const query = (activationTokenPurchaseRequired: boolean) =>
+const query = (activationTokenPurchaseRequired: boolean, purchasedTokensRemaining = 1_200_000) =>
   ({
     billingPlan: { id: 'plan', products: [{ id: 'ai', name: 'AI_ASSISTANCE' }] },
     subscription: {
       id: 'sub',
       activationTokenPurchaseRequired,
-      usage: { activeDevices: 3, purchasedTokensRemaining: 1_200_000, purchasedTokensRemainingUsd: 12 },
+      usage: {
+        activeDevices: 3,
+        purchasedTokensRemaining,
+        purchasedTokensRemainingUsd: purchasedTokensRemaining / 100_000,
+      },
     },
   }) as unknown as usePlanCheckout_query$key;
 
@@ -57,6 +61,12 @@ describe('usePlanCheckout AI top-up', () => {
     expect(latest.tokenAmountUsd).toBeNull();
     expect(latest.canAutoTopUp).toBe(false);
     expect(latest.purchasedBalance).toEqual({ tokens: 1_200_000, usd: 12 });
+  });
+
+  it('states no balance when the purchase is waived with nothing left (the requirement or the bank is off)', () => {
+    render(query(false, 0));
+    expect(latest.topUp.selection).toBe(NO_TOP_UP);
+    expect(latest.purchasedBalance).toBeNull();
   });
 
   it('charges an amount chosen anyway', () => {

@@ -89,8 +89,10 @@ export interface PlanCheckout {
   topUp: AiTopUp;
   /**
    * The purchased tokens the workspace still holds, set only when the backend
-   * waives the activation purchase (`activationTokenPurchaseRequired: false`):
-   * the top-up is optional then, and this is what the plan runs on without one.
+   * waives the activation purchase (`activationTokenPurchaseRequired: false`)
+   * and some are left: the top-up is optional then, and this is what the plan
+   * runs on without one. A waiver with nothing left (the requirement or the
+   * token bank is off) has no balance to state.
    */
   purchasedBalance: { tokens: number; usd: number } | null;
   /**
@@ -150,6 +152,8 @@ export function usePlanCheckout(query: usePlanCheckout_query$key | null): PlanCh
   // Required until the backend says otherwise: the form opens as it always has.
   const purchaseRequired = data?.subscription?.activationTokenPurchaseRequired ?? true;
   const usage = data?.subscription?.usage;
+  // GraphQL `Long` arrives as a string or a number depending on its size.
+  const purchasedTokens = Number(usage?.purchasedTokensRemaining ?? 0);
 
   // Only the device card takes a plan selection. AI has no package to choose —
   // its card picks a balance (see `AiTokenBalanceCard`).
@@ -210,10 +214,10 @@ export function usePlanCheckout(query: usePlanCheckout_query$key | null): PlanCh
     deviceUpdates,
     setDeviceUpdates,
     topUp,
-    purchasedBalance: purchaseRequired
-      ? null
-      : // GraphQL `Long` arrives as a string or a number depending on its size.
-        { tokens: Number(usage?.purchasedTokensRemaining ?? 0), usd: usage?.purchasedTokensRemainingUsd ?? 0 },
+    purchasedBalance:
+      !purchaseRequired && purchasedTokens > 0
+        ? { tokens: purchasedTokens, usd: usage?.purchasedTokensRemainingUsd ?? 0 }
+        : null,
     autoTopUp,
     setAutoTopUp,
     canAutoTopUp: topUp.amountUsd !== 0,
