@@ -608,6 +608,8 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             collapsed: sidebarCollapsed,
             onCollapsedChange: setSidebarCollapsed,
             overlay: squeeze.compact ? 'drawer' : undefined,
+            // As a drawer it opens under the compact top bar, which carries the logo: no second one over the chats.
+            header: !squeeze.compact,
             // No tablet rail between md and lg: v2's sidebars close only with their button.
             desktopFromMd: true,
             revealSignal: revealSignal + chatsReveal,
