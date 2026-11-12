@@ -126,6 +126,8 @@ export const EP = {
   // Curated HubSpot meeting links grouped by audience. The lib's scheduler then
   // self-builds `/api/meetings/{availability,book}` onto the same proxy base.
   meetings: `${CONTENT}/meetings`,
+  // YouTube poster resolver: `<base>/<videoId>` redirects to the sharpest poster the video really has.
+  youtubePoster: `${CONTENT}/youtube-poster`,
 } as const;
 
 /**
@@ -157,8 +159,6 @@ export const CONTENT_ENDPOINTS: EndpointsRuntime = {
   // Where the Help Center's FAQs are served: every shared page (roadmap, releases, legal, …) draws its own
   // FAQ block from it, for the page's topic. No page passes anything.
   faqsUrl: EP.faqs,
-  // The YouTube player draws the sharpest poster each video has, through the same proxy. Web only: an <img>
-  // carries the session cookie same-origin, while the native shell's bearer cannot ride an image request, so
-  // there the player uses the poster every video has (hqdefault).
-  youtubePosterBaseUrl: isAppShell() ? undefined : `${CONTENT}/youtube-poster`,
+  // The YouTube player draws the sharpest poster each video has (`<base>/<videoId>`), else hqdefault.
+  youtubePosterBaseUrl: EP.youtubePoster,
 };
