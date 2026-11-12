@@ -340,6 +340,12 @@ export const routes = {
      * built by `desktopAuthReturnTarget`, which must match the gateway allow-list entry exactly.
      */
     desktopReturn: '/auth/desktop-return',
+    /**
+     * The desktop app's first-launch download hand-off, on the shared host: the app opens it in the
+     * default browser, and the page asks the gateway for the download id in this browser's cookie and
+     * hands it to the app's scheme (`lib/desktop-download-handoff.ts`).
+     */
+    desktopHandoff: '/auth/desktop-handoff',
   },
 
   customers: {

@@ -295,8 +295,14 @@ export function captureAttributionFromUrl(): void {
  * latest one wins (see the header); one that is not a UUID is dropped, as the gateway would.
  */
 export function storeDownloadId(id: string): void {
+  const normalized = normalizeDownloadId(id);
+  if (normalized) writeStored(DOWNLOAD_ID_STORAGE_PARAM, normalized);
+}
+
+/** A download id as the gateway records it (a lowercase UUID), or undefined for anything else. */
+export function normalizeDownloadId(id: string): string | undefined {
   const normalized = id.trim().toLowerCase();
-  if (DOWNLOAD_ID_PATTERN.test(normalized)) writeStored(DOWNLOAD_ID_STORAGE_PARAM, normalized);
+  return DOWNLOAD_ID_PATTERN.test(normalized) ? normalized : undefined;
 }
 
 /** Whether a download id is kept for the signup (one that has not expired). */

@@ -136,6 +136,29 @@ describe('authApiClient.requestDownloadLink', () => {
   });
 });
 
+describe('authApiClient.desktopDownloadHandoff', () => {
+  it("asks the shared host's gateway with this browser's cookies, and passes the signal on", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ downloadId: '0f8fad5b-d9cb-469f-a165-70867728950e' }));
+    const signal = new AbortController().signal;
+
+    const result = await authApiClient.desktopDownloadHandoff(signal);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://auth.test/v0/api/assets/download/handoff');
+    expect(init).toMatchObject({ method: 'GET', credentials: 'include', signal });
+    expect(result).toMatchObject({ ok: true, data: { downloadId: '0f8fad5b-d9cb-469f-a165-70867728950e' } });
+  });
+
+  it('reports a gateway without the endpoint, and a request that never got an answer, as not ok', async () => {
+    fetchMock.mockResolvedValueOnce(htmlResponse(404));
+    await expect(authApiClient.desktopDownloadHandoff()).resolves.toMatchObject({ ok: false, status: 404 });
+
+    fetchMock.mockRejectedValueOnce(new DOMException('The operation was aborted.', 'AbortError'));
+    await expect(authApiClient.desktopDownloadHandoff()).resolves.toMatchObject({ ok: false, status: 0 });
+  });
+});
+
 describe('getAuthFailureMessage', () => {
   const accept = () =>
     authApiClient.acceptInvitation({ invitationId: 'inv-1', firstName: 'Ann', lastName: 'Lee', password: 'x' });
