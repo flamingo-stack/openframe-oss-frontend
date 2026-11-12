@@ -9,9 +9,11 @@ import { AnnouncementBarView, Button } from '@flamingo-stack/openframe-frontend-
 import { useEffect } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { billingBarsQuery as BillingBarsQueryType } from '@/__generated__/billingBarsQuery.graphql';
-import { SubscriptionStatus } from '@/generated/schema-enums';
+import { AutoTopUpDisabledReason, BillingNoticeType, SubscriptionStatus } from '@/generated/schema-enums';
 import { type AiBalanceTone, aiBalanceTone } from '@/lib/ai-balance-tone';
+import { parseInstant } from '@/lib/graphql-scalars';
 import { pluralize } from '@/lib/pluralize';
+import { findNotice, useBillingNotices } from './billing-notices/use-billing-notices';
 
 /**
  * Everything the app-wide billing banners are decided from, in ONE query.
@@ -25,10 +27,9 @@ import { pluralize } from '@/lib/pluralize';
 const billingBarsQuery = graphql`
   query billingBarsQuery {
     subscription {
+      # Identifies the record, so a fresher answer for it from another query reaches the bar.
       id
       status
-      startDate
-      trialExpirationDate
       usage {
         aiTokensFree
         aiTokensFreeUsed
@@ -98,13 +99,15 @@ interface TrialEndingBarProps {
 }
 
 /**
- * The free trial is past its halfway point.
+ * The free trial ends within seven days — the backend's TRIAL_ENDING notice,
+ * beside the email it sends for the same trial.
  *
- * The one bar here that can be dismissed, because it is the one that is not
- * about something breaking: the trial still works, and the tenant has days to
- * act. The AI bar above has no dismiss for the opposite reason — the agents
- * are already stopping, and hiding that would only make the silence
- * unexplained.
+ * Dismissible, because it is not about something breaking: the trial still
+ * works, and the tenant has days to act. The dismissal is the workspace's (see
+ * `useDismissBillingNotice`), so it holds for every admin in every browser, and
+ * the next trial end shows again. The AI bar above has no dismiss for the
+ * opposite reason — the agents are already stopping, and hiding that would only
+ * make the silence unexplained.
  */
 export function TrialEndingBar({ daysLeft, onActivate, onDismiss }: TrialEndingBarProps) {
   return (
@@ -133,57 +136,66 @@ export function TrialEndingBar({ daysLeft, onActivate, onDismiss }: TrialEndingB
   );
 }
 
+/** Why the system switched automatic top-up off, as the bar says it. */
+const AUTO_TOP_UP_DISABLED_COPY: Partial<Record<AutoTopUpDisabledReason, string>> = {
+  [AutoTopUpDisabledReason.PAYMENT_FAILED]:
+    'Automatic top-up is off: the last automatic charge was declined. Turn it back on in Billing & Usage.',
+  [AutoTopUpDisabledReason.AUTHENTICATION_ABANDONED]:
+    'Automatic top-up is off: your bank asked to confirm the last automatic charge and nobody did. Turn it back on in Billing & Usage.',
+};
+
+const AUTO_TOP_UP_DISABLED_FALLBACK = 'Automatic top-up is off. Turn it back on in Billing & Usage.';
+
+interface AutoTopUpDisabledBarProps {
+  reason: AutoTopUpDisabledReason | null;
+  onManage: () => void;
+  onDismiss: () => void;
+}
+
+/**
+ * The system switched automatic top-up off over a card payment — the backend's
+ * AUTO_TOP_UP_DISABLED notice, held for seven days. Nothing else says so outside
+ * Billing & Usage, and the balance stops refilling itself from that moment.
+ *
+ * Dismissible like the trial bar, for the workspace: the balance still works,
+ * and the AI bar takes over if it runs low.
+ */
+export function AutoTopUpDisabledBar({ reason, onManage, onDismiss }: AutoTopUpDisabledBarProps) {
+  return (
+    <AnnouncementBarView
+      className="app-top-bar shrink-0 bg-ods-warning text-ods-text-on-accent md:min-h-12"
+      contentClassName="cursor-pointer md:cursor-default"
+      onContentClick={onManage}
+      startAdornment={<AlertTriangleIcon className="size-[var(--icon-size-icon-size)] shrink-0" />}
+      title={(reason && AUTO_TOP_UP_DISABLED_COPY[reason]) ?? AUTO_TOP_UP_DISABLED_FALLBACK}
+      actionBlock={
+        <Button variant="outline" size="small" onClick={onManage}>
+          Manage AI Balance
+        </Button>
+      }
+      endAdornment={
+        <button
+          type="button"
+          aria-label="Dismiss auto top-up notice"
+          onClick={onDismiss}
+          className="shrink-0 rounded-md p-1 text-ods-text-on-accent/70 transition-colors hover:text-ods-text-on-accent"
+        >
+          <XmarkIcon className="size-4" />
+        </button>
+      }
+    />
+  );
+}
+
 /** What the bars need to know, once the query has answered. */
 export interface BillingBarsState {
   ai: { tone: AiBalanceTone };
-  /**
-   * The trial, once it is past halfway. `null` at every other moment — not on a
-   * trial, no dates to place the midpoint with, or still in the first half.
-   */
-  trial: {
-    daysLeft: number;
-    /**
-     * Identifies THIS trial period. The dismissal is stored against it, so
-     * closing today's banner cannot silence a trial that starts later.
-     */
-    token: string;
-  } | null;
 }
 
-const NO_BARS: BillingBarsState = { ai: { tone: 'default' }, trial: null };
+const NO_BARS: BillingBarsState = { ai: { tone: 'default' } };
 
 /**
- * The trial, if it is past its midpoint.
- *
- * Both dates are required and neither is guessed: without a start there is no
- * midpoint to be past, and the honest answer is to say nothing rather than to
- * assume a trial length. A trial whose end has already gone by is not this
- * bar's business either — the workspace is locked by then and the paywall is
- * the whole screen.
- */
-function resolveTrial(
-  status: string | null | undefined,
-  startDate: string | null | undefined,
-  trialEnd: string | null | undefined,
-  subscriptionId: string | null | undefined,
-): BillingBarsState['trial'] {
-  if (status !== SubscriptionStatus.TRIAL || !startDate || !trialEnd) return null;
-
-  const start = new Date(startDate).getTime();
-  const end = new Date(trialEnd).getTime();
-  const now = Date.now();
-  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
-  if (now < start + (end - start) / 2) return null;
-  if (now >= end) return null;
-
-  return {
-    daysLeft: Math.max(1, Math.ceil((end - now) / DAY_MS)),
-    token: `${subscriptionId ?? 'unknown'}:${trialEnd}`,
-  };
-}
-
-/**
- * Runs the query and reports both bar states up. Its own component because
+ * Runs the query and reports the balance bar's state up. Its own component because
  * `useLazyLoadQuery` suspends and a hook cannot be called conditionally — the
  * same shape as `SubscriptionStatusHydrator`, and mounted inside a `Suspense`
  * whose fallback is the nothing this renders.
@@ -205,25 +217,59 @@ export function BillingBarsHydrator({ onResolved }: { onResolved: (state: Billin
           freeUsed: Number(usage?.aiTokensFreeUsed ?? 0),
           purchasedRemaining: Number(usage?.purchasedTokensRemaining ?? 0),
         });
-  const trial = resolveTrial(
-    subscription?.status,
-    subscription?.startDate,
-    subscription?.trialExpirationDate,
-    subscription?.id,
-  );
 
-  // Primitives in the deps, so the effect re-fires on a real change rather than
+  // A primitive in the deps, so the effect re-fires on a real change rather than
   // on every fresh Relay snapshot object.
-  const trialDaysLeft = trial?.daysLeft ?? null;
-  const trialToken = trial?.token ?? null;
   useEffect(() => {
-    onResolved({
-      ai: { tone },
-      trial: trialDaysLeft != null && trialToken != null ? { daysLeft: trialDaysLeft, token: trialToken } : null,
-    });
-  }, [tone, trialDaysLeft, trialToken, onResolved]);
+    onResolved({ ai: { tone } });
+  }, [tone, onResolved]);
 
   return null;
 }
 
-export { NO_BARS };
+/** The bars the backend's billing notices raise, with the event each one dismisses. */
+export interface NoticeBarsState {
+  /** TRIAL_ENDING: whole days left, rounded up, never under one. */
+  trial: { daysLeft: number; eventKey: string } | null;
+  /** AUTO_TOP_UP_DISABLED. */
+  autoTopUpDisabled: { reason: AutoTopUpDisabledReason | null; eventKey: string } | null;
+}
+
+const NO_NOTICE_BARS: NoticeBarsState = { trial: null, autoTopUpDisabled: null };
+
+/** Days to a trial end, or `null` once it has gone by: the workspace is locked then and the paywall is the screen. */
+function daysUntil(instant: string | null | undefined): number | null {
+  const end = instant ? parseInstant(instant) : null;
+  if (!end) return null;
+  const left = end.getTime() - Date.now();
+  return left > 0 ? Math.max(1, Math.ceil(left / DAY_MS)) : null;
+}
+
+/**
+ * Reads the billing notices and reports the bars they raise. Its own query and
+ * its own boundary, beside the balance bar's: a notice failing to load costs that
+ * notice, not the balance bar. The overdue and suspended notices are the lock
+ * screens', not bars (see `BillingDeadlineNotice`).
+ */
+export function BillingNoticesHydrator({ onResolved }: { onResolved: (state: NoticeBarsState) => void }) {
+  const notices = useBillingNotices();
+  const trialNotice = findNotice(notices, BillingNoticeType.TRIAL_ENDING);
+  const autoTopUpNotice = findNotice(notices, BillingNoticeType.AUTO_TOP_UP_DISABLED);
+
+  // Primitives in the deps, as above.
+  const trialDaysLeft = daysUntil(trialNotice?.trialEndDate);
+  const trialEventKey = trialNotice?.eventKey ?? null;
+  const autoTopUpEventKey = autoTopUpNotice?.eventKey ?? null;
+  const autoTopUpReason = autoTopUpNotice?.reason ?? null;
+  useEffect(() => {
+    onResolved({
+      trial:
+        trialDaysLeft != null && trialEventKey != null ? { daysLeft: trialDaysLeft, eventKey: trialEventKey } : null,
+      autoTopUpDisabled: autoTopUpEventKey != null ? { reason: autoTopUpReason, eventKey: autoTopUpEventKey } : null,
+    });
+  }, [trialDaysLeft, trialEventKey, autoTopUpEventKey, autoTopUpReason, onResolved]);
+
+  return null;
+}
+
+export { NO_BARS, NO_NOTICE_BARS };
