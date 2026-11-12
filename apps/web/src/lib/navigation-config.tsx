@@ -13,7 +13,6 @@ import {
   HeadsetIcon,
   IdCardIcon,
   LaptopMobileIcon,
-  LightningIcon,
   MonitorIcon,
   Parcel02Icon,
   QuestionCircleIcon,
@@ -492,27 +491,29 @@ export const getGroupedNavigationItems = (
 // --------------------------------------------------------------------------
 
 /**
- * The right navigation of the three-column shell (Figma "mingo (Manhattan)", frame
- * 1408:293075): four sections — Service Desk, Fleet, Monitor, Skills — then Knowledge
- * Base, Help Center and Settings at the bottom. No Dashboard (Start Work replaces it)
+ * The right navigation of the three-column shell: five sections — Service Desk (Tickets,
+ * Worktime), Monitoring (Incidents, Logs), Assets (Devices, Software), Directory (Customers,
+ * Users, Cloud Tenants), Automation (Scripts, Scheduled Scripts, Policies, Queries) — then
+ * Knowledge Base, Help Center and Settings at the bottom. No Dashboard (Start Work replaces it)
  * and no Beta stamps (the design has none). Gates and badges as everywhere else.
  */
 const SECTIONED_LAYOUT: { groups: readonly NavGroup[]; secondary: readonly NavModuleId[] } = {
   groups: [
     { id: 'service-desk', label: 'Service Desk', icon: HeadsetIcon, children: ['tickets', 'worktime'] },
+    { id: 'monitoring', label: 'Monitoring', icon: ActivityIcon, children: ['incidents', 'logs'] },
+    { id: 'assets', label: 'Assets', icon: LaptopMobileIcon, children: ['devices', 'software'] },
+    { id: 'directory', label: 'Directory', icon: IdCardIcon, children: ['organizations', 'users', 'integrations'] },
     {
-      id: 'fleet',
-      label: 'Fleet',
-      icon: LaptopMobileIcon,
-      children: ['organizations', 'devices', 'software', 'users', 'integrations'],
+      id: 'automation',
+      label: 'Automation',
+      icon: BracketCurlyIcon,
+      children: ['scripts', 'schedules', 'policies', 'queries'],
     },
-    { id: 'monitor', label: 'Monitor', icon: ActivityIcon, children: ['incidents', 'logs'] },
-    { id: 'skills', label: 'Skills', icon: LightningIcon, children: ['scripts', 'schedules', 'policies', 'queries'] },
   ],
   secondary: ['knowledge-base', 'help-center', 'settings'],
 };
 
-/** The sectioned navigation's placeholder rows: the four sections and the bottom three. */
+/** The sectioned navigation's placeholder rows: the five sections and the bottom three. */
 export const SECTIONED_NAVIGATION_LOADING_ROWS = {
   primary: SECTIONED_LAYOUT.groups.length,
   secondary: SECTIONED_LAYOUT.secondary.length,
