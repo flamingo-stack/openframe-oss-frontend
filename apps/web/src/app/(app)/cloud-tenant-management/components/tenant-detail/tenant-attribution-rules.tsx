@@ -203,6 +203,9 @@ function AttributionRulesTable({ customers }: { customers: Customers | null }) {
   const sort = sorting[0] ? { id: sorting[0].id, desc: sorting[0].desc } : null;
   const selected = Object.fromEntries(columnFilters.map(filter => [filter.id, filter.value as string[]]));
 
+  // Nothing but ALL rules (left out by `toRows`): no section at all, rather than an empty table.
+  if (!loading && customers.length > 0 && rows.length === 0) return null;
+
   return (
     <section className="flex flex-col gap-[var(--spacing-system-l)]">
       <div className="flex items-center justify-between gap-[var(--spacing-system-m)]">
@@ -253,9 +256,7 @@ function AttributionRulesTable({ customers }: { customers: Customers | null }) {
                   title: 'No customers yet',
                   description: 'Choose the customers this directory serves in Edit Integration.',
                 }
-              : rows.length === 0
-                ? { title: 'No attribution rules', description: 'One customer owns this tenant.' }
-                : { title: 'No rules match', description: 'Try adjusting your filters.' }
+              : { title: 'No rules match', description: 'Try adjusting your filters.' }
           }
         />
       </DataTable>
