@@ -2,7 +2,7 @@
 
 import { MingoQuickActionWall } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useMingoQuickActionChips } from './use-mingo-quick-action-chips';
+import { OPENFRAME_QUICK_ACTION_ACCENT, useMingoQuickActionChips } from './use-mingo-quick-action-chips';
 
 interface MingoDockQuickActionsProps {
   /** Sends an action's instructions in a new chat (the dock's own send, which then opens it). */
@@ -29,6 +29,8 @@ export function MingoDockQuickActions({ onSend }: MingoDockQuickActionsProps) {
     <div className="mb-[var(--spacing-system-xs)] px-[var(--spacing-system-m)]">
       <MingoQuickActionWall
         quickActions={chips}
+        // The row's "All" glyph in the grey of its chips' icons.
+        accent={OPENFRAME_QUICK_ACTION_ACCENT}
         // While the actions are read the row holds its place, so the dock keeps its height and
         // the home's greeting, centred above it, does not move when they land.
         loading={loading}

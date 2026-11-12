@@ -656,7 +656,7 @@ describe('MingoComposerDock', () => {
         composerPlaceholder: 'Ask Mingo or describe a task…',
         contextMemory: CONTEXT_MEMORY,
       });
-      expect(container.firstElementChild?.className).toContain('max-w-[880px]');
+      expect(container.querySelector('section')?.className).toContain('max-w-[880px]');
     });
 
     it('no other page carries the quick actions, a full-width one included', () => {
@@ -679,7 +679,7 @@ describe('MingoComposerDock', () => {
       render('/mingo/chat/');
       expect(props()).toMatchObject({ composerPlaceholder: 'Reply to Mingo…' });
       expect(props().showModel).toBeUndefined();
-      expect(container.firstElementChild?.className).toContain('max-w-[760px]');
+      expect(container.querySelector('section')?.className).toContain('max-w-[760px]');
     });
 
     it('any other page: about this page, the memory strip and the model row', () => {
@@ -689,7 +689,7 @@ describe('MingoComposerDock', () => {
         composerPlaceholder: 'Ask Mingo about this page…',
         contextMemory: CONTEXT_MEMORY,
       });
-      expect(container.firstElementChild?.className).toContain('max-w-[880px]');
+      expect(container.querySelector('section')?.className).toContain('max-w-[880px]');
     });
 
     it('full-width pages: no memory strip, the model row kept', () => {
@@ -812,8 +812,30 @@ describe('MingoComposerDock', () => {
     expect(identity.enabled).toBe(false);
   });
 
+  // Figma `chat/dock` (node 4368:14042): the page's background under the composer across the
+  // column, and a fade into it over the page above, on every page.
+  it.each(['/devices/', '/mingo/', '/scripts/new/'])('lays the composer on its ground on %s', pathname => {
+    render(pathname);
+    const ground = container.querySelector('[data-testid="mingo-composer-dock-ground"]');
+    const classes = ground?.className.split(' ') ?? [];
+    expect(classes).toEqual(
+      expect.arrayContaining([
+        'bg-ods-bg',
+        'pointer-events-auto',
+        'before:bottom-full',
+        'before:h-[var(--spacing-system-xlf)]',
+        'before:from-transparent',
+        'before:to-ods-bg',
+        'before:pointer-events-none',
+      ]),
+    );
+    // The ground spans the column; the composer is centred on it at the route's width.
+    expect(ground?.querySelector('section')?.className).toContain('mx-auto');
+  });
+
   describe('on a phone', () => {
-    const section = () => container.querySelector('section');
+    // The ground, which the phone rule hides with the composer on it.
+    const section = () => container.querySelector('[data-testid="mingo-composer-dock-ground"]');
 
     it('draws no composer under a page, below md only, still mounted', () => {
       viewport.mdUp = false;
