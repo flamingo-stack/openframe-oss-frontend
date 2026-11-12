@@ -51,22 +51,11 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/contexts';
 import {
   buildListUrl as buildEntityCardListUrl,
-  clearEmbedProxyAuth,
-  type EmbedAuthAdapter,
   navigateSamePageHash,
-  setEmbedAuthAdapter,
 } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useMemo } from 'react';
 import { CONTENT_ORIGIN, IMAGE_PROXY_SKIP_DOMAINS } from '@/app/(app)/help-center/endpoints';
-import { composeOpenframeInAppContentUrl } from '@/app/(app)/help-center/help-center-content-href';
-import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
-import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
-import { useManhattanCentreStore } from '@/app/components/manhattan-shell/manhattan-centre-store';
-import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
-import { clientIdentityHeaders } from '@/lib/client-identity';
-import { resolveBackendImageUrl } from '@/lib/image-url';
-import { routes } from '@/lib/routes';
 /**
  * Content-href seam for openframe. The type→route map is shared with the Help
  * Center pages (single source of truth in `help-center-content-href.ts`): every
@@ -78,11 +67,17 @@ import { routes } from '@/lib/routes';
  * case-study / …) still opens OUT to its RAG-authoritative `externalUrl` on
  * the content hub.
  */
-import { runtimeEnv } from '@/lib/runtime-config';
-import { isSessionGone, noteGatewayResponse, SessionGoneError } from '@/lib/session-health';
-import { refreshAccessToken } from '@/lib/token-refresh-manager';
-import { getBearerTokenSync, getTokenEpoch, isBearerAuthMode, subscribeToTokenChange } from '@/lib/token-store';
-import { isUpdateRequired, noteUpgradeRequired, UpdateRequiredError } from '@/lib/version-check';
+import { composeOpenframeInAppContentUrl } from '@/app/(app)/help-center/help-center-content-href';
+import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
+import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
+import { useManhattanCentreStore } from '@/app/components/manhattan-shell/manhattan-centre-store';
+import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
+import { registerEmbedAuthAdapter } from '@/lib/embed-auth-adapter';
+import { routes } from '@/lib/routes';
+
+// The root layout has registered it by now (`agent-identity-root.tsx`); repeated so the chat does
+// not depend on that order. At module load: its requests fire from child mount effects.
+registerEmbedAuthAdapter();
 
 /** Stable source identifier used for localStorage namespacing inside the
  *  lib (`mingo-chat-openframe-v1` keys). Must not change between
@@ -90,140 +85,6 @@ import { isUpdateRequired, noteUpgradeRequired, UpdateRequiredError } from '@/li
  *  Mingo-only today, so the source value is more of a namespace label
  *  than a content discriminator. */
 const CHAT_SOURCE = 'openframe' as const;
-
-/**
- * Token epoch observed the last time this adapter attached credentials to an
- * outgoing chat request. Read back in `refresh()` so a 401 raised under a
- * credential that has ALREADY been replaced retries instead of rotating again.
- *
- * The adapter is a module singleton, so this is really the last HEADER BUILD
- * rather than the send that produced the 401 — the correlation is deliberately
- * loose. The stored epoch is still safe: it can only lag the current one, and
- * lagging means a rotation happened after that send, which is exactly when a
- * retry is the right answer. The failure mode is a missed short-circuit (one
- * extra refresh), never a retry with a genuinely dead token.
- *
- * Core classifies its pictures through `hasCredential`, which records nothing.
- * Every mounted picture re-classifies right after each rotation; had that gone
- * through `getHeaders`, it would have moved this epoch past the send whose 401
- * it is kept for.
- */
-let lastChatSendEpoch = 0;
-
-/**
- * The tenant gateway's origin, whenever auth rides in a header instead of a
- * cookie: the native shell and dev-ticket web (`isBearerAuthMode`). Both call
- * the gateway ABSOLUTE and cross-origin, so `embedAuthedFetch`'s guard has to
- * sanction exactly that origin, and core's pictures (`useAuthedAsset`) read the
- * same list to decide that a gateway image (`/api/images/...`) is fetched with
- * the bearer rather than loaded by a plain `<img>`, which carries no header and
- * gets a 401.
- *
- * It was the shell's `CONTENT_ORIGIN` alone, so on dev-ticket web every
- * organization logo and avatar answered 401.
- */
-function bearerGatewayOrigins(): string[] {
-  if (!isBearerAuthMode()) return [];
-  try {
-    return [new URL(runtimeEnv.tenantHostUrl()).origin];
-  } catch {
-    return [];
-  }
-}
-
-/**
- * Auth adapter the lib's `embedAuthedFetch` consults on every embedded-chat
- * request. Defined at module scope (not rebuilt per render) so it can be
- * registered SYNCHRONOUSLY on first render — before the child chat effects
- * (identity / slash-commands fire in their own mount effects, which run
- * BEFORE a parent `useEffect`). All deps it closes over are module-level.
- */
-const CHAT_AUTH_ADAPTER: EmbedAuthAdapter = {
-  getHeaders: () => {
-    // Recorded for BOTH auth modes: cookie-mode rotations advance the epoch too
-    // (`markTokenRotation` in the refresh manager), and the chat rides cookies
-    // there via `credentials: 'include'`.
-    lastChatSendEpoch = getTokenEpoch();
-    // Mirror `apiClient.getAuthHeaders()` EXACTLY: only attach a stored Bearer
-    // in bearer mode (dev-ticket web or native shell). In normal cookie mode
-    // the access token lives in an http-only cookie that `oauth/refresh`
-    // rotates server-side; the client-side copy is only maintained in bearer
-    // mode (token-refresh-manager gates its writes the same way). Sending a
-    // copy outside bearer mode would ship a stale/expired Bearer that the
-    // gateway prefers over the fresh cookie. Omit it and let
-    // `credentials: 'include'` carry the cookie.
-    const identity = clientIdentityHeaders();
-    const token = getBearerTokenSync();
-    return token ? { ...identity, Authorization: `Bearer ${token}` } : identity;
-  },
-  hasCredential: () => !!getBearerTokenSync(),
-  // Send openframe cookies cross-origin to the gateway; CORS +
-  // `SameSite=None` on cookies must be configured server-side. (Harmless
-  // no-op in production, where the frontend and gateway share one origin.)
-  credentials: 'include',
-  // `refreshAccessToken` already dedups concurrent refreshes internally, and
-  // `embedAuthedFetch` dedups 401-triggered retries on top — so a stampede of
-  // simultaneously-expiring chat requests refreshes once. Passing the send-time
-  // epoch closes the remaining gap: a 401 that lands AFTER that refresh
-  // finished is stale news and resolves to a retry rather than a second
-  // rotation (which, with rotating refresh tokens, invalidates the credential
-  // just obtained).
-  refresh: () => refreshAccessToken(lastChatSendEpoch),
-  // Mobile force-update, as `apiClient`, Relay and the upload helpers do it:
-  // once this bundle is refused nothing goes out, and a 426 flips the app into
-  // the "Update required" screen ahead of the 401 → `refresh` path, never
-  // retried. Both are no-ops off the mobile shell. A 410 (deleted tenant) is
-  // refused the same way, on every shell (`session-health.ts`).
-  beforeRequest: () => {
-    if (isUpdateRequired()) throw new UpdateRequiredError();
-    if (isSessionGone()) throw new SessionGoneError();
-  },
-  onResponse: async response => {
-    if (await noteUpgradeRequired(response)) throw new UpdateRequiredError();
-    if (noteGatewayResponse(response)) throw new SessionGoneError();
-  },
-  // The one origin the bearer belongs to, in bearer mode only (see
-  // `bearerGatewayOrigins`). Empty on the cookie-auth web, where the
-  // same-origin rule stays absolute.
-  allowedOrigins: bearerGatewayOrigins(),
-  // Every picture the lib draws asks this first: a backend image path
-  // (`/images/user/1`) is served at the gateway's `/api`, never at the page's
-  // origin, on web and in the shells alike.
-  resolveAssetUrl: resolveBackendImageUrl,
-  // Epoch-gated, per `EmbedAuthAdapter.subscribe`'s "real change only"
-  // contract: `adoptNativeTokens` also emits when the shell hands back the SAME
-  // token (a shell re-emitting the pair on resume), and the web branch of
-  // `setTokens` emits on every write.
-  subscribe: listener => {
-    let seenEpoch = getTokenEpoch();
-    return subscribeToTokenChange(() => {
-      const epoch = getTokenEpoch();
-      if (epoch === seenEpoch) return;
-      seenEpoch = epoch;
-      listener();
-    });
-  },
-};
-
-// Register the auth adapter + drop legacy proxy-auth ONCE, at module load —
-// i.e. before the provider renders or any child chat effect fires a request.
-// Why not in render / useEffect: the chat's identity & slash-command requests
-// fire from CHILD mount effects, which run before a parent `useEffect`; and a
-// `useState` initializer races StrictMode's double-invoke + the unmount-null,
-// leaving the first requests adapter-less (the `credentials: 'same-origin'` +
-// 401 + no-refresh symptom). The adapter is a stateless module singleton
-// (reads localStorage/env fresh per call), so a single app-lifetime
-// registration with no teardown is correct — and runs exactly once, so there
-// is no "overwriting a previously-registered adapter" warning.
-//
-// `clearEmbedProxyAuth()`: openframe never does proxy-impersonation, but an
-// earlier `setEmbedProxyAuth`-based approach persisted the openframe JWT under
-// `<appType>.chat.proxy-auth.v1`. That copy is frozen at login, so
-// `applyProxyAuth` kept attaching a stale/expired Bearer to `/content/*`.
-if (typeof window !== 'undefined') {
-  clearEmbedProxyAuth();
-  setEmbedAuthAdapter(CHAT_AUTH_ADAPTER);
-}
 
 /** The agent this app's chat talks to: its public slug on the hub (chat-admin source `agent-mingo`). */
 const ASSISTANT_AGENT_SLUG = 'mingo';
@@ -316,8 +177,8 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
     // a same-origin production deployment the platform reverse proxy answers
     // it before Next does. In the NATIVE SHELL neither exists (static export
     // on `capacitor://localhost`), so `CONTENT_ORIGIN` absolutizes the base
-    // to the tenant gateway — the origin `CHAT_AUTH_ADAPTER.allowedOrigins`
-    // sanctions for the guard. Same split as `help-center/endpoints.ts`.
+    // to the tenant gateway — the origin the auth adapter's `allowedOrigins`
+    // (`lib/embed-auth-adapter.ts`) sanctions for the guard. Same split as `help-center/endpoints.ts`.
     const contentBase = `${CONTENT_ORIGIN}/content`;
     const content = (path: string): string => `${contentBase}${path}`;
 

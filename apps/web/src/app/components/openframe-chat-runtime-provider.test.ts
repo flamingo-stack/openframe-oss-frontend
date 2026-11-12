@@ -33,7 +33,10 @@ vi.mock('@/lib/token-store', () => ({
 
 const UPGRADE_BODY = { code: 'CLIENT_UPGRADE_REQUIRED', minBundleVersion: '1.0.120', storeUrl: 'itms-apps://x' };
 
-/** The provider registers its adapter at module load; the chat's requests go through the lib's `embedAuthedFetch`. */
+/**
+ * The provider registers the app's auth adapter (`lib/embed-auth-adapter.ts`) at its module load; the chat's
+ * requests go through the lib's `embedAuthedFetch`.
+ */
 async function load() {
   vi.resetModules();
   await import('./openframe-chat-runtime-provider');
@@ -112,7 +115,7 @@ describe('embedded chat on 426', () => {
   });
 });
 
-describe('chat auth adapter in bearer mode', () => {
+describe('embed auth adapter in bearer mode', () => {
   const BLOB_URL = 'blob:avatar';
   const withBearer = expect.objectContaining({
     headers: expect.objectContaining({ Authorization: 'Bearer token' }),
