@@ -1,15 +1,14 @@
 /**
  * The auth adapter the core lib's `embedAuthedFetch` consults, and its registration.
  *
- * Its own module, so the ROOT layout can register it: the agents' identities
- * (`agent-identity-root.tsx`) do, at module load, and in a tenant mode every other
- * `contentFetch` / `embedAuthedFetch` caller and every lib picture finds it registered. The chat
- * provider under `(app)` repeats the call, so it does not depend on the root's load order. The
- * lib's `contentFetch` is a plain `fetch` until then, and the registration used to sit in the
- * chat provider's module, which only `(app)/layout.tsx` loads. A sign-in made from the login screen makes the session
- * ready on `/auth`, before any `(app)` route has been evaluated: the identities were read with no
- * bearer, the gateway answered 401, and that read is asked once, so every agent's mark (the Mingo
- * icon on the start screen) stayed an empty box until the shell was restarted.
+ * Its own module, so the ROOT layout can register it (`embed-shim-registration.tsx`): in a tenant
+ * mode every `contentFetch` / `embedAuthedFetch` caller and every lib picture then finds it
+ * registered, on any page. The lib's `contentFetch` is a plain `fetch` until then, and the
+ * registration used to sit in the chat provider's module, which only `(app)/layout.tsx` loads. A
+ * sign-in made from the login screen makes the session ready on `/auth`, before any `(app)` route
+ * has been evaluated: the agents' identities were read with no bearer, the gateway answered 401,
+ * and every agent's mark (the Mingo icon on the start screen) stayed an empty box until the shell
+ * was restarted.
  */
 
 import {
@@ -138,33 +137,30 @@ const EMBED_AUTH_ADAPTER: EmbedAuthAdapter = {
   },
 };
 
-let registered = false;
-
 /**
- * Registers the auth adapter + drops legacy proxy-auth ONCE. A caller runs it at ITS module
- * load, i.e. before it renders or any of its effects fires a request.
- * Why not in render / useEffect: the chat's identity & slash-command requests
- * fire from CHILD mount effects, which run before a parent `useEffect`; and a
- * `useState` initializer races StrictMode's double-invoke + the unmount-null,
- * leaving the first requests adapter-less (the `credentials: 'same-origin'` +
- * 401 + no-refresh symptom). The adapter is a module singleton: the token and the headers are
- * read per call, `allowedOrigins` once, when this module loads, which can be before the sign-in
- * (a login that changes the tenant host reloads the document, `tenantHostChanged`). So a single
- * app-lifetime registration with no teardown is correct, and the lib's "overwriting a
- * previously-registered adapter" warning never fires.
+ * Registers the auth adapter + drops legacy proxy-auth. Its one caller,
+ * `embed-shim-registration.tsx`, runs it at module load, when the root layout's client modules
+ * load: before any effect in the page fires a request.
+ * Why not in render / useEffect: requests fire from mount effects all over the tree (the agents'
+ * identities, the chat's identity & slash commands), and a child's effect runs before a parent's;
+ * and a `useState` initializer races StrictMode's double-invoke + the unmount-null, leaving the
+ * first requests adapter-less (the `credentials: 'same-origin'` + 401 + no-refresh symptom).
+ * The adapter is a module singleton: the token and the headers are read per call,
+ * `allowedOrigins` once, when this module loads, which can be before the sign-in (a login that
+ * changes the tenant host reloads the document, `tenantHostChanged`). So a single app-lifetime
+ * registration with no teardown is correct.
  *
  * Not on the shared-auth host. It has no tenant session to sign, and its one content read is
  * the hub's announcement, cross-origin: with an adapter registered the lib refuses it
  * (`embedAuthedFetch`'s same-origin rule) where the plain `fetch` reaches it.
  *
- * `clearEmbedProxyAuth()`: openframe never does proxy-impersonation, but an
- * earlier `setEmbedProxyAuth`-based approach persisted the openframe JWT under
- * `<appType>.chat.proxy-auth.v1`. That copy is frozen at login, so
- * `applyProxyAuth` kept attaching a stale/expired Bearer to `/content/*`.
+ * `clearEmbedProxyAuth()`: openframe never does proxy-impersonation, but an earlier
+ * `setEmbedProxyAuth`-based approach persisted the openframe JWT under
+ * `<appType>.chat.proxy-auth.v1`. That copy is frozen at login, so `applyProxyAuth` kept
+ * attaching a stale/expired Bearer to `/content/*`.
  */
 export function registerEmbedAuthAdapter(): void {
-  if (registered || typeof window === 'undefined' || isSaasSharedMode()) return;
-  registered = true;
+  if (typeof window === 'undefined' || isSaasSharedMode()) return;
   clearEmbedProxyAuth();
   setEmbedAuthAdapter(EMBED_AUTH_ADAPTER);
 }

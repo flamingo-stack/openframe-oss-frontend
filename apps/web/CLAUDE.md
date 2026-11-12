@@ -1081,7 +1081,7 @@ The root layout (`src/app/layout.tsx`) establishes the global provider hierarchy
   </head>
   <body>
     <GoogleTagManager />             <!-- Analytics (if GTM ID set) -->
-    <EmbedShimRegistration />        <!-- registers Next router/Link/Image into core-lib embed-shims -->
+    <EmbedShimRegistration />        <!-- registers Next router/Link/Image into core-lib embed-shims, and the embed auth adapter -->
     <DeploymentInitializer />        <!-- Runtime detection -->
     <NativeShellInitializer />       <!-- Capacitor/Tauri shell bridge -->
     <RelayProvider>                  <!-- react-relay environment (singleton) -->

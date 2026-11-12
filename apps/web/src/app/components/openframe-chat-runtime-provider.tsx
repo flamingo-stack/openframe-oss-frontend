@@ -72,12 +72,7 @@ import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-s
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useManhattanCentreStore } from '@/app/components/manhattan-shell/manhattan-centre-store';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
-import { registerEmbedAuthAdapter } from '@/lib/embed-auth-adapter';
 import { routes } from '@/lib/routes';
-
-// The root layout has registered it by now (`agent-identity-root.tsx`); repeated so the chat does
-// not depend on that order. At module load: its requests fire from child mount effects.
-registerEmbedAuthAdapter();
 
 /** Stable source identifier used for localStorage namespacing inside the
  *  lib (`mingo-chat-openframe-v1` keys). Must not change between

@@ -4,9 +4,6 @@ import { AgentIdentityProvider } from '@flamingo-stack/openframe-frontend-core/c
 import type { ReactNode } from 'react';
 import { CONTENT_ORIGIN } from '@/app/(app)/help-center/endpoints';
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
-import { registerEmbedAuthAdapter } from '@/lib/embed-auth-adapter';
-
-registerEmbedAuthAdapter();
 
 const AGENT_IDENTITIES_URL = `${CONTENT_ORIGIN}/content/api/ai-agents`;
 
@@ -26,9 +23,9 @@ const AGENT_IDENTITIES_URL = `${CONTENT_ORIGIN}/content/api/ai-agents`;
  * refused and the refusal starts a token refresh that can end the sign-in in progress
  * (see `sessionReady` in AppShell). Signed out (the auth pages) nothing is read.
  *
- * The read is signed by the lib's auth adapter, which this module registers itself, at load
- * (`registerEmbedAuthAdapter`): the session becomes ready on `/auth` after a sign-in, before
- * anything under `(app)` is loaded, and the lib asks for the identities once.
+ * The read is signed by the app's auth adapter, which the root layout registers at load
+ * (`embed-shim-registration.tsx`), so its first attempt carries the session's credential on any
+ * page (`lib/embed-auth-adapter.ts` has why).
  */
 export function AppAgentIdentityProvider({ children }: { children: ReactNode }) {
   const { isReady, isAuthenticated } = useAuthSession();

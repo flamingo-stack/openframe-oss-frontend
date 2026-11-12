@@ -2,8 +2,8 @@
  * The agents' identities are provided at the root, so a mark drawn outside `(app)` — a
  * Mingo notification popup, rendered by the root layout's notifications provider — has
  * its provider: no "[AgentIdentity] … with no <AgentIdentityProvider>" error, and no read
- * before the session is in place. And the read carries the session's credential on its own:
- * the root layout renders it on `/auth` too, where nothing under `(app)` has been loaded.
+ * before the session is in place. And the read carries the session's credential with nothing
+ * under `(app)` loaded, as on `/auth`: the root layout registers the auth adapter.
  */
 
 import { AgentMark } from '@flamingo-stack/openframe-frontend-core/components';
@@ -13,6 +13,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { runtimeEnv } from '@/lib/runtime-config';
 import { AppAgentIdentityProvider } from './agent-identity-root';
+// The root layout renders this ahead of the provider tree: its module registers the app's auth adapter.
+import './embed-shim-registration';
 
 const { session } = vi.hoisted(() => ({ session: { isReady: false, isAuthenticated: false } }));
 vi.mock('@/app/(auth)/auth/hooks/use-auth-session', () => ({ useAuthSession: () => session }));
@@ -78,7 +80,6 @@ describe('AppAgentIdentityProvider', () => {
     expect(identityErrors(error)).not.toHaveLength(0);
   });
 
-  // The session becomes ready on `/auth` after a sign-in, before anything under `(app)` is loaded.
   it('reads the identities with the bearer, with nothing under (app) loaded', async () => {
     session.isReady = true;
     session.isAuthenticated = true;
