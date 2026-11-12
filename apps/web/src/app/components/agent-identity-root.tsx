@@ -22,6 +22,10 @@ const AGENT_IDENTITIES_URL = `${CONTENT_ORIGIN}/content/api/ai-agents`;
  * The identities are read once the session is in place: sent earlier, the read is
  * refused and the refusal starts a token refresh that can end the sign-in in progress
  * (see `sessionReady` in AppShell). Signed out (the auth pages) nothing is read.
+ *
+ * The read is signed by the app's auth adapter, which the root layout registers at load
+ * (`embed-shim-registration.tsx`), so its first attempt carries the session's credential on any
+ * page (`lib/embed-auth-adapter.ts` has why).
  */
 export function AppAgentIdentityProvider({ children }: { children: ReactNode }) {
   const { isReady, isAuthenticated } = useAuthSession();

@@ -554,8 +554,8 @@ cannot load, a picture loaded without the bearer in a native shell, or a fallbac
   `?v=<hash>` already: `getFullImageUrl(url)` with no hash. There is no hash-only helper: a hashed URL without its
   host is what drew initials on the tickets board. A Google SSO picture is an absolute third-party URL and passes
   through unchanged.
-- **The lib resolves on render too, as a net.** `resolveBackendImageUrl` is the chat runtime adapter's
-  `resolveAssetUrl` (`openframe-chat-runtime-provider.tsx`), and every lib picture passes its src through it. It is
+- **The lib resolves on render too, as a net.** `resolveBackendImageUrl` is the embed auth adapter's
+  `resolveAssetUrl` (`src/lib/embed-auth-adapter.ts`), and every lib picture passes its src through it. It is
   not the contract: a URL that is compared, stored or sent anywhere still goes through `getFullImageUrl`.
 - **Bearer mode (the shells, dev-ticket web)**: a gateway picture waits for the credential, is fetched with it and is
   drawn from a blob. A picture still waiting for its credential, or refused by an old one, is fetched again when the
@@ -1081,7 +1081,7 @@ The root layout (`src/app/layout.tsx`) establishes the global provider hierarchy
   </head>
   <body>
     <GoogleTagManager />             <!-- Analytics (if GTM ID set) -->
-    <EmbedShimRegistration />        <!-- registers Next router/Link/Image into core-lib embed-shims -->
+    <EmbedShimRegistration />        <!-- registers Next router/Link/Image into core-lib embed-shims, and the embed auth adapter -->
     <DeploymentInitializer />        <!-- Runtime detection -->
     <NativeShellInitializer />       <!-- Capacitor/Tauri shell bridge -->
     <RelayProvider>                  <!-- react-relay environment (singleton) -->
