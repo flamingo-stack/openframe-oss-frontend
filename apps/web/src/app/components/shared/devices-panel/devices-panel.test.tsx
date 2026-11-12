@@ -107,6 +107,14 @@ const settle = async () => {
 const funnels = () =>
   [...container.querySelectorAll('[aria-label^="Filter by"]')].map(node => node.getAttribute('aria-label'));
 const text = () => container.textContent ?? '';
+/** The lib's grid table: its root, the gear of its saved column settings, and the scroll area of a table that fills the height. */
+const gridTable = () => ({
+  drawn: container.querySelector('[data-grid-root]') !== null,
+  settings: container.querySelector('[aria-label="Table settings"]') !== null,
+  ownScroll: container.querySelector('[data-grid-root] [style*="--data-table-max-height"]') !== null,
+});
+const GRID_TABLE = { drawn: true, settings: true, ownScroll: true };
+const CARD_ROWS = { drawn: false, settings: false, ownScroll: false };
 const countAsked = () => fetchFn.mock.calls.filter(call => call[0].name === 'useDirectoryGateQuery').length;
 const flagsOn = () =>
   useFeatureFlagsStore.getState().setFlags([
@@ -438,5 +446,74 @@ describe('DevicesPanel and the directory gate', () => {
     expect(text()).toContain('host-1');
     expect(text()).not.toContain('USER');
     expect(env.listFilters.at(-1)).not.toHaveProperty('userLinks');
+  });
+
+  describe('the grid table (`tableLayout`)', () => {
+    const mainsFlags = () =>
+      useFeatureFlagsStore.getState().setFlags([
+        { name: 'tenant-management', enabled: true },
+        { name: 'tenant-management-v2', enabled: false },
+      ]);
+    /** Holds the list out, as a cold load does: the panel draws its loading form. */
+    const listOut = () => {
+      env.listOut = new Promise<void>(() => undefined);
+    };
+
+    it("is main's panel's table once its rows are in, with its column settings and its own scroll", async () => {
+      mainsFlags();
+      render({ tableLayout: 'grid' });
+      await settle();
+      expect(text()).toContain('host-1');
+      expect(gridTable()).toEqual(GRID_TABLE);
+    });
+
+    it("is Tenant Management Phase 2's panel's table once its rows are in", async () => {
+      flagsOn();
+      render({ tableLayout: 'grid' });
+      await settle();
+      expect(text()).toContain('host-1');
+      expect(text()).toContain('USER');
+      expect(gridTable()).toEqual(GRID_TABLE);
+    });
+
+    it("is the loading form's table too, under both panels: the rows arrive in the table already drawn", async () => {
+      listOut();
+      mainsFlags();
+      render({ tableLayout: 'grid' });
+      await settle();
+      expect(text()).not.toContain('host-1');
+      expect(gridTable()).toEqual(GRID_TABLE);
+
+      act(() => flagsOn());
+      await settle();
+      expect(text()).not.toContain('host-1');
+      expect(gridTable()).toEqual(GRID_TABLE);
+    });
+
+    it('is the table while the flags are out', async () => {
+      render({ tableLayout: 'grid' });
+      await settle();
+      expect(useFeatureFlagsStore.getState().isLoaded).toBe(false);
+      expect(gridTable()).toEqual(GRID_TABLE);
+    });
+
+    it('stays card rows where no layout is asked for, loaded and loading', async () => {
+      mainsFlags();
+      render();
+      await settle();
+      expect(text()).toContain('host-1');
+      expect(gridTable()).toEqual(CARD_ROWS);
+
+      act(() => flagsOn());
+      await settle();
+      expect(text()).toContain('host-1');
+      expect(gridTable()).toEqual(CARD_ROWS);
+
+      listOut();
+      setAddress('?statuses=ONLINE');
+      render();
+      await settle();
+      expect(gridTable()).toEqual(CARD_ROWS);
+    });
   });
 });
