@@ -322,15 +322,36 @@ describe('ManhattanCentre', () => {
     expect(currentMode()).toBe('page');
   });
 
-  it.each(['hidden', 'full'] as const)('a new page comes beside the chat, whatever the last one had (%s)', view => {
+  it.each(['hidden', 'full'] as const)("the user's view holds on a new page (%s)", view => {
     chatState.activeDialogId = 'd-1';
     useManhattanCentreStore.setState({ chatView: view });
     renderCentre();
-    expect(currentMode()).not.toBe('split');
+    const mode = currentMode();
+    expect(mode).not.toBe('split');
     nav.pathname = '/devices/details/remote-shell/';
+    renderCentre();
+    expect(useManhattanCentreStore.getState().chatView).toBe(view);
+    expect(currentMode()).toBe(mode);
+  });
+
+  it('a chat closed beside the pages stays closed on the next one, until a chat opens', () => {
+    useManhattanCentreStore.setState({ chatView: 'hidden' });
+    renderCentre();
+    expect(currentMode()).toBe('page');
+    nav.pathname = '/software';
+    renderCentre();
+    expect(currentMode()).toBe('page');
+    // A chat picked in the history, a notification, a first send from the composer under the page.
+    chatState.activeDialogId = 'd-2';
     renderCentre();
     expect(useManhattanCentreStore.getState().chatView).toBe('split');
     expect(currentMode()).toBe('split');
+  });
+
+  it('starts beside the page after a reload: the view is not stored', () => {
+    useManhattanCentreStore.getState().setChatView('hidden');
+    expect(window.sessionStorage.length).toBe(0);
+    expect(window.localStorage.getItem('of.manhattan.chatView')).toBeNull();
   });
 
   it('a link from the chat full screen to another detail page (a query change) shows it beside the chat', () => {
@@ -402,6 +423,23 @@ describe('ManhattanCentre', () => {
     render(centre(false));
     expect(useManhattanCentreStore.getState().chatView).toBe('split');
     expect(currentMode()).toBe('split');
+  });
+
+  it('widened out of one column: a chat the user closed stays closed', () => {
+    chatState.activeDialogId = 'd-1';
+    useManhattanCentreStore.setState({ chatView: 'hidden' });
+    const centre = (compact: boolean) => (
+      <ManhattanCentre enabled compact={compact}>
+        {slots => <p data-testid="mode">{slots?.mode}</p>}
+      </ManhattanCentre>
+    );
+    render(centre(false));
+    render(centre(true));
+    nav.pathname = '/software';
+    render(centre(true));
+    render(centre(false));
+    expect(useManhattanCentreStore.getState().chatView).toBe('hidden');
+    expect(currentMode()).toBe('page');
   });
 
   it('with no chat: Start Work beside the page; full screen, then back with the layout button', () => {
