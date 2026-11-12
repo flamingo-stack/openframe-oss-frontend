@@ -290,14 +290,18 @@ function ManhattanChatColumn({
         data-testid="manhattan-chat-thread"
         className={cn('flex min-h-0 flex-1 flex-col', startWork && 'hidden')}
       />
-      {/* The composer spans the column (the dock's max width is for under a page). Over Start
-          Work it floats: the transparent band around it leaves the pointer to Start Work. */}
+      {/* The composer spans the column (the dock's max width is for under a page), its ground
+          edge to edge and the composer inset in it. Over Start Work it floats: Start Work runs on
+          under its ground and fades out above it. */}
       <div
         ref={setDock}
         data-testid="manhattan-column-dock"
         className={cn('shrink-0', startWork && 'pointer-events-none absolute inset-x-0 bottom-0 z-10')}
       >
-        <ManhattanComposerSlot active={shown} className="px-[var(--spacing-system-lf)] [&_section]:max-w-none" />
+        <ManhattanComposerSlot
+          active={shown}
+          className="[&_section]:max-w-none [&_section]:px-[var(--spacing-system-lf)]"
+        />
       </div>
     </div>
   );

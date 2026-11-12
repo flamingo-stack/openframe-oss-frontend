@@ -157,7 +157,11 @@ export function useOpenframeChatProps({
     // configured so the lib keeps its default welcome content.
     mingoWelcome:
       mingoQuickActions.length > 0 || mingoQuickActionsLoading
-        ? { quickActions: mingoQuickActions, quickActionsLoading: mingoQuickActionsLoading }
+        ? {
+            quickActions: mingoQuickActions,
+            quickActionsLoading: mingoQuickActionsLoading,
+            quickActionAccent: OPENFRAME_QUICK_ACTION_ACCENT,
+          }
         : undefined,
     // The quick actions the chat reads itself (Guide mode) are drawn as the dock's are.
     quickActionAccent: OPENFRAME_QUICK_ACTION_ACCENT,

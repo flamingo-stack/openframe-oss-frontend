@@ -1,14 +1,19 @@
 'use client';
 
-import { type MingoQuickAction, renderQuickActionIcon } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import {
+  type MingoQuickAction,
+  type QuickActionAccent,
+  renderQuickActionIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useMemo } from 'react';
 import { useMingoQuickActions } from '@/app/(app)/mingo/hooks/use-mingo-quick-actions';
 
 /**
- * The icon tint of every quick action in OpenFrame (the dock's row, the chat's empty states): the
- * tag's own text colour, not an agent's accent, as the design's row draws them.
+ * The icon tint of every quick action in OpenFrame (the dock's row, the chat's empty states, the
+ * row's "All" glyph): the shell's grey, not an agent's accent, as the design's row draws them
+ * (Figma `chat/dock`, node 4368:14042). A hub icon that sets its own color keeps it.
  */
-export const OPENFRAME_QUICK_ACTION_ACCENT = 'currentColor';
+export const OPENFRAME_QUICK_ACTION_ACCENT = 'grey' satisfies QuickActionAccent;
 
 /**
  * Admin-configured Mingo quick actions (AI Settings → "Mingo AI Chat" tab, else the hub
@@ -32,8 +37,8 @@ export function useMingoQuickActionChips(send?: (instructions: string) => void):
         // Product Hub defaults carry a glyph (iconName/iconUrl/iconProps) and
         // tenant customs the `iconName` picked in AI Settings; render it into
         // the chip node. No icon → undefined → a text-only chip. The glyph is drawn in the
-        // tag's own text colour, as the row's "All" glyph is (`OPENFRAME_QUICK_ACTION_ACCENT`),
-        // unless the hub icon sets its own color.
+        // shell's grey, as the row's "All" glyph is (`OPENFRAME_QUICK_ACTION_ACCENT`), unless
+        // the hub icon sets its own color.
         icon: renderQuickActionIcon({
           name: action.iconName ?? undefined,
           url: action.iconUrl ?? undefined,

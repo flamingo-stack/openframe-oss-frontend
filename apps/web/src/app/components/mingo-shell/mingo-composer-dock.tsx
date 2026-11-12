@@ -95,6 +95,16 @@ function samePath(href: string, pathname: string | null): boolean {
 /** The chat page's thread column: the composer's width there. */
 const CHAT_COLUMN_WIDTH = dockViewOf('chat').widthClassName;
 
+/**
+ * The dock's ground: the page's background (`bg-ods-bg`, which follows a chat page's own
+ * surface) under the composer, and a fade from transparent into it over the
+ * `spacing-system-xlf` (40px) above, the design's `scroll-gradient`.
+ */
+const DOCK_GROUND_CLASS = cn(
+  'pointer-events-auto relative bg-ods-bg',
+  "before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-[var(--spacing-system-xlf)] before:bg-gradient-to-b before:from-transparent before:to-ods-bg before:content-['']",
+);
+
 /** The chat's title for the "Continue" chip: shortened, so the chip leaves room for the strip. */
 const CONTINUE_TITLE_MAX = 34;
 
@@ -181,26 +191,28 @@ export function MingoComposerDock({ held = false }: { held?: boolean }) {
   const offOnPhone = (isSheetRoute(route) && !sheetUp) || (manhattan && listUp);
 
   return (
-    // Centred at the route's width, a step below the page's last line. No overflow
-    // clipping and no transform here: the composer's popovers open above it. Named
-    // here: an inline chat names itself through its host's region.
-    <section
-      aria-label="Mingo AI chat"
-      // `pointer-events-auto`: a floating dock leaves the pointer to the page around it.
-      className={cn(
-        'pointer-events-auto mx-auto w-full min-w-0 pt-[var(--spacing-system-mf)]',
-        dockViewOf(route).widthClassName,
-        offOnPhone && 'max-md:hidden',
-      )}
-    >
-      <MingoDockErrorBoundary>
-        {held ? (
-          <DockComposerLoading route={route} quickActions={showsDockQuickActions(route)} />
-        ) : (
-          <DockSurface route={route} quickActions={showsDockQuickActions(route) && !sheetUp} />
-        )}
-      </MingoDockErrorBoundary>
-    </section>
+    // The dock's ground (Figma `chat/dock`, node 4368:14042): the page's background across the
+    // whole width of the column, the composer and its quick actions on it, and over the page's
+    // end above it a fade into that background, on every page and in the chat column alike.
+    // The ground takes the pointer: over a floating dock the page under it is hidden, so a click
+    // there must not reach it; the fade above leaves the pointer to the page.
+    <div data-testid="mingo-composer-dock-ground" className={cn(DOCK_GROUND_CLASS, offOnPhone && 'max-md:hidden')}>
+      {/* Centred at the route's width, a step below the page's last line. No overflow
+          clipping and no transform here: the composer's popovers open above it. Named
+          here: an inline chat names itself through its host's region. */}
+      <section
+        aria-label="Mingo AI chat"
+        className={cn('mx-auto w-full min-w-0 pt-[var(--spacing-system-mf)]', dockViewOf(route).widthClassName)}
+      >
+        <MingoDockErrorBoundary>
+          {held ? (
+            <DockComposerLoading route={route} quickActions={showsDockQuickActions(route)} />
+          ) : (
+            <DockSurface route={route} quickActions={showsDockQuickActions(route) && !sheetUp} />
+          )}
+        </MingoDockErrorBoundary>
+      </section>
+    </div>
   );
 }
 

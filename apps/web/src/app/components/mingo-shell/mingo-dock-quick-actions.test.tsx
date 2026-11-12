@@ -73,6 +73,18 @@ describe('MingoDockQuickActions', () => {
     expect(onSend).toHaveBeenCalledExactlyOnceWith('List every online machine with its customer');
   });
 
+  // Figma `chat/dock` (node 4368:14042): OpenFrame's quick-action glyphs, "All" among them, are grey.
+  it("draws the actions' icons and the All glyph in the shell's grey", () => {
+    quickActions.value = [
+      { id: 'qa-1', name: 'Machines online', instructions: 'List every online machine', iconName: 'search' },
+      { id: 'qa-2', name: 'Run a script', instructions: 'Run a script', iconName: 'code' },
+    ];
+    render();
+    expect(chip('Machines online').querySelector('.text-ods-text-panel-secondary')).not.toBeNull();
+    const all = container.querySelector('[data-testid="quick-action-row-all-glyph"]');
+    expect(all?.classList.contains('text-ods-text-panel-secondary')).toBe(true);
+  });
+
   it('draws the wall with no caption and no "What to ask Mingo?"', () => {
     quickActions.value = [{ id: 'qa-1', name: 'Machines online', instructions: 'List every online machine' }];
     render();
