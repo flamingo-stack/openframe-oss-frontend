@@ -1,0 +1,21 @@
+flowchart TD
+    Types["Types Module"] --> UI["UI Components"]
+    Types --> Features["Feature Components"]
+    Types --> Chat["Chat System"]
+
+    UI --> Layout["Layout Components"]
+    UI --> Navigation["Navigation Components"]
+    UI --> Embeds["Embeds Components"]
+
+    Features --> Tickets["Tickets Components"]
+    Features --> Docs["Docs Components"]
+    Features --> Roadmap["Shared Components"]
+
+    Chat --> ChatTypes["Chat Types"]
+    Chat --> ChatUtils["Chat Utils"]
+
+    Hooks["Hooks"] --> UI
+    Hooks --> Features
+
+    Schemas["Schemas"] --> Features
+    Utils["Utils"] --> Features

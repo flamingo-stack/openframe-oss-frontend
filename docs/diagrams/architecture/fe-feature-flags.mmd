@@ -1,0 +1,7 @@
+flowchart TD
+    Frontend["Frontend Application"] -->|"GraphQL Query feFeatureFlags"| GraphQL["DGS GraphQL Runtime"]
+    GraphQL --> DataFetcher["FeFeatureFlagDataFetcher"]
+    DataFetcher --> Service["FeFeatureFlagService"]
+    Service --> Config["Feature Flag Sources<br/>Config DB Env"]
+    DataFetcher --> Response["FeFeatureFlag DTO List"]
+    Response --> Frontend

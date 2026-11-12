@@ -1,0 +1,4 @@
+flowchart TD
+    Scroll["Window Scroll"] --> Compute["Compute Scroll Position + Offset"]
+    Compute --> Match["Find Section by offsetTop"]
+    Match --> Update["setActiveSection()"]

@@ -1,0 +1,10 @@
+sequenceDiagram
+    participant Repo as MachineRepository
+    participant Aspect as MachineTagEventAspect
+    participant Service as MachineTagEventServiceImpl
+    participant Kafka as Kafka
+
+    Repo->>Aspect: save(machine)
+    Aspect->>Service: processMachineSave(machine)
+    Service->>Service: fetchMachineTags(machineId)
+    Service->>Kafka: publish(machineId, MachinePinotMessage)

@@ -1,0 +1,5 @@
+flowchart TD
+    Request --> AddAuthHeader["AddAuthorizationHeaderFilter"]
+    AddAuthHeader --> JwtResolver["Issuer Resolver"]
+    JwtResolver --> JwtManager["ReactiveAuthenticationManager"]
+    JwtManager --> Authorization["Path-based Authorization"]

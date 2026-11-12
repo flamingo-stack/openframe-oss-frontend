@@ -1,0 +1,5 @@
+flowchart LR
+    MachineIds["Machine ID List"] --> Query["ToolConnectionRepository.findByMachineIdIn()"]
+    Query --> Filter["Exclude DISCONNECTED"]
+    Filter --> Map["Map by Machine ID"]
+    Map --> Output["List<List<ToolConnection>>"]

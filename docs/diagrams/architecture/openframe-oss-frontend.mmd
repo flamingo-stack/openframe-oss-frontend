@@ -1,0 +1,10 @@
+flowchart LR
+    Browser["User Browser"] --> Frontend["Openframe Oss Frontend"]
+
+    Frontend -->|"GraphQL /api/graphql"| ApiService["API Service Core"]
+    Frontend -->|"/chat/api"| ChatService["AI / Chat Service"]
+    Frontend -->|"Fleet REST"| FleetService["Fleet MDM"]
+    Frontend -->|"Auth APIs"| AuthService["Authorization Service"]
+
+    ApiService --> DataLayer["Mongo / Cassandra / Redis"]
+    ChatService --> StreamLayer["Kafka / NATS"]

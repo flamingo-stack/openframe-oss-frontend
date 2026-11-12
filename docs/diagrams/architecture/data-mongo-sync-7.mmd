@@ -1,0 +1,10 @@
+sequenceDiagram
+    participant App
+    participant Mongo
+    participant Listener
+
+    App->>Mongo: save(agent)
+    Mongo->>Listener: BeforeSaveEvent
+    Listener->>Listener: log(before)
+    Mongo->>Listener: AfterSaveEvent
+    Listener->>Listener: log(after)

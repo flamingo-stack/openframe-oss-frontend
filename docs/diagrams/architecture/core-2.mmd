@@ -1,0 +1,15 @@
+flowchart TD
+    Config["DisposableDomainClientConfig"]
+    Checker["KickboxDisposableDomainChecker"]
+    Noop["NoopDisposableDomainChecker"]
+    HttpClient["DisposableDomainHttpClient"]
+    External["External Disposable Domain API"]
+
+    Config --> HttpClient
+    Checker --> HttpClient
+    HttpClient --> External
+
+    Checker -->|"enabled=true"| Decision
+    Noop -->|"enabled=false"| Decision
+
+    Decision["DisposableDomainChecker Interface"]

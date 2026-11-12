@@ -1,0 +1,11 @@
+flowchart TD
+    A["getSecret()"] --> B["Fetch IntegratedTool by Key"]
+    B --> C{{"Tool Found?"}}
+    C -->|"No"| D["Throw IllegalStateException"]
+    C -->|"Yes"| E["Fetch API ToolUrl"]
+    E --> F{{"URL Found?"}}
+    F -->|"No"| G["Throw IllegalStateException"]
+    F -->|"Yes"| H["Extract API URL and API Token"]
+    H --> I["Create Fleet MDM Client"]
+    I --> J["Call getEnrollSecret()"]
+    J --> K["Return Enroll Secret"]

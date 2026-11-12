@@ -1,0 +1,6 @@
+flowchart TD
+    App["Application / Feature Modules"] --> Composed["Composed Ui Components"]
+    Composed --> Primitives["Ui Primitives"]
+    Primitives --> ODS["ODS Tokens & Utilities"]
+
+    Composed --> ThirdParty["Radix UI / react-markdown / mermaid"]

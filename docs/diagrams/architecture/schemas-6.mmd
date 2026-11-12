@@ -1,0 +1,11 @@
+flowchart TD
+    UI["UI Components"]
+    SchemasNode["Schemas Module"]
+    TypesNode["Types Module"]
+    ApiLayer["API Client Layer"]
+    BackendNode["Backend Services"]
+
+    UI --> SchemasNode
+    SchemasNode --> ApiLayer
+    UI --> TypesNode
+    ApiLayer --> BackendNode

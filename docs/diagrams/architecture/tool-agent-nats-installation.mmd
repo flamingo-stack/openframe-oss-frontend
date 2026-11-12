@@ -1,0 +1,10 @@
+flowchart TD
+    A["Agent Installation Workflow"] --> B["Tool Agent Nats Installation"]
+    B --> C["Integrated Tool Service"]
+    B --> D["Tool Url Service"]
+    C --> E["MongoDB IntegratedTool Document"]
+    D --> F["MongoDB ToolUrl Document"]
+    B --> G["Fleet MDM Client"]
+    G --> H["Fleet MDM API"]
+    H --> I["Enroll Secret"]
+    I --> A

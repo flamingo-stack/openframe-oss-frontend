@@ -1,0 +1,9 @@
+flowchart TD
+    Content["DocContent"] --> TypeCheck{"documentType?"}
+
+    TypeCheck -->|markdown| MarkdownRenderer
+    TypeCheck -->|pdf| PdfViewer
+    TypeCheck -->|google_sheet| GoogleSheetsViewer
+    TypeCheck -->|figma| FigmaEmbed
+    TypeCheck -->|file| FileDownloadCard
+    TypeCheck -->|unknown| FallbackRenderer

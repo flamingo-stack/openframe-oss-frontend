@@ -1,0 +1,27 @@
+flowchart TD
+    EmbeddableChat["EmbeddableChat"]
+
+    ChatPanelHeader["Chat Panel Header"]
+    ChatMessageList["Chat Message List"]
+    ChatComposer["Chat Composer"]
+    HistoryRail["Mingo History Rail"]
+
+    EntityDispatch["Entity Card Dispatch"]
+    ApprovalBlock["Approval Batch Message"]
+    QuickActions["Quick Action Wall"]
+
+    Runtime["Chat Runtime Context"]
+    UnifiedChat["useUnifiedChat Adapter"]
+
+    EmbeddableChat --> ChatPanelHeader
+    EmbeddableChat --> ChatMessageList
+    EmbeddableChat --> ChatComposer
+    EmbeddableChat --> HistoryRail
+
+    ChatMessageList --> EntityDispatch
+    ChatMessageList --> ApprovalBlock
+
+    ChatComposer --> QuickActions
+
+    EmbeddableChat --> Runtime
+    EmbeddableChat --> UnifiedChat

@@ -1,0 +1,4 @@
+flowchart LR
+    DBChange["Machine or Tag Change"] --> BuildMsg["MachinePinotMessage"]
+    BuildMsg --> Kafka["Kafka Topic"]
+    Kafka --> Analytics["Pinot or Stream Processing"]

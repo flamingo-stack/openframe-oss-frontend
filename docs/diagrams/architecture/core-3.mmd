@@ -1,0 +1,8 @@
+flowchart TD
+    Request["Check Domain"] --> Call["External API Call"]
+    Call --> Success{"Successful Response?"}
+
+    Success -->|"Yes"| Parse["Parse disposable flag"]
+    Success -->|"No"| Allow["Return false (allow)"]
+
+    Parse --> ReturnResult["Return disposable value"]

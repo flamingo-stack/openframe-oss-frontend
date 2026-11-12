@@ -1,0 +1,7 @@
+flowchart TD
+    Root["PageLayout Root (flex column)"]
+    Root --> HeaderCheck{"Has Header?"}
+    HeaderCheck -->|Yes| TitleBlockNode["TitleBlock"]
+    HeaderCheck -->|No| ContentOnly["Content Only"]
+    TitleBlockNode --> ActionsSlot["Actions / Menu / Selector"]
+    Root --> ContentWrapper["Content Wrapper (gap spacing)"]

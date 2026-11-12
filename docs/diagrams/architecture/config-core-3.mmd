@@ -1,0 +1,8 @@
+flowchart TD
+    Request["GET /logging/{filename}"] --> CheckResource["Check classpath resource"]
+    CheckResource -->|"exists"| ReadFile["Read XML Content"]
+    CheckResource -->|"missing"| NotFound["Return 404"]
+
+    ReadFile --> BuildUrl["Build Server URL from HttpServletRequest"]
+    BuildUrl --> ReplaceContent["Replace resource attributes with url attributes"]
+    ReplaceContent --> Response["Return XML Response"]

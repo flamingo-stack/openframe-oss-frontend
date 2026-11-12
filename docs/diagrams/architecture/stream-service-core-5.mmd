@@ -1,0 +1,8 @@
+flowchart TD
+    Enriched["Enriched Event"] --> DestSwitch{"Destination"}
+
+    DestSwitch --> CassLog["Cassandra Event Log"]
+    DestSwitch --> MongoScript["Mongo ScriptExecution"]
+    DestSwitch --> MongoCommand["Mongo CommandExecution"]
+    DestSwitch --> CassCommand["Cassandra Command Results"]
+    DestSwitch --> KafkaOut["Outbound Tenant Kafka"]

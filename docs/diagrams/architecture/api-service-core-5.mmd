@@ -1,0 +1,5 @@
+flowchart TD
+    ParentQuery["Query List"] --> Resolver["Field Resolver"]
+    Resolver --> DataLoader["BatchLoader"]
+    DataLoader --> Repository["Repository"]
+    Repository --> AggregatedResult["Batched Results"]

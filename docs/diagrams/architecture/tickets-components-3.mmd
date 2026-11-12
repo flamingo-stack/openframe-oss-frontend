@@ -1,0 +1,13 @@
+sequenceDiagram
+    participant User
+    participant Form as "HelpCenterCreateForm"
+    participant Actions as "useTicketActions"
+    participant API as "Server Ticket API"
+
+    User->>Form: Submit subject + message
+    Form->>Actions: submitTicket(input)
+    Actions->>Actions: prependOptimistic()
+    Actions->>API: POST create ticket
+    API-->>Actions: Success / Error
+    Actions->>Actions: removeOptimistic() or refetch
+    Actions-->>Form: boolean result

@@ -1,0 +1,6 @@
+flowchart TD
+    Tick["Scheduled Tick"] --> Lock["Acquire ShedLock"]
+    Lock --> TenantCheck{"Tenant Registered?"}
+    TenantCheck -->|Yes| Reconcile["Reconcile Missing Connectors"]
+    TenantCheck -->|No| SkipReconcile["Skip Reconcile"]
+    Reconcile --> Recover["ConnectorRecoveryManager.checkAndRecoverAll()"]

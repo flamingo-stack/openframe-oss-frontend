@@ -1,0 +1,12 @@
+sequenceDiagram
+    participant User
+    participant HelpCenter
+    participant API
+    participant Drawer
+
+    User->>HelpCenter: Open Ticket
+    HelpCenter->>API: Fetch Ticket
+    API-->>HelpCenter: TicketData
+    HelpCenter->>Drawer: Render Engagements
+    User->>Drawer: Reply
+    Drawer->>API: POST reply

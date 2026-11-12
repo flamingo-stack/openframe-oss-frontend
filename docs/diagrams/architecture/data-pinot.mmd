@@ -1,0 +1,17 @@
+flowchart LR
+    StreamLayer["Stream Service Core"] --> Kafka["Kafka Topics"]
+    Kafka --> PinotCluster["Apache Pinot Cluster"]
+
+    subgraph data_pinot_module["Data Pinot Module"]
+        PinotConfigNode["PinotConfig"]
+        DeviceRepo["PinotClientDeviceRepository"]
+        LogRepo["PinotClientLogRepository"]
+        Warmup["PinotBrokerWarmup"]
+    end
+
+    PinotCluster -->|"Broker Queries"| DeviceRepo
+    PinotCluster -->|"Broker Queries"| LogRepo
+
+    DeviceRepo --> ApiLayer["API Service Core"]
+    LogRepo --> ApiLayer
+    ApiLayer --> Frontend["Frontend / External APIs"]

@@ -1,0 +1,8 @@
+sequenceDiagram
+    participant User
+    participant Component
+    participant Consumer
+
+    User->>Component: Click / Input
+    Component->>Consumer: onChange(value)
+    Consumer->>Component: new props (controlled)

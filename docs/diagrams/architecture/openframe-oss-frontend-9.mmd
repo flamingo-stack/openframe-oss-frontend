@@ -1,0 +1,7 @@
+flowchart LR
+    Component --> ApiClient
+    ApiClient --> Fetch
+    Fetch --> Backend
+
+    Fetch -->|401| Refresh["refreshAccessToken"]
+    Refresh --> ApiClient

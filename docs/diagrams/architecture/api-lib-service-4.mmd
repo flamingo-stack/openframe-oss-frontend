@@ -1,0 +1,7 @@
+flowchart TD
+    Save["Save KnowledgeBaseItem"] --> Check{"Status == PUBLISHED?"}
+    Check -->|"No"| End["Persist without change"]
+    Check -->|"Yes"| HasTimestamp{"publishedAt is null?"}
+    HasTimestamp -->|"No"| End
+    HasTimestamp -->|"Yes"| Stamp["Set publishedAt = now()"]
+    Stamp --> End

@@ -1,0 +1,12 @@
+flowchart TD
+    RawDebezium["CommonDebeziumMessage"] --> ToolSwitch{"MessageType"}
+
+    ToolSwitch --> ScriptDes["ScriptResultDeserializer"]
+    ToolSwitch --> CommandDes["CommandResultDeserializer"]
+    ToolSwitch --> FleetDes["Fleet Deserializers"]
+    ToolSwitch --> MeshDes["MeshCentralEventDeserializer"]
+
+    ScriptDes --> UnifiedMsg["DeserializedDebeziumMessage"]
+    CommandDes --> UnifiedMsg
+    FleetDes --> UnifiedMsg
+    MeshDes --> UnifiedMsg

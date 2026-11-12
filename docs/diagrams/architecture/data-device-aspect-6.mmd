@@ -1,0 +1,6 @@
+flowchart TD
+    Mongo["MongoDB"] --> Aspect["Data Device Aspect"]
+    Aspect --> Kafka["Kafka"]
+    Kafka --> StreamService["Stream Service"]
+    StreamService --> Pinot["Pinot"]
+    Pinot --> API["Analytics API"]

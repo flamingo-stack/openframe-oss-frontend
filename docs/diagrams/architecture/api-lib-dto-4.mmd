@@ -1,0 +1,6 @@
+flowchart TD
+    ApiServiceCore["api-service-core"] --> ApiLibDto["Api Lib Dto"]
+    ExternalApi["external-api-service-core"] --> ApiLibDto
+    ApiLibDto --> DataMongo["data-mongo-common"]
+    ApiLibDto --> DataCassandra["data-cassandra"]
+    ApiLibDto --> DataPinot["data-pinot"]

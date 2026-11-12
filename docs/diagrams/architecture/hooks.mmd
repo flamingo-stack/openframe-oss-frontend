@@ -1,0 +1,14 @@
+flowchart TD
+    UI["UI Components"] --> HookLayer["Hooks Module"]
+
+    HookLayer --> PaginationHook["useTablePagination"]
+    HookLayer --> ImageHook["useAuthenticatedImage"]
+
+    PaginationHook --> CursorProps["CursorPaginationProps"]
+    ImageHook --> BrowserFetch["fetch() with credentials"]
+    ImageHook --> ImageCache["Global Image Cache"]
+
+    ImageCache --> BlobURL["Blob Object URL"]
+    BrowserFetch --> BlobURL
+
+    BlobURL --> UI

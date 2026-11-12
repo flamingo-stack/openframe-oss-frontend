@@ -1,0 +1,7 @@
+flowchart LR
+    TokenRequest["Token Request"] --> JwtEncoder
+    JwtEncoder --> JwkSource
+    JwkSource --> TenantKeyService
+    TenantKeyService --> Mongo["TenantKey Repository"]
+    TenantKeyService --> JwtEncoder
+    JwtEncoder --> AccessToken["Signed JWT"]

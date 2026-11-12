@@ -1,0 +1,11 @@
+flowchart TD
+    AppPage["Application Page"] --> PageLayout["PageLayout"]
+    PageLayout --> TitleBlock["TitleBlock"]
+    PageLayout --> ContentArea["Content Container"]
+
+    ListPageLayout["ListPageLayout (Deprecated)"] --> ListPageContainer["ListPageContainer"]
+    ListPageLayout --> SearchBar["Search + Filters"]
+    ListPageLayout --> ContentArea
+
+    TitleBlock --> PageActions["PageActions"]
+    TitleBlock --> BackButton["BackButton"]

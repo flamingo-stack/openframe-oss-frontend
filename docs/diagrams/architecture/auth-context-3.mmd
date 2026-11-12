@@ -1,0 +1,11 @@
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant Gateway
+    participant AuthServer
+
+    User->>Frontend: Click Sign In
+    Frontend->>AuthServer: OAuth Redirect
+    AuthServer-->>Frontend: JWT
+    Frontend->>Gateway: API Request with Bearer Token
+    Gateway-->>Frontend: Authorized Response

@@ -1,0 +1,4 @@
+flowchart TD
+    TicketsUI["Ticket UI"] --> TicketService
+    TicketService --> ApiClient
+    ApiClient --> GraphQL["GraphQL API"]

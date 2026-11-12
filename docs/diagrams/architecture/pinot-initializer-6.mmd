@@ -1,0 +1,7 @@
+flowchart LR
+    StreamService["Stream Service"] --> Kafka["Kafka Topics"]
+    Kafka --> PinotRealtime["Pinot Realtime Table"]
+    PinotRealtime --> PinotBroker["Pinot Broker"]
+    PinotBroker --> ApiLayer["API / Analytics Queries"]
+    PinotInitializer["Pinot Initializer"] --> PinotController["Pinot Controller"]
+    PinotController --> PinotRealtime

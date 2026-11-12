@@ -1,0 +1,7 @@
+flowchart LR
+    Active["ACTIVE"] --> Tech["TECH_REQUIRED"]
+    Tech --> Hold["ON_HOLD"]
+    Hold --> Active
+    Active --> Resolved["RESOLVED"]
+    Resolved --> Active
+    Resolved --> Archived["ARCHIVED"]

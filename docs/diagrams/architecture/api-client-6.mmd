@@ -1,0 +1,5 @@
+flowchart TD
+    User["User"] --> TenantDomain["tenant.domain.com"]
+    TenantDomain --> RuntimeEnv["runtimeEnv"]
+    RuntimeEnv --> AuthClient
+    RuntimeEnv --> FleetClient

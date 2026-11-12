@@ -1,0 +1,8 @@
+flowchart TD
+    WebLayer["WebFlux Controllers / Handlers"] --> ServiceLayer["Reactive Services"]
+    ServiceLayer --> ReactiveRepos["Reactive Repositories"]
+    ReactiveRepos --> MongoDriver["Reactive MongoDB Driver"]
+    MongoDriver --> MongoDB[("MongoDB")]
+
+    DomainDocs["Mongo Domain Documents"] --> ReactiveRepos
+    BaseContracts["Base Repository Contracts"] --> ReactiveRepos

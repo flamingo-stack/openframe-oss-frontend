@@ -1,0 +1,5 @@
+flowchart TD
+    Request["Machine IDs"] --> RepoCall["InstalledAgentRepository.findByMachineIdIn()"]
+    RepoCall --> Filter["Filter status != DISCONNECTED"]
+    Filter --> Group["Group by Machine ID"]
+    Group --> Ordered["Return results in input order"]

@@ -1,0 +1,12 @@
+flowchart LR
+    AppConfig["Spring Application"] --> JwtSecurityConfig["JwtSecurityConfig"]
+    JwtSecurityConfig --> JwtEncoder["JwtEncoder (NimbusJwtEncoder)"]
+    JwtSecurityConfig --> JwtDecoder["JwtDecoder (NimbusJwtDecoder)"]
+
+    JwtConfig["JwtConfig"] -->|"loads RSA keys"| JwtSecurityConfig
+
+    OAuthFlow["OAuth2 Authorization Flow"] --> PKCEUtils["PKCEUtils"]
+    OAuthFlow --> SecurityConstants["SecurityConstants"]
+
+    JwtEncoder -->|"signs tokens"| AccessToken["JWT Access Token"]
+    JwtDecoder -->|"validates tokens"| AccessToken

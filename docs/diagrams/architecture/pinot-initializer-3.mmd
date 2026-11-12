@@ -1,0 +1,6 @@
+flowchart TD
+    LoadSchema["Load Schema JSON"] --> ValidateJSON["Validate JSON"]
+    ValidateJSON --> SendRequest["POST /schemas"]
+    SendRequest --> CheckStatus{"HTTP 200?"}
+    CheckStatus -->|Yes| Success["Schema Deployed"]
+    CheckStatus -->|No| Error["Throw Exception"]

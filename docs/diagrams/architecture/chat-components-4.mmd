@@ -1,0 +1,7 @@
+flowchart TD
+    Pending["Pending"] --> Approved["Approved"]
+    Pending --> Rejected["Rejected"]
+
+    Approved --> Executing["Executing"]
+    Executing --> Success["Success"]
+    Executing --> Failure["Failure"]

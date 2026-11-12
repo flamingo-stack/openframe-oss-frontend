@@ -1,0 +1,12 @@
+sequenceDiagram
+    participant User
+    participant DocViewer
+    participant StructureAPI
+    participant ContentAPI
+
+    User->>DocViewer: Select document
+    DocViewer->>StructureAPI: Fetch structure (if needed)
+    StructureAPI-->>DocViewer: Tree JSON
+    DocViewer->>ContentAPI: Fetch content by path
+    ContentAPI-->>DocViewer: DocContent
+    DocViewer->>DocViewer: Render via renderContent()

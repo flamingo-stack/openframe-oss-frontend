@@ -1,0 +1,14 @@
+sequenceDiagram
+    participant App as Application
+    participant Scheduler as IdpConfigurationScheduler
+    participant Repo as RegisteredClientMongoRepository
+    participant DB as MongoDB
+
+    App->>Scheduler: Start after 5s delay
+    Scheduler->>Repo: findByClientId(clientId)
+    Repo-->>Scheduler: Optional<Client>
+    Scheduler->>Scheduler: If present? (return)
+    Scheduler->>Scheduler: Encode client secret
+    Scheduler->>Repo: save(MongoRegisteredClient)
+    Repo->>DB: Persist client
+    DB-->>Repo: Acknowledge

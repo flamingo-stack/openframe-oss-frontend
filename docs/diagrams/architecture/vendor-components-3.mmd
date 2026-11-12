@@ -1,0 +1,10 @@
+flowchart TD
+    VendorTag["VendorTag"] --> License["License & Pricing"]
+    VendorTag --> Selection["Selection State"]
+    VendorTag --> Capability["Platform Capability"]
+    VendorTag --> Classification["Vendor Classification"]
+
+    License --> Free["Free / Freemium / Paid"]
+    Selection --> AI["AI Selected / Manual"]
+    Capability --> API["API / Data / K8s / Secured"]
+    Classification --> OpenSource["Open Source / Commercial"]

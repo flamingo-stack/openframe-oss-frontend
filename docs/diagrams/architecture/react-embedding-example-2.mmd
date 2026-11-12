@@ -1,0 +1,4 @@
+flowchart LR
+    HostApp["Host Application"] --> EmbeddedApp["React Embedding Example"]
+    EmbeddedApp -->|"Uses VITE_HUB_ORIGIN"| HubOrigin["OpenFrame Hub"]
+    HubOrigin --> NewTab["New Browser Tab"]
