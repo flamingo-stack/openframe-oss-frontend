@@ -21,6 +21,8 @@ export function MingoPhoneChatList() {
   const { chat, error, copyDialogLink } = useMingoChat();
   const router = useRouter();
   const rememberNewChatPage = useMingoSheetStore(s => s.rememberNewChatPage);
+  // A pick puts the list away at once, also for the chat already on screen (no navigation to close it).
+  const hideList = useMingoSheetStore(s => s.hideList);
 
   if (!chat) return <MingoHistoryRail dialogs={NO_DIALOGS} isLoadingHistory={!error} loadError={!!error} />;
 
@@ -33,9 +35,13 @@ export function MingoPhoneChatList() {
     <MingoHistoryRail
       dialogs={state.dialogs}
       activeDialogId={state.activeDialogId ?? undefined}
-      onSelectDialog={id => router.push(routes.mingo.chat(id))}
+      onSelectDialog={id => {
+        hideList();
+        router.push(routes.mingo.chat(id));
+      }}
       onNewChat={() => {
         rememberNewChatPage();
+        hideList();
         router.push(routes.mingo.home);
       }}
       onRequestCopyLink={dialog => void copyDialogLink(dialog)}

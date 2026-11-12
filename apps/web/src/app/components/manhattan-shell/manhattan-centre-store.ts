@@ -8,30 +8,10 @@ import type { ComposerRoute } from '@/app/components/mingo-shell/mingo-dock-rout
  * How the open chat sits beside a page in the Manhattan v2 centre (plan D5, table T):
  * - `split`: the chat column beside the page column (where a chat opens);
  * - `full`: the chat takes the centre, the page is hidden behind it ("chat full screen");
- * - `hidden`: the page takes the centre, the chat waits behind it ("page full screen").
- * Per tab (`sessionStorage`): a reload keeps it, a new tab starts at `split`.
+ * - `hidden`: the page takes the centre, the chat waits behind it ("page full screen"), or the chat was closed.
+ * The user's choice holds across pages until a reload, which starts at `split` (in memory only, nothing stored).
  */
 export type ManhattanChatView = 'split' | 'full' | 'hidden';
-
-const CHAT_VIEW_KEY = 'of.manhattan.chatView';
-
-function readChatView(): ManhattanChatView {
-  if (typeof window === 'undefined') return 'split';
-  try {
-    const stored = window.sessionStorage.getItem(CHAT_VIEW_KEY);
-    return stored === 'full' || stored === 'hidden' ? stored : 'split';
-  } catch {
-    return 'split';
-  }
-}
-
-function writeChatView(view: ManhattanChatView): void {
-  try {
-    window.sessionStorage.setItem(CHAT_VIEW_KEY, view);
-  } catch {
-    // Storage refused: the view holds for this page's life only.
-  }
-}
 
 interface ManhattanCentreStore {
   /** The chat column's thread node: the session's `EmbeddableChat` portals its header and thread into it. */
@@ -67,11 +47,8 @@ interface ManhattanCentreStore {
 export const useManhattanCentreStore = create<ManhattanCentreStore>()(set => ({
   threadNode: null,
   setThreadNode: threadNode => set({ threadNode }),
-  chatView: readChatView(),
-  setChatView: chatView => {
-    writeChatView(chatView);
-    set({ chatView });
-  },
+  chatView: 'split',
+  setChatView: chatView => set({ chatView }),
   compact: false,
   setCompact: compact => set({ compact }),
   chatsDismiss: 0,
@@ -93,7 +70,7 @@ export const useManhattanCentreStore = create<ManhattanCentreStore>()(set => ({
  *   the chat column beside it (`split`) — the open chat, or Start Work when none is open —
  *   unless the user put the page full screen or closed the chat (`hidden` → the page alone,
  *   the composer under it), or put the chat full screen (`full` → the chat over the page,
- *   only while there is a chat to show);
+ *   only while there is a chat to show). The choice holds on the next pages too;
  * - no chat for this session (the paywall): the page alone;
  * - `compact` (no room for two columns, plan D19, unchanged): the page alone with no open
  *   chat, else the chat over the page unless `hidden` (over a full-height page only `full`);

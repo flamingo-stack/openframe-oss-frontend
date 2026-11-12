@@ -21,10 +21,21 @@ vi.mock('@/app/(app)/mingo/providers/mingo-chat-provider', () => ({
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', async importOriginal => ({
   ...(await importOriginal<object>()),
-  MingoHistoryRail: ({ onNewChat }: { onNewChat?: () => void }) => (
-    <button type="button" onClick={onNewChat}>
-      Start New Chat
-    </button>
+  MingoHistoryRail: ({
+    onNewChat,
+    onSelectDialog,
+  }: {
+    onNewChat?: () => void;
+    onSelectDialog?: (id: string) => void;
+  }) => (
+    <>
+      <button type="button" onClick={onNewChat}>
+        Start New Chat
+      </button>
+      <button type="button" onClick={() => onSelectDialog?.('d-1')}>
+        Disk Space Cleanup
+      </button>
+    </>
   ),
 }));
 
@@ -53,5 +64,18 @@ describe('MingoPhoneChatList', () => {
 
     expect(useMingoSheetStore.getState().newChatPage).toBe('/settings/');
     expect(push).toHaveBeenCalledWith(routes.mingo.home);
+  });
+
+  // The list is a panel over the page (v2): a pick puts it away at once, also for the chat already on screen, where
+  // no navigation would close it.
+  it.each([
+    ['a chat', 1, routes.mingo.chat('d-1')],
+    ['Start New Chat', 0, routes.mingo.home],
+  ] as const)('puts the list away on a pick of %s', (_name, index, href) => {
+    act(() => useMingoSheetStore.getState().showList());
+    act(() => root.render(<MingoPhoneChatList />));
+    act(() => container.querySelectorAll('button')[index]?.click());
+    expect(useMingoSheetStore.getState().listOpen).toBe(false);
+    expect(push).toHaveBeenCalledWith(href);
   });
 });

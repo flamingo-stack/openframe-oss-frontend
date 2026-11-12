@@ -99,27 +99,36 @@ export function ManhattanCentre({
   // The dock reads it from the store (it is rendered elsewhere).
   const setCompact = useManhattanCentreStore(s => s.setCompact);
   useEffect(() => setCompact(oneColumn), [oneColumn, setCompact]);
-  // A chat opened from the chats drawer: the drawer has done its job.
+  // A chat opened (picked in the history or the chats drawer, a notification, a first send from the composer under a
+  // page): the chats drawer has done its job, and a chat the user closed or put behind the page comes back beside it.
   const dismissChats = useManhattanCentreStore(s => s.dismissChats);
   const previousDialogRef = useRef(openDialogId);
   useEffect(() => {
     if (previousDialogRef.current === openDialogId) return;
     previousDialogRef.current = openDialogId;
-    if (oneColumn && openDialogId !== null) dismissChats();
-  }, [oneColumn, openDialogId, dismissChats]);
+    if (openDialogId === null) return;
+    if (oneColumn) dismissChats();
+    else if (chatView === 'hidden') setChatView('split');
+  }, [oneColumn, openDialogId, dismissChats, chatView, setChatView]);
 
-  // Every page opened comes beside the chat (CU-17tkuw65znp): a page full screen, a chat closed
-  // or the chat full over the last page are that page's, not the next one's. In one column
-  // (compact) the page is shown and the chat waits behind it.
+  // The user's choice of view (the chat closed, the page full screen, the chat full screen) holds on every page opened
+  // after it, until a reload or a chat opened. In one column (compact) a new page is shown and the chat waits behind it:
+  // that `hidden` is the layout's, not the user's, and is let go once two columns are back (below).
+  const hiddenByOneColumnRef = useRef(false);
   const previousPathRef = useRef(pathname);
   useEffect(() => {
     if (!enabled || previousPathRef.current === pathname) return;
     previousPathRef.current = pathname;
     if (route !== 'page' && route !== 'full-width') return;
-    if (oneColumn) {
-      if (chatView !== 'hidden') setChatView('hidden');
-    } else if (chatView !== 'split') setChatView('split');
+    if (oneColumn && chatView !== 'hidden') {
+      hiddenByOneColumnRef.current = true;
+      setChatView('hidden');
+    }
   }, [enabled, oneColumn, pathname, route, chatView, setChatView]);
+  // Any other view set since (a button, a link) makes the next `hidden` the user's again.
+  useEffect(() => {
+    if (chatView !== 'hidden') hiddenByOneColumnRef.current = false;
+  }, [chatView]);
 
   // While the chat covers the page (the chat full screen; in one column the chat over the page)
   // the page cannot move the URL itself: a change there is the chat's — a link in a Mingo
@@ -152,12 +161,12 @@ export function ManhattanCentre({
   });
 
   // One column's own `hidden` (the page shown, the chat behind it) is not the user's choice:
-  // widened back to two columns, the chat comes beside the page again.
+  // widened back to two columns, the chat comes beside the page again. A chat the user closed stays closed.
   const previousOneColumnRef = useRef(oneColumn);
   useEffect(() => {
     if (previousOneColumnRef.current === oneColumn) return;
     previousOneColumnRef.current = oneColumn;
-    if (!oneColumn && chatView === 'hidden') setChatView('split');
+    if (!oneColumn && chatView === 'hidden' && hiddenByOneColumnRef.current) setChatView('split');
   }, [oneColumn, chatView, setChatView]);
 
   // "Close page" with the chat waiting behind the page: the chat stops waiting once its page
