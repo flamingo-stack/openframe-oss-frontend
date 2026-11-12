@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type { usePlanCheckout_query$key } from '@/__generated__/usePlanCheckout_query.graphql';
 import { OpenframeProduct } from '@/generated/schema-enums';
-import { type AiTopUp, TOP_UP_PRESETS_USD, useAiTopUp } from '../ai-balance/use-ai-top-up';
+import { type AiTopUp, NO_TOP_UP, TOP_UP_PRESETS_USD, useAiTopUp } from '../ai-balance/use-ai-top-up';
 import { aiTokenPrice } from '../shared/ai-token-price';
 import type { ProductUpdates, SelectionTotal } from './plan-selection';
 import type { ProductCheckoutInput } from './use-create-checkout-session';
@@ -50,8 +50,11 @@ const usePlanCheckoutFragment = graphql`
     }
     subscription {
       id
+      activationTokenPurchaseRequired
       usage {
         activeDevices
+        purchasedTokensRemaining
+        purchasedTokensRemainingUsd
       }
     }
   }
@@ -84,6 +87,12 @@ export interface PlanCheckout {
   setDeviceUpdates: (updates: ProductUpdates) => void;
   /** The first AI top-up as the user is choosing it. */
   topUp: AiTopUp;
+  /**
+   * The purchased tokens the workspace still holds, set only when the backend
+   * waives the activation purchase (`activationTokenPurchaseRequired: false`):
+   * the top-up is optional then, and this is what the plan runs on without one.
+   */
+  purchasedBalance: { tokens: number; usd: number } | null;
   /**
    * Keep the bank topped up once the subscription is running. A switch and
    * nothing else: what it charges is the top-up above, and the level it fires
@@ -138,6 +147,9 @@ export function usePlanCheckout(query: usePlanCheckout_query$key | null): PlanCh
   const showAiCard = loading || aiProduct != null;
 
   const deviceCount = data?.subscription?.usage?.activeDevices ?? null;
+  // Required until the backend says otherwise: the form opens as it always has.
+  const purchaseRequired = data?.subscription?.activationTokenPurchaseRequired ?? true;
+  const usage = data?.subscription?.usage;
 
   // Only the device card takes a plan selection. AI has no package to choose —
   // its card picks a balance (see `AiTokenBalanceCard`).
@@ -153,12 +165,18 @@ export function usePlanCheckout(query: usePlanCheckout_query$key | null): PlanCh
    * it — a checkout requires an amount, and a form that starts with nothing
    * chosen would refuse its own default. Both grids have it, so switching the
    * plan keeps it.
+   *
+   * Unless the backend waives the purchase (purchased tokens are left, or the
+   * requirement is off): then "Don't top up" is on both grids and picked up
+   * front, so nothing for tokens is due today unless an amount is chosen. The
+   * flag answers for a monthly plan; a prepaid year never requires the purchase,
+   * which is why its grid always has the tile.
    */
   const topUp = useAiTopUp({
     tokenPrice: aiTokenPrice(aiProduct),
-    initial: 50,
+    initial: purchaseRequired ? 50 : NO_TOP_UP,
     presets: prepaidYear ? PREPAID_YEAR_TOP_UP_PRESETS_USD : TOP_UP_PRESETS_USD,
-    allowNone: prepaidYear,
+    allowNone: prepaidYear || !purchaseRequired,
   });
   const [autoTopUp, setAutoTopUp] = useState(false);
   const topUpUsd = topUp.amountUsd != null && topUp.amountUsd > 0 ? topUp.amountUsd : null;
@@ -192,6 +210,10 @@ export function usePlanCheckout(query: usePlanCheckout_query$key | null): PlanCh
     deviceUpdates,
     setDeviceUpdates,
     topUp,
+    purchasedBalance: purchaseRequired
+      ? null
+      : // GraphQL `Long` arrives as a string or a number depending on its size.
+        { tokens: Number(usage?.purchasedTokensRemaining ?? 0), usd: usage?.purchasedTokensRemainingUsd ?? 0 },
     autoTopUp,
     setAutoTopUp,
     canAutoTopUp: topUp.amountUsd !== 0,
