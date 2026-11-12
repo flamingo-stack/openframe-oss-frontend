@@ -157,4 +157,8 @@ export const CONTENT_ENDPOINTS: EndpointsRuntime = {
   // Where the Help Center's FAQs are served: every shared page (roadmap, releases, legal, …) draws its own
   // FAQ block from it, for the page's topic. No page passes anything.
   faqsUrl: EP.faqs,
+  // The YouTube player draws the sharpest poster each video has, through the same proxy. Web only: an <img>
+  // carries the session cookie same-origin, while the native shell's bearer cannot ride an image request, so
+  // there the player uses the poster every video has (hqdefault).
+  youtubePosterBaseUrl: isAppShell() ? undefined : `${CONTENT}/youtube-poster`,
 };
