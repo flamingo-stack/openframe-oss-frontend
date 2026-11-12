@@ -34,6 +34,7 @@ import { DEVICES_PAGE_SIZE } from '@/app/(app)/devices/queries/devices-api';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { bumpDeviceEpoch, useDeviceEpoch } from '@/app/(app)/devices/utils/device-refresh';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
+import type { TableLayout } from '@/app/hooks/use-table-layout';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { ContentErrorBoundary } from '../../content-error-boundary';
@@ -116,7 +117,7 @@ export interface DevicesPanelPropsV1 {
    */
   readOnlyRows?: boolean;
   /** The table's layout (`DevicesPanelProps.tableLayout`): the Devices page is the grid table under both panels. */
-  tableLayout?: 'cards' | 'grid';
+  tableLayout?: TableLayout;
 }
 
 function DevicesPanelContent(props: DevicesPanelPropsV1) {

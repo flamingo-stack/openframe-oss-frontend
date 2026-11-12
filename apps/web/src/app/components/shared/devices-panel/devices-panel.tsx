@@ -40,6 +40,7 @@ import { DEVICES_PAGE_SIZE } from '@/app/(app)/devices/queries/devices-api';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { bumpDeviceEpoch, useDeviceEpoch } from '@/app/(app)/devices/utils/device-refresh';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
+import type { TableLayout } from '@/app/hooks/use-table-layout';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { ContentErrorBoundary } from '../content-error-boundary';
@@ -144,7 +145,7 @@ export interface DevicesPanelProps {
    * The table's layout. `grid` draws the lib's grid table (48px one-line rows, pinned device and action columns) at
    * every width; the standalone Devices page passes it. Default: card rows.
    */
-  tableLayout?: 'cards' | 'grid';
+  tableLayout?: TableLayout;
 }
 
 function DevicesPanelContent(body: DevicesPanelBodyProps) {
