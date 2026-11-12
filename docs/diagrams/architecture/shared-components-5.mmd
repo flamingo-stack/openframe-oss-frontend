@@ -1,7 +1,0 @@
-flowchart TD
-    DevSectionView --> DeliveryLists
-    DeliveryLists --> FetchCompleted["Fetch Completed"]
-    DeliveryLists --> FetchInProgress["Fetch In Progress"]
-    FetchCompleted --> DeliveryTable
-    FetchInProgress --> DeliveryTable
-    DeliveryTable --> DeliveryRow

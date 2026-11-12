@@ -1,4 +1,0 @@
-flowchart TD
-    AppStart["Application Startup"] --> EnableConfig["@EnableConfigServer"]
-    EnableConfig --> ConfigEndpoints["Expose Config Endpoints"]
-    ConfigEndpoints --> Clients["Client Services Fetch Configuration"]

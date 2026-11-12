@@ -1,4 +1,0 @@
-flowchart TD
-    Request["Incoming Request"] --> ResolveTenant["Resolve Tenant (Domain/Header)"]
-    ResolveTenant --> ReactiveRepoCall["Reactive Repository Call<br/>with tenantId"]
-    ReactiveRepoCall --> Mongo[("MongoDB")]
