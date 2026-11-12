@@ -1,0 +1,5 @@
+flowchart TD
+    Actuator["Spring Boot Actuator"] --> Health["CassandraHealthIndicator"]
+    Health --> Query["SELECT release_version"]
+    Query -->|"success"| Up["Health UP"]
+    Query -->|"failure"| Down["Health DOWN"]

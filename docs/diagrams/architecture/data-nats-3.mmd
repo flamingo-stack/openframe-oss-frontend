@@ -1,0 +1,6 @@
+flowchart TD
+    Cmd["NotificationCommand"] --> Validate["Validate & Resolve Category"]
+    Validate --> Save["Persist Notification"]
+    Save --> ReadState["Create Read State Rows"]
+    ReadState --> Publish["Publish to NATS"]
+    Publish --> Dispatch["Dispatch Additional Channels"]

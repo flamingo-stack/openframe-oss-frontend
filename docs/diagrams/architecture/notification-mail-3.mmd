@@ -1,0 +1,8 @@
+flowchart TD
+    Caller["Service Layer"] --> Hubspot["HubspotApiEmailService"]
+    Hubspot --> BuildPayload["Build JSON Payload"]
+    BuildPayload --> WebClientCall["POST /marketing/v4/email/single-send"]
+    WebClientCall --> HubspotAPI["HubSpot API"]
+    HubspotAPI --> Response["HTTP Response"]
+    Response -->|"2xx"| Success["Log Success"]
+    Response -->|"Error"| Exception["Throw IllegalStateException"]

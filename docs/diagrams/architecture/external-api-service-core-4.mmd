@@ -1,0 +1,7 @@
+flowchart LR
+    External["External Api Service Core"] --> ApiCore["Api Service Core"]
+    External --> ApiLib["Api Lib Service"]
+    External --> Security["Security Core"]
+    External --> DataMongo["Data Mongo"]
+    External --> Pinot["Data Pinot"]
+    External --> Gateway["Gateway Service Core"]

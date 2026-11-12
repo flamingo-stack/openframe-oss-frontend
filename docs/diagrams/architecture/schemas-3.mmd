@@ -1,0 +1,7 @@
+flowchart LR
+    InputUrl["User URL"] --> ParseUrl["new URL(url)"]
+    ParseUrl --> HostExtract["Extract hostname"]
+    HostExtract --> ValidateHost["Host equals linkedin.com OR endsWith .linkedin.com"]
+    ValidateHost --> Decision{"Valid?"}
+    Decision -->|"Yes"| Accept["Accept URL"]
+    Decision -->|"No"| Reject["Reject with Validation Error"]

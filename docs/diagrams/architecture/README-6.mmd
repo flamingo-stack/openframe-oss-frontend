@@ -1,0 +1,6 @@
+flowchart TD
+    Composer["User Input"] --> SendHook["useMingoDialog"]
+    SendHook --> ChatAPI["/chat/api/v1/messages"]
+    ChatAPI --> Stream["Streaming Chunks"]
+    Stream --> Store["MingoMessagesStore"]
+    Store --> UI["Chat UI"]

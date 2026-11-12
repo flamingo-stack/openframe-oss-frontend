@@ -1,0 +1,10 @@
+sequenceDiagram
+    participant User
+    participant Button as Mingo AI Button
+    participant Window
+    participant Chat as Embeddable Chat
+
+    User->>Button: Click
+    Button->>Window: dispatch ask-ai:open event
+    Window->>Chat: CustomEvent detail
+    Chat->>Chat: Open panel if source matches

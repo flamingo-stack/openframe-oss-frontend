@@ -1,0 +1,8 @@
+flowchart TD
+    Client["Client Service or Agent"] -->|"requests config"| ConfigServer["Config Server"]
+    Client -->|"GET /logging/{file}"| LoggingController["LoggingConfigController"]
+
+    ConfigServer -->|"loads configuration"| ConfigRepo[("Configuration Repository")]
+    LoggingController -->|"reads from classpath"| LoggingResources[("Classpath logging/* XML Files")]
+
+    LoggingController -->|"returns modified XML"| Client

@@ -1,0 +1,5 @@
+flowchart TD
+    Config["KafkaTopicProperties"] --> Builder["TopicBuilder"]
+    Builder --> NewTopic["NewTopic"]
+    NewTopic --> Admin["KafkaAdmin"]
+    Admin --> Broker["Kafka Cluster"]

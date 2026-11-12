@@ -1,0 +1,7 @@
+flowchart TD
+    UserInput["User Message"] --> SendHook["useMingoDialog.sendMessage"]
+    SendHook --> ChatAPI["/chat/api/v1/messages"]
+
+    ChatAPI --> Stream["Streaming Chunks"]
+    Stream --> Store["MingoMessagesStore"]
+    Store --> UI["Chat UI"]

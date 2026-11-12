@@ -1,0 +1,12 @@
+flowchart TD
+    JwtConfigNode["JwtConfig"] -->|"loadPublicKey()"| PublicKey["RSAPublicKey"]
+    JwtConfigNode -->|"loadPrivateKey()"| PrivateKey["RSAPrivateKey"]
+
+    PublicKey --> RSAKeyNode["RSAKey Builder"]
+    PrivateKey --> RSAKeyNode
+
+    RSAKeyNode --> JwkSet["JWKSet"]
+    JwkSet --> JwkSource["ImmutableJWKSet"]
+    JwkSource --> JwtEncoderNode["NimbusJwtEncoder"]
+
+    PublicKey --> JwtDecoderNode["NimbusJwtDecoder"]

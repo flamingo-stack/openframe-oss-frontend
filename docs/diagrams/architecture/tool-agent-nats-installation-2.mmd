@@ -1,0 +1,7 @@
+flowchart TD
+    A["Application Startup"] --> B["PostConstruct validateTenantConfig()"]
+    B --> C{{"Fleet Multi Tenancy Enabled?"}}
+    C -->|"Yes"| D["Validate Tenant Id"]
+    C -->|"No"| E["Skip Tenant Id Requirement"]
+    D --> F["Continue Initialization"]
+    E --> F

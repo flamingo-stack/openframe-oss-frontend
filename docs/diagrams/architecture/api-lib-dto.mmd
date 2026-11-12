@@ -1,0 +1,5 @@
+flowchart TD
+    Client["Client (Frontend / External Consumer)"] --> ApiLayer["API Layer (GraphQL / REST)"]
+    ApiLayer --> DtoLayer["Api Lib Dto"]
+    DtoLayer --> ServiceLayer["Service Layer"]
+    ServiceLayer --> DataLayer["Data Layer (Mongo / Cassandra / Pinot)"]

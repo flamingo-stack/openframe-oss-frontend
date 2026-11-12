@@ -1,0 +1,6 @@
+flowchart LR
+    Service["Domain Services"] --> Broadcaster["NotificationBroadcaster"]
+    Broadcaster --> Publisher["NotificationNatsPublisher"]
+    Publisher --> NATS["NATS Server"]
+    NATS --> Agent["OpenFrame Agent"]
+    NATS --> Gateway["Gateway / Stream Consumers"]

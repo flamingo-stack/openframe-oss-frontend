@@ -1,0 +1,11 @@
+flowchart TD
+    Campaign["MarketingCampaign"]
+    Content["AIContent"]
+    Media["AIMedia"]
+    Schedule["ScheduledPost"]
+    Social["SocialAccount"]
+
+    Campaign --> Content
+    Campaign --> Media
+    Campaign --> Schedule
+    Schedule --> Social

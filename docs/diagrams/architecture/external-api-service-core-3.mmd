@@ -1,0 +1,10 @@
+flowchart TD
+    A["Incoming /tools/{toolId}/**"] --> B["Find IntegratedTool"]
+    B --> C{{"Enabled?"}}
+    C -->|"No"| D["400 Bad Request"]
+    C -->|"Yes"| E["Resolve ToolUrl"]
+    E --> F["ProxyUrlResolver.resolve"]
+    F --> G["Create HttpRequest"]
+    G --> H["Attach Headers & Credentials"]
+    H --> I["Execute via HttpClient"]
+    I --> J["Return ResponseEntity"]

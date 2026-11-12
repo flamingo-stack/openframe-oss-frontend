@@ -1,0 +1,7 @@
+flowchart LR
+    ApiService["API / Management Service"] --> Dispatch["CommandMessage / ScriptMessage"]
+    Dispatch --> NATS["NATS Server"]
+    NATS --> Machine["Machine Agent"]
+    Machine --> Result["CommandResultMessage / ScriptResultMessage"]
+    Result --> NATS
+    NATS --> ResultService["Result Processing Service"]

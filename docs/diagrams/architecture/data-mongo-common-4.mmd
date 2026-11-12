@@ -1,0 +1,4 @@
+flowchart LR
+    Notification -->|"createdAt TTL"| MongoTTL
+    ReadState -->|"createdAt TTL"| MongoTTL
+    MongoTTL --> Expired["Auto Removal After 30 Days"]

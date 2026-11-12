@@ -1,0 +1,18 @@
+flowchart LR
+    AppHost["Host Application"] --> DocsHubPage["DocsHubPage"]
+    DocsHubPage --> DocViewer["DocViewer"]
+
+    DocViewer --> DocumentTree["useDocumentTree Hook"]
+    DocViewer --> ScrollSpy["useScrollSpy Hook"]
+    DocViewer --> ResolveLink["useDocsResolveLink Hook"]
+
+    DocumentTree --> StructureAPI["/api/docs/.../structure"]
+    DocumentTree --> ContentAPI["/api/docs/.../content"]
+
+    DocViewer --> Sidebar["MultiLevelNavigation"]
+    DocViewer --> StickyNav["StickySectionNav"]
+    DocViewer --> SearchBar["DocSearchBar"]
+
+    DocViewer --> Renderer["renderContent() Handler"]
+    Renderer --> Markdown["Markdown Renderer (Host Supplied)"]
+    Renderer --> Embeds["PDF / Sheets / Figma / File Viewers"]

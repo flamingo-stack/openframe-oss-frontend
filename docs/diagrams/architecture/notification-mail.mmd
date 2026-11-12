@@ -1,0 +1,15 @@
+flowchart TD
+    Caller["Authorization or API Service"] --> EmailService["EmailService Interface"]
+
+    subgraph providers["Email Providers"]
+        direction TB
+        SmtpService["SmtpEmailService"]
+        HubspotService["HubspotApiEmailService"]
+    end
+
+    EmailService -->|"provider=smtp"| SmtpService
+    EmailService -->|"provider=hubspot-api"| HubspotService
+
+    SmtpService --> JavaMail["JavaMailSender"]
+    HubspotService --> WebClient["Spring WebClient"]
+    WebClient --> HubspotAPI["HubSpot Marketing API"]

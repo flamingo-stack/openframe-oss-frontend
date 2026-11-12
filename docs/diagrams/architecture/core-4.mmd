@@ -1,0 +1,4 @@
+flowchart LR
+    DTO["Request DTO"] --> Annotation["@ValidEmail"]
+    Annotation --> Validator["ValidEmailValidator"]
+    Validator --> Result["Validation Result"]

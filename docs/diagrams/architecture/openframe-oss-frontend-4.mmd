@@ -1,0 +1,5 @@
+flowchart LR
+    Row["Device Row"] --> Menu["useDeviceActionsMenu"]
+    Menu --> Utils["buildDeviceMenuItems"]
+    Menu --> Confirm["Confirmation Dialogs"]
+    Menu --> Api["Mutations via apiClient"]

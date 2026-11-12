@@ -1,0 +1,6 @@
+flowchart TD
+    NotificationEvent["Notification Event"] --> Channel["Notification Channel (FCM)"]
+    Channel --> Lookup["Lookup Push Devices"]
+    Lookup --> Tokens["Device Tokens"]
+    Tokens --> Send["Send via FirebaseMessaging"]
+    Send --> FCM["Google FCM"]

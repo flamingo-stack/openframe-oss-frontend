@@ -1,0 +1,6 @@
+flowchart TD
+    UI["Chat UI"] --> Runtime["Chat Runtime Context"]
+    Runtime --> Adapter["Transport Adapter (SSE / NATS)"]
+    Adapter --> Processor["Stream Processor"]
+    Processor --> Segments["Message Segments"]
+    Segments --> UI

@@ -1,0 +1,4 @@
+flowchart TD
+    Request["Auth Request"] --> CheckShared{"Shared Host URL?"}
+    CheckShared -->|Yes| Absolute["Use Absolute URL"]
+    CheckShared -->|No| Relative["Use Relative Path"]

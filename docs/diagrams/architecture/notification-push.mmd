@@ -1,0 +1,10 @@
+flowchart TD
+    AppConfig["Spring Boot Application"] --> AutoConfig["Push Auto Configuration"]
+    AutoConfig --> FirebaseBean["Firebase Messaging Bean"]
+    AutoConfig --> FcmChannel["FCM Notification Channel"]
+
+    FcmChannel --> DeviceRepo["Push Device Repository"]
+    FcmChannel --> FirebaseSDK["Firebase Cloud Messaging"]
+
+    FirebaseSDK --> ExternalFCM["Google FCM Service"]
+    DeviceRepo --> MongoDB["MongoDB PushDevice Collection"]

@@ -1,0 +1,4 @@
+flowchart TD
+    CreateReq["CreatePolicyRequest"] --> FleetAPI["Fleet /policies API"]
+    FleetAPI --> Policy
+    Policy --> AssignedHost

@@ -1,0 +1,5 @@
+flowchart LR
+    InstanceA["Instance A"] --> Lock["ShedLock"]
+    InstanceB["Instance B"] --> Lock
+    Lock --> Winner["Single Executor"]
+    Winner --> SchedulerRun["Initialize IdP Client"]

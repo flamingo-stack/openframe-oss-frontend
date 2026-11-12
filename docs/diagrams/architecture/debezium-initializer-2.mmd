@@ -1,0 +1,8 @@
+flowchart TD
+    Start["Application Ready"] --> CheckTenant{"Tenant Registered?"}
+    CheckTenant -->|No| Skip["Skip Initialization"]
+    CheckTenant -->|Yes| ListConnectors["List Existing Connectors"]
+    ListConnectors --> HasAny{"Any Connectors?"}
+    HasAny -->|Yes| End["Do Nothing"]
+    HasAny -->|No| LoadTools["Load Integrated Tools"]
+    LoadTools --> CreateConnectors["Create Debezium Connectors"]

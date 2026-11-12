@@ -1,0 +1,6 @@
+flowchart LR
+    OlderPage["Older History Page"] --> Scan["Scan until first known ID"]
+    Scan --> Prepend["Collect new messages"]
+    Scan --> Boundary["Detect boundary content change"]
+    Prepend --> Result["HistoryPrependResult"]
+    Boundary --> Result

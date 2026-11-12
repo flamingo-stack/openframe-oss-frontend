@@ -1,0 +1,11 @@
+sequenceDiagram
+    participant UI as Chat UI
+    participant Hook as useCreateDialogMutation
+    participant Client as Api Client
+    participant API as Chat Backend
+    UI->>Hook: trigger mutation()
+    Hook->>Client: POST /chat/api/v1/dialogs
+    Client->>API: HTTP Request
+    API-->>Client: CreateDialogResponse
+    Client-->>Hook: ApiResponse
+    Hook-->>UI: dialog data

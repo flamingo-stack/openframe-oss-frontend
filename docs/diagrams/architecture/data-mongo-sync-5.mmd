@@ -1,0 +1,5 @@
+flowchart TD
+    Query["Base Criteria"] --> Cursor["Apply Cursor Criteria"]
+    Cursor --> Sort["Sort by Field + _id"]
+    Sort --> Limit["Apply Limit"]
+    Limit --> Result["MongoTemplate.find()"]

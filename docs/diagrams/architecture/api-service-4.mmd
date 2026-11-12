@@ -1,0 +1,6 @@
+flowchart TD
+    Request["Approval Request"] --> Decision{"Approved?"}
+    Decision -->|"Yes"| Approve["approve: true"]
+    Decision -->|"No"| Reject["approve: false"]
+    Approve --> API["Backend Endpoint"]
+    Reject --> API

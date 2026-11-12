@@ -1,0 +1,8 @@
+flowchart TD
+    Shell["PageShell (optional)"] --> PageLayout["PageLayout"]
+    PageLayout --> SearchBar["DocSearchBar (optional)"]
+    PageLayout --> Grid["Responsive Grid"]
+
+    Grid --> SidebarCol["Sidebar Column"]
+    Grid --> ContentCol["Content Column"]
+    Grid --> RightNavCol["StickySectionNav (Markdown Only)"]

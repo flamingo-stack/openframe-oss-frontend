@@ -1,0 +1,6 @@
+flowchart TD
+    UI["Customers Table"] --> Hook["useCustomers"]
+    Hook --> ApiClient["apiClient.post GraphQL"]
+    ApiClient --> Backend["organizations query"]
+    Backend --> Hook
+    Hook --> UI

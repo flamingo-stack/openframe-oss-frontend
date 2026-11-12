@@ -1,0 +1,4 @@
+flowchart TD
+    A["Exception Occurs"] --> B["Log Error"]
+    B --> C["Wrap in IllegalStateException"]
+    C --> D["Propagate Upstream"]

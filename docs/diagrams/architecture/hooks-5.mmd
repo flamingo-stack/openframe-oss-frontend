@@ -1,0 +1,8 @@
+flowchart LR
+    Features["Feature Modules"] --> UIComponents["UI Components"]
+    UIComponents --> Hooks["Hooks Module"]
+
+    Hooks --> BrowserAPI["Browser APIs"]
+    Hooks --> BackendAPI["Authenticated Backend"]
+
+    BackendAPI --> Assets["Protected Assets"]

@@ -1,0 +1,6 @@
+flowchart TD
+    Start["Facet Request"] --> Build["Build PinotQueryBuilder"]
+    Build --> ApplyBase["Apply Base Filters"]
+    ApplyBase --> ExcludeFacet["Exclude Facet Field Filter"]
+    ExcludeFacet --> GroupBy["GROUP BY Facet Field"]
+    GroupBy --> Execute["Execute Query"]

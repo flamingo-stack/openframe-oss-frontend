@@ -1,0 +1,32 @@
+flowchart TD
+    Browser["User Browser"] --> Login["Login Controller"]
+    Browser --> OAuthEndpoints["OAuth2 / OIDC Endpoints"]
+
+    subgraph auth_server["Authorization Server Layer"]
+        OAuthEndpoints --> AuthServerConfig["AuthorizationServerConfig"]
+        AuthServerConfig --> TokenCustomizer["JWT Token Customizer"]
+        AuthServerConfig --> JwtEncoder["JwtEncoder"]
+        AuthServerConfig --> JwtDecoder["JwtDecoder"]
+    end
+
+    subgraph security_layer["Security Layer"]
+        Login --> SecurityConfig["SecurityConfig"]
+        SecurityConfig --> OidcUserService["OIDC User Service"]
+        SecurityConfig --> AuthSuccessHandler["AuthSuccessHandler"]
+    end
+
+    subgraph tenant_layer["Tenant Resolution"]
+        TenantFilter["TenantContextFilter"] --> TenantContext["TenantContext (ThreadLocal)"]
+    end
+
+    subgraph persistence["Persistence"]
+        MongoAuthService["MongoAuthorizationService"]
+        MongoClientRepo["MongoRegisteredClientRepository"]
+        TenantKeyService["TenantKeyService"]
+    end
+
+    OAuthEndpoints --> MongoAuthService
+    OAuthEndpoints --> MongoClientRepo
+    JwtEncoder --> TenantKeyService
+    JwtDecoder --> TenantKeyService
+    SecurityConfig --> TenantFilter

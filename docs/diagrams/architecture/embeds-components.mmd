@@ -1,0 +1,12 @@
+flowchart TD
+    ContentSurface["Content Surface<br/>Docs, Markdown, Features"] --> FigmaEmbed["FigmaEmbed"]
+    ContentSurface --> OGPreview["OGLinkPreview"]
+    ContentSurface --> FileCard["FileDownloadCard"]
+
+    FigmaEmbed --> EmbedIframe["EmbedIframe"]
+
+    OGPreview --> OGEndpoint["OG Scraper Endpoint"]
+    OGPreview --> PlaceholderBuilder["Placeholder Image Builder"]
+    OGPreview --> EdgeColorHook["useImageEdgeColor Hook"]
+
+    EmbedIframe --> IframeElement["Native iframe"]

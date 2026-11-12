@@ -1,0 +1,5 @@
+flowchart LR
+    Guide["Guide Mode"] -->|SSE Adapter| UnifiedChat
+    Mingo["Mingo Mode"] -->|NATS Adapter| UnifiedChat
+
+    UnifiedChat --> Messages["Messages + Dialogs"]

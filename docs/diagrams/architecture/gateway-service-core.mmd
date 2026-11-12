@@ -1,0 +1,21 @@
+flowchart TD
+    Client["Client / Agent / External API"] --> Gateway["Gateway Service Core"]
+
+    Gateway --> Security["Security Layer"]
+    Gateway --> Routing["Routing Layer"]
+    Gateway --> Proxy["Tool Proxy Layer"]
+
+    Security --> JWT["JWT Authentication"]
+    Security --> APIKey["API Key Filter"]
+    Security --> CORS["CORS / Origin Filters"]
+
+    Routing --> RestRoutes["REST Routes"]
+    Routing --> WsRoutes["WebSocket Routes"]
+
+    Proxy --> Fleet["Fleet Upstream Resolver"]
+    Proxy --> Mesh["MeshCentral Upstream Resolver"]
+    Proxy --> DefaultResolver["Default Tool Resolver"]
+
+    Gateway --> Nats["NATS WebSocket"]
+    Gateway --> ApiService["API Service Core"]
+    Gateway --> ExternalApi["External API Service"]

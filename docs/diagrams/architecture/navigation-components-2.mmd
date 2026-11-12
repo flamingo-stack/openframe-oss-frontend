@@ -1,0 +1,6 @@
+flowchart TD
+    Scroll["Window Scroll"] --> CheckAutoHide{{"Auto Hide Enabled?"}}
+    CheckAutoHide -->|No| AlwaysVisible["Header Visible"]
+    CheckAutoHide -->|Yes| CompareScroll["Compare Scroll Direction"]
+    CompareScroll -->|Scrolling Down| Hide["TranslateY(-100%)"]
+    CompareScroll -->|Scrolling Up| Show["TranslateY(0)"]

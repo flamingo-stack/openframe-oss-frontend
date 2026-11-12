@@ -1,0 +1,6 @@
+flowchart TD
+    Descriptors["NotificationContextDescriptor"] --> Jackson["Jackson Module"]
+    Jackson --> MongoRead["NotificationContextReadConverter"]
+    Jackson --> MongoWrite["NotificationContextWriteConverter"]
+    MongoRead --> Conversions
+    MongoWrite --> Conversions

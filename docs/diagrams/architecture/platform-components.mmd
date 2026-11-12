@@ -1,0 +1,14 @@
+flowchart TD
+    FeatureModule["Feature Module<br/>Scripts / Devices / Automation"] --> ScriptInfo["ScriptInfoSection"]
+    FeatureModule --> ScriptArgs["ScriptArguments"]
+    FeatureModule --> ShellBadge["ShellTypeBadge"]
+    FeatureModule --> SoftwareInfoComp["SoftwareInfo"]
+
+    ScriptInfo --> UtilsShell["shell-utils"]
+    ScriptInfo --> UtilsOS["os-utils"]
+
+    ShellBadge --> ShellTypes["ShellType Enum"]
+    ShellBadge --> UtilsShell
+
+    ScriptArgs --> UIPrimitives["UI Primitives<br/>Button / Input / Label"]
+    SoftwareInfoComp --> UIPrimitives

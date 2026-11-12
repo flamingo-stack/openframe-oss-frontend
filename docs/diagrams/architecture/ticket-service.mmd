@@ -1,0 +1,7 @@
+flowchart TD
+    UI["Ticket UI Components"] --> Service["Ticket Service"]
+    Service --> ApiClient["apiClient"]
+    ApiClient --> GraphQL["GraphQL API"]
+    ApiClient --> RestAPI["REST Endpoints"]
+    GraphQL --> Backend["Backend Services"]
+    RestAPI --> Backend

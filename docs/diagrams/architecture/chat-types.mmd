@@ -1,0 +1,7 @@
+flowchart TD
+    API["Chat REST API"] -->|"ChatAPIRequest / Response"| Types["Chat Types Module"]
+    NATS["NATS / JetStream"] -->|"ChunkData"| Types
+    Types --> Processor["Realtime Chunk Processor"]
+    Processor --> Accumulator["Message Accumulator"]
+    Accumulator --> Components["Chat Components"]
+    Components --> UI["Rendered Chat UI"]

@@ -1,0 +1,12 @@
+flowchart LR
+    KafkaInbound["Inbound Kafka Topics"] --> JsonListener["JsonKafkaListener"]
+    JsonListener --> Processor["GenericJsonMessageProcessor"]
+
+    Processor --> Deserializer["Tool-specific Deserializers"]
+    Deserializer --> Enrichment["Data Enrichment Services"]
+    Enrichment --> Router["Message Handlers"]
+
+    Router --> CassandraLog["Cassandra UnifiedLogEvent"]
+    Router --> MongoHistory["Mongo Execution History"]
+    Router --> CassandraResults["Cassandra Command Results"]
+    Router --> KafkaOutbound["Outbound Kafka (Tenant)"]

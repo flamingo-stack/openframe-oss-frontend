@@ -1,0 +1,4 @@
+flowchart LR
+    Client["Service Layer"] -->|"Search Hosts"| FleetAPI["Fleet /hosts API"]
+    FleetAPI -->|"JSON"| HostSearchResponse
+    HostSearchResponse --> Host

@@ -1,0 +1,5 @@
+flowchart LR
+    GlobalId["Base64 Global ID"] --> RelayDecode["Relay.fromGlobalId()"]
+    RelayDecode --> NodeType["NodeType Enum"]
+    NodeType --> ServiceLookup["Service Lookup"]
+    ServiceLookup --> DomainObject["Domain Object"]

@@ -1,0 +1,11 @@
+sequenceDiagram
+    participant Browser
+    participant BFF as "Security Oauth"
+    participant Auth as "Authorization Server"
+
+    Browser->>BFF: GET /oauth/login
+    BFF->>Auth: Build authorize redirect (PKCE + state)
+    Auth-->>Browser: Redirect to callback with code
+    Browser->>BFF: GET /oauth/callback?code=...
+    BFF->>Auth: Exchange code for tokens
+    BFF->>Browser: Set auth cookies + redirect

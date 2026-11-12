@@ -1,0 +1,8 @@
+flowchart TD
+    Start["Application Ready"] --> CheckEnabled{"Pinot Enabled?"}
+    CheckEnabled -->|No| Exit["Skip Deployment"]
+    CheckEnabled -->|Yes| LoopConfigs["Iterate Config List"]
+    LoopConfigs --> DeploySingle["Deploy Single Table"]
+    DeploySingle --> NextConfig{"More Tables?"}
+    NextConfig -->|Yes| DeploySingle
+    NextConfig -->|No| Complete["Deployment Complete"]

@@ -1,0 +1,11 @@
+flowchart LR
+    UI["Frontend UI"] --> AuthClient["AuthApiClient"]
+    UI --> FleetClient["FleetApiClient"]
+
+    AuthClient --> AuthEndpoints["Auth + OAuth Endpoints"]
+    FleetClient --> ApiClient["Base apiClient"]
+    ApiClient --> Gateway["Gateway Service"]
+    Gateway --> Backend["Backend Services"]
+
+    AuthClient --> TokenStore["Token Store"]
+    AuthClient --> RefreshManager["Token Refresh Manager"]

@@ -1,0 +1,16 @@
+flowchart TD
+    UI["UI Components"] --> Utils["Utils Module"]
+    Hub["Hub / Server Utilities"] --> Utils
+
+    Utils --> ContentRefs["Content Ref Groups"]
+    Utils --> DevSections["Dev Section Registry"]
+    Utils --> OSPlatforms["OS Platform Registry"]
+
+    ContentRefs --> RelatedContent["Related Content Section"]
+    ContentRefs --> InvestorEmail["Investor Email Builder"]
+
+    DevSections --> Navigator["Homepage Navigator Cards"]
+    DevSections --> DevPages["Dev Section Pages"]
+
+    OSPlatforms --> DeviceSelectors["Device / OS Selectors"]
+    OSPlatforms --> ScriptUI["Script & Platform UI"]

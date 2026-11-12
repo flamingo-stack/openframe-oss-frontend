@@ -1,0 +1,5 @@
+flowchart LR
+    UI["UI Components"] -->|"useAuth()"| AuthContext["Auth Context"]
+    AuthContext -->|"Injected Hook"| RealAuth["Real Auth Hook"]
+    AuthContext -->|"Fallback"| MockUser["Mock User"]
+    RealAuth --> JWT["JWT Claims"]

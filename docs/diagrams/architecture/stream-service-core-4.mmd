@@ -1,0 +1,5 @@
+flowchart LR
+    Event["DeserializedDebeziumMessage"] --> EnrichMachine["Machine Cache Lookup"]
+    EnrichMachine --> EnrichOrg["Organization Cache Lookup"]
+    EnrichOrg --> EnrichTenant["Tenant Resolution"]
+    EnrichTenant --> EnrichedData["IntegratedToolEnrichedData"]

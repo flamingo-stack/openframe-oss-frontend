@@ -1,0 +1,6 @@
+flowchart TD
+    User["User"] --> CloseBtn["Close ticket"]
+    CloseBtn --> Confirm["AlertDialog confirm"]
+    Confirm --> Actions["useTicketActions.closeTicket"]
+    Actions --> CacheUpdate["Optimistic cache update"]
+    CacheUpdate --> List["Status badge updates"]
