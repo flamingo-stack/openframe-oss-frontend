@@ -1,6 +1,10 @@
 'use client';
 
-import { DEVICE_STATUS } from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
+  DEVICE_CONNECTIVITY,
+  DEVICE_STATUS,
+  type DeviceFilterInput,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { NO_ITEMS } from '@/app/components/shared';
@@ -81,9 +85,9 @@ const NO_COUNTS: ReadonlyMap<string, number> = new Map();
  * (see `fetchDeviceOrganizationCounts`). Passing the list narrowed nothing and
  * cost ~2.6KB of request body per call.
  */
-async function organizationCountsForStatuses(statuses: string[]): Promise<ReadonlyMap<string, number>> {
+async function organizationCountsFor(filter: DeviceFilterInput): Promise<ReadonlyMap<string, number>> {
   try {
-    return await fetchDeviceOrganizationCounts({ statuses });
+    return await fetchDeviceOrganizationCounts(filter);
   } catch (error) {
     console.warn('Customer device counts fetch failed:', error);
     return NO_COUNTS;
@@ -139,14 +143,12 @@ async function fetchCustomersOverview(limit: number): Promise<{
   // turned a slow query into a two-stage page load (p90 page 19s against a 2.9s slowest
   // request), and it fires while the rest of the dashboard is also loading.
   //
-  // Two count queries, not three: `total` was a third call scoped to [ONLINE, OFFLINE],
-  // which is exactly the union of the other two — the backend's organization facet counts
-  // active devices only and the statuses partition it, so total === active + inactive by
-  // construction. Summing locally is not an approximation.
+  // Two count queries, not three: the managed devices online and offline right now partition the managed ones, so
+  // total === active + inactive by construction. Summing locally is not an approximation.
   const [orgs, onlineCounts, offlineCounts] = await Promise.all([
     fetchOrganizations(),
-    organizationCountsForStatuses([DEVICE_STATUS.ONLINE]),
-    organizationCountsForStatuses([DEVICE_STATUS.OFFLINE]),
+    organizationCountsFor({ statuses: [DEVICE_STATUS.MANAGED], connectivity: [DEVICE_CONNECTIVITY.ONLINE] }),
+    organizationCountsFor({ statuses: [DEVICE_STATUS.MANAGED], connectivity: [DEVICE_CONNECTIVITY.OFFLINE] }),
   ]);
 
   const { organizations, totalOrganizations } = orgs;

@@ -1,6 +1,10 @@
 'use client';
 
-import { DEFAULT_DASHBOARD_STATUSES, DEVICE_STATUS } from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
+  DEFAULT_DASHBOARD_STATUSES,
+  DEVICE_CONNECTIVITY,
+  DEVICE_STATUS,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { apiClient } from '@/lib/api-client';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { fetchDeviceStatusCounts } from '../../devices/queries/devices-api';
@@ -76,14 +80,19 @@ class DashboardApiService {
    */
   async fetchDeviceStats(): Promise<DashboardDeviceStats> {
     try {
-      const counts = await fetchDeviceStatusCounts({ statuses: [...DEFAULT_DASHBOARD_STATUSES] });
+      // Online / Offline are the managed devices split by whether they are online right now; Pending and Archived
+      // are lifecycle buckets of the whole dashboard set.
+      const [counts, managed] = await Promise.all([
+        fetchDeviceStatusCounts({ statuses: [...DEFAULT_DASHBOARD_STATUSES] }),
+        fetchDeviceStatusCounts({ statuses: [DEVICE_STATUS.MANAGED] }),
+      ]);
 
       const total = counts.filteredCount;
       const countFor = (value: string) => counts.byStatus.get(value) ?? 0;
       const toPercentage = (count: number) => (total > 0 ? Math.round((count / total) * 100) : 0);
 
-      const active = countFor(DEVICE_STATUS.ONLINE);
-      const inactive = countFor(DEVICE_STATUS.OFFLINE);
+      const active = managed.byConnectivity.get(DEVICE_CONNECTIVITY.ONLINE) ?? 0;
+      const inactive = managed.byConnectivity.get(DEVICE_CONNECTIVITY.OFFLINE) ?? 0;
       const pending = countFor(DEVICE_STATUS.PENDING);
       // The archive card counts what /devices/archive lists: deleted devices
       // plus legacy ARCHIVED records from before the delete/archive rework.

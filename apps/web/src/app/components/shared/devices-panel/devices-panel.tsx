@@ -3,11 +3,13 @@
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   buildDevicePanelActions,
+  DEVICE_CONNECTIVITY_FILTER_SECTION,
   type DeviceFilterInput,
   type DeviceFilters,
   DevicesPanelView,
   getDeviceActionsColumn,
   getDeviceFilterColumns,
+  joinStatusFilterValue,
   useTagFilterModal,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
@@ -267,10 +269,16 @@ function DevicesPanelLoaded({
 
   // The status column reflects only the user's explicit selection — the default
   // statuses are a query-side fallback and must not render as checked filters.
-  const columnFilters = useMemo<ColumnFiltersState>(
-    () => Object.entries(tableFilters).flatMap(([id, value]) => (value.length > 0 ? [{ id, value }] : [])),
-    [tableFilters],
-  );
+  // The table carries the Connectivity picks inside the STATUS funnel (`connectivity:ONLINE`): it has no column of
+  // their own.
+  const columnFilters = useMemo<ColumnFiltersState>(() => {
+    const { [DEVICE_CONNECTIVITY_FILTER_SECTION]: connectivity = [], status = [], ...rest } = tableFilters;
+    const statusValue = joinStatusFilterValue(status, connectivity);
+    return [
+      ...(statusValue.length > 0 ? [{ id: 'status', value: statusValue }] : []),
+      ...Object.entries(rest).flatMap(([id, value]) => (value.length > 0 ? [{ id, value }] : [])),
+    ];
+  }, [tableFilters]);
 
   const hasActiveDeviceFilters = columnFilters.length > 0 || params.tags.length > 0;
 

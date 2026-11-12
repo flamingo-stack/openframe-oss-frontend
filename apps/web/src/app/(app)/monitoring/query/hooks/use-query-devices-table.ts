@@ -1,4 +1,8 @@
-import { DEVICE_ENRICHMENT_FILTER, getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
+  DEVICE_ENRICHMENT_FILTER,
+  getDeviceName,
+  toUiDeviceStatus,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { skipToken, useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { fleetApiClient } from '@/lib/fleet-api-client';
@@ -66,7 +70,8 @@ export function useQueryDevicesTable(queryId: number | null) {
         organizationImageUrl: device?.organizationImageUrl,
         organizationImageHash: device?.organizationImageHash,
         osType: device?.osType,
-        status: device?.status || 'UNKNOWN',
+        // The UI value: MANAGED stands for the legacy ONLINE / OFFLINE too, so the STATUS funnel has one Managed.
+        status: device?.status ? toUiDeviceStatus(device.status) : 'UNKNOWN',
         lastSeen: device?.lastSeen || device?.last_seen,
         machineId: device?.machineId,
         fleetHostId: host.id,

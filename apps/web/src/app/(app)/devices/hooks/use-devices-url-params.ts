@@ -2,7 +2,9 @@
 
 import {
   DEFAULT_DEVICES_LIST_STATUSES,
+  DEVICE_CONNECTIVITY_FILTER_SECTION,
   type DeviceFilterInput,
+  splitStatusFilterValue,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { TagSearchOption } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -12,7 +14,7 @@ import { useSearchParam } from '@/app/hooks/use-search-param';
 interface UseDevicesUrlParamsOptions {
   /**
    * Default statuses applied when the user hasn't picked any.
-   * - omitted → `DEFAULT_DEVICES_LIST_STATUSES` (ONLINE / OFFLINE; PENDING is
+   * - omitted → `DEFAULT_DEVICES_LIST_STATUSES` (MANAGED + PENDING_DELETION; PENDING is
    *   opt-in via the filter, DELETED and legacy ARCHIVED live on
    *   /devices/archive). Used on the main Devices page and the Customer devices tab.
    * - `[]` → no default, every status (including ARCHIVED / DELETED) returned;
@@ -28,12 +30,31 @@ interface UseDevicesUrlParamsOptions {
 
 const NOT_APPLIED: string[] = [];
 
+/**
+ * A link from before the lifecycle / connectivity split (`?statuses=ONLINE`, from a bookmark, a dashboard card or a
+ * notification) read in today's terms: ONLINE / OFFLINE are the status MANAGED plus that connectivity. Both of them
+ * name every managed device, so connectivity stays open then. An explicit `connectivity` wins.
+ */
+export function translateLegacyDeviceStatuses(
+  statuses: readonly string[],
+  connectivity: readonly string[],
+): { statuses: string[]; connectivity: string[] } {
+  const legacy = statuses.filter(s => s === 'ONLINE' || s === 'OFFLINE');
+  if (legacy.length === 0) return { statuses: [...statuses], connectivity: [...connectivity] };
+  const rest = statuses.filter(s => s !== 'ONLINE' && s !== 'OFFLINE');
+  return {
+    statuses: rest.includes('MANAGED') ? rest : [...rest, 'MANAGED'],
+    connectivity: connectivity.length > 0 || legacy.length === 2 ? [...connectivity] : legacy,
+  };
+}
+
 export function useDevicesUrlParams(options: UseDevicesUrlParamsOptions = {}) {
   const defaultStatuses = options.defaultStatuses ?? DEFAULT_DEVICES_LIST_STATUSES;
 
   const { params, setParam, setParams } = useApiParams({
     search: { type: 'string', default: '' },
     statuses: { type: 'array', default: [] },
+    connectivity: { type: 'array', default: [] },
     osTypes: { type: 'array', default: [] },
     organizationIds: { type: 'array', default: [] },
     userLinks: { type: 'array', default: [] },
@@ -70,14 +91,19 @@ export function useDevicesUrlParams(options: UseDevicesUrlParamsOptions = {}) {
     [defaultStatuses],
   );
 
-  const selectedStatuses = useMemo(() => normalizeStatuses(params.statuses), [params.statuses, normalizeStatuses]);
+  const legacy = useMemo(
+    () => translateLegacyDeviceStatuses(params.statuses, params.connectivity ?? []),
+    [params.statuses, params.connectivity],
+  );
+  const selectedStatuses = useMemo(() => normalizeStatuses(legacy.statuses), [legacy.statuses, normalizeStatuses]);
+  const selectedConnectivity = legacy.connectivity;
 
   const userLinks = options.directoryColumns ? params.userLinks : NOT_APPLIED;
   const directorySources = options.directoryColumns ? params.directorySources : NOT_APPLIED;
 
   const normalizedParams = useMemo(
-    () => ({ ...params, statuses: selectedStatuses, userLinks, directorySources }),
-    [params, selectedStatuses, userLinks, directorySources],
+    () => ({ ...params, statuses: selectedStatuses, connectivity: selectedConnectivity, userLinks, directorySources }),
+    [params, selectedStatuses, selectedConnectivity, userLinks, directorySources],
   );
 
   const setParamsNormalized = useCallback(
@@ -98,24 +124,36 @@ export function useDevicesUrlParams(options: UseDevicesUrlParamsOptions = {}) {
   const filters: DeviceFilterInput = useMemo(
     () => ({
       ...(effectiveStatuses.length > 0 && { statuses: effectiveStatuses }),
+      ...(selectedConnectivity.length > 0 && { connectivity: selectedConnectivity }),
       osTypes: params.osTypes,
       organizationIds: params.organizationIds,
       ...(userLinks.length > 0 && { userLinks }),
       ...(directorySources.length > 0 && { directorySources }),
       ...(tagValues.length > 0 && { tagValues }),
     }),
-    [effectiveStatuses, params.osTypes, params.organizationIds, userLinks, directorySources, tagValues],
+    [
+      effectiveStatuses,
+      selectedConnectivity,
+      params.osTypes,
+      params.organizationIds,
+      userLinks,
+      directorySources,
+      tagValues,
+    ],
   );
 
+  // Keyed by filter: the grid's dropdowns and the filter window have a CONNECTIVITY group of their own; the table
+  // header carries it inside the STATUS funnel (the panel joins the two for the table).
   const tableFilters = useMemo(
     () => ({
       status: selectedStatuses,
+      [DEVICE_CONNECTIVITY_FILTER_SECTION]: selectedConnectivity,
       os: params.osTypes,
       organization: params.organizationIds,
       user: userLinks,
       sources: directorySources,
     }),
-    [selectedStatuses, params.osTypes, params.organizationIds, userLinks, directorySources],
+    [selectedStatuses, selectedConnectivity, params.osTypes, params.organizationIds, userLinks, directorySources],
   );
 
   const tagOptions: TagSearchOption<string>[] = useMemo(
@@ -125,8 +163,12 @@ export function useDevicesUrlParams(options: UseDevicesUrlParamsOptions = {}) {
 
   const handleFilterChange = useCallback(
     (columnFilters: Record<string, string[]>) => {
+      // The table's STATUS funnel holds its Connectivity picks as `connectivity:ONLINE`; the grid and the filter
+      // window hand them over under their own key.
+      const status = splitStatusFilterValue(columnFilters.status);
       setParamsNormalized({
-        statuses: columnFilters.status || [],
+        statuses: status.statuses,
+        connectivity: [...status.connectivity, ...(columnFilters[DEVICE_CONNECTIVITY_FILTER_SECTION] ?? [])],
         osTypes: columnFilters.os || [],
         organizationIds: columnFilters.organization || [],
         userLinks: columnFilters.user || [],

@@ -22,7 +22,7 @@ export const devicesPageRelayQuery = graphql`
       search: $search
       first: $first
       after: $after
-      sort: { field: "status", direction: DESC }
+      sort: { field: "connectivity", direction: DESC }
     ) {
       filteredCount
       edges {

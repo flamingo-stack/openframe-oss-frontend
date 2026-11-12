@@ -546,6 +546,8 @@ type DeviceEdge {
 
 input DeviceFilterInput {
   statuses: [DeviceStatus!]
+  """ONLINE / OFFLINE right now, apart from the lifecycle status."""
+  connectivity: [DeviceConnectivity!]
   deviceTypes: [DeviceType!]
   osTypes: [String!]
   organizationIds: [String!]
@@ -566,6 +568,8 @@ type DeviceFilterOption {
 
 type DeviceFilters {
   statuses: [DeviceFilterOption!]!
+  """ONLINE / OFFLINE counts; never a "null" option."""
+  connectivity: [DeviceFilterOption!]!
   deviceTypes: [DeviceFilterOption!]!
   osTypes: [DeviceFilterOption!]!
   organizationIds: [DeviceFilterOption!]!
@@ -643,7 +647,13 @@ type DeviceRemoteAccess {
   updatedAt: Instant
 }
 
+enum DeviceConnectivity {
+  ONLINE
+  OFFLINE
+}
+
 enum DeviceStatus {
+  MANAGED
   PENDING
   ACTIVE
   INACTIVE
@@ -1915,7 +1925,10 @@ type Machine implements Node & AssignableTarget {
   macAddress: String
   osUuid: String
   agentVersion: String
+  """Lifecycle: PENDING, MANAGED, PENDING_DELETION, DELETED, ARCHIVED (legacy ONLINE / OFFLINE until migrated)."""
   status: DeviceStatus
+  """Whether the device is online right now; null only for a device that never reported since the migration."""
+  connectivity: DeviceConnectivity
   lastSeen: Instant
   organizationId: String
   organization: Organization
@@ -5291,6 +5304,7 @@ One target device of a software action, with its result. Customer = the device's
 """
 type SoftwareActionDevice {
   machineId: ID!
+  connectivity: DeviceConnectivity
   hostname: String
   organizationId: String
   organizationName: String

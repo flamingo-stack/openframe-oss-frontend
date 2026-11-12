@@ -3,14 +3,24 @@
  * Unified logic for determining device action availability
  */
 
+import { isDeviceConnected, isManagedStatus } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { Device, ToolConnection } from '../types/device.types';
 import { getToolConnectionState } from './tool-connection-status';
 
 /**
- * Check if a device is online (case-insensitive)
+ * Whether a device is online right now: its `connectivity`, never its lifecycle status (null reads as offline).
  */
-export function isDeviceOnline(status: string | undefined): boolean {
-  return status?.toUpperCase() === 'ONLINE';
+export function isDeviceOnline(connectivity: string | null | undefined): boolean {
+  return isDeviceConnected(connectivity);
+}
+
+/**
+ * Whether remote actions (shell, desktop, files, reboot, run script) can reach the device: it is managed (MANAGED,
+ * or the legacy ONLINE / OFFLINE) and online right now. A PENDING device is refused by the backend's dispatch even
+ * when it is online, so the UI disables it the same way; its details page says it is still connecting.
+ */
+export function canRunRemoteActions(device: Pick<Device, 'status' | 'connectivity'>): boolean {
+  return isManagedStatus(device.status) && isDeviceOnline(device.connectivity);
 }
 
 /**
@@ -120,11 +130,12 @@ export function getDeviceActionAvailability(device: Device): DeviceActionAvailab
   const meshcentralConnection = getToolConnection(device.toolConnections, 'MESHCENTRAL');
   const meshcentralAgentId = meshcentralConnection?.agentToolId;
   const meshcentralOffline = meshcentralConnection?.status?.toLowerCase() === 'offline';
-  const isOnline = isDeviceOnline(device.status);
+  const isOnline = isDeviceOnline(device.connectivity);
+  const reachable = canRunRemoteActions(device);
 
   // 'live' covers the id-presence check and additionally blocks DISCONNECTED/ERROR
   // rows, whose stale agentToolId must not open tunnels.
-  const meshcentralReady = getToolConnectionState(meshcentralConnection) === 'live' && isOnline && !meshcentralOffline;
+  const meshcentralReady = getToolConnectionState(meshcentralConnection) === 'live' && reachable && !meshcentralOffline;
 
   return {
     remoteShellEnabled: meshcentralReady,
@@ -135,9 +146,9 @@ export function getDeviceActionAvailability(device: Device): DeviceActionAvailab
     // so it has the same requirements as the other remote actions.
     rebootEnabled: meshcentralReady,
 
-    // Run Script (native Scripts flow): only requires the device to be online.
+    // Run Script (native Scripts flow): a managed device that is online right now.
     // TODO(openframe-rmm): gate on an OpenFrame RMM agent once run-script is wired.
-    runScriptEnabled: isOnline,
+    runScriptEnabled: reachable,
 
     // Edit Display Name: blocked on read-only archive records
     editDisplayNameEnabled: canEditDisplayName(device.status),

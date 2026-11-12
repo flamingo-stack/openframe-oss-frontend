@@ -17,7 +17,7 @@ import { pluralize } from '@/lib/pluralize';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { CUSTOMERS_OVERVIEW_LIMIT, useCustomersOverview } from '../hooks/use-customers-overview';
-import { DeviceStatusInfoCard } from './devices-overview';
+import { DeviceStatusInfoCard, deviceStatusCardHref } from './devices-overview';
 
 /** One row's grid: the customer card (full row on mobile/tablet, half from `lg`) then its two device cards. */
 const CUSTOMER_ROW_CLASS = 'grid grid-cols-2 items-stretch gap-[var(--spacing-system-mf)] content-lg:grid-cols-4';
@@ -45,10 +45,9 @@ function DeviceCards({ org }: { org: CustomerRow | null }) {
         percentage={org ? (online ? org.activePct : org.inactivePct) : undefined}
         href={
           org
-            ? routes.devices.filtered({
-                organizationIds: [org.organizationId],
-                statuses: count > 0 ? [status] : undefined,
-              })
+            ? count > 0
+              ? deviceStatusCardHref(status, [org.organizationId])
+              : routes.devices.filtered({ organizationIds: [org.organizationId] })
             : undefined
         }
       />

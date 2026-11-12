@@ -1,10 +1,9 @@
 'use client';
 
-import { Tag } from '@flamingo-stack/openframe-frontend-core';
 import {
-  DeviceTypeTile,
+  DeviceConnectivityIcon,
+  DeviceLifecycleTag,
   getDeviceName,
-  getDeviceStatusConfig,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
@@ -17,6 +16,8 @@ const softwareDeviceCellFragment = graphql`
     displayName
     hostname
     status
+    connectivity
+    lastSeen
     type
     organization {
       name
@@ -29,12 +30,12 @@ export function SoftwareDeviceCell({ machine }: { machine: softwareDeviceCell_ma
   // A row still being read (a loading scope) has no fragment to read: the tile, the name and the customer draw their bars.
   const loading = useLoadingScope();
   const data = useFragment(softwareDeviceCellFragment, loading ? null : machine);
-  const statusConfig = data?.status ? getDeviceStatusConfig(data.status) : null;
   const customer = data?.organization?.name;
 
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-m)]">
-      <DeviceTypeTile type={data?.type} />
+      {/* Whether the device is online right now (Figma 3324-6819); its lifecycle is the tag beside the name. */}
+      <DeviceConnectivityIcon connectivity={data?.connectivity} lastSeen={data?.lastSeen} />
       <div className="flex min-w-0 flex-col justify-center">
         <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
           <ValueText
@@ -42,7 +43,7 @@ export function SoftwareDeviceCell({ machine }: { machine: softwareDeviceCell_ma
               data && getDeviceName({ nickname: data.nickname, displayName: data.displayName, hostname: data.hostname })
             }
           />
-          {statusConfig && <Tag label={statusConfig.label} variant={statusConfig.variant} />}
+          {data?.status && <DeviceLifecycleTag status={data.status} data-loading-optional />}
         </div>
         {(loading || customer) && (
           <TruncateText variant="h6" tone="secondary">

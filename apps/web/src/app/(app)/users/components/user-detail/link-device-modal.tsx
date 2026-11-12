@@ -1,7 +1,10 @@
 'use client';
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
-import { DeviceTypeTile, getDeviceStatusConfig } from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
+  DeviceConnectivityIcon,
+  DeviceLifecycleTag,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   Button,
   RadioGroup,
@@ -20,6 +23,7 @@ import type { linkDeviceModalQuery as LinkDeviceQueryType } from '@/__generated_
 import { ContentErrorBoundary, SectionLoadError, useRetryKey } from '@/app/components/shared';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { DeviceStatus } from '@/generated/schema-enums';
+import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
 import { type LinkMachine, toLinkMachine } from '@/graphql/directory/link-machine-fields';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 
@@ -56,16 +60,17 @@ const linkDeviceModalMutation = graphql`
 
 // Not the Devices list's default: linkDirectoryDevice answers NOT_FOUND for a PENDING_DELETION machine, as for a
 // DELETED, ARCHIVED or DECOMMISSIONED one, and takes every other status, a still-enrolling PENDING one included.
-const MACHINE_FILTER = {
-  statuses: [
-    DeviceStatus.PENDING,
-    DeviceStatus.ACTIVE,
-    DeviceStatus.INACTIVE,
-    DeviceStatus.MAINTENANCE,
-    DeviceStatus.ONLINE,
-    DeviceStatus.OFFLINE,
-  ],
-};
+// Built when the list renders: whether MANAGED goes out is answered after the app starts.
+const machineFilter = () =>
+  toRelayDeviceFilter({
+    statuses: [
+      DeviceStatus.PENDING,
+      DeviceStatus.ACTIVE,
+      DeviceStatus.INACTIVE,
+      DeviceStatus.MAINTENANCE,
+      DeviceStatus.MANAGED,
+    ],
+  });
 const LINK_FAILED = 'Could not link the device';
 
 /** The directory record being linked. */
@@ -79,11 +84,10 @@ export interface LinkRecord {
 }
 
 function MachineRow({ machine, suggested }: { machine: LinkMachine; suggested: boolean }) {
-  const status = getDeviceStatusConfig(machine.status);
   return (
     <label className="flex cursor-pointer items-center gap-[var(--spacing-system-xs)] p-[var(--spacing-system-xs)]">
       <RadioGroupItem value={machine.machineId} aria-label={machine.name} />
-      <DeviceTypeTile type={machine.type} />
+      <DeviceConnectivityIcon connectivity={machine.connectivity} lastSeen={machine.lastSeen} />
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex min-w-0 items-center gap-[var(--spacing-system-xs)]">
           <TruncateText>{machine.name}</TruncateText>
@@ -99,7 +103,7 @@ function MachineRow({ machine, suggested }: { machine: LinkMachine; suggested: b
         </TruncateText>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-[var(--spacing-system-xxs)]">
-        <Tag label={status.label} variant={status.variant} />
+        <DeviceLifecycleTag status={machine.status} />
         {machine.lastSeen && (
           <span className="text-ods-text-secondary text-h6">{formatRelativeTime(machine.lastSeen)}</span>
         )}
@@ -146,7 +150,7 @@ function MachineOptions({ suggestions, value, onChange, search }: MachineOptions
   const retryKey = useRetryKey();
   const { devices } = useLazyLoadQuery<LinkDeviceQueryType>(
     linkDeviceModalQuery,
-    { search: search || null, first: MACHINES_LIMIT, filter: MACHINE_FILTER },
+    { search: search || null, first: MACHINES_LIMIT, filter: machineFilter() },
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
   const results = devices.edges.map(edge => toLinkMachine(edge.node));

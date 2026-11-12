@@ -2,7 +2,7 @@
 
 import { DashboardInfoCard, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
 import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
-import { DEVICE_STATUS } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { DEVICE_CONNECTIVITY, DEVICE_STATUS } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { SectionLoadError } from '@/app/components/shared';
 import { useRevealHeld, useRevealPart } from '@/app/components/shared/reveal-together';
@@ -26,6 +26,23 @@ const DEVICE_STATUS_CARD = {
 } as const satisfies Record<string, { title: string; progressVariant: ProgressVariant }>;
 
 type DeviceStatus = keyof typeof DEVICE_STATUS_CARD;
+
+/**
+ * Where a card leads, its own filter on the Devices list: Online and Offline are the managed devices online or
+ * offline right now (`?statuses=MANAGED&connectivity=…`), Pending its lifecycle bucket.
+ */
+export function deviceStatusCardHref(
+  status: Exclude<DeviceStatus, typeof DEVICE_STATUS.ARCHIVED>,
+  organizationIds?: readonly string[],
+): string {
+  return status === DEVICE_STATUS.PENDING
+    ? routes.devices.filtered({ organizationIds, statuses: [DEVICE_STATUS.PENDING] })
+    : routes.devices.filtered({
+        organizationIds,
+        statuses: [DEVICE_STATUS.MANAGED],
+        connectivity: [status === DEVICE_STATUS.ONLINE ? DEVICE_CONNECTIVITY.ONLINE : DEVICE_CONNECTIVITY.OFFLINE],
+      });
+}
 
 /**
  * One device status's card (the devices overview's four, the customers overview's two per customer): its title and
@@ -138,9 +155,7 @@ export function DevicesOverview({ devices }: { devices?: DevicesOverviewData }) 
             progressSize={{ base: 24, md: 56 }}
             href={
               // Archived devices live on their own page; /devices only lists the rest.
-              card.status === DEVICE_STATUS.ARCHIVED
-                ? routes.devices.archive()
-                : routes.devices.filtered({ statuses: [card.status] })
+              card.status === DEVICE_STATUS.ARCHIVED ? routes.devices.archive() : deviceStatusCardHref(card.status)
             }
           />
         ))}

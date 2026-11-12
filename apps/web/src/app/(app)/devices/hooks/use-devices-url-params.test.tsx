@@ -11,6 +11,7 @@ const url = vi.hoisted(() => ({
   params: {
     search: '',
     statuses: [] as string[],
+    connectivity: [] as string[],
     osTypes: [] as string[],
     organizationIds: [] as string[],
     userLinks: ['SHARED'],
@@ -21,7 +22,12 @@ const url = vi.hoisted(() => ({
 }));
 
 vi.mock('@flamingo-stack/openframe-frontend-core/components/features', () => ({
-  DEFAULT_DEVICES_LIST_STATUSES: ['ONLINE', 'OFFLINE'],
+  DEFAULT_DEVICES_LIST_STATUSES: ['MANAGED', 'PENDING_DELETION'],
+  DEVICE_CONNECTIVITY_FILTER_SECTION: 'connectivity',
+  splitStatusFilterValue: (values: string[] | undefined) => ({
+    statuses: (values ?? []).filter(v => !v.startsWith('connectivity:')),
+    connectivity: (values ?? []).filter(v => v.startsWith('connectivity:')).map(v => v.slice('connectivity:'.length)),
+  }),
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', () => ({
   useApiParams: () => ({ params: url.params, setParam: vi.fn(), setParams: vi.fn() }),
@@ -30,7 +36,7 @@ vi.mock('@/app/hooks/use-search-param', () => ({
   useSearchParam: () => ({ search: '', setSearch: vi.fn(), debouncedSearch: '' }),
 }));
 
-import { useDevicesUrlParams } from './use-devices-url-params';
+import { translateLegacyDeviceStatuses, useDevicesUrlParams } from './use-devices-url-params';
 
 let container: HTMLDivElement;
 let root: Root;
@@ -79,5 +85,51 @@ describe('useDevicesUrlParams, directory filters in the address', () => {
     // The panel reads these for "is a filter active" and for its checked funnels.
     expect(params).toMatchObject({ userLinks: [], directorySources: [] });
     expect(tableFilters).toMatchObject({ user: [], sources: [] });
+  });
+});
+
+describe('useDevicesUrlParams, lifecycle and connectivity', () => {
+  beforeEach(() => {
+    latest = null;
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+    url.params.statuses = [];
+    url.params.connectivity = [];
+  });
+
+  it('queries the default lifecycle and narrows by connectivity from the address', () => {
+    url.params.connectivity = ['ONLINE'];
+    const { filters, tableFilters } = render();
+    expect(filters).toMatchObject({ statuses: ['MANAGED', 'PENDING_DELETION'], connectivity: ['ONLINE'] });
+    // The default statuses are a query-side fallback: nothing reads as checked.
+    expect(tableFilters).toMatchObject({ status: [], connectivity: ['ONLINE'] });
+  });
+
+  it('reads an old ?statuses=ONLINE link as Managed and online', () => {
+    url.params.statuses = ['ONLINE'];
+    const { filters, tableFilters } = render();
+    expect(filters).toMatchObject({ statuses: ['MANAGED'], connectivity: ['ONLINE'] });
+    expect(tableFilters).toMatchObject({ status: ['MANAGED'], connectivity: ['ONLINE'] });
+  });
+});
+
+describe('translateLegacyDeviceStatuses', () => {
+  it.each([
+    [['OFFLINE'], [], ['MANAGED'], ['OFFLINE']],
+    [['ONLINE', 'OFFLINE'], [], ['MANAGED'], []],
+    [['ONLINE', 'PENDING'], [], ['PENDING', 'MANAGED'], ['ONLINE']],
+    [['ONLINE'], ['OFFLINE'], ['MANAGED'], ['OFFLINE']],
+    [['MANAGED'], ['ONLINE'], ['MANAGED'], ['ONLINE']],
+  ])('%j + connectivity %j → %j / %j', (statuses, connectivity, expectedStatuses, expectedConnectivity) => {
+    expect(translateLegacyDeviceStatuses(statuses, connectivity)).toEqual({
+      statuses: expectedStatuses,
+      connectivity: expectedConnectivity,
+    });
   });
 });

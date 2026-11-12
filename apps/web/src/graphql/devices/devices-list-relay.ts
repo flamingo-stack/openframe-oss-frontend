@@ -37,8 +37,13 @@ export const devicesListRelayFragment = graphql`
     first: { type: "Int", defaultValue: 20 }
     after: { type: "String" }
   ) {
-    devices(filter: $filter, search: $search, first: $first, after: $after, sort: { field: "status", direction: DESC })
-      @connection(key: "devicesListRelay_devices", filters: ["filter", "search"]) {
+    devices(
+      filter: $filter
+      search: $search
+      first: $first
+      after: $after
+      sort: { field: "connectivity", direction: DESC }
+    ) @connection(key: "devicesListRelay_devices", filters: ["filter", "search"]) {
       filteredCount
       edges {
         node {

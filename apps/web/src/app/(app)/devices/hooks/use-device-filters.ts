@@ -39,6 +39,7 @@ export function useDeviceFilters(filters?: DeviceFilterInput): DeviceFilters {
   return useMemo(
     () => ({
       statuses: [...data.deviceFilters.statuses],
+      connectivity: [...data.deviceFilters.connectivity],
       deviceTypes: [...data.deviceFilters.deviceTypes],
       osTypes: [...data.deviceFilters.osTypes],
       organizationIds: [...data.deviceFilters.organizationIds],

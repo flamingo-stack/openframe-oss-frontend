@@ -10,7 +10,7 @@ import {
   TimingStat,
   TruncateText,
 } from '@flamingo-stack/openframe-frontend-core';
-import { getDeviceName, getDeviceStatusConfig } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { getDeviceName, isDeviceConnected } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   InfoCircleClassicIcon,
   FlaskVialIcon,
@@ -62,14 +62,15 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
     [devices],
   );
 
-  // ONLINE/OFFLINE tag per option (same config as the Devices table), per design.
+  // ONLINE/OFFLINE tag per option, per design: whether the host's device is online right now (its connectivity,
+  // never its lifecycle status).
   const statusByHostId = useMemo(() => {
-    const map = new Map<string, { label: string; variant: ReturnType<typeof getDeviceStatusConfig>['variant'] }>();
+    const map = new Map<string, { label: string; variant: 'success' | 'error' }>();
     for (const d of devices) {
       const fleetId = getFleetHostId(d);
-      if (fleetId === undefined || !d.status) continue;
-      const config = getDeviceStatusConfig(d.status);
-      map.set(String(fleetId), { label: config.label, variant: config.variant });
+      if (fleetId === undefined) continue;
+      const online = isDeviceConnected(d.connectivity);
+      map.set(String(fleetId), { label: online ? 'ONLINE' : 'OFFLINE', variant: online ? 'success' : 'error' });
     }
     return map;
   }, [devices]);

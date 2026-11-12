@@ -4,7 +4,7 @@ import { useAllDevices } from '../../../devices/hooks/use-all-devices';
 import type { Device } from '../../../devices/types/device.types';
 import { getFleetHostId, indexDevicesByFleetHostId } from '../../../devices/utils/device-action-utils';
 
-const POLICY_DEVICE_FILTER: DeviceFilterInput = { statuses: [DEVICE_STATUS.ONLINE, DEVICE_STATUS.OFFLINE] };
+const POLICY_DEVICE_FILTER: DeviceFilterInput = { statuses: [DEVICE_STATUS.MANAGED] };
 
 /**
  * The device pool offered by the policy / query device selectors.

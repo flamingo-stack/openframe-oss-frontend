@@ -50,6 +50,10 @@ export const GET_DEVICE_STATUS_COUNTS_QUERY = `
         value
         count
       }
+      connectivity {
+        value
+        count
+      }
       filteredCount
     }
   }
@@ -80,6 +84,7 @@ export const GET_DEVICE_QUERY = `
       osUuid
       agentVersion
       status
+      connectivity
       lastSeen
       organization {
         id
