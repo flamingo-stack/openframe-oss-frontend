@@ -15,7 +15,7 @@ import { useMingoWhatToAsk } from '@/app/(app)/mingo/hooks/use-mingo-what-to-ask
 import type { MingoChat, MingoChatState } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { getFullImageUrl } from '@/lib/image-url';
-import { useMingoQuickActionChips } from './use-mingo-quick-action-chips';
+import { OPENFRAME_QUICK_ACTION_ACCENT, useMingoQuickActionChips } from './use-mingo-quick-action-chips';
 
 /**
  * What OpenFrame's chat can do, as `EmbeddableChat` props: the context picker, `@`,
@@ -33,6 +33,7 @@ export type OpenframeChatProps = Pick<
   | 'mingoWelcome'
   | 'modes'
   | 'pendingApprovals'
+  | 'quickActionAccent'
   | 'renderContextItem'
   | 'renderMention'
   | 'sourceSkeletonCount'
@@ -158,6 +159,8 @@ export function useOpenframeChatProps({
       mingoQuickActions.length > 0 || mingoQuickActionsLoading
         ? { quickActions: mingoQuickActions, quickActionsLoading: mingoQuickActionsLoading }
         : undefined,
+    // The quick actions the chat reads itself (Guide mode) are drawn as the dock's are.
+    quickActionAccent: OPENFRAME_QUICK_ACTION_ACCENT,
     contextPicker,
     // Renders inline AI mentions (`@device:<machineId>` in Mingo's replies)
     // as self-fetching chips — the `@marker:id` analogue of `renderEntityCard`

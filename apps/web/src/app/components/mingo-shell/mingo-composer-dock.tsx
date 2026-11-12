@@ -498,7 +498,13 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
           once, in a new chat (the dock's own send, which then opens it). Not under the sheet: the
           composer then replies to the chat in it. */}
       {((showsDockQuickActions(route) && !sheetOpen) || startWorkColumn) && (
-        <MingoDockQuickActions onSend={text => void target.sendInNewDialog(text)} />
+        <MingoDockQuickActions
+          onSend={text => {
+            void target.sendInNewDialog(text);
+            // The row goes away with the send: the next message is typed in the composer.
+            handle?.focusComposer();
+          }}
+        />
       )}
       {/* The chat module loads lazily and draws nothing until it has. */}
       {!handle && <DockComposerLoading route={route} />}

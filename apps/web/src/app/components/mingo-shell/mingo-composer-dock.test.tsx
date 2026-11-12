@@ -45,6 +45,7 @@ const {
     startNewChat: vi.fn(),
     showWhatToAsk: vi.fn(),
     prefillDraft: vi.fn(),
+    focusComposer: vi.fn(),
   },
   nav: { pathname: '/devices/', search: '', push: vi.fn() },
   surface: { value: null as unknown },
@@ -70,7 +71,12 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({
       ref,
       () =>
         loaded
-          ? { startNewChat: panel.startNewChat, prefillDraft: panel.prefillDraft, showWhatToAsk: panel.showWhatToAsk }
+          ? {
+              startNewChat: panel.startNewChat,
+              prefillDraft: panel.prefillDraft,
+              showWhatToAsk: panel.showWhatToAsk,
+              focusComposer: panel.focusComposer,
+            }
           : null,
       [loaded],
     );
@@ -618,6 +624,12 @@ describe('MingoComposerDock', () => {
     act(() => chips.onSend?.('List every online machine'));
     expect(sendInNewDialog).toHaveBeenCalledWith('List every online machine');
     expect(panel.prefillDraft).not.toHaveBeenCalled();
+  });
+
+  it('leaves the keyboard in the composer after a quick action: its row goes away with the send', () => {
+    render('/mingo/');
+    act(() => chips.onSend?.('List every online machine'));
+    expect(panel.focusComposer).toHaveBeenCalledTimes(1);
   });
 
   it('builds its chat with the props builder, through its own send', () => {
