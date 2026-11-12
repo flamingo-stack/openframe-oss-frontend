@@ -11,8 +11,8 @@ interface MingoDockQuickActionsProps {
 
 /**
  * Mingo's quick actions above the docked composer on Mingo's home (`showsDockQuickActions`):
- * the chat's own quick-action set (`MingoQuickActionWall`, what the chat's empty state draws),
- * with no caption over it ("What to ask Mingo?" is the home's button and in the chat history's ⋯).
+ * the chat's own quick-action row (`MingoQuickActionWall`, what the chat's empty state draws:
+ * one line of tags that scrolls sideways, "All" at its right), with no caption over it ("What to ask Mingo?" is the home's button and in the chat history's ⋯).
  * A click sends the action's instructions at once (`onSend`).
  */
 export function MingoDockQuickActions({ onSend }: MingoDockQuickActionsProps) {
@@ -24,11 +24,12 @@ export function MingoDockQuickActions({ onSend }: MingoDockQuickActionsProps) {
   if (chips.length === 0 && !loading) return null;
   return (
     // Inset like the composer card under it (`spacing-system-m`), so the two line up, and the
-    // set's distance to it as in the chat's empty state. The set names itself ("Quick actions").
-    <div className="mb-[var(--spacing-system-mf)] px-[var(--spacing-system-m)]">
+    // row's distance to it as the design's dock draws it (`spacing-system-xs`). The row names
+    // itself ("Quick actions").
+    <div className="mb-[var(--spacing-system-xs)] px-[var(--spacing-system-m)]">
       <MingoQuickActionWall
         quickActions={chips}
-        // While the actions are read the wall holds its rows, so the dock keeps its height and
+        // While the actions are read the row holds its place, so the dock keeps its height and
         // the home's greeting, centred above it, does not move when they land.
         loading={loading}
       />

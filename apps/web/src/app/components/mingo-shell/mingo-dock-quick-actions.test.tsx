@@ -102,8 +102,8 @@ describe('MingoDockQuickActions', () => {
         </LoadingRegion>,
       ),
     );
-    // Inset like the composer under it, at the set's distance from it: the loaded dock's box.
-    expect(container.innerHTML).toContain('mb-[var(--spacing-system-mf)]');
+    // Inset like the composer under it, at the row's distance from it: the loaded dock's box.
+    expect(container.innerHTML).toContain('mb-[var(--spacing-system-xs)]');
     expect(container.innerHTML).toContain('data-loading-item');
   });
 });
