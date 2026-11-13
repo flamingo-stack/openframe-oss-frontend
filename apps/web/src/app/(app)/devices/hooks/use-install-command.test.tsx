@@ -230,6 +230,21 @@ describe('useInstallCommand log key', () => {
     expect(installRequest.userId).toBeUndefined();
   });
 
+  it('puts the installing user in both commands and the desktop request', () => {
+    const { command, registerCommand, installRequest } = renderOnce();
+    for (const line of [command, registerCommand]) expect(line).toContain('--orgId org-1 --userId user-1');
+    expect(installRequest.userId).toBe('user-1');
+  });
+
+  it('leaves the user out of a re-install, so the device keeps who added it', () => {
+    const { command, registerCommand, installRequest } = renderOnce({ reinstall: true });
+    for (const line of [command, registerCommand]) {
+      expect(line).toContain('--orgId org-1');
+      expect(line).not.toContain('--userId');
+    }
+    expect(installRequest.userId).toBeUndefined();
+  });
+
   it('hands out a command before the key arrives and adds the key once it does', () => {
     latest = undefined;
     const { root } = mount('darwin');

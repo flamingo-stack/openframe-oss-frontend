@@ -119,10 +119,19 @@ export function connectionHasNode(conn: RecordProxy, nodeId: string): boolean {
   return edges.some(edge => edge?.getLinkedRecord('node')?.getDataID() === nodeId);
 }
 
-/** `read` is what the lists filter on, `status` what history renders; one follows from the other. */
+/** The recipient's read state, the one field the store keeps it in. */
 export function setReadStatus(node: RecordProxy, status: NotificationReadStatus): void {
-  node.setValue(status !== NotificationReadStatus.UNREAD, 'read');
   node.setValue(status, 'status');
+}
+
+/** Read or archived: a notification the recipient has seen. */
+export function isReadStatus(status: unknown): boolean {
+  return status === NotificationReadStatus.READ || status === NotificationReadStatus.ARCHIVED;
+}
+
+/** A store record still unread. */
+export function isUnreadRecord(node: RecordProxy | null | undefined): boolean {
+  return node?.getValue('status') === NotificationReadStatus.UNREAD;
 }
 
 function createdAtMs(record: RecordProxy | null | undefined): number {
@@ -164,7 +173,7 @@ export function makeMarkReadUpdater(
     // Decrement the category bucket only when the node was actually unread, and only when the
     // caller owns the count change (the NATS auto-read path lands straight in the read connection
     // without ever incrementing, so it must not decrement here).
-    if (options.adjustCount !== false && node.getValue('read') === false) {
+    if (options.adjustCount !== false && isUnreadRecord(node)) {
       adjustUnreadCount(store, node.getValue('category'), -1);
     }
     setReadStatus(node, options.status ?? NotificationReadStatus.READ);
@@ -291,11 +300,11 @@ export function makeDeleteNotificationUpdater(id: string, pairs: NotificationCon
   return (store: RecordSourceSelectorProxy) => {
     const node = store.get(id);
     // Deleting an unread notification frees its category bucket; capture both before removal.
-    const wasUnread = node?.getValue('read') === false;
+    const wasUnread = isUnreadRecord(node);
     const category = node?.getValue('category');
     const root = store.getRoot();
     const seen = new Set<string>();
-    // The record outlives its edges (nothing deletes it from the store), so `read === false`
+    // The record outlives its edges (nothing deletes it from the store), so an UNREAD status
     // alone would decrement again on the second pass. The bucket mirrors the unread
     // connection: it moves only when an unread edge actually goes.
     let removedUnreadEdge = false;
@@ -515,7 +524,7 @@ export function mapNotificationNode(node: NotificationFieldsData): Notification 
     title: stripNotificationMarkup(node.title),
     description: node.description == null ? undefined : stripNotificationMarkup(node.description),
     createdAt: parseCreatedAt(node.createdAt),
-    read: node.read,
+    read: isReadStatus(node.status),
     severity,
     variant: severityToVariant(severity),
     category: node.category ?? undefined,

@@ -1,6 +1,7 @@
 'use client';
 
 import { NotFoundError, Tag, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
+import { OPENFRAME_RECORD_KIND } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ArrowRightUpIcon,
@@ -27,7 +28,6 @@ import { unarchiveScriptMutation } from '@/graphql/scripts/unarchive-script-muta
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
-import { CONTEXT_ENTITY_KIND } from '../../../mingo/context/context-types';
 import { useTrackOpenView } from '../../../mingo/context/use-track-open-view';
 import { initiatorName } from '../../shared/utils/execution-helpers';
 import { platformsToIds, shellToId } from '../../shared/utils/script-mappers';
@@ -91,11 +91,13 @@ function ScriptHeaderView({ scriptId, script }: ScriptDetailsViewProps & { scrip
   const handleBack = useSafeBack(isArchived ? routes.scripts.archived : routes.scripts.list);
 
   // Mingo context carries the RAW db id (the route's `scriptId` is the Relay
-  // global id) — matching the picker + the `@script:<id>` marker the backend
+  // global id), matching the picker + the `record://script/<id>` link the backend
   // resolver expects. The mention chip re-encodes it to a global id for fetch.
   const scriptDbId = useMemo(() => decodeGlobalId(scriptId)?.rawId ?? scriptId, [scriptId]);
   useTrackOpenView(
-    !loading && script ? { type: CONTEXT_ENTITY_KIND.SCRIPT, id: scriptDbId, label: script.name || scriptDbId } : null,
+    !loading && script
+      ? { type: OPENFRAME_RECORD_KIND.SCRIPT, id: scriptDbId, label: script.name || scriptDbId }
+      : null,
     { loading: loading },
   );
 

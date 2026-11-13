@@ -68,6 +68,8 @@ import {
   mapNotificationNode,
   NOTIFICATION_ATTR,
   type NotificationReadStateEvent,
+  isReadStatus,
+  isUnreadRecord,
   NOTIFICATIONS_CONNECTION_KEY,
   parseCreatedAt,
   parseSeverity,
@@ -186,9 +188,8 @@ function prependNotificationEdge(
  * An id the store never loaded (a card outside the paged window, a bulk mark-all) adjusts
  * no bucket locally, so the counts are refetched after every event either way.
  *
- * History re-reads the statuses when the store can't settle them: a READ for a row not already
- * READ may be an archive from an older backend, and an ARCHIVED id the store never loaded has no
- * card to flag — see `requestReadStatusRefresh`.
+ * History re-reads the statuses only when the store can't settle them: an ARCHIVED id the store
+ * never loaded has no card to flag (see `requestReadStatusRefresh`).
  */
 function applyReadStateEvent(
   environment: IEnvironment,
@@ -198,9 +199,7 @@ function applyReadStateEvent(
   const ids = (notificationIds ?? []).filter(id => typeof id === 'string' && id.length > 0).map(notificationGlobalId);
   if (ids.length === 0) return;
   const source = environment.getStore().getSource();
-  const needsStatusRefresh =
-    (eventType === 'READ' && ids.some(id => source.get(id)?.status !== NotificationReadStatus.READ)) ||
-    (eventType === 'ARCHIVED' && ids.some(id => source.get(id) == null));
+  const needsStatusRefresh = eventType === 'ARCHIVED' && ids.some(id => source.get(id) == null);
   commitLocalUpdate(environment, makeReadStateUpdater(eventType, ids, getLiveConnectionPairs()));
   refreshUnreadCounts(environment);
   refreshEntityUnreadCounts(environment, entityRefsOfNotifications(environment, ids));
@@ -737,7 +736,7 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
           // connection. A still-PENDING resolution is not that. Other in-place updates leave
           // createdAt, read state and connection membership untouched; the reactive tile reads
           // the refreshed fields.
-          if (isApprovalResolved(resolution) && node.getValue('read') === false) {
+          if (isApprovalResolved(resolution) && isUnreadRecord(node)) {
             makeMarkReadUpdater(relayId, getLiveConnectionPairs())(store);
             resolutionAutoRead = true;
           }
@@ -746,7 +745,7 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
 
         // A CREATED for a notification already read is a redelivery (ids are stable),
         // not a new fact — keep the fields fresh but don't resurrect it as unread.
-        if (existing?.getValue('read') === true) {
+        if (isReadStatus(existing?.getValue('status'))) {
           redeliveredAsRead = true;
           return;
         }

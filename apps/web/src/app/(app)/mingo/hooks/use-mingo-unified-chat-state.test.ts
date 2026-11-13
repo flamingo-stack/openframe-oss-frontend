@@ -1,289 +1,13 @@
-import type { ChatRef, SlashCommandSummary } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { useMingoSheetStore } from '@/app/components/mingo-shell/mingo-sheet-store';
 import { useMingoContextStore } from '../stores/mingo-context-store';
-import type { ProcessedMessage } from './use-mingo-chat';
-import {
-  buildMingoDisplayCommand,
-  hasMingoDisplayCommand,
-  mapMingoMessageToUnified,
-  needsAllChatsScope,
-  openNamedDialog,
-  rawDialogIdToAdopt,
-  snapshotSendContext,
-} from './use-mingo-unified-chat-state';
-
-const TIMESTAMP = new Date('2026-08-26T12:00:00Z');
-
-function assistantMessage(fields: Record<string, unknown> = {}): ProcessedMessage {
-  return {
-    id: 'assistant-turn',
-    role: 'assistant',
-    content: 'Install the agent from the Devices page.',
-    name: 'Mingo',
-    timestamp: TIMESTAMP,
-    ...fields,
-  } as ProcessedMessage;
-}
-
-/**
- * The seam between the reducer's rows and what the lib renders. Its whole job is
- * to be exhaustive WITHOUT enumerating: the lib keeps adding per-message metadata
- * (Guide Mode V3's `sources` / card refs being the current batch), and a mapper
- * that lists fields drops every one it was not updated for — silently, because
- * the message still renders, just without the part the new field carried.
- */
-describe('mapMingoMessageToUnified', () => {
-  it('forwards metadata the mapper never names', () => {
-    // `sources` / `refs` are Guide Mode V3's per-answer metadata. The mapper
-    // does not mention them by name — that is the point: they ride through
-    // because it spreads what it did not destructure.
-    const sources = [{ index: 1, name: 'Install the agent', path: 'docs/agent.md', documentType: 'markdown' }];
-    const refs = [{ type: 'video', id: 'MdFJNoJeqZQ', title: 'Install', url: null }];
-    const message = mapMingoMessageToUnified(
-      assistantMessage({ streamSeq: 42, scrollAnchor: 'top', hidden: true, sources, refs }),
-    );
-
-    expect(message).toMatchObject({ id: 'assistant-turn', streamSeq: 42, scrollAnchor: 'top', hidden: true });
-    // By reference — the lib's message memo compares this way.
-    expect(message.sources).toBe(sources);
-    expect(message.refs).toBe(refs);
-  });
-
-  it('moves a segment list into `segments` and empties `content`', () => {
-    const segments = [{ type: 'text' as const, text: '## Install the agent' }];
-    const message = mapMingoMessageToUnified(assistantMessage({ content: segments }));
-
-    expect(message.segments).toBe(segments);
-    expect(message.content).toBe('');
-  });
-
-  it('drops the host identity on assistant rows so the lib renders its own', () => {
-    const message = mapMingoMessageToUnified(assistantMessage({ avatar: '/mingo.png', authorType: 'admin' }));
-
-    expect(message.name).toBeUndefined();
-    expect(message.avatar).toBeUndefined();
-    expect(message.authorType).toBeUndefined();
-  });
-
-  it('carries the real sender identity and context chips on user rows', () => {
-    const contextItems = [{ type: 'DEVICE', id: 'device-42' }];
-    const message = mapMingoMessageToUnified(
-      assistantMessage({
-        role: 'user',
-        name: 'Ada Lovelace',
-        avatar: 'https://cdn.example/ada.png',
-        authorType: 'admin',
-        contextItems,
-      }),
-    );
-
-    expect(message).toMatchObject({
-      role: 'user',
-      name: 'Ada Lovelace',
-      avatar: 'https://cdn.example/ada.png',
-      authorType: 'admin',
-      contextItems,
-    });
-  });
-
-  it('degrades an unresolved sender name to the lib fallback', () => {
-    expect(mapMingoMessageToUnified(assistantMessage({ role: 'user', name: 'Unknown' })).name).toBeUndefined();
-  });
-
-  it('folds an error row into the assistant bubble', () => {
-    expect(mapMingoMessageToUnified(assistantMessage({ role: 'error' })).role).toBe('assistant');
-  });
-});
-
-const displayCommands: SlashCommandSummary[] = [
-  {
-    id: 'onboarding-guides',
-    description: 'Onboarding guides',
-    primarySourceId: 'onboarding-guides',
-    actions: [{ id: 'display', label: 'Display' }],
-  },
-  {
-    id: 'openframe-docs',
-    description: 'Product documentation',
-    primarySourceId: 'openframe-docs',
-    actions: [{ id: 'display', label: 'Display' }],
-  },
-  {
-    id: 'search-only',
-    description: 'Webinars',
-    primarySourceId: 'webinars',
-    actions: [{ id: 'search', label: 'Search' }],
-  },
-];
-
-function ref(fields: Partial<ChatRef> & Pick<ChatRef, 'type' | 'id' | 'title'>): ChatRef {
-  return { url: null, ...fields };
-}
-
-describe('buildMingoDisplayCommand', () => {
-  it('resolves the command from the ref’s own sourceRepo', () => {
-    // V3 hands the registry table id back with the card, so nothing is guessed.
-    expect(
-      buildMingoDisplayCommand(
-        ref({
-          type: 'onboarding_guide',
-          id: '88dd40cc',
-          title: 'Install the OpenFrame Agent on Windows',
-          sourceRepo: 'onboarding-guides',
-          metadata: { slug: 'install-the-openframe-agent-on-windows' },
-        }),
-        displayCommands,
-      ),
-    ).toBe('/onboarding-guides display "install-the-openframe-agent-on-windows"');
-  });
-
-  it('falls back to the documentType→table map for a ref with no sourceRepo', () => {
-    expect(
-      buildMingoDisplayCommand(ref({ type: 'markdown', id: 'guide-id', title: 'Getting Started' }), displayCommands),
-    ).toBe('/openframe-docs display "Getting Started"');
-  });
-
-  it('escapes a value that would otherwise break out of the quotes', () => {
-    // `\` before `"`, so a trailing backslash cannot smuggle the close quote
-    // past a parser that honours JS-style escapes.
-    expect(
-      buildMingoDisplayCommand(
-        ref({ type: 'markdown', id: 'doc', title: 'x', metadata: { slug: 'a\\b"c' } }),
-        displayCommands,
-      ),
-    ).toBe('/openframe-docs display "a\\\\b\\"c"');
-  });
-
-  it('returns null when the resolved source has no display command', () => {
-    // `search-only` covers the same source but would run a query instead of
-    // dumping the row — offering Display for it would be a lie.
-    expect(buildMingoDisplayCommand(ref({ type: 'webinar', id: 'w-1', title: 'Pricing' }), displayCommands)).toBeNull();
-  });
-
-  it('returns null for a document type the catalog does not cover', () => {
-    expect(buildMingoDisplayCommand(ref({ type: 'unknown_type', id: 'x', title: 'X' }), displayCommands)).toBeNull();
-  });
-});
-
-describe('hasMingoDisplayCommand', () => {
-  it('is true when the catalog can display something', () => {
-    expect(hasMingoDisplayCommand(displayCommands)).toBe(true);
-  });
-
-  it('is false for the V2 catalog, where the affordance must not render at all', () => {
-    expect(hasMingoDisplayCommand([displayCommands[2]])).toBe(false);
-    expect(hasMingoDisplayCommand([])).toBe(false);
-  });
-});
+import type { MingoDialogRow } from '../stores/mingo-dialog-rows-store';
+import { awaitsOwnReply, snapshotSendContext } from './use-mingo-unified-chat-state';
 
 /**
  * The rail's scope is a filter over the LIST, but a dialog can arrive without going
  * through the list — a shared link or a notification tap. These pin the one direction
  * the reconciliation is allowed to move in, and the two cases that must NOT move it.
- */
-describe('needsAllChatsScope', () => {
-  it('switches when the open conversation belongs to someone else', () => {
-    // QA's two reports are both this: a link copied from All Chats, and user A's link
-    // opened by user B. Neither dialog can appear under the opener's "My Chats".
-    expect(needsAllChatsScope('user-b', 'user-a')).toBe(true);
-  });
-
-  it('leaves the scope alone for the viewer’s own conversation', () => {
-    // Already listed under "My Chats" — moving them to All Chats would be a worse
-    // view than the one they chose.
-    expect(needsAllChatsScope('user-a', 'user-a')).toBe(false);
-  });
-
-  it('leaves the scope alone for a client dialog, which neither admin scope lists', () => {
-    // Machine-owned (Fae) dialogs carry no `userId`; switching tabs would not reveal them.
-    expect(needsAllChatsScope(undefined, 'user-a')).toBe(false);
-  });
-
-  it('leaves the scope alone before the viewer is known', () => {
-    // Guarding this is what stops every dialog looking like someone else's during the
-    // window before `/me` answers.
-    expect(needsAllChatsScope('user-b', undefined)).toBe(false);
-  });
-});
-
-/** One switch per legacy link: it must end, and never act on another dialog's record. */
-describe('rawDialogIdToAdopt', () => {
-  const RAW = '6ac4e3a3fb523d620947f238';
-  const GLOBAL = 'RGlhbG9nOjZhYzRlM2EzZmI1MjNkNjIwOTQ3ZjIzOA';
-  const dialog = { id: GLOBAL, dialogId: RAW };
-
-  it('switches a dialog opened by its global id to the raw id', () => {
-    expect(rawDialogIdToAdopt(GLOBAL, dialog)).toBe(RAW);
-  });
-
-  it('stays put once the raw id is active, so the switch cannot loop', () => {
-    expect(rawDialogIdToAdopt(RAW, dialog)).toBeNull();
-  });
-
-  it('ignores a record that belongs to another active id', () => {
-    expect(rawDialogIdToAdopt('another-dialog', dialog)).toBeNull();
-  });
-
-  it('does nothing before the dialog has loaded or with no active dialog', () => {
-    expect(rawDialogIdToAdopt(GLOBAL, null)).toBeNull();
-    expect(rawDialogIdToAdopt(null, dialog)).toBeNull();
-  });
-});
-
-/**
- * A conversation the app names itself (the Getting Started tour's). While none
- * is open the wide panel lists a "New Chat" draft row; the created dialog must
- * replace it, named, instead of joining it as a second untitled row until the
- * rename lands.
- */
-describe('openNamedDialog', () => {
-  const TITLE = 'Welcome to OpenFrame';
-
-  it('creates the dialog under its name and opens it before the rename lands', async () => {
-    const events: string[] = [];
-    let landRename: () => void = () => {};
-    const create = vi.fn(async (_options: { title: string }) => {
-      events.push('create');
-      return 'd-new';
-    });
-    const open = vi.fn((id: string) => events.push(`open ${id}`));
-    const rename = vi.fn(
-      (id: string) =>
-        new Promise<void>(resolve => {
-          events.push(`rename ${id}`);
-          landRename = () => {
-            events.push('renamed');
-            resolve();
-          };
-        }),
-    );
-
-    const pending = openNamedDialog(TITLE, { create, open, rename });
-    await vi.waitFor(() => expect(rename).toHaveBeenCalled());
-
-    expect(create).toHaveBeenCalledWith({ title: TITLE });
-    expect(rename).toHaveBeenCalledWith('d-new', TITLE);
-    expect(events).toEqual(['create', 'open d-new', 'rename d-new']);
-
-    landRename();
-    await expect(pending).resolves.toBe('d-new');
-  });
-
-  it('opens and renames nothing when the dialog could not be created', async () => {
-    const open = vi.fn();
-    const rename = vi.fn(async () => {});
-
-    await expect(openNamedDialog(TITLE, { create: async () => null, open, rename })).resolves.toBeNull();
-
-    expect(open).not.toHaveBeenCalled();
-    expect(rename).not.toHaveBeenCalled();
-  });
-});
-
-/**
- * What every Mingo send carries besides its text, the composer's and a launcher's
- * (a page chip, a quick action) alike: the page it was sent from and its list.
  */
 describe('snapshotSendContext', () => {
   afterEach(() => {
@@ -334,5 +58,31 @@ describe('snapshotSendContext', () => {
       openView: { type: 'DEVICE', id: 'm-1' },
       contextItems: [{ type: 'SCRIPT', id: 's-1', label: 'Cleanup' }],
     });
+  });
+});
+
+describe('awaitsOwnReply', () => {
+  const row = (fields: Partial<MingoDialogRow>): MingoDialogRow => ({
+    streaming: false,
+    awaitingApproval: false,
+    createdAt: '2026-11-13T10:00:00Z',
+    nodeId: 'global',
+    unread: 0,
+    ...fields,
+  });
+
+  it("is true while one of the viewer's own chats is being answered", () => {
+    const rows = new Map([
+      ['d-1', row({ ownerUserId: 'u-1' })],
+      ['d-2', row({ ownerUserId: 'u-1', streaming: true })],
+    ]);
+    expect(awaitsOwnReply(rows, 'u-1')).toBe(true);
+  });
+
+  it("is false for another admin's chat, an idle list, and before the viewer is known", () => {
+    const others = new Map([['d-1', row({ ownerUserId: 'u-2', streaming: true })]]);
+    expect(awaitsOwnReply(others, 'u-1')).toBe(false);
+    expect(awaitsOwnReply(new Map([['d-1', row({ ownerUserId: 'u-1' })]]), 'u-1')).toBe(false);
+    expect(awaitsOwnReply(new Map([['d-1', row({ streaming: true })]]), undefined)).toBe(false);
   });
 });

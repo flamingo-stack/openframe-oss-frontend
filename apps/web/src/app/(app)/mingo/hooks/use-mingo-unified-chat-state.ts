@@ -1,319 +1,184 @@
 'use client';
 
 /**
- * useMingoUnifiedChatState — adapts the existing `/mingo` data stack
- * (react-query + the `mingo-messages-store` Zustand store + the NATS/JetStream
- * realtime subscription) into the lib's `UnifiedChatState` shape so it can be
- * injected straight into `<EmbeddableChat mingoState={…}>`.
+ * useMingoUnifiedChatState: Mingo on the lib's chat engine (`useChatEngine`), the one web chat every app runs. This
+ * file is the engine's configuration for OpenFrame's operator chat and nothing else:
  *
- * Why this exists: the EmbeddableChat drawer previously drove the lib's
- * built-in `useNatsChatAdapter`, which owns dialog/message/streaming state in
- * local React state — so it was lost on every panel unmount, forcing the
- * `keepMounted` workaround. The `/mingo` page already solved persistence the
- * right way: its data lives OUTSIDE the component (react-query cache + the
- * global Zustand store), so it survives unmount for free. This hook reuses
- * those exact sub-hooks (no reinvention) and maps their output onto the
- * unified contract; the panel can now unmount on close and rehydrate instantly
- * on reopen, with realtime caught up via JetStream replay — no `keepMounted`.
+ *   transport  the JetStream live tail of the dialog's `admin-message` subject (it replays a gap and drops a redelivery
+ *              itself), and the ai-agent's send / stop / approve / reject commands;
+ *   history    the dialog list, the open dialog's record and its pages, read and kept with the lib's GraphQL documents
+ *              (`createMingoGraphqlDialogs`, `createMingoGraphqlHistory`);
+ *   store      `mingoThreadStore`, module-level, so a chat reopened mid-turn shows the turn.
  *
- * It does NOT touch the `/mingo` page: it composes the same building blocks
- * (`useMingoDialogs`, `useMingoDialogSelection`, `useMingoDialogChat`,
- * `useMingoRealtimeSubscription`, `useMingoMessagesStore`) independently.
+ * What stays the app's: the page context folded into every send (`snapshotSendContext`) and its analytics, the row
+ * status at the end of each list row (`dialogStatusOf`), the link a dialog is copied as, Compact (the compaction
+ * watchers report it), and the toasts of the dialog commands. Display, the faces of history rows, the list's refresh,
+ * the record's re-read and the busy composer's release are the engine's (its config below).
  *
- * Realtime is a rendered component (`<DialogSubscription>`), not a hook, so
- * this returns a `subscription` bundle the host renders alongside the chat.
- *
- * Call it in ONE place: `MingoChatProvider` (`../providers`) runs it once per
- * session and renders the subscription; surfaces read the result through
- * `useMingoChatSurface()`. A second call is a second dialog list poll and a
- * second live tail applying every chunk again.
+ * Call it in ONE place: `MingoChatProvider` runs it once per session through its runner; surfaces read the result
+ * through `useMingoChatSurface()`, and the dock hands the engine to its panel (`ChatEngineProvider`). A second call is a
+ * second dialog list and a second live tail.
  */
 
-import type {
-  ChatConnectionState,
-  ChatRef,
-  DialogItem,
-  DialogTokenUsage,
-  MessageSegment,
-  MingoDialogStatus,
-  SlashCommandSummary,
-  StreamingPhase,
-  UnifiedChatMessage,
-  UnifiedChatState,
-  UnifiedSendMessageOptions,
-} from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { type MingoChatType, OPENFRAME_RECORD_KIND } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import {
-  buildDiscussPrompt,
-  defaultTableIdForDocumentType,
-  formatSingularLookupInvocation,
-  sanitizeTitleForChat,
+  type ChatContextItem,
+  type ChatEngineRefresh,
+  type ChatHistoryBackend,
+  type ChatTransport,
+  createMingoGraphqlDialogs,
+  createMingoGraphqlHistory,
+  type DialogItem,
+  jetStreamLiveTail,
+  type MingoDialogStatus,
+  type MingoGraphqlPost,
+  type UnifiedChatState,
+  type UnifiedSendMessageOptions,
+  useChatEngine,
   useSlashCommandRegistry,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useChatRuntime } from '@flamingo-stack/openframe-frontend-core/contexts';
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { useShallow } from 'zustand/react/shallow';
+import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useMemo, useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useMingoSheetStore } from '@/app/components/mingo-shell/mingo-sheet-store';
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { isMobileViewportNow } from '@/app/hooks/use-is-mobile-viewport';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
-import type { DialogIntent } from '../../tickets/constants';
-import {
-  CONTEXT_ENTITY_KIND,
-  CONTEXT_ENTITY_MARKER,
-  CONTEXT_ITEMS_MAX,
-  RECENT_VIEWS_MAX,
-} from '../context/context-types';
+import { apiClient } from '@/lib/api-client';
+import { DISPLAY_APPROVAL_TYPES } from '@/lib/chat-approval-tiers';
+import { featureFlags } from '@/lib/feature-flags';
+import { getFullImageUrl } from '@/lib/image-url';
+import { useNatsAppConfig } from '@/lib/nats/nats-app-config';
+import { getQueryClient } from '@/lib/query-client';
+import { mingoDialogLink } from '@/lib/routes';
+import { runtimeEnv } from '@/lib/runtime-config';
+import { sessionPollsAllowed } from '@/lib/session-poll';
+import { linkedInsightId } from '../../incidents/utils/fix-with-mingo-draft';
+import { CHAT_TYPE, type DialogIntent, NATS_TOPICS } from '../../tickets/constants';
+import { ticketService } from '../../tickets/services';
+import type { MessageListRef, MessagePageRef } from '../../tickets/services/ticket-service.types';
+import type { GraphQlResponse } from '../../tickets/utils/graphql';
+import { CONTEXT_ITEMS_MAX, RECENT_VIEWS_MAX } from '../context/context-types';
 import { pageContextHref, resolvePageContext } from '../context/page-context';
+import { useMingoCompactionStore } from '../stores/mingo-compaction-store';
 import { useMingoContextStore } from '../stores/mingo-context-store';
-import { useMingoMessagesStore } from '../stores/mingo-messages-store';
-import type { DialogNode } from '../types';
-import { type MingoSendContext, type ProcessedMessage, useMingoDialogChat } from './use-mingo-chat';
-import { useMingoDialogActions } from './use-mingo-dialog-actions';
+import { noteMingoToolExecuted } from '../stores/mingo-created-entities-store';
+import {
+  type MingoDialogRow,
+  nextMingoRowsTick,
+  noteMingoDialogMissing,
+  noteMingoDialogResponse,
+  useMingoDialogRowsStore,
+} from '../stores/mingo-dialog-rows-store';
+import { mingoThreadStore } from '../stores/mingo-thread-store';
+import { retryingRead } from '../utils/retrying-read';
+import { useMingoDialogAutoRead } from './use-mingo-dialog-read';
 import { useMingoDialogRowStatus } from './use-mingo-dialog-row-status';
-import { useMingoDialogSelection } from './use-mingo-dialog-selection';
-import { transformToDialogItem, useMingoDialogs } from './use-mingo-dialogs';
-import { useMingoRealtimeSubscription } from './use-mingo-realtime-subscription';
 
-const ADMIN_CHAT_TYPE = 'ADMIN_AI_CHAT' as const;
+const ADMIN_CHAT_TYPE: MingoChatType = 'ADMIN_AI_CHAT';
 
-/** The composer's inline incident mention: `@insight:<stored id>`, a whole token. */
-const INSIGHT_MENTION = new RegExp(`(?:^|\\s)@${CONTEXT_ENTITY_MARKER.INSIGHT}:(\\S+)`);
 const WELCOME_TEXT = "Hi! I'm Mingo AI, ready to help with your technical tasks. What can I do for you?";
 
-/** Metadata frame shape emitted by `<DialogSubscription onMetadata>`. */
-interface MetadataFrame {
-  modelDisplayName: string;
-  modelName: string;
-  providerName: string;
-  contextWindow: number;
-}
-
-/** Props the host needs to render `<DialogSubscription>` for the active dialog. */
-export interface MingoSubscriptionBindings {
-  activeDialogId: string | null;
-  /** True once the active dialog has been subscribed — gates rendering. */
-  isSubscribed: boolean;
-  onApprove: (requestId?: string) => void | Promise<void>;
-  onReject: (requestId?: string) => void | Promise<void>;
-  approvalStatuses: Record<string, string>;
-  onConnectionChange: (dialogId: string, connected: boolean) => void;
-  onMetadata: (metadata: MetadataFrame) => void;
-  /** `null` = live tail (see `historyStreamFloor`). */
-  initialOptStartSeq: number | null;
-  isInitialOptStartSeqReady: boolean;
-}
-
-export interface MingoUnifiedChat {
-  state: UnifiedChatState;
-  subscription: MingoSubscriptionBindings;
-  /**
-   * PENDING approval cards, lifted out of the thread by `useMingoDialogChat` — it
-   * filters them from their bubble so an interrupted retry cannot render the
-   * same request twice. They therefore reach the view ONLY through the chat's
-   * sticky-footer prop, which is why they travel beside `state` rather than
-   * inside it.
-   */
-  pendingApprovals: MessageSegment[];
-  /** The v2 list's status at the end of a row: working, waiting for approval, or none. */
-  dialogStatusOf: (dialog: DialogItem) => MingoDialogStatus | undefined;
-  /**
-   * The dialog list failed to load (the query is in error). Beside `state`, whose
-   * `dialogsError` stays `false` so the classic panel keeps rendering as it always
-   * has; the Mingo-first sidebar shows "Couldn't load your chats" from this.
-   */
-  dialogsLoadFailed: boolean;
-  /**
-   * Create a brand-new dialog and send `text` into it, regardless of any
-   * currently-active dialog. Used by external launchers (e.g. the "Ask Mingo
-   * about X" EmptyState buttons) that always want a fresh conversation.
-   */
-  sendInNewDialog: (text: string) => Promise<void>;
-  /**
-   * Create an EMPTY dialog titled `title` and open it - nothing is sent. For a
-   * conversation the app starts on the user's behalf (the Getting Started
-   * tour) and names up front, so the chat list never shows it as "New Chat".
-   * Resolves to the dialog id, or null when it could not be created.
-   */
-  createNamedDialog: (title: string) => Promise<string | null>;
-  /**
-   * Create a dialog opened to create one entity ("Generate with AI") and open
-   * it - nothing is sent. The server writes Mingo's greeting as the first
-   * message before answering, so the history load shows it; no client-side
-   * welcome is added.
-   */
-  createIntentDialog: (intent: DialogIntent) => Promise<string | null>;
-  /** Current server-side dialog-search term. */
-  searchQuery: string;
-  /** Set the dialog-search term (already debounced by the chat's search bar). */
-  setSearchQuery: (query: string) => void;
-  /** Fetch a page of ARCHIVED dialogs — feeds the chat archive page. */
-  fetchArchivedDialogs: (params: { cursor?: string; limit?: number; search?: string }) => Promise<{
-    dialogs: DialogItem[];
-    nextCursor: string | null;
-  }>;
-  /** Restore an archived dialog back to the active list. */
-  unarchiveDialog: (id: string) => Promise<void>;
-  /**
-   * Why the SELECTED dialog could not be fetched, or null. `UnifiedChatState` has no
-   * field for it (`dialogsError` is about the LIST), and without it a dialog id that
-   * no longer resolves — a deleted conversation, someone else's, a mistyped link —
-   * renders as an ordinary empty thread and says nothing.
-   */
-  dialogError: string | null;
-  /**
-   * When the SELECTED dialog was created (the server's record), or null until it has
-   * loaded. `UnifiedChatState.activeDialog.timestamp` is its last activity instead.
-   */
-  dialogCreatedAt: string | null;
-}
-
 /**
- * Whether the rail must move to "All Chats" to be capable of listing this dialog.
- *
- * "My Chats" is a server-side filter for dialogs THIS user owns, so a conversation
- * opened without going through the list — a shared link, a notification tap — can
- * land on a tab that structurally cannot contain it.
- *
- * Both `undefined` cases are deliberate no-ops rather than defensive noise:
- * a client (machine-owned) dialog has no `ownerUserId` and belongs to neither admin
- * scope, and an unresolved viewer would make every dialog look like someone else's.
+ * The statuses the chat list shows. Sent explicitly because the backend returns ARCHIVED dialogs too when no statuses
+ * are passed: the archive is its own page.
  */
-export function needsAllChatsScope(ownerUserId: string | undefined, currentUserId: string | undefined): boolean {
-  if (!ownerUserId || !currentUserId) return false;
-  return ownerUserId !== currentUserId;
-}
+export const ACTIVE_DIALOG_STATUSES = ['ACTIVE', 'ACTION_REQUIRED', 'ON_HOLD', 'RESOLVED'] as const;
+
+/** Dialogs one page of the Mingo list holds: the conversation lists draw this many rows while it loads. */
+export const MINGO_DIALOGS_PAGE_SIZE = 20;
 
 /**
- * The raw dialog id to switch to when the open conversation was reached by its Relay
- * global id — a `?mingoDialog=` link copied from a bundle older than the raw-id mapping.
- * `dialog(id)` accepts it, but the NATS subject, the list rows and the active-dialog
- * registry only know the raw id.
- *
- * Null unless the loaded record is the one the active id names: the dialog query is
- * keyed on the active id, so once the switch lands the record's global `id` no longer
- * matches and this stops answering.
+ * What the engine asks again: generated titles, row statuses and dialogs started elsewhere arrive with no event, and a
+ * turn's end can be lost with the tail that carried it. Sooner while a fresh dialog waits for its generated title,
+ * while the composer is locked, and while another chat of the viewer's is being answered (`expecting`): only the next
+ * read shows that it ended and left a reply to read. A signed-out or hidden session asks nothing.
  */
-export function rawDialogIdToAdopt(
-  activeDialogId: string | null,
-  dialog: Pick<DialogNode, 'id' | 'dialogId'> | null,
-): string | null {
-  return activeDialogId && dialog?.id === activeDialogId ? dialog.dialogId : null;
-}
+const MINGO_REFRESH: ChatEngineRefresh = {
+  intervalMs: 60_000,
+  awaitingTitleMs: 10_000,
+  expectingMs: 10_000,
+  busyMs: 15_000,
+  allowed: sessionPollsAllowed,
+};
 
 /**
- * Create a dialog the app names itself and open it. Opened as soon as it
- * exists, not once the rename has landed: until a dialog is open the wide panel
- * lists a "New Chat" draft row, and the created dialog would sit beside it as a
- * second one for the length of the rename. `create` lists it under its name.
- * Resolves to the dialog id once it is named, or null when it was not created.
+ * One of the viewer's own chats is being answered. Another admin's chat leaves this viewer nothing to read, so it is
+ * not worth the faster list.
  */
-export async function openNamedDialog(
-  title: string,
-  steps: {
-    create: (options: { title: string }) => Promise<string | null>;
-    open: (id: string) => void;
-    rename: (id: string, title: string) => Promise<void>;
-  },
-): Promise<string | null> {
-  const id = await steps.create({ title });
-  if (!id) return null;
-  steps.open(id);
-  await steps.rename(id, title);
-  return id;
+export function awaitsOwnReply(rows: ReadonlyMap<string, MingoDialogRow>, currentUserId: string | undefined): boolean {
+  if (!currentUserId) return false;
+  for (const row of rows.values()) {
+    if (row.streaming && row.ownerUserId === currentUserId) return true;
+  }
+  return false;
 }
 
-/** Slash-command action that dumps a row's body into the chat verbatim. */
-const DISPLAY_ACTION_ID = 'display';
+/** A history row's author face, stored relative, as a full address. */
+const avatarUrlOf = (stored: string) => getFullImageUrl(stored);
 
 /**
- * ProcessedMessage → UnifiedChatMessage.
+ * One request to the ai-agent's `/chat/graphql`, as the lib's GraphQL readers post it. Every dialog node the answer
+ * carries is noted for the list's rows (`noteMingoDialogResponse`), with the moment it was asked: an answer asked before
+ * the viewer marked a chat read must not bring its unread replies back.
  *
- * Destructure-and-spread, NOT a field-by-field rebuild. Every field the lib
- * stamps on a row and later reads back off it — `streamSeq`, `scrollAnchor`,
- * `hidden`, and Guide Mode V3's per-answer source/card/video metadata — rides
- * through `metadata` without this seam having to name it. A rebuild silently
- * drops whatever it does not list, and the drop is invisible: the message still
- * renders, just without the part the new field carried. Only the fields whose
- * SHAPE differs between the two types are handled explicitly below.
+ * An answer with data beside a failed sub-resolver is still the answer: only a field the server could not resolve at
+ * all (null, with errors) rejects. Otherwise a flaky sub-resolver would read as "this dialog does not exist".
  */
-export function mapMingoMessageToUnified(message: ProcessedMessage): UnifiedChatMessage {
-  const { content, role: sourceRole, name, avatar, authorType, assistantType, contextItems, ...metadata } = message;
+export const postMingoGraphql: MingoGraphqlPost = async <T>(
+  query: string,
+  variables: Record<string, unknown>,
+): Promise<T> => {
+  const askedAt = nextMingoRowsTick();
+  const response = await apiClient.post<GraphQlResponse<Record<string, unknown>>>('/chat/graphql', {
+    query,
+    variables,
+  });
+  if (!response.ok) throw new Error(response.error || `Request failed with status ${response.status}`);
+  const { data, errors } = response.data ?? {};
+  const unresolved = !data || Object.values(data).some(value => value == null);
+  if (errors?.length && unresolved) throw new Error(errors[0].message || 'GraphQL error occurred');
+  if (!data) throw new Error('No data received from server');
+  noteMingoDialogResponse(data, askedAt);
+  return data as T;
+};
 
-  // The lib folds 'error' into the assistant bubble and re-derives the assistant
-  // identity (brand icon + "Mingo") itself, which is why `assistantType` is
-  // destructured off rather than forwarded.
-  const role: 'user' | 'assistant' = sourceRole === 'user' ? 'user' : 'assistant';
+/** Mingo's dialog list and its dialogs, read and kept with the lib's documents. */
+export const mingoDialogs = createMingoGraphqlDialogs(postMingoGraphql, {
+  agentTypes: ['ADMIN'],
+  statuses: ACTIVE_DIALOG_STATUSES,
+  chatType: ADMIN_CHAT_TYPE,
+  pendingApproval: true,
+  unread: true,
+  imageUrlOf: image => getFullImageUrl(image.imageUrl, image.hash) ?? null,
+});
 
-  // USER bubbles carry the real sender identity — the admin's name, avatar and
-  // `authorType` (accent name colour) — so the drawer reads like the standalone
-  // /mingo page instead of a hardcoded "You". A missing/Unknown name degrades to
-  // the lib's own fallback.
-  const identity =
-    role === 'user' ? { name: name && name !== 'Unknown' ? name : undefined, avatar: avatar ?? null, authorType } : {};
+/** The open dialog's history, a page at a time; a failed read tries again (`retryingRead`). */
+const fetchMingoHistory = retryingRead(createMingoGraphqlHistory(postMingoGraphql, { chatType: ADMIN_CHAT_TYPE }));
 
-  // Entity-context chips under a user bubble (Figma 1:6437). They ride the
-  // optimistic send and the realtime MESSAGE_REQUEST echo; the lib resolves each
-  // chip's icon from `contextPicker.entityTypes` by `type`.
-  const context = role === 'user' && contextItems?.length ? { contextItems } : {};
+/** The open dialog's record; a dialog that does not resolve is noted, so the app can tell "gone" from "failed". */
+const fetchMingoDialog = retryingRead(async (dialogId: string) => {
+  const record = await mingoDialogs.fetchDialog(dialogId);
+  if (!record) noteMingoDialogMissing(dialogId);
+  return record;
+});
 
-  // Segment lists travel in `segments`; `content` must then be the empty string,
-  // which is what tells the lib to render the structured form.
-  const body = Array.isArray(content) ? { content: '', segments: content } : { content };
-
-  return { ...metadata, role, ...body, ...identity, ...context };
-}
-
-function supportsDisplay(command: SlashCommandSummary): boolean {
-  return command.actions.some(action => action.id === DISPLAY_ACTION_ID);
-}
-
-/**
- * The chat message that displays `reference`, or null when the catalog has no
- * command for it.
- *
- * Two table-id lookups, in priority order:
- *   1. `reference.sourceRepo` — Guide Mode V3, where the MCP metadata hands the
- *      registry table id back with the card, so no mapping is guessed;
- *   2. the lib's documentType→table map, for refs that carry no repo.
- *
- * Both are matched against `SlashCommandSummary.primarySourceId`, and only a
- * command that declares the `display` action counts — the others resolve the
- * same source but would run a search instead of dumping the row.
- */
-export function buildMingoDisplayCommand(reference: ChatRef, commands: SlashCommandSummary[]): string | null {
-  const tableIds = [reference.sourceRepo, defaultTableIdForDocumentType(reference.type)];
-  const command = tableIds
-    .filter((tableId): tableId is string => Boolean(tableId))
-    .map(tableId => commands.find(candidate => candidate.primarySourceId === tableId && supportsDisplay(candidate)))
-    .find((candidate): candidate is SlashCommandSummary => Boolean(candidate));
-  if (!command) return null;
-
-  // The slug is what the backend resolves fastest; the title is the V2 fallback
-  // and the id the last resort, so a card with neither still opens something.
-  const slug = typeof reference.metadata?.slug === 'string' ? reference.metadata.slug : '';
-  const value = slug || sanitizeTitleForChat(reference.title) || reference.id;
-
-  // `formatSingularLookupInvocation` is the SSOT for the quoting the backend's
-  // slash parser consumes (it escapes `\` BEFORE `"`, so a value ending in a
-  // backslash cannot smuggle the closing quote past the parser). The action word
-  // rides in the command position because that IS the grammar the parser reads:
-  // `/<cmd> display "<value>"`.
-  return formatSingularLookupInvocation(`${command.id} ${DISPLAY_ACTION_ID}`, value);
-}
-
-/** Whether ANY command in the catalog can display a row — the gate on offering
- *  the affordance at all (see `displayRef` below). */
-export function hasMingoDisplayCommand(commands: SlashCommandSummary[]): boolean {
-  return commands.some(supportsDisplay);
+/** What a Mingo message carries besides its text. */
+export interface MingoSendContext {
+  contextItems?: ChatContextItem[];
+  openView?: { type: string; id: string } | null;
+  recentViews?: Array<{ type: string; id: string }>;
+  currentPage?: MessagePageRef;
+  currentList?: MessageListRef;
 }
 
 /**
- * What a Mingo message carries besides its text, as it stands when it is sent: the page
- * (read from the URL: under the sheet, the page beneath it; on the chat page, the page it
- * was opened from), the open view and recent views from the navigation store, and the
- * picker's selection from the lib's send options. Read imperatively (`getState`) so a
- * send callback doesn't re-create on every navigation.
+ * What a Mingo message carries besides its text, as it stands when it is sent: the page (read from the URL: under the
+ * sheet, the page beneath it; on the chat page, the page it was opened from), the open view and recent views from the
+ * navigation store, and the picker's selection from the lib's send options. Read imperatively (`getState`) so a send
+ * does not re-create on every navigation.
  */
 export function snapshotSendContext(options?: UnifiedSendMessageOptions): MingoSendContext {
   const { openView, recentViews } = useMingoContextStore.getState();
@@ -322,555 +187,241 @@ export function snapshotSendContext(options?: UnifiedSendMessageOptions): MingoS
   const href = pageContextHref(window.location, lastPage, isMobileViewportNow() ? { newChatPage } : undefined);
   return {
     ...resolvePageContext(href, openView),
-    // Defense-in-depth: hard-cap at the backend's contextItems limit (10) so a
-    // selection that slipped past the picker's `atLimit` (e.g. the @-mention
-    // path) can't 400 the whole message.
+    // Hard-capped at the backend's limits (10 context items, 5 recent views): a selection that slipped past the
+    // picker's `atLimit` (the @-mention path), or a corrupted persisted store, must not 400 the whole message.
     contextItems: options?.contextItems?.slice(0, CONTEXT_ITEMS_MAX),
     openView: openView ? { type: openView.type, id: openView.id } : undefined,
-    // Defense-in-depth: hard-cap at the backend's recentViews limit (5),
-    // mirroring the contextItems cap above — a corrupted persisted store blob
-    // with >5 entries must not 400 the whole message.
     recentViews: recentViews.slice(0, RECENT_VIEWS_MAX).map(r => ({ type: r.type, id: r.id })),
   };
 }
 
-export function useMingoUnifiedChatState(): MingoUnifiedChat {
-  const { aiModel } = useAiModelStatus();
+/** A chat whose first message references an incident is listed under it: the attached incident, else its record link. */
+function insightIdOf(options: UnifiedSendMessageOptions | undefined, firstMessage: string | undefined) {
+  return (
+    options?.contextItems?.find(item => item.type === OPENFRAME_RECORD_KIND.INSIGHT)?.id ??
+    (firstMessage ? linkedInsightId(firstMessage) : undefined)
+  );
+}
 
-  // Same react-query entry `<EmbeddableChat>`'s onboarding-card list reads
-  // (keyed on `commandsUrl` alone), so this adds no request of its own.
+export interface MingoUnifiedChat {
+  /** The engine's state, as `useChatEngine` returned it. */
+  state: UnifiedChatState;
+  /** The status at the end of a list row: working, waiting for approval, a reply nobody has read, or none. */
+  dialogStatusOf: (dialog: DialogItem) => MingoDialogStatus | undefined;
+  /** The open dialog's record answered that it does not exist for this viewer (deleted, someone else's, mistyped). */
+  dialogNotFound: boolean;
+  /** When the open dialog was created (its record), or null until read. */
+  dialogCreatedAt: string | null;
+}
+
+/** The ai-agent's commands, for the dialog the engine names. */
+function useMingoTransport(): ChatTransport {
+  const { getWsUrl, onBeforeReconnect } = useNatsAppConfig();
+  return useMemo<ChatTransport>(
+    () => ({
+      replays: true,
+      useLiveTail: jetStreamLiveTail({
+        getNatsWsUrl: getWsUrl,
+        topic: NATS_TOPICS.ADMIN_MESSAGE,
+        onBeforeReconnect,
+      }),
+      publish: async (text, options) => {
+        if (!options.dialogId) return false;
+        const { contextItems, openView, recentViews, currentPage, currentList } = snapshotSendContext(options);
+        await ticketService.sendMessage(options.dialogId, text.trim(), CHAT_TYPE.ADMIN, {
+          contextItems: contextItems?.map(item => ({ type: item.type, id: item.id })),
+          currentView: openView ?? undefined,
+          recentViews,
+          currentPage,
+          currentList,
+        });
+        // A successful send is a tracked dashboard-activity event (relayed to HubSpot by the backend).
+        trackDashboardActivity(EVENT_SUBTYPE.SEND_MINGO_MESSAGE);
+        return true;
+      },
+      stop: dialogId => ticketService.stopDialogGeneration(dialogId, CHAT_TYPE.ADMIN),
+      approve: async requestId => {
+        await ticketService.resolveApprovalRequest(requestId, true);
+        trackDashboardActivity(EVENT_SUBTYPE.APPROVE_MINGO_COMMAND);
+      },
+      reject: async requestId => {
+        await ticketService.resolveApprovalRequest(requestId, false);
+        trackDashboardActivity(EVENT_SUBTYPE.REJECT_MINGO_COMMAND);
+      },
+    }),
+    [getWsUrl, onBeforeReconnect],
+  );
+}
+
+/** The lookups every dialog command can move: the incidents' "reopen" chats and the approvals inbox. */
+function invalidateDialogLookups(): void {
+  void getQueryClient().invalidateQueries({ queryKey: ['mingo-dialogs'] });
+}
+
+/** Mingo's dialog list and dialogs, with the toasts a person sees for each command. */
+function useMingoHistory(): ChatHistoryBackend {
+  const { toast } = useToast();
+  // "Compact Chat Memory" while its flag is on; the compaction watchers report how it ended.
+  const compactMemoryEnabled = useFeatureFlag('mingo-compact-memory');
+  const startCompaction = useMingoCompactionStore(s => s.startCompaction);
+  // A title the app gives a dialog it creates (the Getting Started tour) is not the person's rename: no toast.
+  const [appNamed] = useState(() => new Set<string>());
+  return useMemo<ChatHistoryBackend>(() => {
+    const failed = (title: string, fallback: string) => (error: unknown) => {
+      toast({ title, description: error instanceof Error ? error.message : fallback, variant: 'destructive' });
+      throw error;
+    };
+    return {
+      fetchDialogs: mingoDialogs.fetchDialogs,
+      fetchArchivedDialogs: mingoDialogs.fetchArchivedDialogs,
+      fetchDialog: fetchMingoDialog,
+      fetchDialogMessages: fetchMingoHistory,
+      createDialog: async ({ title, intent, sendOptions, firstMessage }) => {
+        try {
+          const insightId = insightIdOf(sendOptions, firstMessage);
+          const dialogId = await ticketService.createDialog({
+            agentType: 'ADMIN',
+            ...(insightId ? { insightId } : {}),
+            ...(intent ? { intent: intent as DialogIntent } : {}),
+          });
+          if (title) appNamed.add(dialogId);
+          invalidateDialogLookups();
+          return { dialogId };
+        } catch (error) {
+          return failed('Failed to start conversation', 'Could not create a new chat')(error);
+        }
+      },
+      renameDialog: async (dialogId, title) => {
+        const silent = appNamed.delete(dialogId);
+        await mingoDialogs.renameDialog(dialogId, title).catch(failed('Error', 'Failed to rename chat'));
+        invalidateDialogLookups();
+        if (!silent) toast({ title: 'Chat renamed', variant: 'success' });
+      },
+      archiveDialog: async dialogId => {
+        await mingoDialogs.archiveDialog(dialogId).catch(failed('Error', 'Failed to archive chat'));
+        invalidateDialogLookups();
+        toast({ title: 'Chat archived', variant: 'success' });
+      },
+      unarchiveDialog: async dialogId => {
+        await mingoDialogs.unarchiveDialog(dialogId).catch(failed('Error', 'Failed to unarchive chat'));
+        invalidateDialogLookups();
+        toast({ title: 'Chat unarchived', variant: 'success' });
+      },
+      ...(compactMemoryEnabled
+        ? {
+            compactDialog: async (dialogId: string) => {
+              if (!startCompaction(dialogId)) toast({ title: 'Already compacting this chat' });
+            },
+          }
+        : {}),
+    };
+  }, [toast, appNamed, compactMemoryEnabled, startCompaction]);
+}
+
+/**
+ * "Copy Chat Link": the dialog's canonical link on the clipboard, with toast feedback.
+ *
+ * `mingoDialogLink`, NOT the URL in the address bar: the live URL is `?mingoDialog=` riding whatever page the sharer is
+ * on, so copying it would hand the recipient the sharer's screen. Absolute, because a link gets pasted somewhere this
+ * app is not. The origin is the TENANT HOST, not `window.location.origin`: inside the native shells the latter is
+ * `capacitor://localhost` or a `tauri://` origin, which nothing outside that install can resolve.
+ */
+function useCopyDialogLink(): (dialog: DialogItem) => void {
+  const { toast } = useToast();
+  return useMemo(
+    () => (dialog: DialogItem) => {
+      const origin = (runtimeEnv.tenantHostUrl() || window.location.origin).replace(/\/+$/, '');
+      // A link that is not http(s) cannot travel: say so rather than put something unusable on the clipboard.
+      if (!/^https?:\/\//.test(origin)) {
+        toast({
+          title: "Couldn't copy the link",
+          description: 'This app does not know its workspace address yet.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      const url = `${origin}${mingoDialogLink(dialog.id)}`;
+      void navigator.clipboard.writeText(url).then(
+        () => toast({ title: 'Link copied', description: 'Anyone with access to this workspace can open it.' }),
+        // Clipboard access is refused outside a secure context: showing the URL lets the reader select it by hand.
+        () => toast({ title: "Couldn't copy the link", description: url, variant: 'destructive' }),
+      );
+    },
+    [toast],
+  );
+}
+
+/** `onScreen`: the open chat's thread is in front of the user (the provider counts the surfaces that show it). */
+export function useMingoUnifiedChatState({ onScreen }: { onScreen: boolean }): MingoUnifiedChat {
+  const { toast } = useToast();
+  const { aiModel } = useAiModelStatus();
+  const currentUserId = useAuthStore(s => s.user?.id);
+  const expecting = useMingoDialogRowsStore(s => awaitsOwnReply(s.rows, currentUserId));
+  const refresh = useMemo<ChatEngineRefresh>(() => ({ ...MINGO_REFRESH, expecting }), [expecting]);
+  const transport = useMingoTransport();
+  const history = useMingoHistory();
+  const copyDialogLink = useCopyDialogLink();
+  // The slash-command catalog (the same react-query entry `EmbeddableChat` reads): what a card's Display runs.
   const commandsUrl = useChatRuntime()?.endpoints.commandsUrl ?? '';
   const { commands: slashCommands } = useSlashCommandRegistry(commandsUrl, { enabled: Boolean(commandsUrl) });
 
-  const { activeDialogId, setActiveDialogId, resetUnread, addMessage, tokenUsageByDialog } = useMingoMessagesStore(
-    useShallow(s => ({
-      activeDialogId: s.activeDialogId,
-      setActiveDialogId: s.setActiveDialogId,
-      resetUnread: s.resetUnread,
-      addMessage: s.addMessage,
-      tokenUsageByDialog: s.tokenUsageByDialog,
-    })),
-  );
+  const state = useChatEngine({
+    transport,
+    history,
+    store: mingoThreadStore,
+    dialogScopes: true,
+    ...(currentUserId ? { currentUserId } : {}),
+    displayApprovalTypes: DISPLAY_APPROVAL_TYPES,
+    chatTypeFilter: ADMIN_CHAT_TYPE,
+    dialogsPageSize: MINGO_DIALOGS_PAGE_SIZE,
+    newDialogGreeting: WELCOME_TEXT,
+    modelProvider: aiModel?.provider ?? null,
+    modelLabel: aiModel?.displayName ?? null,
+    // A create Mingo just ran adds a row to a list the page behind the chat may show.
+    transformChunk: raw => {
+      noteMingoToolExecuted(raw as Parameters<typeof noteMingoToolExecuted>[0]);
+      return raw;
+    },
+    debug: () => featureFlags.debugNatsChunks.enabled(),
+    slashCommands,
+    avatarUrlOf,
+    copyDialogLink,
+    refresh,
+    // An approval the server refused (no AI budget left, already answered elsewhere): the card goes back to pending, and
+    // the user is told why instead of facing the same buttons again.
+    onActionError: (action, error) =>
+      toast({
+        title: action.startsWith('approve') ? 'Approval Failed' : 'Rejection Failed',
+        description: error instanceof Error ? error.message : 'Unable to resolve request',
+        variant: 'destructive',
+        duration: 5000,
+      }),
+  });
 
-  // Server-side dialog search. The embeddable chat's search bar emits the
-  // already-debounced term via `setSearchQuery`; it rides the `useMingoDialogs`
-  // query key, so the backend filters the list.
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // "My Chats / All Chats" rail selector — MY by default. Server-side filter:
-  // rides the `useMingoDialogs` query key as `DialogFilterInput.scope`.
-  const [dialogScope, setDialogScope] = useState<'my' | 'all'>('my');
-  // The scope the QUERY runs with, deferred by one render. `dialogScope` itself
-  // stays urgent, so the rail's selector repaints the moment it's clicked;
-  // swapping the infinite query (new key → mount + request + skeleton across the
-  // whole list) is heavy enough that batching it into the same commit visibly
-  // held the highlight on the OLD tab for a frame — most noticeable on the first
-  // switch, when nothing is cached for the target scope yet. React renders the
-  // deferred value in a background pass, so the tab no longer waits on it.
-  const deferredDialogScope = useDeferredValue(dialogScope);
-
-  const {
-    dialogs,
-    nodes: dialogNodes,
-    isLoading: isLoadingDialogs,
-    isError: isDialogsError,
-    isFetchingNextPage: isFetchingNextDialogPage,
-    hasNextPage: hasMoreDialogs,
-    fetchNextPage: fetchNextDialogPage,
-    refetch: refetchDialogs,
-  } = useMingoDialogs({ search: searchQuery || undefined, scope: deferredDialogScope });
-
-  const { renameDialog, archiveDialog, unarchiveDialog, fetchArchivedDialogs } = useMingoDialogActions();
-
-  const {
-    selectDialog: selectDialogMut,
-    isLoadingDialog,
-    isLoadingMessages,
-    handleApprove,
-    handleReject,
-    approvalStatuses,
-    dialogData,
-    hasNextPage: hasMoreMessages,
-    fetchNextPage: fetchNextMessagePage,
-    isFetchingNextPage: isFetchingNextMessagePage,
-    initialOptStartSeq,
-    isMessagesFetched,
-    isMessagesFetchedAfterMount,
-    dialogError,
-  } = useMingoDialogSelection();
-
-  const {
-    messages: processedMessages,
-    approvals: pendingApprovals,
-    createDialog,
-    sendMessage: sendMingoMessage,
-    stopGeneration,
-    isTyping,
-    isCompacting,
-  } = useMingoDialogChat(activeDialogId);
+  const { activeDialogId, messages, streamingPhase, isMessagesLoading } = state;
+  const rows = useMingoDialogRowsStore(s => s.rows);
+  const missing = useMingoDialogRowsStore(s => s.missing);
 
   const dialogStatusOf = useMingoDialogRowStatus({
     activeDialogId,
-    nodes: dialogNodes,
-    activeThreadLoaded: isMessagesFetched,
+    phase: streamingPhase,
+    messages,
+    activeThreadLoaded: !isMessagesLoading,
+    onScreen,
   });
 
-  const { subscribeToDialog, subscribedDialogs, onConnectionChange, connectionState } =
-    useMingoRealtimeSubscription(activeDialogId);
-
-  // Reconcile the rail's scope with whoever owns the OPEN conversation.
-  //
-  // The scope is a filter over the LIST, but a dialog can arrive without going
-  // through the list at all — a shared link, a notification tap — and "My Chats"
-  // only contains dialogs this user owns. So opening someone else's conversation
-  // leaves the rail on a tab that cannot contain it: the chat is right there, and
-  // the list beside it says it doesn't exist. Both cases QA hit are this one
-  // (a link copied from All Chats, and user A's link opened by user B).
-  //
-  // Once per dialog, never back to 'my': the switch answers "this tab can't show
-  // what you're looking at", which is only ever true in one direction, and
-  // re-deciding on every render would fight a user who then picks a tab themselves.
-  const currentUserId = useAuthStore(state => state.user?.id);
-  // Reconciled during render, and latched in state rather than a ref: the scope
-  // decides which list is on screen, so an effect would show the wrong tab —
-  // the one that cannot list this dialog — for a frame after opening the link.
-  const [scopeReconciledFor, setScopeReconciledFor] = useState<string | null>(null);
-  if (activeDialogId && dialogData && scopeReconciledFor !== activeDialogId) {
-    setScopeReconciledFor(activeDialogId);
-    // Absent on a client (machine-owned) dialog, which neither admin scope lists —
-    // nothing to reconcile there.
-    const ownerId = dialogData.owner?.userId;
-    if (needsAllChatsScope(ownerId, currentUserId)) setDialogScope('all');
-  }
-
-  // ─── Live model metadata (refined per-turn by `metadata` frames) ──────────
-  const [liveModel, setLiveModel] = useState<{ displayName: string; provider: string } | null>(null);
-  const onMetadata = useCallback((meta: MetadataFrame) => {
-    setLiveModel({ displayName: meta.modelDisplayName, provider: meta.providerName });
-  }, []);
-  // Memoized: the object literal in the fallback is new on every render, and the
-  // chat-state memo below takes `model` as a dependency.
-  const model = useMemo(
-    () => liveModel ?? (aiModel ? { displayName: aiModel.displayName, provider: aiModel.provider } : null),
-    [liveModel, aiModel],
-  );
-
-  // ─── The open conversation's own record ─────────────────────────────────
-  // From the dialog query, not the list: a conversation reached by link,
-  // notification or reload (`?mingoDialog=`) is not necessarily in `dialogs` -
-  // archived, or past the pages loaded so far - and the list only ever holds
-  // active ones. This is the only way the lib learns the conversation is
-  // archived and keeps it read-only; it also gives the header its title and
-  // owner. Memoized like `model`: the chat-state memo below depends on it.
-  const activeDialog = useMemo(() => (dialogData ? transformToDialogItem(dialogData) : null), [dialogData]);
-
-  // ─── Token usage: store (kept live by realtime) first, dialog query fallback ─
-  const tokenUsage = useMemo<DialogTokenUsage | null>(() => {
-    if (!activeDialogId) return null;
-    const cached = tokenUsageByDialog.get(activeDialogId);
-    if (cached) {
-      return {
-        chatType: ADMIN_CHAT_TYPE,
-        inputTokensSize: cached.inputTokensSize ?? 0,
-        outputTokensSize: cached.outputTokensSize ?? 0,
-        totalTokensSize: cached.totalTokensSize ?? 0,
-        contextSize: cached.contextSize ?? 0,
-      };
-    }
-    const u = dialogData?.tokenUsage?.find(t => t.chatType === ADMIN_CHAT_TYPE);
-    if (!u) return null;
-    return {
-      chatType: ADMIN_CHAT_TYPE,
-      inputTokensSize: u.inputTokensSize ?? 0,
-      outputTokensSize: u.outputTokensSize ?? 0,
-      totalTokensSize: u.totalTokensSize ?? 0,
-      contextSize: u.contextSize ?? 0,
-    };
-  }, [activeDialogId, tokenUsageByDialog, dialogData?.tokenUsage]);
-
-  // ─── Messages: ProcessedMessage[] → UnifiedChatMessage[] ──────────────────
-  // The row-level mapping is `mapMingoMessageToUnified` (above, and unit-tested);
-  // what lives here is only the CACHING around it.
-  // `processedMessages` hands back referentially-stable objects for unchanged
-  // messages (see useMingoDialogChat's reconciliation), so keying a WeakMap by the
-  // source object yields a stable UnifiedChatMessage too — the lib's reference-
-  // equality memo then re-renders only the streaming bubble, not the whole list
-  // (which would otherwise collapse open menus/cards on every chunk).
-  // `useState`, not `useRef`: the map is read while rendering, and a ref read during
-  // render is what the compiler bails out over. Same create-once identity.
-  const [unifiedCache] = useState(() => new WeakMap<object, UnifiedChatMessage>());
-  const messages = useMemo<UnifiedChatMessage[]>(() => {
-    const cache = unifiedCache;
-    return processedMessages.map(m => {
-      const cached = cache.get(m);
-      if (cached) return cached;
-      const unified = mapMingoMessageToUnified(m);
-      cache.set(m, unified);
-      return unified;
-    });
-  }, [processedMessages, unifiedCache]);
-
-  // ─── Streaming phase: idle → thinking → streaming ─────────────────────────
-  // The lib reducer's phase machine is the source of truth (mirrored per
-  // dialog); a standalone compaction window still locks the composer.
-  const reducerPhase = useMingoMessagesStore(s =>
-    activeDialogId ? (s.phaseByDialog.get(activeDialogId) ?? 'idle') : 'idle',
-  );
-  const streamingPhase = useMemo<StreamingPhase>(() => {
-    if (reducerPhase !== 'idle') return reducerPhase;
-    if (isTyping || isCompacting) return 'thinking';
-    return 'idle';
-  }, [reducerPhase, isTyping, isCompacting]);
-
-  // ─── Dialog selection (mirrors the /mingo page glue, minus URL syncing) ───
-  const selectDialog = useCallback(
-    (id: string | null) => {
-      if (id === null) {
-        setActiveDialogId(null);
-        return;
-      }
-      if (id === activeDialogId) return;
-      setActiveDialogId(id);
-      resetUnread(id);
-      subscribeToDialog(id);
-      selectDialogMut(id);
-    },
-    [activeDialogId, setActiveDialogId, resetUnread, subscribeToDialog, selectDialogMut],
-  );
-
-  // An effect, not a render-time reconcile like the scope above: `selectDialog`
-  // subscribes to NATS and starts the dialog queries.
-  useEffect(() => {
-    const rawId = rawDialogIdToAdopt(activeDialogId, dialogData);
-    if (rawId) selectDialog(rawId);
-  }, [dialogData, activeDialogId, selectDialog]);
-
-  // ─── Create a fresh dialog and send into it (always-new) ──────────────────
-  // Shared by the draft branch of `sendMessage` and external launchers that
-  // want a brand-new conversation regardless of what's currently active.
-  const sendInNewDialog = useCallback(
-    async (text: string, context?: MingoSendContext) => {
-      const trimmed = text.trim();
-      if (!trimmed) return;
-      // A launcher's prompt (a page chip, a quick action) is about the page it was sent from too.
-      const sendContext = context ?? snapshotSendContext();
-
-      // A chat whose first message references an incident is listed under it.
-      // Read off the message itself, so nothing else's first send — a
-      // quick-action chip, a launcher prompt — can inherit a stale link. The
-      // strip is one carrier; the `@insight:<id>` token in the text is the
-      // other, and the one that holds on the "Fix with Mingo" path: the
-      // prefilled mention reached the send as text with `contextItems` absent
-      // (observed), and the token is what the server resolves anyway.
-      const insightId =
-        sendContext.contextItems?.find(item => item.type === CONTEXT_ENTITY_KIND.INSIGHT)?.id ??
-        INSIGHT_MENTION.exec(trimmed)?.[1];
-      const newId = await createDialog({ insightId });
-      if (!newId) return;
-      addMessage(newId, {
-        id: `welcome-${newId}`,
-        role: 'assistant',
-        name: 'Mingo',
-        timestamp: new Date(),
-        content: WELCOME_TEXT,
-        assistantType: 'mingo',
-      });
-      setActiveDialogId(newId);
-      resetUnread(newId);
-      subscribeToDialog(newId);
-      selectDialogMut(newId);
-      // Mirror the standalone /mingo page: a successful send is a tracked
-      // dashboard-activity event (relayed to HubSpot by the backend). This
-      // covers every new-dialog send — draft composer, launcher prompts, and
-      // quick-action chips — so the embeddable chat matches the page 1:1.
-      const sent = await sendMingoMessage(trimmed, newId, sendContext);
-      if (sent) trackDashboardActivity(EVENT_SUBTYPE.SEND_MINGO_MESSAGE);
-    },
-    [createDialog, addMessage, setActiveDialogId, resetUnread, subscribeToDialog, selectDialogMut, sendMingoMessage],
-  );
-
-  const createNamedDialog = useCallback(
-    (title: string): Promise<string | null> =>
-      openNamedDialog(title, {
-        create: createDialog,
-        open: newId => {
-          setActiveDialogId(newId);
-          resetUnread(newId);
-          subscribeToDialog(newId);
-          selectDialogMut(newId);
-        },
-        // The title is the app's, not the user's: no "Chat renamed" toast. A
-        // rename that fails leaves the dialog on its generated title and toasts.
-        rename: (newId, name) => renameDialog(newId, name, { silent: true }),
-      }),
-    [createDialog, renameDialog, setActiveDialogId, resetUnread, subscribeToDialog, selectDialogMut],
-  );
-
-  const createIntentDialog = useCallback(
-    async (intent: DialogIntent): Promise<string | null> => {
-      const newId = await createDialog({ intent });
-      if (!newId) return null;
-      setActiveDialogId(newId);
-      resetUnread(newId);
-      subscribeToDialog(newId);
-      selectDialogMut(newId);
-      return newId;
-    },
-    [createDialog, setActiveDialogId, resetUnread, subscribeToDialog, selectDialogMut],
-  );
-
-  // ─── Send: create-on-first-send when no dialog is active (draft) ──────────
-  // `options.contextItems` carries the composer's picker selection; the open
-  // view + recent views come from the navigation store via `snapshotSendContext`.
-  // Resolves to whether the message went out, for programmatic senders (the
-  // onboarding tour's chips): false when the chat refused it (busy) or the
-  // send failed. The composer ignores the result.
-  const sendMessage = useCallback(
-    async (text: string, options?: UnifiedSendMessageOptions): Promise<boolean> => {
-      const trimmed = text.trim();
-      if (!trimmed) return false;
-
-      const context = snapshotSendContext(options);
-
-      if (!activeDialogId) {
-        // The draft branch delegates to `sendInNewDialog`, which already fires
-        // SEND_MINGO_MESSAGE on success — don't double-track here.
-        await sendInNewDialog(trimmed, context);
-        return true;
-      }
-
-      // Existing-dialog send: track on success, same as the /mingo page's
-      // active-dialog branch.
-      const sent = await sendMingoMessage(trimmed, undefined, context);
-      if (sent) trackDashboardActivity(EVENT_SUBTYPE.SEND_MINGO_MESSAGE);
-      return sent;
-    },
-    [activeDialogId, sendInNewDialog, sendMingoMessage],
-  );
-
-  const stopMessage = useCallback(() => {
-    void stopGeneration();
-  }, [stopGeneration]);
-
-  // The store persists messages across switches for fast reopen — clearing the
-  // open conversation just drops the selection back to the draft/list state.
-  const clearMessages = useCallback(() => {
-    setActiveDialogId(null);
-  }, [setActiveDialogId]);
-
-  const startNewDialog = useCallback(async (): Promise<string | null> => {
-    setActiveDialogId(null);
-    return null;
-  }, [setActiveDialogId]);
-
-  const loadMoreDialogs = useCallback(async () => {
-    // No next-page fetches while the list query is in an error state: the
-    // rail's infinite-scroll re-arms after EVERY attempt (that's what keeps a
-    // shorter-than-viewport list auto-filling), so an unconditional fetch
-    // here would hammer a failing backend in a tight retry loop. The 60s poll
-    // or `reloadDialogs` clears the error and re-enables loading.
-    if (isDialogsError) return;
-    await fetchNextDialogPage();
-  }, [isDialogsError, fetchNextDialogPage]);
-
-  const loadMoreMessages = useCallback(async () => {
-    await fetchNextMessagePage();
-  }, [fetchNextMessagePage]);
-
-  const approveRequest = useCallback(
-    async (requestId: string) => {
-      await handleApprove(requestId);
-    },
-    [handleApprove],
-  );
-
-  const rejectRequest = useCallback(
-    async (requestId: string) => {
-      await handleReject(requestId);
-    },
-    [handleReject],
-  );
-
-  const noopDialogAction = useCallback(async () => {}, []);
-  const reloadDialogs = useCallback(() => {
-    void refetchDialogs();
-  }, [refetchDialogs]);
-  // "Ask Mingo" from an inline entity card's ⋯ menu. The lib's SSE (guide)
-  // transport narrows retrieval with a structured `entityIdFilter`; the agent
-  // backend has no equivalent — its `ContextItemType` enum covers DEVICE /
-  // SCRIPT / TICKET / ORGANIZATION / USER / KB_ARTICLE / POLICY / QUERY /
-  // SCHEDULED_SCRIPT and no content types, so a roadmap item or release can't
-  // ride `contextItems`. Until it can, the prompt carries the type + id as text
-  // (`buildDiscussPrompt`'s `includeReference`) and the agent resolves the row
-  // itself. Shared builder = the sentence matches guide mode word for word.
-  const discussRef = useCallback(
-    (reference: ChatRef) => {
-      void sendMessage(buildDiscussPrompt(reference, { includeReference: true }));
-    },
-    [sendMessage],
-  );
-  // Display dumps a row's raw body via a `/<cmd> display "<x>"` slash command.
-  // Guide Mode V3 is what makes that reachable from Mingo: the agent resolves the
-  // command through MCP `prompts/get` and forces the tool the prompt declares, so
-  // the same catalog the composer autocompletes from is the one that runs here.
-  const handleDisplayRef = useCallback(
-    (reference: ChatRef) => {
-      const text = buildMingoDisplayCommand(reference, slashCommands);
-      if (!text) {
-        console.warn(
-          `[MingoChat] displayRef: no display command for type="${reference.type}" sourceRepo="${reference.sourceRepo}"; ignoring click`,
-        );
-        return;
-      }
-      void sendMessage(text);
-    },
-    [sendMessage, slashCommands],
-  );
-  // UNDEFINED, not a stub, while the catalog can't display anything: the lib gates
-  // the affordance on this callback's presence, so a stub renders a dead "Display"
-  // row where "Ask Mingo" (which works) belongs. Its type is optional for exactly
-  // this case — which is also the V2 state, where the trimmed catalog has none.
-  const displayRef: UnifiedChatState['displayRef'] = hasMingoDisplayCommand(slashCommands)
-    ? handleDisplayRef
-    : undefined;
-
-  const state = useMemo<UnifiedChatState>(
-    () => ({
-      messages,
-      isLoading: isTyping || isCompacting,
-      streamingPhase,
-      sendMessage,
-      stopMessage,
-      clearMessages,
-      discussRef,
-      displayRef,
-      // Per-turn LLM telemetry — Mingo surfaces cumulative dialog usage via the
-      // `current*` fields so the composer's token tail matches the /mingo page
-      // (usedTokens = totalTokensSize, contextWindow = contextSize).
-      currentProvider: model?.provider ?? null,
-      currentModelLabel: model?.displayName ?? null,
-      currentContextWindowMaxTokens: tokenUsage?.contextSize ?? null,
-      currentInputTokens: tokenUsage?.totalTokensSize ?? null,
-      currentOutputTokens: null,
-      currentCacheHitRatePct: null,
-      currentUsageBreakdown: null,
-      // Dialog management
-      dialogs: dialogs as DialogItem[],
-      activeDialogId,
-      activeDialog,
-      selectDialog,
-      startNewDialog,
-      deleteDialog: noopDialogAction,
-      renameDialog,
-      archiveDialog,
-      // OR-ed with next-page fetches: react-query's `isLoading` covers only the
-      // INITIAL load, so without `isFetchingNextPage` the lib's history list
-      // never sees "loading more" (its `isLoadingMore` guard and the
-      // infinite-scroll re-arm both key off it). With rows present the lib
-      // derives `isLoadingMore`; with zero rows (empty "My Chats" scope while
-      // auto-filling) it shows the skeleton instead of a premature empty state.
-      isDialogsLoading: isLoadingDialogs || isFetchingNextDialogPage,
-      dialogsError: false,
-      reloadDialogs,
-      // OR-ed with next-page fetches, like `isDialogsLoading` above, because
-      // the lib's message list takes this as its `isFetchingNextPage` — the
-      // re-entrancy guard on the load-older sentinel AND the dependency that
-      // re-creates its observer once a page lands. Without it a second
-      // intersection mid-fetch re-issued `fetchNextPage` (which cancels the one
-      // in flight), and a page landing with the sentinel still in view never
-      // re-armed — older history looked gone.
-      isMessagesLoading: isLoadingMessages || isLoadingDialog || isFetchingNextMessagePage,
-      hasMoreDialogs: hasMoreDialogs ?? false,
-      loadMoreDialogs,
-      dialogScope,
-      setDialogScope,
-      hasMoreMessages: hasMoreMessages ?? false,
-      loadMoreMessages,
-      approveRequest,
-      rejectRequest,
-      dialogTokenUsage: tokenUsage,
-      connectionState: connectionState as ChatConnectionState,
-    }),
-    [
-      messages,
-      isTyping,
-      isCompacting,
-      streamingPhase,
-      sendMessage,
-      stopMessage,
-      clearMessages,
-      discussRef,
-      displayRef,
-      model,
-      tokenUsage,
-      dialogs,
-      activeDialogId,
-      activeDialog,
-      selectDialog,
-      startNewDialog,
-      noopDialogAction,
-      renameDialog,
-      archiveDialog,
-      isLoadingDialogs,
-      isFetchingNextDialogPage,
-      reloadDialogs,
-      isLoadingMessages,
-      isLoadingDialog,
-      isFetchingNextMessagePage,
-      hasMoreDialogs,
-      loadMoreDialogs,
-      dialogScope,
-      hasMoreMessages,
-      loadMoreMessages,
-      approveRequest,
-      rejectRequest,
-      connectionState,
-    ],
-  );
-
-  const subscription = useMemo<MingoSubscriptionBindings>(
-    () => ({
-      activeDialogId,
-      isSubscribed: !!activeDialogId && subscribedDialogs.has(activeDialogId),
-      onApprove: handleApprove,
-      onReject: handleReject,
-      approvalStatuses,
-      onConnectionChange,
-      onMetadata,
-      initialOptStartSeq,
-      isInitialOptStartSeqReady: isMessagesFetchedAfterMount,
-    }),
-    [
-      activeDialogId,
-      subscribedDialogs,
-      handleApprove,
-      handleReject,
-      approvalStatuses,
-      onConnectionChange,
-      onMetadata,
-      initialOptStartSeq,
-      isMessagesFetchedAfterMount,
-    ],
-  );
+  useMingoDialogAutoRead({
+    dialogId: activeDialogId,
+    currentUserId,
+    onScreen,
+    replyRunning: streamingPhase !== 'idle',
+    readDialogAgain: mingoDialogs.fetchDialog,
+  });
 
   return {
     state,
-    subscription,
-    /** PENDING approval cards, lifted out of the thread by `useMingoDialogChat` (it
-     *  filters them from their bubble to dedupe an interrupted retry). They are
-     *  displayed nowhere unless the host hands them to the chat's sticky
-     *  footer, which is why they leave this hook separately from `state`. */
-    pendingApprovals,
     dialogStatusOf,
-    dialogsLoadFailed: isDialogsError,
-    sendInNewDialog,
-    createNamedDialog,
-    createIntentDialog,
-    searchQuery,
-    setSearchQuery,
-    fetchArchivedDialogs,
-    unarchiveDialog,
-    dialogError,
-    dialogCreatedAt: dialogData?.createdAt ?? null,
+    dialogNotFound: !!activeDialogId && missing.has(activeDialogId) && !!state.dialogError,
+    dialogCreatedAt: activeDialogId ? (rows.get(activeDialogId)?.createdAt ?? null) : null,
   };
 }

@@ -42,7 +42,7 @@ export function useEmailAvailability(email: string, delay = 400): AvailabilitySt
           return;
         }
         const { available, reason } = res.data as { available?: boolean; reason?: 'TAKEN' | 'BLOCKED_DOMAIN' };
-        // Older backends omit `reason` — treat unavailable-without-reason as taken.
+        // An unavailable address says why: TAKEN, or BLOCKED_DOMAIN.
         setResult({
           email: debounced,
           status: available ? 'available' : reason === 'BLOCKED_DOMAIN' ? 'blocked' : 'taken',

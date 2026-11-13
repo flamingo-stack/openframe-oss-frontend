@@ -3,7 +3,7 @@
  * without one must keep its local accounts: "No users yet" there would hide accounts the machine really has. While the
  * flags are read, the page is main's (stage and prod run without `tenant-management-v2`): local accounts in their loading
  * form, and no Directory tab. Once phase 2 is on and only the synced-connection count is out, the directory tabs keep
- * their place in their loading form.
+ * their place in their loading form. Where Users is the directory's, Local Accounts beside it keeps the machine's own.
  */
 
 import { act, type ComponentType } from 'react';
@@ -123,33 +123,39 @@ describe('device tabs and the directory gate', () => {
     container.remove();
   });
 
-  it('keeps local accounts and hides Directory where the tenant has no directory', () => {
+  it('keeps local accounts and hides Directory and Local Accounts where the tenant has no directory', () => {
     expect(renderTab('users', 'off')).toBe('local accounts');
     expect(tabIds('off')).not.toContain('directory');
+    expect(tabIds('off')).not.toContain('local-accounts');
     expect(tabIds('off')).toContain('users');
   });
 
-  it('shows directory users and the Directory tab where it has one', () => {
+  it('shows directory users, the local accounts beside them and the Directory tab where it has one', () => {
     expect(renderTab('users', 'on')).toBe('directory users');
-    expect(tabIds('on')).toContain('directory');
+    expect(renderTab('local-accounts', 'on')).toBe('local accounts');
+    expect(tabIds('on')).toEqual(expect.arrayContaining(['users', 'local-accounts', 'directory']));
+    expect(tabIds('on')?.indexOf('local-accounts')).toBe((tabIds('on')?.indexOf('users') ?? -2) + 1);
   });
 
-  it("draws main's Users tab in its loading form, and no Directory tab, while the flags are read", () => {
+  it("draws main's Users tab in its loading form, and no directory tabs, while the flags are read", () => {
     flags.phase2 = 'loading';
     expect(tabIds('loading')).not.toContain('directory');
+    expect(tabIds('loading')).not.toContain('local-accounts');
     expect(tabIds('loading')).toContain('users');
     expect(renderTab('users', 'loading')).toBe('local accounts, loading');
   });
 
   it('keeps the directory tabs in place, loading, while phase 2 is on and the connection count is out', () => {
-    expect(tabIds('loading')).toContain('directory');
+    expect(tabIds('loading')).toEqual(expect.arrayContaining(['directory', 'local-accounts']));
     expect(renderTab('users', 'loading')).toBe('directory users, loading');
     expect(renderTab('directory', 'loading')).toBe('directory records, loading');
+    expect(renderTab('local-accounts', 'loading')).toBe('local accounts');
   });
 
   it("is main's page where phase 2 is off", () => {
     flags.phase2 = 'off';
     expect(tabIds('off')).not.toContain('directory');
+    expect(tabIds('off')).not.toContain('local-accounts');
     expect(renderTab('users', 'off')).toBe('local accounts');
   });
 });

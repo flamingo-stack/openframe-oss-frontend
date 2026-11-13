@@ -1,5 +1,6 @@
 'use client';
 
+import type { MingoDialogNode } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRef, useState } from 'react';
 import { fetchQuery, useRelayEnvironment } from 'react-relay';
@@ -8,7 +9,6 @@ import { openMingoDialog } from '@/app/components/notifications/open-mingo-dialo
 import { insightChatPromptRelayQuery } from '@/graphql/insights/insight-chat-prompt-relay';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { useMingoLauncherStore } from '../../mingo/stores/mingo-launcher-store';
-import type { DialogNode } from '../../mingo/types';
 import { incidentMingoDraft } from '../utils/fix-with-mingo-draft';
 import type { IncidentRow } from '../utils/incident-transform';
 
@@ -74,7 +74,7 @@ type MingoControls = ReturnType<typeof useFixWithMingo>;
  */
 export function mingoActionFor(
   incident: IncidentRow,
-  session: DialogNode | null | undefined,
+  session: MingoDialogNode | null | undefined,
   { fixWithMingo, canOpenMingo, pendingId }: MingoControls,
 ): MingoAction {
   if (session) {

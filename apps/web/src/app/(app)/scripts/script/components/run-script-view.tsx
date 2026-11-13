@@ -2,6 +2,7 @@
 'use no memo';
 
 import { NotFoundError, PageLayout, ScriptArguments } from '@flamingo-stack/openframe-frontend-core';
+import { OPENFRAME_RECORD_KIND } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   CheckboxBlock,
@@ -29,7 +30,6 @@ import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { scrollToFirstInvalidField } from '@/lib/scroll-to-first-invalid-field';
 import type { Device } from '../../../devices/types/device.types';
-import { CONTEXT_ENTITY_KIND } from '../../../mingo/context/context-types';
 import { useTrackOpenView } from '../../../mingo/context/use-track-open-view';
 import { scriptArgumentSchema } from '../../shared/types/edit-script.types';
 import { getDevicePrimaryId } from '../../shared/utils/device-helpers';
@@ -79,7 +79,7 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
   // global id (SCRIPT is GraphQL-resolved; the chip re-encodes it for `node(id:)`).
   const scriptDbId = useMemo(() => decodeGlobalId(scriptId)?.rawId ?? scriptId, [scriptId]);
   useTrackOpenView(
-    script ? { type: CONTEXT_ENTITY_KIND.SCRIPT, id: scriptDbId, label: script.name || scriptDbId } : null,
+    script ? { type: OPENFRAME_RECORD_KIND.SCRIPT, id: scriptDbId, label: script.name || scriptDbId } : null,
     { loading: readingScript },
   );
 

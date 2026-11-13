@@ -10,8 +10,9 @@ import type { DialogItem, MingoChatRailProps } from '@flamingo-stack/openframe-f
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { MingoUnifiedChat } from '@/app/(app)/mingo/hooks/use-mingo-unified-chat-state';
 import { makeFakeChat } from '@/app/(app)/mingo/providers/__tests__/fake-mingo-chat';
-import type { MingoChat, MingoChatState } from '@/app/(app)/mingo/providers/mingo-chat-provider';
+import type { MingoChat } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { routes } from '@/lib/routes';
@@ -71,19 +72,19 @@ const spies = {
   loadMoreDialogs: vi.fn(async () => {}),
   reloadDialogs: vi.fn(),
   setDialogScope: vi.fn(),
-  setSearchQuery: vi.fn(),
-  copyDialogLink: vi.fn(async (_dialog: { id: string }) => {}),
+  onSearchChange: vi.fn(),
+  onCopyLink: vi.fn((_dialog: DialogItem) => {}),
 };
 
-function session(state: Partial<MingoChatState['state']> = {}, extra: Partial<MingoChatState> = {}): MingoChat {
+function session(state: Partial<MingoUnifiedChat['state']> = {}, extra: Partial<MingoUnifiedChat> = {}): MingoChat {
   const base = makeFakeChat({ activeDialogId: 'd-1' });
   return {
     chat: {
       ...base,
       ...extra,
-      setSearchQuery: spies.setSearchQuery,
       state: {
         ...base.state,
+        dialogCapabilities: { searchQuery: '', onSearchChange: spies.onSearchChange, onCopyLink: spies.onCopyLink },
         dialogs: [DIALOG, OTHER],
         isDialogsLoading: false,
         hasMoreDialogs: true,
@@ -100,8 +101,6 @@ function session(state: Partial<MingoChatState['state']> = {}, extra: Partial<Mi
     error: null,
     enabled: true,
     identityEnabled: false,
-    compactDialog: vi.fn(),
-    copyDialogLink: spies.copyDialogLink,
     retry: vi.fn(),
   };
 }
@@ -216,7 +215,7 @@ describe('MingoSidebarHistory', () => {
     act(() => rail().onScopeChange?.('all'));
     expect(spies.setDialogScope).toHaveBeenCalledWith('all');
     act(() => rail().onSearchChange?.('printer'));
-    expect(spies.setSearchQuery).toHaveBeenCalledWith('printer');
+    expect(spies.onSearchChange).toHaveBeenCalledWith('printer');
     act(() => rail().onLoadMore?.());
     expect(spies.loadMoreDialogs).toHaveBeenCalledTimes(1);
   });
@@ -230,7 +229,7 @@ describe('MingoSidebarHistory', () => {
   });
 
   it('says the list failed only with nothing to show, and retries through the session', () => {
-    render(session({ dialogs: [] }, { dialogsLoadFailed: true }));
+    render(session({ dialogs: [], dialogsError: true }));
     expect(rail().loadError).toBe(true);
 
     act(() => rail().onRetry?.());
@@ -251,7 +250,7 @@ describe('MingoSidebarHistory', () => {
   it('copies a chat link through the session', () => {
     render(session());
     act(() => rail().onRequestCopyLink?.(OTHER));
-    expect(spies.copyDialogLink).toHaveBeenCalledWith(OTHER);
+    expect(spies.onCopyLink).toHaveBeenCalledWith(OTHER);
   });
 
   it('renames through the Rename modal', () => {
@@ -328,7 +327,7 @@ describe('MingoHistorySearch', () => {
     act(() => (seen.search?.onSelectDialog as (id: string) => void)('d-2'));
     expect(push).toHaveBeenCalledWith(routes.mingo.chat('d-2'));
     (seen.search?.onSearchChange as (term: string) => void)('vpn');
-    expect(spies.setSearchQuery).toHaveBeenCalledWith('vpn');
+    expect(spies.onSearchChange).toHaveBeenCalledWith('vpn');
   });
 
   it('draws nothing while chat is off', () => {

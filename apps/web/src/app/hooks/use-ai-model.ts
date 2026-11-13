@@ -12,8 +12,8 @@ export interface AiModel {
  * Tenant-wide ADMIN (Mingo) assistant model, from the GraphQL `adminAiConfig`
  * (the ADMIN agent has no per-organization override). Replaces the deprecated
  * REST `/chat/api/v1/ai-configuration` read. For CLIENT chats use the
- * per-message AssistantOwner provenance / `organizationClientAiConfig`
- * instead — the effective client model is per-customer.
+ * model the newest answer names (the chat engine's `historyModelLabel`) or
+ * `organizationClientAiConfig` instead: the effective client model is per-customer.
  */
 export function useAiModelStatus() {
   const { config, isLoading: isConfigLoading } = useAdminAiConfig();

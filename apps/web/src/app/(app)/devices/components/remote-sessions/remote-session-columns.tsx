@@ -11,6 +11,7 @@ import {
   GRID_MIN_WIDTH,
   type Row,
   SquareAvatar,
+  TouchFriendlyTooltip,
   TruncateText,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -36,6 +37,7 @@ import {
   isLiveRow,
   isRecordingGone,
   type LiveRows,
+  openDisabledHint,
   sessionHref,
 } from './session-status';
 
@@ -214,8 +216,8 @@ function DurationCell({ row }: { row: RecordingSummary }) {
 
 /**
  * Delete / Open, each enabled only where the row allows it: Delete by its recording, Open where it has a page to open
- * (`sessionHref`). Static chrome: on a loading row both are drawn real and inert (a placeholder would otherwise read as
- * deletable).
+ * (`sessionHref`). An Open that is off says why on hover or tap where the row does not (`openDisabledHint`). Static
+ * chrome: on a loading row both are drawn real and inert (a placeholder would otherwise read as deletable).
  */
 function SessionActions<T extends RecordingSummary>({
   row,
@@ -231,6 +233,20 @@ function SessionActions<T extends RecordingSummary>({
   const loading = useLoadingScope();
   const deletable = !loading && canDeleteSession(row);
   const openLabel = isLiveRow(row, liveRows) ? 'Watch live' : 'Open session recording';
+  const openHint = loading ? null : openDisabledHint(row, liveRows);
+  // onClick, not `href`: the row itself is a link (rowHref), and an anchor nested in an anchor is invalid HTML
+  // (hydration error).
+  const openButton = (
+    <Button
+      onClick={() => onOpen(row)}
+      variant="outline"
+      size="icon"
+      leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
+      aria-label={openLabel}
+      disabled={loading || sessionHref(row, liveRows) === null}
+      className={cn('bg-ods-card', openHint && 'pointer-events-none')}
+    />
+  );
   return (
     <div data-no-row-click className="pointer-events-auto flex items-center justify-end gap-[var(--spacing-system-mf)]">
       <Button
@@ -243,17 +259,16 @@ function SessionActions<T extends RecordingSummary>({
         disabled={!deletable}
         onClick={() => onDelete(row)}
       />
-      {/* onClick, not `href`: the row itself is a link (rowHref), and an
-        anchor nested in an anchor is invalid HTML (hydration error). */}
-      <Button
-        onClick={() => onOpen(row)}
-        variant="outline"
-        size="icon"
-        leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
-        aria-label={openLabel}
-        disabled={loading || sessionHref(row, liveRows) === null}
-        className="bg-ods-card"
-      />
+      {openHint ? (
+        <TouchFriendlyTooltip content={openHint} side="top">
+          {/* WebKit (the desktop shell) sends no pointer events to a disabled button: the wrapper takes the hover. */}
+          <span tabIndex={0} className="inline-flex cursor-not-allowed">
+            {openButton}
+          </span>
+        </TouchFriendlyTooltip>
+      ) : (
+        openButton
+      )}
     </div>
   );
 }

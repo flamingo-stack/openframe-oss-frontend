@@ -1,5 +1,6 @@
 'use client';
 
+import { DocNavigationProvider } from '@flamingo-stack/openframe-frontend-core/components/docs';
 import { usePathname } from 'next/navigation';
 import { Suspense } from 'react';
 import { AppLayout } from '../components/app-layout';
@@ -16,18 +17,22 @@ export default function AppGroupLayout({ children }: { children: React.ReactNode
   // supplies the `ChatRuntime` context the chat consumes, hosting both Guide (SSE →
   // MPH via /guide proxy) and Mingo (NATS → openframe backend) modes. The AI agents'
   // pictures come from `AppAgentIdentityProvider` in the root layout, above the
-  // notification popups.
+  // notification popups. `DocNavigationProvider` bridges a document tree (the Knowledge
+  // Base page, far below) to the runtime's `navigate`, so a chat link to a document swaps
+  // it in place.
   return (
-    <OpenframeChatRuntimeProvider>
-      {/* The dialog-open seam's way to navigate from outside React. */}
-      <ShellNavigatorRegistrar />
-      {/* `?mingoDialog=` from an old link, on any route → the chat page. Its own
-          boundary: it reads `useSearchParams()`, which must not suspend the shell. */}
-      {/* loading-standard-ok(SUSPENSE_FALLBACK): the bridge draws nothing; it only forwards an old link */}
-      <Suspense fallback={null}>
-        <MingoDialogParamBridge />
-      </Suspense>
-      <AppLayout mainClassName={mainClassNameOverride || APP_MAIN_CLASS_NAME}>{children}</AppLayout>
-    </OpenframeChatRuntimeProvider>
+    <DocNavigationProvider>
+      <OpenframeChatRuntimeProvider>
+        {/* The dialog-open seam's way to navigate from outside React. */}
+        <ShellNavigatorRegistrar />
+        {/* `?mingoDialog=` from an old link, on any route → the chat page. Its own
+            boundary: it reads `useSearchParams()`, which must not suspend the shell. */}
+        {/* loading-standard-ok(SUSPENSE_FALLBACK): the bridge draws nothing; it only forwards an old link */}
+        <Suspense fallback={null}>
+          <MingoDialogParamBridge />
+        </Suspense>
+        <AppLayout mainClassName={mainClassNameOverride || APP_MAIN_CLASS_NAME}>{children}</AppLayout>
+      </OpenframeChatRuntimeProvider>
+    </DocNavigationProvider>
   );
 }
