@@ -3,10 +3,12 @@
  * folds no sidebar.
  */
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it } from 'vitest';
-import { squeezeOf, useManhattanSqueeze } from './use-manhattan-squeeze';
+import { MANHATTAN_COMPACT_BELOW, squeezeOf, useManhattanSqueeze } from './use-manhattan-squeeze';
 
 describe('squeezeOf', () => {
   it('is compact from md up to two rails + 800px, and leaves the phone to its own shell', () => {
@@ -50,5 +52,15 @@ describe('useManhattanSqueeze', () => {
     expect(compact).toBe(true);
     expect(renders).toBe(settled + 1);
     act(() => root.unmount());
+  });
+});
+
+describe('the first paint below the compact step (globals.css)', () => {
+  it('hides the split from the first paint at the same step the centre leaves it in JS', () => {
+    const css = readFileSync(resolve(import.meta.dirname, '../../globals.css'), 'utf8');
+    const rule = new RegExp(
+      `@media not all and \\(min-width: ${MANHATTAN_COMPACT_BELOW}px\\) \\{\\s*\\[data-work-area='split'\\] > \\[data-work-area-column='chat'\\]`,
+    );
+    expect(css).toMatch(rule);
   });
 });
