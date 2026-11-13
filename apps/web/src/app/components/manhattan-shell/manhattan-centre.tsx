@@ -402,9 +402,10 @@ interface ManhattanPageHeaderProps {
  * page's chrome. The centre drops it there in JS too (`phone`, `oneColumn`), but those read
  * the window only once the page has hydrated: the server's markup, and the first paint with
  * it, would show "Start Work" over a phone's page and then take it away. Hidden in CSS, the
- * first paint is right.
+ * first paint is right. `max-[911px]`, not `max-[912px]`: Tailwind's `max-[N]` is `max-width: N`,
+ * inclusive, and at exactly 912px the window is wide enough for the two columns.
  */
-const PAGE_HEADER_WINDOW_CLASS = 'max-[912px]:hidden';
+const PAGE_HEADER_WINDOW_CLASS = 'max-[911px]:hidden';
 
 function ManhattanPageHeader({
   route,
