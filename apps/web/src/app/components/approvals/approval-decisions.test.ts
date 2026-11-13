@@ -5,8 +5,7 @@
 
 import { type InfiniteData, QueryClient } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { MingoDialogsPage } from '@/app/(app)/mingo/utils/dialog-row-status';
-import { mingoDialogQueryKeys } from '@/app/(app)/mingo/utils/query-keys';
+import { noteMingoDialogResponse, useMingoDialogRowsStore } from '@/app/(app)/mingo/stores/mingo-dialog-rows-store';
 import type { TicketsPage } from '@/app/(app)/tickets/services/ticket-service.types';
 import { dialogsQueryKeys, ticketsQueryKeys } from '@/app/(app)/tickets/utils/query-keys';
 import {
@@ -16,7 +15,10 @@ import {
   useApprovalDecisionsStore,
 } from './approval-decisions';
 
-afterEach(() => clearApprovalDecisions());
+afterEach(() => {
+  clearApprovalDecisions();
+  useMingoDialogRowsStore.setState({ rows: new Map(), missing: new Set() });
+});
 
 describe('noteApprovalDecision', () => {
   it('records the outcome and keeps the state when nothing changed', () => {
@@ -44,33 +46,29 @@ describe('settleApprovalCaches', () => {
       },
     ],
   });
-  const chatList: InfiniteData<MingoDialogsPage> = {
-    pageParams: [undefined],
-    pages: [
-      {
-        dialogs: [
-          { dialogId: 'd-1', pendingApproval: { id: 'ar-1' } },
-          { dialogId: 'd-2', pendingApproval: null },
-        ] as MingoDialogsPage['dialogs'],
-        pageInfo: { hasNextPage: false },
+  const listChats = () =>
+    noteMingoDialogResponse({
+      dialogs: {
+        edges: [
+          { node: { id: 'g-1', dialogId: 'd-1', createdAt: '2026-10-09T09:00:00Z', pendingApproval: { id: 'ar-1' } } },
+          { node: { id: 'g-2', dialogId: 'd-2', createdAt: '2026-10-09T09:00:00Z', pendingApproval: null } },
+        ],
       },
-    ],
-  };
+    });
 
   it('takes the request off the board lane and the chat list, and refreshes its ticket', () => {
     const queryClient = new QueryClient();
     const laneKey = dialogsQueryKeys.boardColumn('s-tech', {});
-    const listKey = mingoDialogQueryKeys.list({ limit: 20, scope: 'all' });
     queryClient.setQueryData(laneKey, lanePage('ar-1'));
-    queryClient.setQueryData(listKey, chatList);
+    listChats();
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
 
     settleApprovalCaches(queryClient, 'ar-1');
 
     const lane = queryClient.getQueryData<InfiniteData<TicketsPage>>(laneKey);
     expect(lane?.pages[0].dialogs.map(ticket => ticket.pendingApproval?.id)).toEqual([undefined, 'ar-other']);
-    const list = queryClient.getQueryData<InfiniteData<MingoDialogsPage>>(listKey);
-    expect(list?.pages[0].dialogs.map(dialog => dialog.pendingApproval)).toEqual([null, null]);
+    const { rows } = useMingoDialogRowsStore.getState();
+    expect([rows.get('d-1')?.awaitingApproval, rows.get('d-2')?.awaitingApproval]).toEqual([false, false]);
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ticketsQueryKeys.detail('t-1') });
   });
 

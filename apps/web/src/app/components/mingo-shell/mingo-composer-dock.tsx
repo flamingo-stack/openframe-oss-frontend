@@ -8,11 +8,13 @@
  * chat's header and thread portal into the page's node (`useChatPageNodeStore`; Manhattan
  * v2 on a desktop: see `threadContainer`), everywhere else the composer stands alone.
  *
- * - What the chat can do: `useOpenframeChatProps` (context picker, `@` / slash,
- *   context memory, quick actions, identity, the dialog actions, Compact among them
- *   in the chat's ⋯).
- * - Which chat it writes into, and the navigation a new chat triggers:
- *   `useComposerTarget`. Launcher requests: `useComposerLauncherDrain`.
+ * - The chat it draws: the session's one engine (`useMingoChatSurface`), handed to the
+ *   panel through the lib's `ChatEngineProvider`, so the panel runs no engine of its own.
+ *   Its dialog actions (Copy link, Compact among them in the chat's ⋯) are the engine's.
+ * - What the chat can do besides: `useOpenframeChatProps` (context picker, `@` / slash,
+ *   context memory, quick actions, identity, the row status).
+ * - Which chat it writes into, and the navigation a send triggers: `useComposerTarget`,
+ *   told of the panel's sends through `onMessageSent`. Launcher requests: `useComposerLauncherDrain`.
  * - The Getting Started tour (onboarding v2): `useMingoTour` — Mingo's greeting at the
  *   head of the tour's conversation and its step block above the composer, on every
  *   page while that conversation is the open one, until its × sets the conversation
@@ -35,6 +37,7 @@
 import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ChatComposer,
+  ChatEngineProvider,
   ChatIdentityProvider,
   EmbeddableChat,
   type EmbeddableChatHandle,
@@ -54,11 +57,8 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useMingoContextMemory } from '@/app/(app)/mingo/context/use-context-memory';
-import {
-  type MingoChat,
-  type MingoChatState,
-  useMingoChatSurface,
-} from '@/app/(app)/mingo/providers/mingo-chat-provider';
+import type { MingoUnifiedChat } from '@/app/(app)/mingo/hooks/use-mingo-unified-chat-state';
+import { useMingoChatSurface } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { useMingoTour } from '@/app/(app)/mingo/tour/use-mingo-tour';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { isMobileShell } from '@/lib/platform';
@@ -217,7 +217,7 @@ export function MingoComposerDock({ held = false }: { held?: boolean }) {
 
 function DockSurface({ route, quickActions }: { route: ComposerRoute; quickActions: boolean }) {
   // A surface for the whole session: the chat state runs while the dock is mounted.
-  const { chat, error, enabled, identityEnabled, compactDialog, copyDialogLink } = useMingoChatSurface();
+  const { chat, error, enabled, identityEnabled } = useMingoChatSurface();
   if (error) throw error;
   // Disabled = no session yet (the paywall unmounts the dock): the composer's place, locked.
   // The quick actions' place too, so the dock is its loaded height from the first frame and
@@ -228,19 +228,17 @@ function DockSurface({ route, quickActions }: { route: ComposerRoute; quickActio
     // must not wrap the page (see `MingoChatProvider`). The thread portalled into the
     // chat page still reads it — context follows the React tree.
     <ChatIdentityProvider enabled={identityEnabled}>
-      <DockChat route={route} chat={chat} compactDialog={compactDialog} copyDialogLink={copyDialogLink} />
+      <DockChat route={route} chat={chat} />
     </ChatIdentityProvider>
   );
 }
 
 interface DockChatProps {
   route: ComposerRoute;
-  chat: MingoChatState;
-  compactDialog: MingoChat['compactDialog'];
-  copyDialogLink: MingoChat['copyDialogLink'];
+  chat: MingoUnifiedChat;
 }
 
-function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps) {
+function DockChat({ route, chat }: DockChatProps) {
   const router = useRouter();
   const pathname = usePathname();
   const navigate = (href: string) => router.push(href);
@@ -330,13 +328,15 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   // A reload of this tab keeps the chat behind the pages (and their "Continue" chip).
   useChatBehindPage({ route, state: chat.state });
 
-  // The tour decorates the session's state before the send target wraps it: its step
-  // chips send through the bare state (the section they open is where the user goes,
-  // not the chat page), while the composer's own sends follow to the chat as ever.
+  // The tour decorates the session's state (its greeting at the head of its conversation,
+  // the tour set aside when that conversation is archived), and that is what the panel
+  // draws. Its step chips send through the state (the section they open is where the user
+  // goes, not the chat page), while the composer's own sends follow to the chat as ever.
+  const { startNewDialog } = chat.state;
   const tour = useMingoTour({
     state: chat.state,
-    createNamedDialog: chat.createNamedDialog,
-    dialogError: chat.dialogError,
+    createNamedDialog: title => startNewDialog({ title }),
+    dialogNotFound: chat.dialogNotFound,
     dialogCreatedAt: chat.dialogCreatedAt,
     // A chip's answer opens over the section it opened: at once when that is this
     // page, else on the page the navigation lands on.
@@ -358,8 +358,8 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   const target = useComposerTarget({
     route,
     state: tour.state,
-    sendInNewDialog: chat.sendInNewDialog,
-    createIntentDialog: chat.createIntentDialog,
+    sendInNewDialog: prompt => startNewDialog({ prompt }),
+    createIntentDialog: intent => startNewDialog({ intent }),
     navigate,
     openSheet: showSheet,
     sheetOpen,
@@ -390,11 +390,7 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
     handle.showWhatToAsk();
   }, [whatToAskInColumn, manhattan, handle]);
 
-  const chatProps = useOpenframeChatProps({
-    chat,
-    copyDialogLink,
-    compactDialog,
-  });
+  const chatProps = useOpenframeChatProps({ dialogStatusOf: chat.dialogStatusOf });
 
   // Over a page: the open chat is one click away. Up, its header leads to the chat's
   // own page or back to this one; down, a chip at the start of the composer's context
@@ -546,64 +542,68 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
       )}
       {/* The chat module loads lazily and draws nothing until it has. */}
       {!handle && <DockComposerLoading route={route} />}
-      <EmbeddableChat
-        ref={setHandle}
-        shell="inline"
-        appearance="v2"
-        open
-        onOpenChange={ignoreClose}
-        closable={false}
-        {...chatProps}
-        mingoState={target.mingoState}
-        // The Getting Started tour: its block above the composer while its
-        // conversation is open.
-        aboveComposer={tour.aboveComposer}
-        chatMenuExtraItems={chatMenuExtraItems}
-        contextMemory={view.showContextMemory ? chatProps.contextMemory : undefined}
-        // An element or `null` — never `undefined`, which switches the chat back to its
-        // in-place layout and remounts the composer (draft and all). See `threadContainer` above.
-        threadContainer={threadContainer}
-        threadHeaderActions={threadHeaderActions}
-        threadHeaderLook={manhattan ? 'column' : undefined}
-        // v2: the thread fades out into the composer under it, as a page under the dock; and
-        // in a narrow column the composer takes the column's own padding as its edge. A phone
-        // has no column (the chat is its own page): the composer keeps its own side inset.
-        threadFadeEnd={manhattan}
-        composerInset={composerInset === 'wide' ? 'wide' : undefined}
-        // On the chat page the thread is a column at the composer's width under a full-width
-        // header; in the sheet it fills the sheet.
-        threadContentClassName={route === 'chat' && !manhattan ? cn('mx-auto w-full', CHAT_COLUMN_WIDTH) : undefined}
-        // "Continue …" for the chat behind the page, then the page itself: one row of chips
-        // that scrolls sideways when the strip is too narrow for all of them.
-        composerContextLeading={
-          continueChip || pageChip ? (
-            <ContextChipRow>
-              {continueChip}
-              {pageChip}
-            </ContextChipRow>
-          ) : undefined
-        }
-        rail="none"
-        renameMode="inline"
-        onModelClick={() => navigate(routes.settings.aiSettings({ tab: 'mingo' }))}
-        modelTooltip="Change in Settings → AI Settings"
-        // Over the page the thread is the chat's: its prompt; behind it, "continue or ask anew".
-        composerPlaceholder={
-          startWorkColumn
-            ? dockViewOf('home').placeholder
-            : sheetOpen
-              ? dockViewOf('chat').placeholder
-              : continuing
-                ? 'Reply, or ask something else about this page…'
-                : view.placeholder
-        }
-        // One bottom inset: in the phone shell the layout root already pads it (and the
-        // keyboard's, `.app-shell-root` in globals.css), so the composer must not add it
-        // again. On the web (iOS Safari, `viewport-fit=cover`) the composer's is the one.
-        safeAreaBottom={!isMobileShell()}
-        // Mingo's edge light around the input, the hub launcher's: the one place to ask Mingo.
-        composerEdgeLight
-      />
+      {/* The session's one engine, as the tour decorated it: the panel draws it and runs none of its own. */}
+      <ChatEngineProvider engine={tour.state}>
+        <EmbeddableChat
+          ref={setHandle}
+          shell="inline"
+          appearance="v2"
+          open
+          onOpenChange={ignoreClose}
+          closable={false}
+          {...chatProps}
+          // A send from the panel: over the page into the chat it goes to, or followed into the one it creates.
+          onMessageSent={target.onMessageSent}
+          // The Getting Started tour: its block above the composer while its
+          // conversation is open.
+          aboveComposer={tour.aboveComposer}
+          chatMenuExtraItems={chatMenuExtraItems}
+          contextMemory={view.showContextMemory ? chatProps.contextMemory : undefined}
+          // An element or `null` — never `undefined`, which switches the chat back to its
+          // in-place layout and remounts the composer (draft and all). See `threadContainer` above.
+          threadContainer={threadContainer}
+          threadHeaderActions={threadHeaderActions}
+          threadHeaderLook={manhattan ? 'column' : undefined}
+          // v2: the thread fades out into the composer under it, as a page under the dock; and
+          // in a narrow column the composer takes the column's own padding as its edge. A phone
+          // has no column (the chat is its own page): the composer keeps its own side inset.
+          threadFadeEnd={manhattan}
+          composerInset={composerInset === 'wide' ? 'wide' : undefined}
+          // On the chat page the thread is a column at the composer's width under a full-width
+          // header; in the sheet it fills the sheet.
+          threadContentClassName={route === 'chat' && !manhattan ? cn('mx-auto w-full', CHAT_COLUMN_WIDTH) : undefined}
+          // "Continue …" for the chat behind the page, then the page itself: one row of chips
+          // that scrolls sideways when the strip is too narrow for all of them.
+          composerContextLeading={
+            continueChip || pageChip ? (
+              <ContextChipRow>
+                {continueChip}
+                {pageChip}
+              </ContextChipRow>
+            ) : undefined
+          }
+          rail="none"
+          renameMode="inline"
+          onModelClick={() => navigate(routes.settings.aiSettings({ tab: 'mingo' }))}
+          modelTooltip="Change in Settings → AI Settings"
+          // Over the page the thread is the chat's: its prompt; behind it, "continue or ask anew".
+          composerPlaceholder={
+            startWorkColumn
+              ? dockViewOf('home').placeholder
+              : sheetOpen
+                ? dockViewOf('chat').placeholder
+                : continuing
+                  ? 'Reply, or ask something else about this page…'
+                  : view.placeholder
+          }
+          // One bottom inset: in the phone shell the layout root already pads it (and the
+          // keyboard's, `.app-shell-root` in globals.css), so the composer must not add it
+          // again. On the web (iOS Safari, `viewport-fit=cover`) the composer's is the one.
+          safeAreaBottom={!isMobileShell()}
+          // Mingo's edge light around the input, the hub launcher's: the one place to ask Mingo.
+          composerEdgeLight
+        />
+      </ChatEngineProvider>
       <ResetOnboardingDialog
         open={resetOnboardingOpen}
         onOpenChange={setResetOnboardingOpen}

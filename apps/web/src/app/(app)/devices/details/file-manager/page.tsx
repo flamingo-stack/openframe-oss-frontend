@@ -1,6 +1,7 @@
 'use client';
 
 import { Button, PageLayout } from '@flamingo-stack/openframe-frontend-core';
+import { OPENFRAME_RECORD_KIND } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useSearchParams } from 'next/navigation';
@@ -8,7 +9,6 @@ import { FileManagerContainer } from '@/app/(app)/devices/details/file-manager/c
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import { getToolConnection } from '@/app/(app)/devices/utils/device-action-utils';
 import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
-import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
 import { useTrackOpenView } from '@/app/(app)/mingo/context/use-track-open-view';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
@@ -33,7 +33,7 @@ export default function FileManagerPage() {
   useTrackOpenView(
     deviceDetails
       ? {
-          type: CONTEXT_ENTITY_KIND.DEVICE,
+          type: OPENFRAME_RECORD_KIND.DEVICE,
           id: deviceId,
           label: getDeviceName(deviceDetails) || deviceId,
         }

@@ -1,12 +1,12 @@
 import {
-  getAgentAccent,
-  type SuggestionPrompt,
-  type WhatToAskContent,
-} from '@flamingo-stack/openframe-frontend-core/components/chat';
+  type ChatSuggestionPrompt,
+  recordLinkMarkdown,
+  OPENFRAME_RECORD_TYPE,
+} from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import { getAgentAccent, type WhatToAskContent } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { whatToAskDevicesRelayQuery$data } from '@/__generated__/whatToAskDevicesRelayQuery.graphql';
 import { decodeGlobalId } from '@/lib/relay-id';
-import { CONTEXT_ENTITY_MARKER } from './context/context-types';
 
 /** An online device a prompt can name (`whatToAskDevicesRelayQuery`). */
 export type WhatToAskDevice = whatToAskDevicesRelayQuery$data['devices']['edges'][number]['node'];
@@ -16,23 +16,28 @@ const isServer = (device: WhatToAskDevice) => device.type === 'SERVER';
 const isWindows = (device: WhatToAskDevice) => device.osType === 'WINDOWS';
 
 /** A chip's glyph as Mingo's quick actions draw theirs (`useMingoQuickActionChips`): in Mingo's accent. */
-const mingoIcon = (name: string): SuggestionPrompt['icon'] => ({ name, accent: getAgentAccent('mingo') });
+const mingoIcon = (name: string): ChatSuggestionPrompt['icon'] => ({ name, accent: getAgentAccent('mingo') });
 
 /**
  * A prompt about one device: the chip shows the device's name, the message
- * carries the device's `@device:<id>` mention - the token the composer's own
- * @-mention commits - so Mingo knows exactly which device is meant even when
- * several share the name (hostnames repeat across a fleet).
+ * names the device with its record link (`[name](record://device/<id>)`, what
+ * the composer's own @-mention commits) so Mingo knows exactly which device is
+ * meant even when several share the name (hostnames repeat across a fleet).
  */
 const aboutDevice = (
   device: WhatToAskDevice | null,
   named: (name: string) => string,
   unnamed: string,
-  icon: SuggestionPrompt['icon'],
-): SuggestionPrompt => {
+  icon: ChatSuggestionPrompt['icon'],
+): ChatSuggestionPrompt => {
   if (!device) return { label: unnamed, icon };
   const id = decodeGlobalId(device.id)?.rawId ?? device.machineId;
-  return { label: named(getDeviceName(device)), prompt: named(`@${CONTEXT_ENTITY_MARKER.DEVICE}:${id}`), icon };
+  const name = getDeviceName(device);
+  return {
+    label: named(name),
+    prompt: named(recordLinkMarkdown({ type: OPENFRAME_RECORD_TYPE.DEVICE, id }, name)),
+    icon,
+  };
 };
 
 /**

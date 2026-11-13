@@ -1,5 +1,6 @@
 'use client';
 
+import { OPENFRAME_RECORD_KIND } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 /**
  * REST / ai-agent-GraphQL context items via TanStack Query suspense hooks:
  *   • Ticket — `/chat/graphql` (ai-agent), cursor pagination.
@@ -9,7 +10,6 @@
  * Suspense hooks suspend on initial load (→ the picker's skeleton) and throw on
  * error (→ the picker's error boundary).
  */
-
 import type { ChatContextItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { ContextItemsList } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useSuspenseInfiniteQuery, useSuspenseQuery } from '@tanstack/react-query';
@@ -17,7 +17,6 @@ import { useMemo } from 'react';
 import { formatTicketRef } from '@/app/(app)/tickets/utils/ticket-ref';
 import { apiClient } from '@/lib/api-client';
 import { fleetApiClient } from '@/lib/fleet-api-client';
-import { CONTEXT_ENTITY_KIND } from './context-types';
 import { type ContextItemsProps, MINGO_CONTEXT_PAGE_SIZE, useClientPaging } from './items-shared';
 
 // ───────────────────────────── Ticket ───────────────────────────────────────
@@ -60,8 +59,8 @@ async function fetchTicketsPage(
   if (res.data?.errors?.length) throw new Error(res.data.errors[0].message);
   const conn = res.data?.data?.tickets;
   const items = (conn?.edges ?? []).map(e => ({
-    type: CONTEXT_ENTITY_KIND.TICKET,
-    // Raw: the server matches an `@ticket:<id>` mention token literally against
+    type: OPENFRAME_RECORD_KIND.TICKET,
+    // Raw: the server matches an `record://ticket/<id>` record link literally against
     // the raw ticket id, so a global id would leave the mention as plain text.
     id: e.node.ticketId,
     // The picked label becomes the chip's fallback label, so it carries the
@@ -101,7 +100,7 @@ async function fetchPolicies(query: string): Promise<ChatContextItem[]> {
   const res = await fleetApiClient.getPolicies(query ? { query } : undefined);
   if (!res.ok) throw new Error(res.error || 'Failed to load policies');
   return (res.data?.policies ?? []).map(pol => ({
-    type: CONTEXT_ENTITY_KIND.POLICY,
+    type: OPENFRAME_RECORD_KIND.POLICY,
     id: String(pol.id),
     label: pol.name || String(pol.id),
     description: pol.description || undefined,
@@ -134,7 +133,7 @@ async function fetchQueriesPage(query: string, page: number): Promise<{ items: C
   const res = await fleetApiClient.getQueries({ ...(query ? { query } : {}), page, per_page: MINGO_CONTEXT_PAGE_SIZE });
   if (!res.ok) throw new Error(res.error || 'Failed to load queries');
   const items = (res.data?.queries ?? []).map(q => ({
-    type: CONTEXT_ENTITY_KIND.QUERY,
+    type: OPENFRAME_RECORD_KIND.QUERY,
     id: String(q.id),
     label: q.name || String(q.id),
     description: q.description || undefined,
