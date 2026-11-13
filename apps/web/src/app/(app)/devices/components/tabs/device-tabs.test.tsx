@@ -166,7 +166,7 @@ describe('device tabs and the directory gate', () => {
  */
 describe('device tabs and the table flag', () => {
   /** Every tab whose table moves with the flag; `users` is the directory users where the tenant has a directory. */
-  const TABLE_TABS = ['users', 'software', 'vulnerabilities', 'tickets', 'remote-sessions'] as const;
+  const TABLE_TABS = ['users', 'local-accounts', 'software', 'vulnerabilities', 'tickets', 'remote-sessions'] as const;
 
   beforeEach(() => {
     flags.phase2 = 'on';

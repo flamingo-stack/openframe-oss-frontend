@@ -87,6 +87,16 @@ function TableSoftwareTab({ device }: { device: Device | null }) {
   );
 }
 
+/** The machine's own accounts beside the directory's Users: the local accounts table, in the flag's layout. */
+function TableLocalAccountsTab({ device }: { device: Device | null }) {
+  const { tableLayout, tableLoading } = useDeviceTableLayout();
+  return (
+    <LoadingWhen loading={tableLoading}>
+      <UsersTab device={device} tableLayout={tableLayout} />
+    </LoadingWhen>
+  );
+}
+
 function TableTicketsTab({ device }: { device: Device | null }) {
   const { tableLayout, tableLoading } = useDeviceTableLayout();
   return (
@@ -243,7 +253,7 @@ export const ALL_DEVICE_TABS: TabItem[] = [
     id: LOCAL_ACCOUNTS_TAB_ID,
     label: 'Local Accounts',
     icon: UserIcon,
-    component: UsersTab,
+    component: TableLocalAccountsTab,
   },
   {
     id: DIRECTORY_TAB_ID,

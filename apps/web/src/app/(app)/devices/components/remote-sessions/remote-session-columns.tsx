@@ -273,6 +273,40 @@ function SessionActions<T extends RecordingSummary>({
   );
 }
 
+/**
+ * Open in the grid's action column: enabled where the row has a page to open (`sessionHref`). An Open that is off says
+ * why on hover or tap where the row does not (`openDisabledHint`), as the card row's button does.
+ */
+function SessionOpenGridAction<T extends RecordingSummary>({
+  row,
+  liveRows,
+  onOpen,
+}: {
+  row: T;
+  liveRows: LiveRows | null;
+  onOpen: (row: T) => void;
+}) {
+  const loading = useLoadingScope();
+  const openHint = loading ? null : openDisabledHint(row, liveRows);
+  const openButton = (
+    <OpenRowButton
+      grid
+      label={isLiveRow(row, liveRows) ? 'Watch live' : 'Open session recording'}
+      disabled={sessionHref(row, liveRows) === null}
+      onClick={() => onOpen(row)}
+    />
+  );
+  if (!openHint) return openButton;
+  return (
+    <TouchFriendlyTooltip content={openHint} side="top">
+      {/* A disabled button takes no pointer events (none at all in WebKit): the wrapper takes the hover. */}
+      <span tabIndex={0} className="inline-flex cursor-not-allowed [&_button]:pointer-events-none">
+        {openButton}
+      </span>
+    </TouchFriendlyTooltip>
+  );
+}
+
 /** The grid's one line: the start date, its LIVE / PROCESSING / FAILED tag, then the time. */
 function SessionGridCell({ row, liveRows }: { row: RecordingSummary; liveRows: LiveRows | null }) {
   if (useLoadingScope()) return <DataTable.Cell text="" />;
@@ -378,14 +412,7 @@ export function remoteSessionColumns<T extends RecordingSummary = RecordingSumma
           }),
           actionColumn<T>({
             id: REMOTE_SESSION_GRID_ACTIONS.open,
-            cell: ({ row }) => (
-              <OpenRowButton
-                grid
-                label={isLiveRow(row.original, liveRows) ? 'Watch live' : 'Open session recording'}
-                disabled={sessionHref(row.original, liveRows) === null}
-                onClick={() => onOpen(row.original)}
-              />
-            ),
+            cell: ({ row }) => <SessionOpenGridAction row={row.original} liveRows={liveRows} onOpen={onOpen} />,
           }),
         ]
       : [
