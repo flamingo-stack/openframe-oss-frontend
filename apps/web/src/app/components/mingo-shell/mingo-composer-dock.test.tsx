@@ -12,10 +12,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { routes } from '@/lib/routes';
 import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
+import { useManhattanCentreStore } from '../manhattan-shell/manhattan-centre-store';
 import { ManhattanDockContext } from '../manhattan-shell/manhattan-dock-context';
 import { useChatPageNodeStore } from './chat-page-node-store';
 import { MingoComposerDock } from './mingo-composer-dock';
-import { composerRouteOf } from './mingo-dock-route';
+import { composerRouteOf, dockViewOf } from './mingo-dock-route';
 import { useMingoSheetStore } from './mingo-sheet-store';
 
 const {
@@ -44,6 +45,7 @@ const {
     startNewChat: vi.fn(),
     showWhatToAsk: vi.fn(),
     prefillDraft: vi.fn(),
+    focusComposer: vi.fn(),
   },
   nav: { pathname: '/devices/', search: '', push: vi.fn() },
   surface: { value: null as unknown },
@@ -67,7 +69,12 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({
       ref,
       () =>
         loaded
-          ? { startNewChat: panel.startNewChat, prefillDraft: panel.prefillDraft, showWhatToAsk: panel.showWhatToAsk }
+          ? {
+              startNewChat: panel.startNewChat,
+              prefillDraft: panel.prefillDraft,
+              showWhatToAsk: panel.showWhatToAsk,
+              focusComposer: panel.focusComposer,
+            }
           : null,
       [loaded],
     );
@@ -100,6 +107,7 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/icons-v2', () => ({
   PackageCheckIcon: () => null,
   Refresh01RightIcon: () => null,
   Collapse02Icon: () => null,
+  Expand01Icon: () => null,
   Expand02Icon: () => null,
   XmarkIcon: () => null,
 }));
@@ -620,6 +628,12 @@ describe('MingoComposerDock', () => {
     expect(panel.prefillDraft).not.toHaveBeenCalled();
   });
 
+  it('leaves the keyboard in the composer after a quick action: its row goes away with the send', () => {
+    render('/mingo/');
+    act(() => chips.onSend?.('List every online machine'));
+    expect(panel.focusComposer).toHaveBeenCalledTimes(1);
+  });
+
   it("draws the session's engine as it is, and is told of the panel's sends", () => {
     render('/devices/');
     const { chat } = surface.value as { chat: { state: unknown } };
@@ -642,7 +656,7 @@ describe('MingoComposerDock', () => {
         composerPlaceholder: 'Ask Mingo or describe a task…',
         contextMemory: CONTEXT_MEMORY,
       });
-      expect(container.firstElementChild?.className).toContain('max-w-[880px]');
+      expect(container.querySelector('section')?.className).toContain('max-w-[880px]');
     });
 
     it('no other page carries the quick actions, a full-width one included', () => {
@@ -665,7 +679,7 @@ describe('MingoComposerDock', () => {
       render('/mingo/chat/');
       expect(props()).toMatchObject({ composerPlaceholder: 'Reply to Mingo…' });
       expect(props().showModel).toBeUndefined();
-      expect(container.firstElementChild?.className).toContain('max-w-[760px]');
+      expect(container.querySelector('section')?.className).toContain('max-w-[760px]');
     });
 
     it('any other page: about this page, the memory strip and the model row', () => {
@@ -675,7 +689,7 @@ describe('MingoComposerDock', () => {
         composerPlaceholder: 'Ask Mingo about this page…',
         contextMemory: CONTEXT_MEMORY,
       });
-      expect(container.firstElementChild?.className).toContain('max-w-[880px]');
+      expect(container.querySelector('section')?.className).toContain('max-w-[880px]');
     });
 
     it('full-width pages: no memory strip, the model row kept', () => {
@@ -689,6 +703,65 @@ describe('MingoComposerDock', () => {
         expect(props()).toMatchObject({ contextMemory: undefined });
         expect(props().showModel).toBeUndefined();
       }
+    });
+  });
+
+  describe('Manhattan v2: the chat column beside every page', () => {
+    const columnNode = document.createElement('div');
+    function renderV2(href: string) {
+      const [pathname, search = ''] = href.split('?');
+      nav.pathname = pathname;
+      nav.search = search;
+      act(() =>
+        root.render(
+          <ManhattanDockContext.Provider value>
+            <MingoComposerDock />
+          </ManhattanDockContext.Provider>,
+        ),
+      );
+    }
+    beforeEach(() => {
+      chips.onSend = null;
+      useManhattanCentreStore.setState({
+        chatView: 'split',
+        compact: false,
+        shownMode: null,
+        whatToAskInColumn: false,
+        threadNode: columnNode,
+      });
+    });
+
+    it('with no chat open, Start Work holds the column: no thread portalled, a new chat composer, the quick actions', () => {
+      renderV2('/devices/');
+      expect(props().threadContainer).toBeNull();
+      expect(props().composerPlaceholder).toBe(dockViewOf('home').placeholder);
+      expect(chips.onSend).not.toBeNull();
+    });
+
+    it('a full-height page has the chat beside it too', () => {
+      setSurface({ activeDialogId: 'd-1' });
+      renderV2('/devices/details/remote-shell/?id=m-1');
+      expect(props().threadContainer).toBe(columnNode);
+    });
+
+    it('"Close chat" beside a page lets the chat go and leaves the page alone', () => {
+      setSurface({ activeDialogId: 'd-1' });
+      renderV2('/devices/');
+      expect(props().threadContainer).toBe(columnNode);
+      const close = headerActions().find(action => action.label === 'Close chat');
+      if (!close) throw new Error('no Close chat');
+      act(() => close.onClick());
+      expect(panel.startNewChat).toHaveBeenCalledOnce();
+      expect(useManhattanCentreStore.getState().chatView).toBe('hidden');
+    });
+
+    it('answers Start Work\'s "What to ask Mingo?" in the column, once per request', () => {
+      renderV2('/devices/');
+      act(() => useManhattanCentreStore.setState({ whatToAskInColumn: true }));
+      expect(panel.showWhatToAsk).toHaveBeenCalledOnce();
+      expect(props().threadContainer).toBe(columnNode);
+      renderV2('/devices/');
+      expect(panel.showWhatToAsk).toHaveBeenCalledOnce();
     });
   });
 
@@ -730,8 +803,30 @@ describe('MingoComposerDock', () => {
     expect(identity.enabled).toBe(false);
   });
 
+  // Figma `chat/dock` (node 4368:14042): the page's background under the composer across the
+  // column, and a fade into it over the page above, on every page.
+  it.each(['/devices/', '/mingo/', '/scripts/new/'])('lays the composer on its ground on %s', pathname => {
+    render(pathname);
+    const ground = container.querySelector('[data-testid="mingo-composer-dock-ground"]');
+    const classes = ground?.className.split(' ') ?? [];
+    expect(classes).toEqual(
+      expect.arrayContaining([
+        'bg-ods-bg',
+        'pointer-events-auto',
+        'before:bottom-full',
+        'before:h-[var(--spacing-system-xlf)]',
+        'before:from-transparent',
+        'before:to-ods-bg',
+        'before:pointer-events-none',
+      ]),
+    );
+    // The ground spans the column; the composer is centred on it at the route's width.
+    expect(ground?.querySelector('section')?.className).toContain('mx-auto');
+  });
+
   describe('on a phone', () => {
-    const section = () => container.querySelector('section');
+    // The ground, which the phone rule hides with the composer on it.
+    const section = () => container.querySelector('[data-testid="mingo-composer-dock-ground"]');
 
     it('draws no composer under a page, below md only, still mounted', () => {
       viewport.mdUp = false;
@@ -756,7 +851,7 @@ describe('MingoComposerDock', () => {
       expect(section()?.className).not.toContain('max-md:hidden');
     });
 
-    it("steps out from under the chat list on Mingo's own pages in Manhattan v2, so the list fills the screen", () => {
+    it("stays under v2's chat list, a panel over the page and its scrim (the composer does not step out)", () => {
       nav.pathname = '/mingo/';
       nav.search = '';
       act(() =>
@@ -768,7 +863,7 @@ describe('MingoComposerDock', () => {
       );
       expect(section()?.className).not.toContain('max-md:hidden');
       act(() => useMingoSheetStore.getState().showList());
-      expect(section()?.className).toContain('max-md:hidden');
+      expect(section()?.className).not.toContain('max-md:hidden');
       act(() => useMingoSheetStore.getState().hideList());
       expect(section()?.className).not.toContain('max-md:hidden');
     });

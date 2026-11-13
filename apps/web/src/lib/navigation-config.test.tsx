@@ -354,14 +354,15 @@ describe('grouped navigation (Mingo-first shell)', () => {
 });
 
 describe('sectioned navigation (Manhattan v2 shell)', () => {
-  it('lists the Figma sections and the bottom three, with the Figma names', () => {
+  it('lists the five sections and the bottom three, with their names', () => {
     setAppMode('saas-tenant');
     const items = getSectionedNavigationItems(ALL_ON);
     expect(items.map(item => [item.id, item.label, (item.children ?? []).map(child => child.label)])).toEqual([
       ['service-desk', 'Service Desk', ['Tickets', 'Worktime']],
-      ['fleet', 'Fleet', ['Customers', 'Devices', 'Software', 'Users', 'Cloud Tenants']],
-      ['monitor', 'Monitor', ['Incidents', 'Logs']],
-      ['skills', 'Skills', ['Scripts', 'Scheduled Scripts', 'Policies', 'Queries']],
+      ['monitoring', 'Monitoring', ['Incidents', 'Logs']],
+      ['assets', 'Assets', ['Devices', 'Software']],
+      ['directory', 'Directory', ['Customers', 'Users', 'Cloud Tenants']],
+      ['automation', 'Automation', ['Scripts', 'Scheduled Scripts', 'Policies', 'Queries']],
       ['knowledge-base', 'Knowledge Base', []],
       ['help-center', 'Help Center', []],
       ['settings', 'Settings', []],
@@ -396,7 +397,7 @@ describe('sectioned navigation (Manhattan v2 shell)', () => {
     expect(ids).toContain('devices');
   });
 
-  it("Fleet's Users is the directory users page; Settings → Employees lights Settings", () => {
+  it("Directory's Users is the directory users page; Settings → Employees lights Settings", () => {
     setAppMode('saas-tenant');
     const items = getSectionedNavigationItems(ALL_ON);
     expect(resolveNavigationActive(items, { currentPath: '/users', includeChildren: true }).activeId).toBe('users');

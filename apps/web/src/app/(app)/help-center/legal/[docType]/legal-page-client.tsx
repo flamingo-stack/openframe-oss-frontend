@@ -1,8 +1,11 @@
 'use client';
 
 import { LegalDocumentPage } from '@flamingo-stack/openframe-frontend-core/components';
-import { useParams } from 'next/navigation';
+import { isLegalDocumentType } from '@flamingo-stack/openframe-frontend-core/utils';
+import { notFound, useParams } from 'next/navigation';
+import { isBillingHidden } from '@/lib/billing-visibility';
 import { EP, HELP_CENTER_BASE } from '../../endpoints';
+import { shownLegalDocumentTypes } from '../../legal-documents';
 
 /**
  * One legal document's page. The lib page reads the document and the hub's list
@@ -11,6 +14,12 @@ import { EP, HELP_CENTER_BASE } from '../../endpoints';
  */
 export function LegalPageClient() {
   const { docType } = useParams<{ docType: string }>();
+  // The export prerenders every type, so a document this build does not show still has a path to answer.
+  // The bare predicate, not `useIsMobileShell()`: the hook keeps a rendered subtree from being regenerated at
+  // hydration, and this renders nothing, it throws. Through the hook the document would draw once first.
+  if (isLegalDocumentType(docType) && !shownLegalDocumentTypes(isBillingHidden()).includes(docType)) {
+    notFound();
+  }
   return (
     <LegalDocumentPage
       shell={false}

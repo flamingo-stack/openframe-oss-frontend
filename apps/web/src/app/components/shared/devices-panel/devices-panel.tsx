@@ -40,11 +40,13 @@ import { DEVICES_PAGE_SIZE } from '@/app/(app)/devices/queries/devices-api';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { bumpDeviceEpoch, useDeviceEpoch } from '@/app/(app)/devices/utils/device-refresh';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
+import type { TableLayout } from '@/app/hooks/use-table-layout';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { ContentErrorBoundary } from '../content-error-boundary';
 import { EMBEDDED_PAGE_OFFSET } from '../embedded-page';
 import { NO_ITEMS } from '../no-next-page';
+import { DEVICES_TABLE_SETTINGS } from './devices-table-settings';
 import { devicesViewMode } from './devices-view-mode';
 import { DevicesPanelV1 } from './v1/devices-panel-v1';
 
@@ -139,6 +141,11 @@ export interface DevicesPanelProps {
    * Used by the archive page: DELETED devices are read-only records.
    */
   readOnlyRows?: boolean;
+  /**
+   * The table's layout. `grid` draws the lib's grid table (48px one-line rows, pinned device and action columns) at
+   * every width; the standalone Devices page passes it. Default: card rows.
+   */
+  tableLayout?: TableLayout;
 }
 
 function DevicesPanelContent(body: DevicesPanelBodyProps) {
@@ -232,6 +239,7 @@ function DevicesPanelLoaded({
     noOrganizations = false,
     isCheckingOrganizations = false,
     readOnlyRows = false,
+    tableLayout,
   } = panel;
   const router = useRouter();
   const deviceFilters = useMemo(
@@ -384,6 +392,10 @@ function DevicesPanelLoaded({
       onGridFiltersChange={handleFilterChange}
       actionsColumn={actionsColumn}
       hideColumns={hideColumns}
+      tableLayout={tableLayout}
+      // The grid table is the page's scroll area: it fills the height under the toolbar.
+      tableMaxHeight={tableLayout === 'grid' ? 'fill' : undefined}
+      tableSettings={tableLayout === 'grid' ? DEVICES_TABLE_SETTINGS : undefined}
       hideFilters={hideFilters}
       directoryColumns={directoryColumns}
       emptyMessage={emptyMessage}
@@ -532,6 +544,9 @@ function DevicesPanelPending({ panel: props, chrome, viewMode, directory }: Devi
       // The loaded table always carries a row-actions column, and it takes real width from the others.
       actionsColumn={PENDING_ACTIONS_COLUMN}
       hideColumns={props.hideColumns}
+      tableLayout={props.tableLayout}
+      tableMaxHeight={props.tableLayout === 'grid' ? 'fill' : undefined}
+      tableSettings={props.tableLayout === 'grid' ? DEVICES_TABLE_SETTINGS : undefined}
       hideFilters={props.hideFilters}
       directoryColumns={directoryColumns}
     />

@@ -42,7 +42,12 @@ import {
   type NavigationFlags,
   SECTIONED_NAVIGATION_LOADING_ROWS,
 } from '../../lib/navigation-config';
-import { GROUPED_SIDEBAR_EXPANDED_WIDTH, SIDEBAR_RESIZE } from '../../lib/navigation-sidebar-state';
+import {
+  GROUPED_SIDEBAR_EXPANDED_WIDTH,
+  MANHATTAN_CHATS_DRAWER_WIDTH,
+  MANHATTAN_CHATS_EXPANDED_WIDTH,
+  SIDEBAR_RESIZE,
+} from '../../lib/navigation-sidebar-state';
 import { AnnouncementTopBar } from './announcement-top-bar';
 import {
   APP_MAIN_CLASS_NAME,
@@ -66,7 +71,6 @@ import {
 } from './manhattan-shell/manhattan-chats-sidebar';
 import { ManhattanCompactBar } from './manhattan-shell/manhattan-compact-bar';
 import {
-  MANHATTAN_CHATS_EXPANDED_WIDTH,
   MANHATTAN_NAVIGATION_EXPANDED_WIDTH,
   MANHATTAN_NAVIGATION_FOLDS_KEY,
   useManhattanNavCollapsed,
@@ -77,6 +81,7 @@ import { MingoAccountPopover } from './mingo-shell/mingo-account-popover';
 import { MingoComposerDock } from './mingo-shell/mingo-composer-dock';
 import { MingoComposerSheet } from './mingo-shell/mingo-composer-sheet';
 import { composerRouteOf, dockViewOf } from './mingo-shell/mingo-dock-route';
+import { useMingoPhoneChatsPanel } from './mingo-shell/mingo-phone-chats-panel';
 import { isListUp, isSheetUp, useMingoSheetStore } from './mingo-shell/mingo-sheet-store';
 import { MingoSidebarControls } from './mingo-shell/mingo-sidebar-controls';
 import { MingoHistorySearch, MingoSidebarHistorySlot } from './mingo-shell/mingo-sidebar-history';
@@ -569,6 +574,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             sectionFill: true,
             currentPath,
             expandedWidth: MANHATTAN_CHATS_EXPANDED_WIDTH,
+            drawerWidth: MANHATTAN_CHATS_DRAWER_WIDTH,
             resizable: SIDEBAR_RESIZE,
             onNavigate: handleNavigate,
             topSlot: ({ minimized }) => (
@@ -602,6 +608,8 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             collapsed: sidebarCollapsed,
             onCollapsedChange: setSidebarCollapsed,
             overlay: squeeze.compact ? 'drawer' : undefined,
+            // As a drawer it opens under the compact top bar, which carries the logo: no second one over the chats.
+            header: !squeeze.compact,
             // No tablet rail between md and lg: v2's sidebars close only with their button.
             desktopFromMd: true,
             revealSignal: revealSignal + chatsReveal,
@@ -779,11 +787,17 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
         showTimeTracker: isMdUp === false,
         showTicketAlerts: isMdUp === false,
         showMingoAI: mingoButton,
-        // Manhattan v2: the button stays Mingo's and always opens the chat list, on any page
-        // (a chat or Mingo's home included); the list closes from its own scrim or a pick.
+        // Manhattan v2: the button stays Mingo's and toggles the chat list, the panel from the left
+        // (`useMingoPhoneChatsPanel`), on any page (a chat or Mingo's home included); opening it
+        // closes the burger's navigation, so one panel is out at a time.
         onMingoAI: () => {
-          if (manhattan) showList();
-          else if (listOpen) hideList();
+          if (manhattan) {
+            if (listOpen) hideList();
+            else {
+              setMobileMenuOpen(false);
+              showList();
+            }
+          } else if (listOpen) hideList();
           else if (sheetUp) hideSheet();
           else if (onMingoPage) router.push(outsidePage ?? routes.dashboard);
           else showList();
@@ -810,6 +824,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       hideList,
       hideSheet,
       router,
+      setMobileMenuOpen,
     ],
   );
 
@@ -850,6 +865,13 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // chat in it (the chat column holds the chat); it stays for a phone's chat list (the top
   // bar's Mingo button).
   const composerSheet = mingoShell && chatEnabled && !dashboardHeld ? <MingoComposerSheet /> : undefined;
+  // Manhattan v2's phone chat list, a panel from the left: with the Mingo button (`mingoButton`).
+  const phoneChatsPanel = useMingoPhoneChatsPanel(manhattan && mingoButton);
+  // Opening the burger's navigation puts the chat list away, so one panel is out at a time.
+  const onMobileMenuOpenChange = (open: boolean) => {
+    if (open && manhattan) hideList();
+    setMobileMenuOpen(open);
+  };
 
   // The page segment's boundary - what the chrome, bare or not, puts in its content
   // slot. Its placement rules are on the core layout below. Every page draws its own
@@ -936,7 +958,12 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           <MingoChatProvider enabled={chatMounted} identityEnabled={chatIdentityEnabled}>
             {/* Manhattan v2's centre (chat column, page header, the dock's two places).
                 Mounted always, told through `enabled`: see the providers' rule above. */}
-            <ManhattanCentre enabled={manhattan && !bareChrome} compact={squeeze.compact}>
+            <ManhattanCentre
+              enabled={manhattan && !bareChrome}
+              compact={squeeze.compact}
+              chatEnabled={chatEnabled}
+              startWorkLive={!dashboardHeld}
+            >
               {centre =>
                 bareChrome ? (
                   <BareAppShell>{pageContent}</BareAppShell>
@@ -964,7 +991,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
                     // layout still reports every open and close, and closes it on a change of
                     // `sidebarConfig.currentPath`. The OSS shell leaves it to the layout.
                     mobileMenuOpen={grouped ? mobileMenuOpen : undefined}
-                    onMobileMenuOpenChange={grouped ? setMobileMenuOpen : undefined}
+                    onMobileMenuOpenChange={grouped ? onMobileMenuOpenChange : undefined}
+                    // Manhattan v2 on a phone: the chat list from the left (the burger's navigation is on the right).
+                    mobileStartPanel={phoneChatsPanel}
                     // Greys the header and nav rail out for the lock: they stay legible —
                     // the user can still see where they are and reach the account menu —
                     // but nothing they lead to is reachable until the workspace is paid for.
@@ -1011,6 +1040,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
                     // Manhattan v2: the chat column beside the page, the page column's header.
                     chatColumn={mingoShell ? (centre?.chatColumn ?? null) : undefined}
                     workAreaMode={centre?.mode}
+                    onWorkAreaShownModeChange={centre?.onShownModeChange}
                     workAreaStorageKey={centre ? MANHATTAN_WORK_AREA_STORAGE_KEY : undefined}
                     // Past the other column's min width the divider squeezes it (down to 30% of it), its
                     // content scrolled sideways, so the column being widened keeps growing.

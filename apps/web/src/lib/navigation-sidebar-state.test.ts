@@ -1,10 +1,21 @@
 /** The pre-paint width seed: the persisted collapse, the width the user chose, and the Mingo-first default on a SaaS tenant. */
 
-import { afterEach, describe, expect, it } from 'vitest';
-import { sidebarWidthFoucScript } from './navigation-sidebar-state';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  readManhattanNavCollapsed,
+  sidebarWidthFoucScript,
+  writeManhattanNavCollapsed,
+} from './navigation-sidebar-state';
 
 const WIDTH_VAR = '--of-navigation-sidebar-width';
+const END_WIDTH_VAR = '--of-navigation-sidebar-end-width';
 const CHOSEN_KEY = 'of.navigationSidebar.width:chosen';
+const JSDOM_WIDTH = window.innerWidth;
+
+/** The window's width as the seed reads it (jsdom does no layout). */
+function windowWidth(width: number) {
+  Object.defineProperty(window, 'innerWidth', { value: width, configurable: true, writable: true });
+}
 
 function seed({
   grouped,
@@ -27,11 +38,64 @@ describe('sidebarWidthFoucScript', () => {
   afterEach(() => {
     window.localStorage.clear();
     document.documentElement.style.removeProperty(WIDTH_VAR);
+    document.documentElement.style.removeProperty(END_WIDTH_VAR);
+    windowWidth(JSDOM_WIDTH);
   });
 
-  it('seeds the Mingo-first width for the grouped sidebar, the classic one otherwise', () => {
-    expect(seed({ grouped: true })).toBe('264px');
+  it('seeds the Manhattan v2 chats width for the grouped sidebar, the classic one otherwise', () => {
+    expect(seed({ grouped: true })).toBe('280px');
     expect(seed({ grouped: false })).toBe('224px');
+  });
+
+  const endWidth = () => document.documentElement.style.getPropertyValue(END_WIDTH_VAR);
+
+  it.each([
+    [1440, '200px'],
+    [1280, '200px'],
+    [1279, '56px'],
+    [1000, '56px'],
+  ])('seeds the right navigation on a first visit by window width: %ipx -> %s', (width, expected) => {
+    windowWidth(width);
+    seed({ grouped: true });
+    expect(endWidth()).toBe(expected);
+    // The chats sidebar is open at 280px at every width.
+    expect(document.documentElement.style.getPropertyValue(WIDTH_VAR)).toBe('280px');
+  });
+
+  it('seeds no right navigation in the classic shell', () => {
+    seed({ grouped: false });
+    expect(endWidth()).toBe('');
+  });
+
+  it("follows the user's stored choice at every width", () => {
+    window.localStorage.setItem('of.manhattan.navigation.collapsed', 'true');
+    windowWidth(1600);
+    seed({ grouped: true });
+    expect(endWidth()).toBe('56px');
+    window.localStorage.setItem('of.manhattan.navigation.collapsed', 'false');
+    windowWidth(1000);
+    seed({ grouped: true });
+    expect(endWidth()).toBe('200px');
+  });
+
+  it("ignores the old build's stored right-navigation key", () => {
+    window.localStorage.setItem('of.manhattan.navigation.minimized', 'true');
+    windowWidth(1440);
+    seed({ grouped: true });
+    expect(endWidth()).toBe('200px');
+  });
+
+  it('seeds the right navigation by width even when storage throws', () => {
+    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('blocked', 'SecurityError');
+    });
+    windowWidth(1440);
+    new Function(sidebarWidthFoucScript(true))();
+    expect(endWidth()).toBe('200px');
+    windowWidth(1000);
+    new Function(sidebarWidthFoucScript(true))();
+    expect(endWidth()).toBe('56px');
+    getItem.mockRestore();
   });
 
   it('seeds the rail for a collapsed sidebar either way', () => {
@@ -55,9 +119,29 @@ describe('sidebarWidthFoucScript', () => {
   });
 
   it('ignores an entry that is not a size, and still seeds the collapse', () => {
-    expect(seed({ grouped: true, chosen: 'not json' })).toBe('264px');
-    expect(seed({ grouped: true, chosen: JSON.stringify({ size: '400' }) })).toBe('264px');
-    expect(seed({ grouped: true, chosen: JSON.stringify(400) })).toBe('264px');
+    expect(seed({ grouped: true, chosen: 'not json' })).toBe('280px');
+    expect(seed({ grouped: true, chosen: JSON.stringify({ size: '400' }) })).toBe('280px');
+    expect(seed({ grouped: true, chosen: JSON.stringify(400) })).toBe('280px');
     expect(seed({ grouped: false, minimized: true, chosen: 'not json' })).toBe('56px');
+  });
+});
+
+describe('writeManhattanNavCollapsed', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    window.localStorage.clear();
+    windowWidth(JSDOM_WIDTH);
+  });
+
+  it('keeps the choice for the page when storage refuses it', () => {
+    windowWidth(1440);
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('blocked', 'QuotaExceededError');
+    });
+    writeManhattanNavCollapsed(true);
+    expect(readManhattanNavCollapsed()).toBe(true);
+    writeManhattanNavCollapsed(false);
+    windowWidth(1000);
+    expect(readManhattanNavCollapsed()).toBe(false);
   });
 });

@@ -11,7 +11,27 @@ const SIDEBAR_MINIMIZED_WIDTH = 56;
 export const SIDEBAR_EXPANDED_WIDTH = 224;
 /** The Mingo-first sidebar's expanded width — a SaaS tenant's (see `AppShell`). */
 export const GROUPED_SIDEBAR_EXPANDED_WIDTH = 264;
+/** The Manhattan v2 chats sidebar's expanded width (Figma 280), what a SaaS tenant gets; the user's dragged width wins (`SIDEBAR_RESIZE`). */
+export const MANHATTAN_CHATS_EXPANDED_WIDTH = 280;
+/** The Manhattan v2 chats sidebar's width as a drawer (800-911px, the compact top bar opens it over the page). */
+export const MANHATTAN_CHATS_DRAWER_WIDTH = 300;
 const SIDEBAR_MINIMIZED_STORAGE_KEY = 'of.navigationSidebar.minimized';
+/** The Manhattan v2 right navigation's expanded width (Figma 200). */
+export const MANHATTAN_NAVIGATION_EXPANDED_WIDTH = 200;
+/**
+ * Where the Manhattan v2 right navigation keeps the collapse the user chose (JSON `true` / `false`).
+ * Nothing stored: the default by window width ({@link MANHATTAN_NAV_OPEN_FROM_WIDTH}). A key of its
+ * own, not the left sidebar's, and not the `of.manhattan.navigation.minimized` an earlier build
+ * wrote (a value left there from when the navigation always started collapsed must not decide now).
+ */
+const MANHATTAN_NAV_COLLAPSED_STORAGE_KEY = 'of.manhattan.navigation.collapsed';
+/**
+ * From this window width (the `lg` step) the right navigation is open by default, beside the open
+ * chats sidebar; narrower it starts as the rail, so the centre keeps its room. The user's own
+ * choice, once made, wins at every width.
+ */
+export const MANHATTAN_NAV_OPEN_FROM_WIDTH = 1280;
+const MANHATTAN_NAV_OPEN_QUERY = `(min-width: ${MANHATTAN_NAV_OPEN_FROM_WIDTH}px)`;
 
 /**
  * The expanded width's bounds when the user drags it (`NavigationSidebarConfig.resizable`,
@@ -75,6 +95,13 @@ export const SIDEBAR_RESIZE = {
  * an ellipsis where a custom property belongs — which fails the build.
  */
 const SIDEBAR_WIDTH_CSS_VAR = '--of-navigation-sidebar-width';
+/**
+ * The right navigation's width var (the lib's `NAVIGATION_SIDEBAR_END_WIDTH_VAR`, spelled out
+ * for the same reason). The grouped shell's right navigation follows the user's stored choice,
+ * else the window (open from {@link MANHATTAN_NAV_OPEN_FROM_WIDTH}, the rail below), as
+ * `useManhattanNavCollapsed` reads it, so the seed is its expanded width or the rail.
+ */
+const SIDEBAR_END_WIDTH_CSS_VAR = '--of-navigation-sidebar-end-width';
 
 /**
  * The sidebar's root element. Used by viewport-`fixed` overlays that have to
@@ -134,8 +161,11 @@ const runtimeJoin = (parts: TemplateStringsArray, ...values: Array<string | numb
  * loaded at tablet width and then widened the window.
  */
 export function sidebarWidthFoucScript(grouped: boolean): string {
-  const expanded = grouped ? GROUPED_SIDEBAR_EXPANDED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
-  return runtimeJoin`(function(){try{var m=localStorage.getItem('${SIDEBAR_MINIMIZED_STORAGE_KEY}')==='true';var w=${expanded};try{var c=JSON.parse(localStorage.getItem('${SIDEBAR_CHOSEN_WIDTH_STORAGE_KEY}'));if(c&&typeof c.size==='number'&&isFinite(c.size)){w=Math.min(${SIDEBAR_MAX_EXPANDED_WIDTH},Math.max(${SIDEBAR_MIN_EXPANDED_WIDTH},Math.round(c.size)));}}catch(e){}document.documentElement.style.setProperty('${SIDEBAR_WIDTH_CSS_VAR}',m?'${SIDEBAR_MINIMIZED_WIDTH}px':w+'px');}catch(e){}})();`;
+  const expanded = grouped ? MANHATTAN_CHATS_EXPANDED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
+  const endSeed = grouped
+    ? runtimeJoin`var ew='${MANHATTAN_NAVIGATION_EXPANDED_WIDTH}px';try{var es=localStorage.getItem('${MANHATTAN_NAV_COLLAPSED_STORAGE_KEY}');var ec=es==='true'||(es!=='false'&&window.innerWidth<${MANHATTAN_NAV_OPEN_FROM_WIDTH});ew=ec?'${SIDEBAR_MINIMIZED_WIDTH}px':ew;}catch(x){ew=window.innerWidth<${MANHATTAN_NAV_OPEN_FROM_WIDTH}?'${SIDEBAR_MINIMIZED_WIDTH}px':ew;}document.documentElement.style.setProperty('${SIDEBAR_END_WIDTH_CSS_VAR}',ew);`
+    : '';
+  return runtimeJoin`(function(){${endSeed}try{var m=localStorage.getItem('${SIDEBAR_MINIMIZED_STORAGE_KEY}')==='true';var w=${expanded};try{var c=JSON.parse(localStorage.getItem('${SIDEBAR_CHOSEN_WIDTH_STORAGE_KEY}'));if(c&&typeof c.size==='number'&&isFinite(c.size)){w=Math.min(${SIDEBAR_MAX_EXPANDED_WIDTH},Math.max(${SIDEBAR_MIN_EXPANDED_WIDTH},Math.round(c.size)));}}catch(e){}document.documentElement.style.setProperty('${SIDEBAR_WIDTH_CSS_VAR}',m?'${SIDEBAR_MINIMIZED_WIDTH}px':w+'px');}catch(e){}})();`;
 }
 
 // --------------------------------------------------------------------------
@@ -164,33 +194,34 @@ export function readSidebarMinimized(): boolean {
   }
 }
 
-/** Persist the preference and tell every reader on the page — the subscribers below and the core sidebar's copy. */
-export function writeSidebarMinimized(minimized: boolean): void {
-  const newValue = JSON.stringify(minimized);
+/**
+ * Stores a flag under `key` (JSON `true` / `false`) and tells every reader on the page: the subscribers below and the
+ * core sidebar's copy (`LOCAL_STORAGE_UPDATE_EVENT`). Storage refused (Safari private mode, blocked site data): nothing
+ * is stored, the event still moves every reader.
+ */
+function writeStoredFlag(key: string, value: boolean): void {
+  const newValue = JSON.stringify(value);
   try {
-    window.localStorage.setItem(SIDEBAR_MINIMIZED_STORAGE_KEY, newValue);
+    window.localStorage.setItem(key, newValue);
   } catch {
-    // Storage refused (Safari private mode, blocked site data): the preference lasts
-    // for this page only. The event below still moves every reader.
+    // Refused: the caller decides what lasts for this page.
   }
-  window.dispatchEvent(
-    new CustomEvent(LOCAL_STORAGE_UPDATE_EVENT, { detail: { key: SIDEBAR_MINIMIZED_STORAGE_KEY, newValue } }),
-  );
+  window.dispatchEvent(new CustomEvent(LOCAL_STORAGE_UPDATE_EVENT, { detail: { key, newValue } }));
 }
 
-/** `useSyncExternalStore` subscription: writes on this page (either sidebar's) and other tabs. */
-export function subscribeSidebarMinimized(listener: () => void): () => void {
+/** Persist the preference and tell every reader on the page. Refused storage: it lasts for this page only. */
+export function writeSidebarMinimized(minimized: boolean): void {
+  writeStoredFlag(SIDEBAR_MINIMIZED_STORAGE_KEY, minimized);
+}
+
+/** `useSyncExternalStore` subscription to one stored key: writes on this page and in other tabs. */
+function subscribeStorageKey(key: string, listener: () => void): () => void {
   const onStorage = (event: StorageEvent) => {
-    if (event.key === null || event.key === SIDEBAR_MINIMIZED_STORAGE_KEY) listener();
+    if (event.key === null || event.key === key) listener();
   };
   const onUpdate = (event: Event) => {
     const detail: unknown = (event as CustomEvent<unknown>).detail;
-    if (
-      typeof detail === 'object' &&
-      detail !== null &&
-      'key' in detail &&
-      detail.key === SIDEBAR_MINIMIZED_STORAGE_KEY
-    ) {
+    if (typeof detail === 'object' && detail !== null && 'key' in detail && detail.key === key) {
       listener();
     }
   };
@@ -199,5 +230,62 @@ export function subscribeSidebarMinimized(listener: () => void): () => void {
   return () => {
     window.removeEventListener('storage', onStorage);
     window.removeEventListener(LOCAL_STORAGE_UPDATE_EVENT, onUpdate);
+  };
+}
+
+/** `useSyncExternalStore` subscription: writes on this page (either sidebar's) and other tabs. */
+export function subscribeSidebarMinimized(listener: () => void): () => void {
+  return subscribeStorageKey(SIDEBAR_MINIMIZED_STORAGE_KEY, listener);
+}
+
+// --------------------------------------------------------------------------
+// The Manhattan v2 right navigation's collapse
+// --------------------------------------------------------------------------
+
+/** The user's choice on this page, for when storage refuses it (a private window, blocked site data). */
+let manhattanNavCollapsedChoice: boolean | null = null;
+
+/** The right navigation's default when the user has chosen nothing: the rail below {@link MANHATTAN_NAV_OPEN_FROM_WIDTH}. */
+function manhattanNavCollapsedByWidth(): boolean {
+  return typeof window.matchMedia === 'function'
+    ? !window.matchMedia(MANHATTAN_NAV_OPEN_QUERY).matches
+    : window.innerWidth < MANHATTAN_NAV_OPEN_FROM_WIDTH;
+}
+
+/**
+ * Whether the right navigation is collapsed: the user's stored choice, else the default by window width (open from
+ * {@link MANHATTAN_NAV_OPEN_FROM_WIDTH}, the rail below). Client only; open on the server.
+ */
+export function readManhattanNavCollapsed(): boolean {
+  if (typeof window === 'undefined') return false;
+  let stored: string | null = null;
+  try {
+    stored = window.localStorage.getItem(MANHATTAN_NAV_COLLAPSED_STORAGE_KEY);
+  } catch {
+    // Storage refused: the default by width.
+  }
+  if (stored === 'true') return true;
+  if (stored === 'false') return false;
+  return manhattanNavCollapsedChoice ?? manhattanNavCollapsedByWidth();
+}
+
+/** Stores the right navigation's collapse and moves every reader on this page. */
+export function writeManhattanNavCollapsed(collapsed: boolean): void {
+  // Kept for the page too, for when storage refuses it (`readManhattanNavCollapsed` falls back on it).
+  manhattanNavCollapsedChoice = collapsed;
+  writeStoredFlag(MANHATTAN_NAV_COLLAPSED_STORAGE_KEY, collapsed);
+}
+
+/**
+ * `useSyncExternalStore` subscription for {@link readManhattanNavCollapsed}: the stored choice, and the window crossing
+ * {@link MANHATTAN_NAV_OPEN_FROM_WIDTH} (which moves the default while the user has chosen nothing).
+ */
+export function subscribeManhattanNavCollapsed(listener: () => void): () => void {
+  const unsubscribeStorage = subscribeStorageKey(MANHATTAN_NAV_COLLAPSED_STORAGE_KEY, listener);
+  const query = typeof window.matchMedia === 'function' ? window.matchMedia(MANHATTAN_NAV_OPEN_QUERY) : null;
+  query?.addEventListener('change', listener);
+  return () => {
+    unsubscribeStorage();
+    query?.removeEventListener('change', listener);
   };
 }

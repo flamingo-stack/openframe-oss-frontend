@@ -8,9 +8,17 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AiQuickAction } from '@/app/(app)/settings/ai-settings/types/ai-settings';
+import { ManhattanDockContext } from '../manhattan-shell/manhattan-dock-context';
 import { MingoDockQuickActions } from './mingo-dock-quick-actions';
 
-const { quickActions } = vi.hoisted(() => ({ quickActions: { value: [] as AiQuickAction[], loading: false } }));
+const { quickActions, viewport } = vi.hoisted(() => ({
+  quickActions: { value: [] as AiQuickAction[], loading: false },
+  viewport: { mdUp: true as boolean | undefined },
+}));
+vi.mock('@flamingo-stack/openframe-frontend-core/hooks', async importOriginal => ({
+  ...(await importOriginal<object>()),
+  useMdUp: () => viewport.mdUp,
+}));
 vi.mock('@/app/(app)/mingo/hooks/use-mingo-quick-actions', () => ({
   useMingoQuickActions: () => ({ actions: quickActions.value, loading: quickActions.loading }),
 }));
@@ -40,6 +48,7 @@ let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
+  viewport.mdUp = true;
   onSend.mockClear();
   quickActions.value = [];
   quickActions.loading = false;
@@ -73,6 +82,39 @@ describe('MingoDockQuickActions', () => {
     expect(onSend).toHaveBeenCalledExactlyOnceWith('List every online machine with its customer');
   });
 
+  // Figma `chat/dock` (node 4368:14042): OpenFrame's quick-action glyphs, "All" among them, are grey.
+  it("draws the actions' icons and the All glyph in the shell's grey", () => {
+    quickActions.value = [
+      { id: 'qa-1', name: 'Machines online', instructions: 'List every online machine', iconName: 'search' },
+      { id: 'qa-2', name: 'Run a script', instructions: 'Run a script', iconName: 'code' },
+    ];
+    render();
+    expect(chip('Machines online').querySelector('.text-ods-text-panel-secondary')).not.toBeNull();
+    const all = container.querySelector('[data-testid="quick-action-row-all-glyph"]');
+    expect(all?.classList.contains('text-ods-text-panel-secondary')).toBe(true);
+  });
+
+  // The row takes the composer's inset (the dock's `composerInset`), so the two line up at every width: in v2 from md
+  // none below 720px of content (`px-0 content-md:px-…`); on a phone, and outside v2, always spacing-system-m.
+  it.each([
+    ['v2 from md', true, true, ['px-0', 'content-md:px-[var(--spacing-system-m)]'], 'px-[var(--spacing-system-m)]'],
+    ['v2 on a phone', true, false, ['px-[var(--spacing-system-m)]'], 'px-0'],
+    ['outside v2', false, true, ['px-[var(--spacing-system-m)]'], 'px-0'],
+  ] as const)('is inset like the composer under it (%s)', (_name, manhattan, mdUp, expected, absent) => {
+    viewport.mdUp = mdUp;
+    quickActions.value = [{ id: 'qa-1', name: 'Machines online', instructions: 'List every online machine' }];
+    act(() =>
+      root.render(
+        <ManhattanDockContext.Provider value={manhattan}>
+          <MingoDockQuickActions onSend={onSend} />
+        </ManhattanDockContext.Provider>,
+      ),
+    );
+    const classes = (container.firstElementChild as HTMLElement).className.split(' ');
+    expect(classes).toEqual(expect.arrayContaining([...expected]));
+    expect(classes).not.toContain(absent);
+  });
+
   it('draws the wall with no caption and no "What to ask Mingo?"', () => {
     quickActions.value = [{ id: 'qa-1', name: 'Machines online', instructions: 'List every online machine' }];
     render();
@@ -102,8 +144,8 @@ describe('MingoDockQuickActions', () => {
         </LoadingRegion>,
       ),
     );
-    // Inset like the composer under it, at the set's distance from it: the loaded dock's box.
-    expect(container.innerHTML).toContain('mb-[var(--spacing-system-mf)]');
+    // Inset like the composer under it, at the row's distance from it: the loaded dock's box.
+    expect(container.innerHTML).toContain('mb-[var(--spacing-system-xs)]');
     expect(container.innerHTML).toContain('data-loading-item');
   });
 });

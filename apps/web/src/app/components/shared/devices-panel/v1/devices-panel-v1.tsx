@@ -34,11 +34,13 @@ import { DEVICES_PAGE_SIZE } from '@/app/(app)/devices/queries/devices-api';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { bumpDeviceEpoch, useDeviceEpoch } from '@/app/(app)/devices/utils/device-refresh';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
+import type { TableLayout } from '@/app/hooks/use-table-layout';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { ContentErrorBoundary } from '../../content-error-boundary';
 import { EMBEDDED_PAGE_OFFSET } from '../../embedded-page';
 import { NO_ITEMS } from '../../no-next-page';
+import { DEVICES_TABLE_SETTINGS } from '../devices-table-settings';
 import { devicesViewMode } from '../devices-view-mode';
 
 /** The loaded table's actions column, minus the actions: the loading panel's columns take the same widths. */
@@ -114,6 +116,8 @@ export interface DevicesPanelPropsV1 {
    * Used by the archive page: DELETED devices are read-only records.
    */
   readOnlyRows?: boolean;
+  /** The table's layout (`DevicesPanelProps.tableLayout`): the Devices page is the grid table under both panels. */
+  tableLayout?: TableLayout;
 }
 
 function DevicesPanelContent(props: DevicesPanelPropsV1) {
@@ -182,6 +186,7 @@ function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters
     noOrganizations = false,
     isCheckingOrganizations = false,
     readOnlyRows = false,
+    tableLayout,
   } = panel;
   const router = useRouter();
 
@@ -335,6 +340,9 @@ function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters
       onGridFiltersChange={handleFilterChange}
       actionsColumn={actionsColumn}
       hideColumns={hideColumns}
+      tableLayout={tableLayout}
+      tableMaxHeight={tableLayout === 'grid' ? 'fill' : undefined}
+      tableSettings={tableLayout === 'grid' ? DEVICES_TABLE_SETTINGS : undefined}
       hideFilters={hideFilters}
       emptyMessage={emptyMessage}
       hasNextPage={hasNextPage}
@@ -459,6 +467,9 @@ function DevicesPanelPending({ panel: props, chrome, viewMode }: DevicesPanelBod
       // The loaded table always carries a row-actions column, and it takes real width from the others.
       actionsColumn={PENDING_ACTIONS_COLUMN}
       hideColumns={props.hideColumns}
+      tableLayout={props.tableLayout}
+      tableMaxHeight={props.tableLayout === 'grid' ? 'fill' : undefined}
+      tableSettings={props.tableLayout === 'grid' ? DEVICES_TABLE_SETTINGS : undefined}
       hideFilters={props.hideFilters}
     />
   );

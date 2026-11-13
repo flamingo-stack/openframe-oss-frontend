@@ -16,6 +16,7 @@ import {
   TagIcon,
   TerminalBrowserIcon,
   TerminalMonitorIcon,
+  UserIcon,
   UsersIcon,
   WebDesignIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
@@ -85,7 +86,8 @@ export const DeviceDirectoryGateContext = createContext<FeatureFlagGate>('off');
  * Directory users where the tenant has directories (D30), the machine's local accounts where it has none. While the
  * flags are read, the local accounts in their loading form: with `tenant-management-v2` off (stage, prod) that is the
  * answer, and its tab is what main draws. Once phase 2 is on, the synced-connection count is what is out, and the
- * directory users wait in their loading form, since most such tenants have a directory.
+ * directory users wait in their loading form, since most such tenants have a directory. Where this tab is the
+ * directory's, the local accounts it replaced are the Local Accounts tab beside it.
  */
 function GatedUsersTab({ device }: { device: Device | null }) {
   const gate = useContext(DeviceDirectoryGateContext);
@@ -118,6 +120,7 @@ export const REMOTE_SESSIONS_TAB_ID = 'remote-sessions' satisfies DeviceDetailTa
 const INCIDENTS_TAB_ID = 'incidents' satisfies DeviceDetailTab;
 const DEVICE_LOGS_TAB_ID = 'device-logs' satisfies DeviceDetailTab;
 const DIRECTORY_TAB_ID = 'directory' satisfies DeviceDetailTab;
+const LOCAL_ACCOUNTS_TAB_ID = 'local-accounts' satisfies DeviceDetailTab;
 
 /** Every tab, gated ones included — `useDeviceTabs` narrows it to the visible set. */
 export const ALL_DEVICE_TABS: TabItem[] = [
@@ -195,6 +198,12 @@ export const ALL_DEVICE_TABS: TabItem[] = [
     component: GatedUsersTab,
   },
   {
+    id: LOCAL_ACCOUNTS_TAB_ID,
+    label: 'Local Accounts',
+    icon: UserIcon,
+    component: UsersTab,
+  },
+  {
     id: DIRECTORY_TAB_ID,
     label: 'Directory',
     icon: AddressBookIcon,
@@ -237,16 +246,18 @@ export const ALL_DEVICE_TABS: TabItem[] = [
  * tenants have the feature) and its panel draws its loading form. Directory is
  * Tenant Management Phase 2's, which stage and prod run without: while the flags
  * are read it is absent and a link to it falls back to Overview, and once phase 2
- * is on it keeps its place while the synced-connection count is out.
+ * is on it keeps its place while the synced-connection count is out. Local Accounts
+ * goes with it: where Users is still the local accounts it would repeat that tab.
  */
 export function useDeviceTabs(directoryGate: FeatureFlagGate): TabItem[] {
   const recordingsGate = useSessionRecordingsGate();
   const incidentsGate = useIncidentsGate();
   const phase2 = useTenantManagementV2Gate();
+  const usersAreDirectory = phase2 === 'on' && directoryGate !== 'off';
   return ALL_DEVICE_TABS.filter(
     tab =>
       (tab.id !== REMOTE_SESSIONS_TAB_ID || recordingsGate !== 'off') &&
       (tab.id !== INCIDENTS_TAB_ID || incidentsGate !== 'off') &&
-      (tab.id !== DIRECTORY_TAB_ID || (phase2 === 'on' && directoryGate !== 'off')),
+      ((tab.id !== DIRECTORY_TAB_ID && tab.id !== LOCAL_ACCOUNTS_TAB_ID) || usersAreDirectory),
   );
 }

@@ -1,6 +1,7 @@
 /**
  * The live session page: a running session reads LIVE with its meta card, the host's bar and its time counting up;
- * the "not being recorded" banner and the chat show only when the session has them. While it runs the host's screen
+ * the "not being recorded" banner shows only when the session has it. The chat follows the session's dialog live,
+ * read-only and from the host's side, and shows once it has a line, also after the end. While it runs the host's screen
  * is watched: the bar names the display shown and who is watching, the meta card the screen's resolution, and a
  * watch that gave up offers a retry. An ended session turns into the recording's processing screen and, once a file is
  * listed, hands over to the recording page. A session the server does not show is a 404.
@@ -10,6 +11,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SessionNotFoundError } from '../../services/session-recordings-service';
+import type { RemoteSessionChatMessage, RemoteSessionChatTechnician } from '../../types/remote-session-chat';
 import type { LiveSessionDetail } from '../../types/session-recording';
 import { LiveSessionView } from './live-session-view';
 
@@ -30,6 +32,27 @@ const watch = vi.hoisted(() => ({
   retry: vi.fn(),
 }));
 const auth = vi.hoisted(() => ({ userId: 'tech-maria' as string | null }));
+const chat = vi.hoisted(() => ({
+  args: vi.fn<(dialogId: string | null, panelOpen: boolean, host?: RemoteSessionChatTechnician) => void>(),
+  messages: [] as RemoteSessionChatMessage[],
+  send: vi.fn(),
+  markRead: vi.fn(),
+}));
+
+vi.mock('../../hooks/use-remote-session-chat', () => ({
+  useRemoteSessionChat: (dialogId: string | null, panelOpen: boolean, host?: RemoteSessionChatTechnician) => {
+    chat.args(dialogId, panelOpen, host);
+    return {
+      messages: chat.messages,
+      isLoading: false,
+      sending: false,
+      technician: host,
+      send: chat.send,
+      hasUnread: false,
+      markRead: chat.markRead,
+    };
+  },
+}));
 
 vi.mock('../../hooks/use-remote-session-watch', () => ({
   useRemoteSessionWatch: (sessionId: string | null, isLive: boolean) => {
@@ -91,14 +114,24 @@ const session = (overrides: Partial<LiveSessionDetail> = {}): LiveSessionDetail 
   hostname: 'workstation-23.acme.local',
   organization: { id: 'org-1', name: 'Acme Logistics' },
   notRecorded: false,
-  chat: [],
+  dialogId: 'dialog-1',
   ...overrides,
 });
 
-const CHAT = [
-  { id: 'm-1', author: 'Anthony Reed', fromTechnician: false, sentAt: '2026-10-29T09:01:00.000Z', body: 'ok' },
-  { id: 'm-2', author: 'Roman Smith', fromTechnician: true, sentAt: '2026-10-29T09:02:00.000Z', body: 'Let me check' },
-];
+const USER_LINE: RemoteSessionChatMessage = {
+  id: 'm-1',
+  author: 'user',
+  authorName: 'User',
+  sentAt: '2026-10-29T09:01:00.000Z',
+  body: 'ok',
+};
+const HOST_LINE: RemoteSessionChatMessage = {
+  id: 'seq-7',
+  author: 'technician',
+  authorName: 'Roman Smith',
+  sentAt: '2026-10-29T09:02:00.000Z',
+  body: 'Let me check',
+};
 
 let container: HTMLDivElement;
 let root: Root;
@@ -116,6 +149,7 @@ beforeEach(() => {
   watch.display = null;
   watch.resolution = null;
   auth.userId = 'tech-maria';
+  chat.messages = [];
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -206,12 +240,63 @@ describe('LiveSessionView while the session runs', () => {
     expect(watch.retry).toHaveBeenCalledTimes(1);
   });
 
-  it('shows the chat so far beside the stream once there is one', () => {
-    live.data = session({ chat: CHAT });
+  it("follows the session's dialog as the host's chat, read-only and never marking it read", () => {
+    live.data = session();
+    render();
+    expect(chat.args).toHaveBeenLastCalledWith('dialog-1', true, { name: 'Roman Smith', avatarUrl: undefined });
+    expect(container.textContent).not.toMatch(/session chat/i);
+    expect(chat.markRead).not.toHaveBeenCalled();
+  });
+
+  it('shows each line beside the stream as the chat delivers it, without reading the session again', () => {
+    live.data = session();
+    chat.messages = [USER_LINE];
     render();
     expect(container.textContent).toMatch(/session chat/i);
     expect(container.textContent).toContain('Live Session');
+    expect(container.textContent).toContain('ok');
+
+    chat.messages = [USER_LINE, HOST_LINE];
+    render();
     expect(container.textContent).toContain('Let me check');
+    expect(live.refetch).not.toHaveBeenCalled();
+    // A watcher cannot post: no composer, nothing sent, nothing marked read.
+    expect(container.querySelector('textarea, input[type="text"]')).toBeNull();
+    expect(chat.send).not.toHaveBeenCalled();
+    expect(chat.markRead).not.toHaveBeenCalled();
+  });
+
+  it('leaves a reader scrolled back up where they are when the page re-renders with nothing new in the chat', () => {
+    const scrolls = vi.fn();
+    const scrollTop = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
+    Object.defineProperty(Element.prototype, 'scrollTop', { configurable: true, get: () => 0, set: scrolls });
+    try {
+      live.data = session();
+      chat.messages = [USER_LINE, HOST_LINE];
+      render();
+      expect(scrolls).toHaveBeenCalledTimes(1);
+
+      // The watch and the 10 s poll re-render the page; the chat hands back the same transcript.
+      watch.state = 'streaming';
+      render();
+      live.data = session();
+      render();
+      expect(scrolls).toHaveBeenCalledTimes(1);
+
+      // A new line is news: the transcript opens on it.
+      chat.messages = [...chat.messages, { ...USER_LINE, id: 'm-3', body: 'thanks' }];
+      render();
+      expect(scrolls).toHaveBeenCalledTimes(2);
+    } finally {
+      if (scrollTop) Object.defineProperty(Element.prototype, 'scrollTop', scrollTop);
+    }
+  });
+
+  it('follows no chat when the backend provisioned none', () => {
+    live.data = session({ dialogId: null });
+    render();
+    expect(chat.args).toHaveBeenLastCalledWith(null, true, { name: 'Roman Smith', avatarUrl: undefined });
+    expect(container.textContent).not.toMatch(/session chat/i);
   });
 });
 
@@ -225,6 +310,15 @@ describe('LiveSessionView after the session ended', () => {
     expect(container.textContent).toContain('The recording is being processed and will be ready in a few minutes.');
     expect(container.textContent).not.toContain('(host)');
     expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it('keeps the chat beside the processing screen', () => {
+    live.data = session({ live: false });
+    chat.messages = [USER_LINE, HOST_LINE];
+    render();
+    expect(chat.args).toHaveBeenLastCalledWith('dialog-1', true, { name: 'Roman Smith', avatarUrl: undefined });
+    expect(container.textContent).toMatch(/session chat/i);
+    expect(container.textContent).toContain('Let me check');
   });
 
   it('keeps waiting for the file when the state already counts one the session does not list yet', () => {

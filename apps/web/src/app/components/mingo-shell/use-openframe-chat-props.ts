@@ -14,7 +14,7 @@ import { MINGO_DIALOGS_PAGE_SIZE, type MingoUnifiedChat } from '@/app/(app)/ming
 import { useMingoWhatToAsk } from '@/app/(app)/mingo/hooks/use-mingo-what-to-ask';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { getFullImageUrl } from '@/lib/image-url';
-import { useMingoQuickActionChips } from './use-mingo-quick-action-chips';
+import { OPENFRAME_QUICK_ACTION_ACCENT, useMingoQuickActionChips } from './use-mingo-quick-action-chips';
 
 /**
  * What OpenFrame's chat can do, as `EmbeddableChat` props: the context picker, `@`,
@@ -30,6 +30,7 @@ export type OpenframeChatProps = Pick<
   | 'historyPageSize'
   | 'mingoWelcome'
   | 'modes'
+  | 'quickActionAccent'
   | 'renderContextItem'
   | 'renderRecordChip'
   | 'userAvatarUrl'
@@ -103,8 +104,14 @@ export function useOpenframeChatProps({
     // configured so the lib keeps its default welcome content.
     mingoWelcome:
       mingoQuickActions.length > 0 || mingoQuickActionsLoading
-        ? { quickActions: mingoQuickActions, quickActionsLoading: mingoQuickActionsLoading }
+        ? {
+            quickActions: mingoQuickActions,
+            quickActionsLoading: mingoQuickActionsLoading,
+            quickActionAccent: OPENFRAME_QUICK_ACTION_ACCENT,
+          }
         : undefined,
+    // The quick actions the chat reads itself (Guide mode) are drawn as the dock's are.
+    quickActionAccent: OPENFRAME_QUICK_ACTION_ACCENT,
     contextPicker,
     // Renders the chip of a record link (`[MacBook](record://device/<id>)`) in
     // a message as a self-fetching chip. Stable module-level fn so the message

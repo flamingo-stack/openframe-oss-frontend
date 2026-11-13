@@ -5,32 +5,47 @@
  *
  * The marker's source is an end-user line that arrives while the panel is closed. The history the page opens with, the
  * technician's own lines and anything that comes in with the panel open never raise it; opening (or closing) the panel
- * clears it.
+ * clears it. A technician's line that carries no name is named after the session's host when the page passes one (a
+ * colleague watching), else after the signed-in one. Until the feed is subscribed, the history is read again every 10 s.
  */
 
 import type { ChatMessage } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { type RemoteSessionChatState, useRemoteSessionChat } from './use-remote-session-chat';
+import type { RemoteSessionChatTechnician } from '../types/remote-session-chat';
+import { HISTORY_FALLBACK_MS, type RemoteSessionChatState, useRemoteSessionChat } from './use-remote-session-chat';
 
 const feed = vi.hoisted(() => ({
   onEvent: null as ((payload: unknown) => void) | null,
   history: vi.fn(),
   send: vi.fn(),
+  /** The tail's report that it is subscribed to the dialog, once it is enabled. */
+  subscribe: null as (() => void) | null,
+  /** The session-health gate for background requests. */
+  pollsAllowed: true,
 }));
 
 // The lib's engine runs for real; its JetStream tail and its GraphQL history are stood in for.
 vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', async importOriginal => ({
   ...(await importOriginal<Record<string, unknown>>()),
   jetStreamLiveTail:
-    () => (options: { enabled: boolean; fromSeq: number | null | undefined; onEvent: (payload: unknown) => void }) => {
-      feed.onEvent = options.enabled && options.fromSeq !== undefined ? options.onEvent : null;
+    () =>
+    (options: {
+      enabled: boolean;
+      fromSeq: number | null | undefined;
+      onEvent: (payload: unknown) => void;
+      onSubscribed?: () => void;
+    }) => {
+      const up = options.enabled && options.fromSeq !== undefined;
+      feed.onEvent = up ? options.onEvent : null;
+      feed.subscribe = up ? (options.onSubscribed ?? null) : null;
     },
   createMingoGraphqlHistory: () => feed.history,
 }));
 vi.mock('@/app/(app)/mingo/hooks/use-mingo-unified-chat-state', () => ({ postMingoGraphql: vi.fn() }));
 vi.mock('@/app/(app)/tickets/services', () => ({ ticketService: { sendMessage: feed.send } }));
+vi.mock('@/lib/session-poll', () => ({ sessionPollsAllowed: () => feed.pollsAllowed }));
 vi.mock('@/lib/nats/nats-app-config', () => ({
   useNatsAppConfig: () => ({ getWsUrl: () => 'ws://test', onBeforeReconnect: undefined }),
 }));
@@ -63,8 +78,8 @@ const direct = (seq: number, ownerType: 'CLIENT' | 'ADMIN', text: string, extra:
 
 const state: { chat: RemoteSessionChatState | null } = { chat: null };
 
-function Probe({ panelOpen }: { panelOpen: boolean }) {
-  const chat = useRemoteSessionChat('dialog-1', panelOpen);
+function Probe({ panelOpen, host }: { panelOpen: boolean; host?: RemoteSessionChatTechnician }) {
+  const chat = useRemoteSessionChat('dialog-1', panelOpen, host);
   useEffect(() => {
     state.chat = chat;
   });
@@ -73,9 +88,9 @@ function Probe({ panelOpen }: { panelOpen: boolean }) {
 
 let root: Root;
 
-async function mount(panelOpen = false) {
+async function mount(panelOpen = false, host?: RemoteSessionChatTechnician) {
   await act(async () => {
-    root.render(<Probe panelOpen={panelOpen} />);
+    root.render(<Probe panelOpen={panelOpen} host={host} />);
     await Promise.resolve();
   });
   await act(async () => {
@@ -90,6 +105,8 @@ const lines = () => state.chat?.messages.map(line => [line.author, line.authorNa
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   feed.onEvent = null;
+  feed.subscribe = null;
+  feed.pollsAllowed = true;
   feed.history.mockReset().mockResolvedValue({ thread: [historyLine], nextCursor: null });
   feed.send.mockReset().mockResolvedValue(undefined);
   root = createRoot(document.createElement('div'));
@@ -171,5 +188,73 @@ describe('useRemoteSessionChat unread marker', () => {
     deliver(direct(2, 'CLIENT', 'Hello'));
     await mount(false);
     expect(unread()).toBe(false);
+  });
+});
+
+describe("useRemoteSessionChat technician's lines", () => {
+  const HOST = { name: 'Roman Smith', avatarUrl: 'https://tenant/api/images/user/tech-roman?v=1' };
+
+  it('names an unnamed one after the host the page passes, not the signed-in watcher', async () => {
+    await mount(true, HOST);
+    deliver(direct(2, 'ADMIN', 'On it', { userId: 'tech-roman' }));
+    expect(lines()?.at(-1)).toEqual(['technician', 'Roman Smith', 'On it']);
+    expect(state.chat?.technician).toEqual(HOST);
+  });
+
+  it('names an unnamed one after the signed-in technician without a host', async () => {
+    await mount(true);
+    deliver(direct(2, 'ADMIN', 'On it', { userId: 'tech-roman' }));
+    expect(lines()?.at(-1)).toEqual(['technician', 'Roman K.', 'On it']);
+    expect(state.chat?.technician.name).toBe('Roman K.');
+  });
+});
+
+describe('useRemoteSessionChat until the feed is subscribed', () => {
+  const settle = async () => {
+    for (let i = 0; i < 5; i += 1) await Promise.resolve();
+  };
+  const tick = (ms: number) =>
+    act(async () => {
+      vi.advanceTimersByTime(ms);
+      await settle();
+    });
+  const subscribe = () => act(() => feed.subscribe?.());
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('reads the history again every 10 s, and stops once the feed is in', async () => {
+    await mount(true);
+    expect(feed.history).toHaveBeenCalledTimes(1);
+
+    feed.history.mockResolvedValue({
+      thread: [historyLine, { ...historyLine, id: 'h-2', metadata: { ...historyLine.metadata, streamSeq: 2 } }],
+      nextCursor: null,
+    });
+    await tick(HISTORY_FALLBACK_MS);
+    expect(feed.history).toHaveBeenCalledTimes(2);
+    expect(lines()).toHaveLength(2);
+
+    await subscribe();
+    await tick(HISTORY_FALLBACK_MS * 3);
+    expect(feed.history).toHaveBeenCalledTimes(2);
+  });
+
+  it('reads nothing more while the feed is up', async () => {
+    await mount(true);
+    await subscribe();
+    await tick(HISTORY_FALLBACK_MS * 3);
+    expect(feed.history).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends nothing while the session is paused', async () => {
+    feed.pollsAllowed = false;
+    await mount(true);
+    await tick(HISTORY_FALLBACK_MS * 3);
+    expect(feed.history).toHaveBeenCalledTimes(1);
   });
 });

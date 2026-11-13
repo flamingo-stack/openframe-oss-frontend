@@ -2,9 +2,11 @@ import type { AuthedAsset } from '@flamingo-stack/openframe-frontend-core/hooks'
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { CLIENT_IDENTITY_HEADER } from '@/lib/client-identity';
 import type { runtimeEnv } from '@/lib/runtime-config';
 
 const mocks = vi.hoisted(() => ({
+  appMode: 'saas-tenant',
   mobile: true,
   refreshAccessToken: vi.fn(),
 }));
@@ -15,7 +17,10 @@ const TENANT_HOST = vi.hoisted(() => 'https://tenant.example.com');
 // the host a backend image path resolves to.
 vi.mock('@/lib/runtime-config', async importOriginal => {
   const actual = await importOriginal<{ runtimeEnv: typeof runtimeEnv }>();
-  return { ...actual, runtimeEnv: { ...actual.runtimeEnv, tenantHostUrl: () => TENANT_HOST } };
+  return {
+    ...actual,
+    runtimeEnv: { ...actual.runtimeEnv, appMode: () => mocks.appMode, tenantHostUrl: () => TENANT_HOST },
+  };
 });
 
 vi.mock('@/lib/platform', async importOriginal => ({
@@ -33,10 +38,10 @@ vi.mock('@/lib/token-store', () => ({
 
 const UPGRADE_BODY = { code: 'CLIENT_UPGRADE_REQUIRED', minBundleVersion: '1.0.120', storeUrl: 'itms-apps://x' };
 
-/** The provider registers its adapter at module load; the chat's requests go through the lib's `embedAuthedFetch`. */
+/** The adapter registered as the root layout does it; the lib's requests go through its `embedAuthedFetch`. */
 async function load() {
   vi.resetModules();
-  await import('./openframe-chat-runtime-provider');
+  (await import('./embed-auth-adapter')).registerEmbedAuthAdapter();
   const [{ embedAuthedFetch }, versionCheck] = await Promise.all([
     import('@flamingo-stack/openframe-frontend-core/utils'),
     import('@/lib/version-check'),
@@ -55,6 +60,7 @@ beforeAll(async () => {
 }, 60_000);
 
 beforeEach(() => {
+  mocks.appMode = 'saas-tenant';
   mocks.mobile = true;
   mocks.refreshAccessToken.mockReset().mockResolvedValue(true);
   fetchMock = vi.fn(() =>
@@ -71,7 +77,7 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-describe('embedded chat on 426', () => {
+describe('a request answered 426', () => {
   it('flips the update state and fails the request', async () => {
     const { embedAuthedFetch, versionCheck } = await load();
     await expect(embedAuthedFetch('/content/api/docs/commands')).rejects.toBeInstanceOf(
@@ -112,7 +118,7 @@ describe('embedded chat on 426', () => {
   });
 });
 
-describe('chat auth adapter in bearer mode', () => {
+describe('embed auth adapter in bearer mode', () => {
   const BLOB_URL = 'blob:avatar';
   const withBearer = expect.objectContaining({
     headers: expect.objectContaining({ Authorization: 'Bearer token' }),
@@ -132,7 +138,7 @@ describe('chat auth adapter in bearer mode', () => {
     root = null;
   });
 
-  it('sends the stored bearer with a chat request', async () => {
+  it('sends the stored bearer with a request', async () => {
     const { embedAuthedFetch } = await load();
     await embedAuthedFetch('/content/api/docs/commands');
     expect(fetchMock).toHaveBeenCalledWith('/content/api/docs/commands', withBearer);
@@ -156,5 +162,18 @@ describe('chat auth adapter in bearer mode', () => {
       expect(avatar).toMatchObject({ status: 'ready', src: BLOB_URL });
     });
     expect(fetchMock).toHaveBeenCalledWith(`${TENANT_HOST}/api/images/user/1`, withBearer);
+  });
+});
+
+describe('on the shared-auth host', () => {
+  it('registers no adapter', async () => {
+    mocks.appMode = 'saas-shared';
+    fetchMock.mockImplementation(() => Promise.resolve(new Response('{}')));
+    const { embedAuthedFetch } = await load();
+
+    await embedAuthedFetch('/content/api/docs/commands');
+
+    // Only the adapter adds the client header.
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).has(CLIENT_IDENTITY_HEADER)).toBe(false);
   });
 });

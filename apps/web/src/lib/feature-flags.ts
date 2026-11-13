@@ -100,6 +100,13 @@ export const FEATURE_FLAG_NAMES = [
   // report their customer, so the control stays hidden until the agents do. On
   // for dev / qa, absent elsewhere, which reads as off.
   'device-logs-customer-filter',
+  // The new data table (the design system's grid: one bordered block of 48px
+  // one-line rows) on every screen that draws a table, in place of card rows.
+  // Screens move to it in separate changes, and customers get them all at once:
+  // each screen reads this one flag (`useTableGridGate`). Off = card rows, as
+  // before. On for dev / qa; absent elsewhere until every table has moved, which
+  // reads as off.
+  'data-table-grid',
 ] as const;
 
 export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[number];

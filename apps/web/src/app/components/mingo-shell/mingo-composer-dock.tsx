@@ -55,7 +55,7 @@ import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { type ReactNode, useLayoutEffect, useState } from 'react';
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useMingoContextMemory } from '@/app/(app)/mingo/context/use-context-memory';
 import type { MingoUnifiedChat } from '@/app/(app)/mingo/hooks/use-mingo-unified-chat-state';
 import { useMingoChatSurface } from '@/app/(app)/mingo/providers/mingo-chat-provider';
@@ -64,7 +64,7 @@ import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { isMobileShell } from '@/lib/platform';
 import { isMingoWhatToAsk, routes } from '@/lib/routes';
 import { ResetInitialSetupDialog, useDevOnboardingMenuItems } from '../dev-onboarding-shortcuts';
-import { shownChatViewOf, useManhattanCentreStore, workAreaModeOf } from '../manhattan-shell/manhattan-centre-store';
+import { effectiveModeOf, useManhattanCentreStore, workAreaModeOf } from '../manhattan-shell/manhattan-centre-store';
 import { manhattanHeaderActions } from '../manhattan-shell/manhattan-chat-header-actions';
 import { useManhattanDock } from '../manhattan-shell/manhattan-dock-context';
 import { ResetOnboardingDialog, useCanResetOnboarding } from '../reset-onboarding-dialog';
@@ -79,10 +79,11 @@ import {
   isSheetRoute,
   showsDockQuickActions,
 } from './mingo-dock-route';
-import { isListUp, isSheetUp, useMingoSheetStore } from './mingo-sheet-store';
+import { isSheetUp, useMingoSheetStore } from './mingo-sheet-store';
 import { useChatBehindPage } from './use-chat-behind-page';
 import { useComposerLauncherDrain, usePublishComposerDock } from './use-composer-launcher-drain';
 import { useComposerTarget } from './use-composer-target';
+import { useDockComposerInset } from './use-dock-composer-inset';
 import { useOpenframeChatProps } from './use-openframe-chat-props';
 import { usePageChip } from './use-page-chip';
 
@@ -94,6 +95,16 @@ function samePath(href: string, pathname: string | null): boolean {
 
 /** The chat page's thread column: the composer's width there. */
 const CHAT_COLUMN_WIDTH = dockViewOf('chat').widthClassName;
+
+/**
+ * The dock's ground: the page's background (`bg-ods-bg`, which follows a chat page's own
+ * surface) under the composer, and a fade from transparent into it over the
+ * `spacing-system-xlf` (40px) above, the design's `scroll-gradient`.
+ */
+const DOCK_GROUND_CLASS = cn(
+  'pointer-events-auto relative bg-ods-bg',
+  "before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-[var(--spacing-system-xlf)] before:bg-gradient-to-b before:from-transparent before:to-ods-bg before:content-['']",
+);
 
 /** The chat's title for the "Continue" chip: shortened, so the chip leaves room for the strip. */
 const CONTINUE_TITLE_MAX = 34;
@@ -174,33 +185,33 @@ export function MingoComposerDock({ held = false }: { held?: boolean }) {
   // are that chat already. Decided in CSS, so the first paint is right; hidden, it
   // stays mounted (the draft and the uploads with it) and takes no room.
   const sheetUp = useMingoSheetStore(s => isSheetUp(s, pathname)) && canShowSheet(route);
-  // v2: the phone's chat list opens over Mingo's own pages too, and fills the screen there as
-  // over a page: the composer under it steps out of the way while it is up.
-  const manhattan = useManhattanDock();
-  const listUp = useMingoSheetStore(s => isListUp(s, pathname));
-  const offOnPhone = (isSheetRoute(route) && !sheetUp) || (manhattan && listUp);
+  // v2's phone chat list is a panel from the left over the page and its scrim (`useMingoPhoneChatsPanel`): the
+  // composer under it stays where it is.
+  const offOnPhone = isSheetRoute(route) && !sheetUp;
 
   return (
-    // Centred at the route's width, a step below the page's last line. No overflow
-    // clipping and no transform here: the composer's popovers open above it. Named
-    // here: an inline chat names itself through its host's region.
-    <section
-      aria-label="Mingo AI chat"
-      // `pointer-events-auto`: a floating dock leaves the pointer to the page around it.
-      className={cn(
-        'pointer-events-auto mx-auto w-full min-w-0 pt-[var(--spacing-system-mf)]',
-        dockViewOf(route).widthClassName,
-        offOnPhone && 'max-md:hidden',
-      )}
-    >
-      <MingoDockErrorBoundary>
-        {held ? (
-          <DockComposerLoading route={route} quickActions={showsDockQuickActions(route)} />
-        ) : (
-          <DockSurface route={route} quickActions={showsDockQuickActions(route) && !sheetUp} />
-        )}
-      </MingoDockErrorBoundary>
-    </section>
+    // The dock's ground (Figma `chat/dock`, node 4368:14042): the page's background across the
+    // whole width of the column, the composer and its quick actions on it, and over the page's
+    // end above it a fade into that background, on every page and in the chat column alike.
+    // The ground takes the pointer: over a floating dock the page under it is hidden, so a click
+    // there must not reach it; the fade above leaves the pointer to the page.
+    <div data-testid="mingo-composer-dock-ground" className={cn(DOCK_GROUND_CLASS, offOnPhone && 'max-md:hidden')}>
+      {/* Centred at the route's width, a step below the page's last line. No overflow
+          clipping and no transform here: the composer's popovers open above it. Named
+          here: an inline chat names itself through its host's region. */}
+      <section
+        aria-label="Mingo AI chat"
+        className={cn('mx-auto w-full min-w-0 pt-[var(--spacing-system-mf)]', dockViewOf(route).widthClassName)}
+      >
+        <MingoDockErrorBoundary>
+          {held ? (
+            <DockComposerLoading route={route} quickActions={showsDockQuickActions(route)} />
+          ) : (
+            <DockSurface route={route} quickActions={showsDockQuickActions(route) && !sheetUp} />
+          )}
+        </MingoDockErrorBoundary>
+      </section>
+    </div>
   );
 }
 
@@ -241,8 +252,20 @@ function DockChat({ route, chat }: DockChatProps) {
   const compact = useManhattanCentreStore(s => s.compact);
   // Below md: the page alone (the chat takes its own page there).
   const mdDown = useMdUp() === false;
-  const columnMode = workAreaModeOf(route, (chat.state.activeDialogId ?? null) !== null, chatView, compact, mdDown);
-  const showColumn = () => setChatView(shownChatViewOf(route));
+  // The composer's side inset, the rule the quick actions row above it reads too.
+  const composerInset = useDockComposerInset();
+  const shownMode = useManhattanCentreStore(s => s.shownMode);
+  const whatToAskInColumn = useManhattanCentreStore(s => s.whatToAskInColumn);
+  const setWhatToAskInColumn = useManhattanCentreStore(s => s.setWhatToAskInColumn);
+  // As the centre decides it (`ManhattanCentre`): the open chat, its first send on the way, or
+  // the "What to ask Mingo?" answer; none, and the column is Start Work.
+  const hasConversation =
+    (chat.state.activeDialogId ?? null) !== null || whatToAskInColumn || chat.state.messages.length > 0;
+  const columnMode = effectiveModeOf(workAreaModeOf(route, hasConversation, chatView, compact, mdDown), shownMode);
+  // Start Work in the chat column beside a page: the chat draws no header or thread there, the
+  // composer under it starts a new chat, with Mingo's quick actions over it as on Mingo's home.
+  const startWorkColumn = manhattan && columnMode !== 'page' && isSheetRoute(route) && !hasConversation;
+  const showColumn = () => setChatView('split');
   const hideColumn = () => setChatView('hidden');
   // The chat over the page (`MingoComposerSheet`): over plain pages, and over home for
   // a chat collapsed back from its page (`canShowSheet`). In v2: the chat column on screen.
@@ -329,6 +352,19 @@ function DockChat({ route, chat }: DockChatProps) {
     navigate,
   });
 
+  // Start Work's "What to ask Mingo?" in the column: the answer opens in a new chat there, once
+  // per request (`whatToAskInColumn` stays up until a pick sends or the column lets it go).
+  const whatToAskShownRef = useRef(false);
+  useEffect(() => {
+    if (!whatToAskInColumn) {
+      whatToAskShownRef.current = false;
+      return;
+    }
+    if (!manhattan || !handle || whatToAskShownRef.current) return;
+    whatToAskShownRef.current = true;
+    handle.showWhatToAsk();
+  }, [whatToAskInColumn, manhattan, handle]);
+
   const chatProps = useOpenframeChatProps({ dialogStatusOf: chat.dialogStatusOf });
 
   // Over a page: the open chat is one click away. Up, its header leads to the chat's
@@ -360,9 +396,17 @@ function DockChat({ route, chat }: DockChatProps) {
       },
       fullScreen: () => setChatView('full'),
       restoreSplit: showColumn,
+      // Beside a page the chat goes and the page stays alone, the composer under it starting a
+      // new chat ("Show the chat beside the page" brings the column back). In one column the
+      // page is what is left already.
       closeChat: () => {
-        if (route === 'chat') navigate(routes.mingo.home);
-        else handle?.startNewChat();
+        if (route === 'chat') {
+          navigate(routes.mingo.home);
+          return;
+        }
+        handle?.startNewChat();
+        setWhatToAskInColumn(false);
+        if (!compact) setChatView('hidden');
       },
     });
   } else if (sheetOpen) {
@@ -458,11 +502,18 @@ function DockChat({ route, chat }: DockChatProps) {
 
   return (
     <>
-      {/* Mingo's quick actions over the composer on Mingo's home only. A click sends the action at
+      {/* Mingo's quick actions over the composer on Mingo's home (and Start Work in the v2 chat
+          column) only. A click sends the action at
           once, in a new chat (the dock's own send, which then opens it). Not under the sheet: the
           composer then replies to the chat in it. */}
-      {showsDockQuickActions(route) && !sheetOpen && (
-        <MingoDockQuickActions onSend={text => void target.sendInNewDialog(text)} />
+      {((showsDockQuickActions(route) && !sheetOpen) || startWorkColumn) && (
+        <MingoDockQuickActions
+          onSend={text => {
+            void target.sendInNewDialog(text);
+            // The row goes away with the send: the next message is typed in the composer.
+            handle?.focusComposer();
+          }}
+        />
       )}
       {/* The chat module loads lazily and draws nothing until it has. */}
       {!handle && <DockComposerLoading route={route} />}
@@ -493,7 +544,7 @@ function DockChat({ route, chat }: DockChatProps) {
             route === 'chat'
               ? chatPageNode
               : manhattan
-                ? route === 'home'
+                ? route === 'home' || startWorkColumn
                   ? null
                   : sheetNode
                 : sheetOpen
@@ -506,7 +557,7 @@ function DockChat({ route, chat }: DockChatProps) {
           // in a narrow column the composer takes the column's own padding as its edge. A phone
           // has no column (the chat is its own page): the composer keeps its own side inset.
           threadFadeEnd={manhattan}
-          composerInset={manhattan && !mdDown ? 'wide' : undefined}
+          composerInset={composerInset === 'wide' ? 'wide' : undefined}
           // On the chat page the thread is a column at the composer's width under a full-width
           // header; in the sheet it fills the sheet.
           threadContentClassName={route === 'chat' && !manhattan ? cn('mx-auto w-full', CHAT_COLUMN_WIDTH) : undefined}
@@ -526,11 +577,13 @@ function DockChat({ route, chat }: DockChatProps) {
           modelTooltip="Change in Settings → AI Settings"
           // Over the page the thread is the chat's: its prompt; behind it, "continue or ask anew".
           composerPlaceholder={
-            sheetOpen
-              ? dockViewOf('chat').placeholder
-              : continuing
-                ? 'Reply, or ask something else about this page…'
-                : view.placeholder
+            startWorkColumn
+              ? dockViewOf('home').placeholder
+              : sheetOpen
+                ? dockViewOf('chat').placeholder
+                : continuing
+                  ? 'Reply, or ask something else about this page…'
+                  : view.placeholder
           }
           // One bottom inset: in the phone shell the layout root already pads it (and the
           // keyboard's, `.app-shell-root` in globals.css), so the composer must not add it

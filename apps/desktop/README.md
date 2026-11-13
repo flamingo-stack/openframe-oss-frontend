@@ -75,11 +75,12 @@ bakes no host.
 make lint     # rustfmt --check + clippy -D warnings
 make test     # cargo test
 make build OPENFRAME_SHARED_HOST_URL=https://auth.example.com
+make build-staged …   # the same over a real export already in www/ (what CI runs)
 ```
 
 | Variable | Purpose |
 |---|---|
-| `OPENFRAME_SHARED_HOST_URL` | **Required for `build`.** Baked into the binary; see [Configuration](#configuration). |
+| `OPENFRAME_SHARED_HOST_URL` | **Required for `build` and `build-staged`.** Baked into the binary; see [Configuration](#configuration). |
 | `OPENFRAME_GTM_CONTAINER_ID` | Optional. Baked into the binary; unset means no GTM and no analytics. |
 | `OPENFRAME_VERSION` | App version, applied via `tauri build --config`. Defaults to `tauri.conf.json`. |
 | `TARGET` | Rust target triple for cross-compilation. |
@@ -101,6 +102,10 @@ version:
 | `OpenFrame-Console_<v>_x64-setup.exe`, `_arm64-setup.exe` | Windows install, Authenticode-signed |
 | `OpenFrame-Console.app.tar.gz`, `*.sig` | the updater's macOS payload, and the updater signatures |
 | `updater.json` | the updater manifest |
+
+The three desktop jobs (macOS universal, Windows x64 and arm64) do not build
+the web export: the run builds it once on Linux (`build_web_export`), and each
+job downloads it into `www/` and runs `make build-staged`.
 
 The `.dmg` window ("Drag to Applications") is laid out by Finder from
 `bundle.macOS.dmg` in `tauri.conf.json`. Its background,

@@ -21,13 +21,14 @@ import {
   jetStreamLiveTail,
   useChatEngine,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { postMingoGraphql } from '@/app/(app)/mingo/hooks/use-mingo-unified-chat-state';
 import { CHAT_TYPE, NATS_TOPICS, OWNER_TYPE } from '@/app/(app)/tickets/constants';
 import { ticketService } from '@/app/(app)/tickets/services';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useNatsAppConfig } from '@/lib/nats/nats-app-config';
+import { sessionPollsAllowed } from '@/lib/session-poll';
 import { useRemoteAccessSession } from '../components/remote-access/remote-access-session-context';
 import {
   REMOTE_SESSION_END_USER_NAME,
@@ -40,6 +41,9 @@ const fetchSessionChatHistory = createMingoGraphqlHistory(postMingoGraphql, { ch
 
 /** The technician's own direct message comes back as theirs: an ADMIN row that names them, or no one. */
 const ownUserId = () => useAuthStore.getState().user?.id;
+
+/** How often the history page is read while the live feed is not up. */
+export const HISTORY_FALLBACK_MS = 10_000;
 
 /**
  * The chat dialog of the current remote session: the id the session record carries, null until the record is known
@@ -108,23 +112,41 @@ interface SeenLines {
  * The session dialog's chat: the engine's thread as the panel's lines, and the Open Chat marker. The tail runs whether
  * the panel is open or not, so an end-user line that arrives while `panelOpen` is false raises `hasUnread`; the history
  * the page opens with is old news and never does, nor do the technician's own lines.
+ *
+ * `host` is the technician who runs the session, when that is not the one signed in (a colleague watching it): a live
+ * line of theirs that carries no name is theirs, not the watcher's. Without it, the signed-in technician.
  */
-export function useRemoteSessionChat(dialogId: string | null, panelOpen = false): RemoteSessionChatState {
-  const technician = useRemoteSessionChatTechnician();
+export function useRemoteSessionChat(
+  dialogId: string | null,
+  panelOpen = false,
+  host?: RemoteSessionChatTechnician,
+): RemoteSessionChatState {
+  const signedIn = useRemoteSessionChatTechnician();
+  const technician = host ?? signedIn;
   const { getWsUrl, onBeforeReconnect } = useNatsAppConfig();
+  // The dialog the live feed is subscribed to, as its tail reports it: until then the history is polled (below).
+  const [subscribedFor, setSubscribedFor] = useState<string | null>(null);
 
-  const transport = useMemo<ChatTransport>(
-    () => ({
+  const transport = useMemo<ChatTransport>(() => {
+    const tail = jetStreamLiveTail({ getNatsWsUrl: getWsUrl, topic: NATS_TOPICS.MESSAGE, onBeforeReconnect });
+    return {
       replays: true,
-      useLiveTail: jetStreamLiveTail({ getNatsWsUrl: getWsUrl, topic: NATS_TOPICS.MESSAGE, onBeforeReconnect }),
+      useLiveTail: function useSessionLiveTail(options) {
+        tail({
+          ...options,
+          onSubscribed: () => {
+            setSubscribedFor(options.dialogId);
+            options.onSubscribed?.();
+          },
+        });
+      },
       publish: async (text, options) => {
         if (!options.dialogId) return false;
         await ticketService.sendMessage(options.dialogId, text, CHAT_TYPE.CLIENT);
         return true;
       },
-    }),
-    [getWsUrl, onBeforeReconnect],
-  );
+    };
+  }, [getWsUrl, onBeforeReconnect]);
 
   const chat = useChatEngine(
     {
@@ -133,7 +155,8 @@ export function useRemoteSessionChat(dialogId: string | null, panelOpen = false)
       dialogId,
       chatTypeFilter: CHAT_TYPE.CLIENT,
       directMode: true,
-      directMessages: { ownDirectOwnerType: OWNER_TYPE.ADMIN, ownUserId },
+      // A technician's line that names nobody is the session host's (`technician`): the one who runs it.
+      directMessages: { ownDirectOwnerType: OWNER_TYPE.ADMIN, ownUserId, otherDisplayName: technician.name },
     },
     { active: dialogId !== null },
   );
@@ -156,6 +179,19 @@ export function useRemoteSessionChat(dialogId: string | null, panelOpen = false)
   const markRead = useCallback(() => {
     setSeen(prev => (prev.ready && prev.count !== endUserLines ? { ...prev, count: endUserLines } : prev));
   }, [endUserLines]);
+
+  // Until the feed is subscribed to the dialog (a network that blocks the WebSocket, a socket still connecting), the
+  // history is read again every 10 s, so the chat still moves. It stops once the feed is in; a gap after that is the
+  // tail's to close (it resyncs the history when it comes back). A paused session sends nothing.
+  const feedDown = historyRead && subscribedFor !== dialogId;
+  const { reloadHistory } = chat;
+  useEffect(() => {
+    if (!feedDown || !reloadHistory) return undefined;
+    const timer = setInterval(() => {
+      if (sessionPollsAllowed()) reloadHistory();
+    }, HISTORY_FALLBACK_MS);
+    return () => clearInterval(timer);
+  }, [feedDown, reloadHistory]);
 
   const [sending, setSending] = useState(false);
   const { sendMessage } = chat;
