@@ -21,8 +21,11 @@ import { dialogsQueryKeys, ticketsQueryKeys } from '@/app/(app)/tickets/utils/qu
 
 export type ApprovalDecision = 'approved' | 'rejected';
 
+/** `settled`: the server refused a decision because the request no longer waits. */
+export type RecordedApproval = ApprovalDecision | 'settled';
+
 interface ApprovalDecisionsState {
-  decisions: Readonly<Record<string, ApprovalDecision>>;
+  decisions: Readonly<Record<string, RecordedApproval>>;
 }
 
 export const useApprovalDecisionsStore = create<ApprovalDecisionsState>()(() => ({ decisions: {} }));
@@ -37,8 +40,18 @@ export function noteApprovalDecision(approvalRequestId: string, approved: boolea
   );
 }
 
+/**
+ * Record a request the server says no longer waits (resolved elsewhere, expired, gone), so
+ * every surface drops it as it drops a decided one. A decision recorded first stays.
+ */
+export function noteApprovalSettled(approvalRequestId: string): void {
+  useApprovalDecisionsStore.setState(state =>
+    state.decisions[approvalRequestId] ? state : { decisions: { ...state.decisions, [approvalRequestId]: 'settled' } },
+  );
+}
+
 /** Every decision made in this tab, live. */
-export function useApprovalDecisions(): Readonly<Record<string, ApprovalDecision>> {
+export function useApprovalDecisions(): Readonly<Record<string, RecordedApproval>> {
   return useApprovalDecisionsStore(state => state.decisions);
 }
 
