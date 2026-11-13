@@ -84,6 +84,13 @@ function copyButton(): HTMLButtonElement {
   return button;
 }
 
+/** The copy icon in the command box's corner. */
+function boxCopyButton(): HTMLButtonElement {
+  const button = container.querySelector<HTMLButtonElement>('button[aria-label="Copy installation script"]');
+  if (!button) throw new Error('no copy button in the command box');
+  return button;
+}
+
 beforeEach(() => {
   secret.initialKey = 'secret-1';
   secret.error = null;
@@ -135,12 +142,27 @@ describe('OutdatedClientBanner', () => {
     }
   });
 
-  it('copies the command on screen, then shows a fresh download id', async () => {
+  it.each([
+    ['the Copy Install Command button', copyButton],
+    ["the command box's copy icon", boxCopyButton],
+  ])('%s copies the command on screen, then shows a fresh download id', async (_, button) => {
     render(device({}));
     const before = shownCommand();
-    await act(async () => copyButton().click());
+    await act(async () => button().click());
+    expect(writeText).toHaveBeenCalledTimes(1);
     expect(writeText).toHaveBeenCalledWith(before);
     expect(machineIdOf(shownCommand())).not.toBe(machineIdOf(before));
+  });
+
+  it("refuses the command box's copy icon before the install key arrives", async () => {
+    secret.initialKey = '';
+    secret.error = 'Request failed with status 503';
+    render(device({}));
+    await act(async () => boxCopyButton().click());
+    expect(writeText).not.toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({ description: 'Registration secret could not be loaded' }),
+    );
   });
 
   it('draws the box as loading and refuses to copy before the install key arrives', async () => {
