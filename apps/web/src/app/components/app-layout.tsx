@@ -75,7 +75,7 @@ import {
   MANHATTAN_NAVIGATION_FOLDS_KEY,
   useManhattanNavCollapsed,
 } from './manhattan-shell/use-manhattan-shell';
-import { useManhattanSqueeze } from './manhattan-shell/use-manhattan-squeeze';
+import { COMPACT_BAND_HIDDEN, useManhattanSqueeze } from './manhattan-shell/use-manhattan-squeeze';
 import { useHistorySearchStore } from './mingo-shell/history-search-store';
 import { MingoAccountPopover } from './mingo-shell/mingo-account-popover';
 import { MingoComposerDock } from './mingo-shell/mingo-composer-dock';
@@ -447,6 +447,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // Manhattan v2: the centre keeps 800px on a desktop — the sidebars that would take it
   // go to their rails and open over the centre instead (plan D19).
   const squeeze = useManhattanSqueeze(manhattan);
+  // Until the window is read (the server's markup, the first paint) the compact band is the
+  // stylesheet's: both sidebars hide there, then become the closed drawers below.
+  const sidebarClassName = squeeze.measured ? 'h-full' : `h-full ${COMPACT_BAND_HIDDEN}`;
   // Below two rails + 800px the v2 top bar opens the sidebars as drawers: its buttons' reveals,
   // and the chats drawer closes once a chat opens from it (`ManhattanCentre`).
   const [chatsReveal, setChatsReveal] = useState(0);
@@ -614,7 +617,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             desktopFromMd: true,
             revealSignal: revealSignal + chatsReveal,
             dismissSignal: chatsDismiss,
-            className: 'h-full',
+            className: sidebarClassName,
           }
         : undefined,
     [
@@ -629,6 +632,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       sidebarCollapsed,
       revealSignal,
       squeeze.compact,
+      sidebarClassName,
       chatsReveal,
       chatsDismiss,
     ],
@@ -657,7 +661,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             overlay: squeeze.compact ? 'drawer' : undefined,
             desktopFromMd: true,
             revealSignal: navReveal,
-            className: 'h-full',
+            className: sidebarClassName,
           }
         : undefined,
     [
@@ -669,6 +673,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       navCollapsed,
       setNavCollapsed,
       squeeze.compact,
+      sidebarClassName,
       navReveal,
     ],
   );
@@ -1008,11 +1013,13 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
                         {/* Until then, its room for a session that was a super user's (`super-user-seed.ts`). */}
                         {sessionResolved ? <SuperUserBanner /> : <SuperUserBannerSeed />}
                         {topBar}
-                        {centre && squeeze.compact && (
+                        {/* Before the window is read, in the markup too: the stylesheet shows it in the compact band. */}
+                        {centre && (squeeze.compact || !squeeze.measured) && (
                           <ManhattanCompactBar
                             onOpenChats={() => setChatsReveal(n => n + 1)}
                             onOpenNavigation={() => setNavReveal(n => n + 1)}
                             chatsDisabled={showLockContent}
+                            bandOnly={!squeeze.measured}
                           />
                         )}
                       </>
