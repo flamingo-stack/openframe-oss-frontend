@@ -31,6 +31,8 @@ const env = vi.hoisted(() => ({
   tenantsFail: false,
   ticketGates: [] as string[],
   ticketStats: { isLoading: false, aiAssistance: 3 as number | null, techRequired: 2 as number | null },
+  /** The server's count of approval requests waiting for a decision (the sidebar badge's). */
+  approvalsCount: { count: null as number | null, loading: false, badge: 0 },
 }));
 
 vi.mock('@/lib/app-mode', async importOriginal => ({
@@ -71,6 +73,9 @@ vi.mock('./use-escalated-tickets-report', () => ({
 }));
 vi.mock('@/app/(app)/dashboard/hooks/use-dashboard-stats', () => ({
   useTicketsOverview: () => env.ticketStats,
+}));
+vi.mock('@/app/components/mingo-shell/use-pending-approval-count', () => ({
+  usePendingApprovalCountState: () => env.approvalsCount,
 }));
 
 globalThis.ResizeObserver ??= class {
@@ -126,6 +131,7 @@ beforeEach(() => {
   env.tenantsFail = false;
   env.ticketGates = [];
   env.ticketStats = { isLoading: false, aiAssistance: 3, techRequired: 2 };
+  env.approvalsCount = { count: null, loading: false, badge: 0 };
   setFlags(ALL_FLAGS);
   useMingoLauncherStore.setState({ dockMounted: true, dockRequest: null });
   container = document.createElement('div');
@@ -338,6 +344,27 @@ describe('NeedsYouCard quick actions', () => {
     expect(control('Incidents (5)')?.querySelector('.text-ods-text-secondary')).toBeNull();
     // A grey category with something in it keeps its count in the label's colour.
     expect(control('Devices (15)')?.querySelector('.text-ods-text-secondary')).toBeNull();
+  });
+
+  it("counts Approval requests as the server does (the sidebar badge's), not the notifications' first page", async () => {
+    env.approvalsCount = { count: 7, loading: false, badge: 7 };
+    env.reports.approvals = ready(row('approvals', '1', 1));
+    await render();
+    expect(control('Approval requests (7)')?.getAttribute('href')).toBe(routes.approvals);
+    expect(rowNames()).toEqual(['approvals 1']);
+  });
+
+  it('waits for the server count of approval requests before it shows any number', async () => {
+    env.approvalsCount = { count: null, loading: true, badge: 0 };
+    await render();
+    expect(isLoading()).toBe(true);
+  });
+
+  it('counts the approval rows where the server does not count them (OSS, or its count failed)', async () => {
+    env.approvalsCount = { count: null, loading: false, badge: 0 };
+    env.reports.approvals = ready(row('approvals', '1', 1), row('approvals', '2', 2));
+    await render();
+    expect(control('Approval requests (2)')).not.toBeNull();
   });
 
   it('no quick action for a category gated off', async () => {

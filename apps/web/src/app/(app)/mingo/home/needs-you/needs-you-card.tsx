@@ -22,6 +22,7 @@ import {
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ComponentType, type ReactNode, useCallback, useState } from 'react';
 import { useTicketsOverview } from '@/app/(app)/dashboard/hooks/use-dashboard-stats';
+import { usePendingApprovalCountState } from '@/app/components/mingo-shell/use-pending-approval-count';
 import { useRevealHeld, useRevealPart } from '@/app/components/shared/reveal-together';
 import { loadErrorProps } from '@/lib/query-state';
 import { useMingoLauncherStore } from '../../stores/mingo-launcher-store';
@@ -117,11 +118,24 @@ export function useNeedsYou(enabled = true): NeedsYouState {
   const ticketsOn = gates.tickets === 'on';
   const tickets: SourceReport =
     escalated.status === 'ready' ? { ...escalated, count: ticketStats.techRequired ?? undefined } : escalated;
+  // The Approval requests quick action counts every request waiting for a decision, as the server
+  // counts them for the sidebar's "Needs approval" badge (same queries, same cache); the source's
+  // rows are only the notifications' first page. Where the server does not count (an OSS tenant)
+  // or its count failed, the rows count instead.
+  const approvalsCount = usePendingApprovalCountState();
+  const approvalsReport = reports.approvals;
+  const approvals: SourceReport | undefined =
+    approvalsReport?.status === 'ready' && approvalsCount.count !== null
+      ? { ...approvalsReport, count: approvalsCount.count }
+      : approvalsReport;
 
   const view = resolveNeedsYou(
     gates,
-    { ...reports, tickets },
-    { pending: ticketsOn && ticketStats.isLoading, dismissed },
+    { ...reports, approvals, tickets },
+    {
+      pending: (ticketsOn && ticketStats.isLoading) || (gates.approvals === 'on' && approvalsCount.loading),
+      dismissed,
+    },
   );
   const openCategories = NEEDS_YOU_CATEGORIES.filter(category =>
     NEEDS_YOU_SOURCES.some(source => NEEDS_YOU_SOURCE_CATEGORY[source] === category && gates[source] !== 'off'),
