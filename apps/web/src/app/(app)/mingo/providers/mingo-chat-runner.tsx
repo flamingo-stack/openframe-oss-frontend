@@ -56,7 +56,7 @@ function useDialogErrorToast({
  * engine inside it runs the open dialog's live tail.
  */
 export function MingoChatRunner({ store, onScreen }: { store: MingoChatStore; onScreen: boolean }) {
-  const chat = useMingoUnifiedChatState();
+  const chat = useMingoUnifiedChatState({ onScreen });
 
   // A layout effect, so a surface that registered in this same pass renders the
   // state before the browser paints: the store notifies `useSyncExternalStore`,
