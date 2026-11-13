@@ -33,7 +33,7 @@ vi.mock('react-relay', async importOriginal => {
   };
 });
 
-import type { ReportSource } from './needs-you-rows';
+import { NEEDS_YOU_CANDIDATES, type ReportSource } from './needs-you-rows';
 import { NeedsYouTenantsSource } from './needs-you-tenants-source';
 
 let root: Root;
@@ -61,7 +61,7 @@ function render(
     network: Network.create(() => Observable.create(() => {})),
     store: new Store(new RecordSource()),
   });
-  const operation = createOperationDescriptor(query, { first: 5 });
+  const operation = createOperationDescriptor(query, { first: NEEDS_YOU_CANDIDATES });
   environment.retain(operation);
   environment.commitPayload(operation, {
     directoryConnections: {
@@ -72,10 +72,12 @@ function render(
             id: 'c-1',
             name: 'Acme',
             provider: DirectoryProvider.MICROSOFT_365,
+            lastSyncAt: '2026-10-03T00:00:00Z',
             ...attribution,
           },
         },
       ],
+      totalCount: 4,
     },
   });
   act(() => {
@@ -138,6 +140,8 @@ describe('NeedsYouTenantsSource', () => {
     expect(report?.status).toBe('ready');
     const [row] = report?.status === 'ready' ? report.rows : [];
     expect(row?.detail).toBe('Microsoft 365 · Acme Co');
+    expect(row?.at).toBe(Date.UTC(2026, 9, 3));
+    expect(report?.status === 'ready' && report.count).toBe(4);
   });
 
   it('reports nothing while the flags read', () => {

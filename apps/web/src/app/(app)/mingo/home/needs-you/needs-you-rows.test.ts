@@ -1,6 +1,7 @@
 /**
- * The "Needs you" card as data: the order and caps of its rows, when it loads, hides or
- * reports a failure, the footer line, and where each kind of row leads.
+ * The "Needs you" block as data: the queue's order (newest first), dedup and dismissals, the
+ * counts per category, when it loads, hides or reports a failure, and where each row and quick
+ * action leads.
  */
 
 import type { Notification } from '@flamingo-stack/openframe-frontend-core';
@@ -10,16 +11,19 @@ import type { Dialog } from '@/app/(app)/tickets/types/dialog.types';
 import { mingoDialogLink, routes } from '@/lib/routes';
 import {
   approvalRow,
+  categoryHref,
   criticalIncidentRow,
   diskWarningRow,
+  epochOf,
   escalatedTicketRow,
   failedSoftwareActionRow,
   failedSyncTenantRow,
+  isDismissed,
   type NeedsYouGates,
+  needsYouMingoPrompt,
   type NeedsYouReports,
   type NeedsYouRow,
   type NeedsYouSource,
-  needsYouFooter,
   resolveNeedsYou,
   sameReport,
   type SourceReport,
@@ -34,7 +38,7 @@ const ALL_ON: NeedsYouGates = {
   disk: 'on',
 };
 
-function row(source: NeedsYouSource, id: string, subjects: string[] = [`${source}:${id}`]): NeedsYouRow {
+function row(source: NeedsYouSource, id: string, at: number, subjects: string[] = [`${source}:${id}`]): NeedsYouRow {
   return {
     key: `${source}:${id}`,
     entity: 'incident',
@@ -43,51 +47,79 @@ function row(source: NeedsYouSource, id: string, subjects: string[] = [`${source
     reason: 'r',
     tone: 'warning',
     href: `/${source}/${id}`,
+    at,
     subjects,
   };
 }
 
 const ready = (...rows: NeedsYouRow[]): SourceReport => ({ status: 'ready', rows });
 
-/** Three candidates from every source — more than any cap. */
+/** Two rows from every source, their times interleaved across the sources. */
 function fullReports(): NeedsYouReports {
-  const reports: NeedsYouReports = {};
-  for (const source of ['approvals', 'incidents', 'tickets', 'tenants', 'software', 'disk'] as const) {
-    reports[source] = ready(row(source, '1'), row(source, '2'), row(source, '3'));
-  }
-  return reports;
+  return {
+    approvals: ready(row('approvals', '1', 50), row('approvals', '2', 5)),
+    incidents: ready(row('incidents', '1', 60), row('incidents', '2', 10)),
+    tickets: ready(row('tickets', '1', 40), row('tickets', '2', 15)),
+    tenants: ready(row('tenants', '1', 30)),
+    software: ready(row('software', '1', 20)),
+    disk: ready(row('disk', '1', 70)),
+  };
 }
 
-const keys = (view: ReturnType<typeof resolveNeedsYou>) => (view.status === 'ready' ? view.rows.map(r => r.key) : []);
+const keys = (view: ReturnType<typeof resolveNeedsYou>) => (view.status === 'ready' ? view.queue.map(r => r.key) : []);
+const counts = (view: ReturnType<typeof resolveNeedsYou>) =>
+  view.status === 'ready' ? Object.fromEntries(view.categories.map(c => [c.category, c.count])) : {};
 
 describe('resolveNeedsYou', () => {
-  it('lists the sources in order, each up to its cap', () => {
+  it('queues every row of every source, newest first', () => {
     expect(keys(resolveNeedsYou(ALL_ON, fullReports()))).toEqual([
-      'approvals:1',
-      'approvals:2',
+      'disk:1',
       'incidents:1',
-      'incidents:2',
+      'approvals:1',
       'tickets:1',
-      'tickets:2',
       'tenants:1',
       'software:1',
-      'disk:1',
+      'tickets:2',
+      'incidents:2',
+      'approvals:2',
     ]);
   });
 
-  it('skips a source whose gate is off, without waiting for it', () => {
+  it("keeps the sources' order between rows of the same time, and puts a row of unknown time last", () => {
+    const view = resolveNeedsYou(ALL_ON, {
+      ...fullReports(),
+      approvals: ready(row('approvals', 'same', 100), row('approvals', 'unknown', 0)),
+      incidents: ready(row('incidents', 'same', 100)),
+    });
+    expect(keys(view).slice(0, 2)).toEqual(['approvals:same', 'incidents:same']);
+    expect(keys(view).at(-1)).toBe('approvals:unknown');
+  });
+
+  it('counts each category: its own count, else the rows it read; devices are the disk source', () => {
+    const view = resolveNeedsYou(ALL_ON, {
+      ...fullReports(),
+      incidents: { status: 'ready', rows: [row('incidents', '1', 1)], count: 12 },
+      disk: { status: 'ready', rows: [], count: 3 },
+    });
+    expect(counts(view)).toEqual({ incidents: 12, approvals: 2, tickets: 2, tenants: 1, software: 1, devices: 3 });
+    expect(view.status === 'ready' && view.categories.map(c => c.category)).toEqual([
+      'incidents',
+      'approvals',
+      'tickets',
+      'tenants',
+      'software',
+      'devices',
+    ]);
+  });
+
+  it('skips a source whose gate is off, without waiting for it, and drops its quick action', () => {
     const gates: NeedsYouGates = { ...ALL_ON, tickets: 'off', tenants: 'off' };
     const reports = fullReports();
     delete reports.tickets;
     delete reports.tenants;
-    expect(keys(resolveNeedsYou(gates, reports))).toEqual([
-      'approvals:1',
-      'approvals:2',
-      'incidents:1',
-      'incidents:2',
-      'software:1',
-      'disk:1',
-    ]);
+    const view = resolveNeedsYou(gates, reports);
+    expect(keys(view)).toEqual(['disk:1', 'incidents:1', 'approvals:1', 'software:1', 'incidents:2', 'approvals:2']);
+    expect(Object.keys(counts(view))).toEqual(['incidents', 'approvals', 'software', 'devices']);
   });
 
   it('ignores what an off source reported', () => {
@@ -107,11 +139,11 @@ describe('resolveNeedsYou', () => {
     });
   });
 
-  it('loads while the footer counts are pending', () => {
-    expect(resolveNeedsYou(ALL_ON, fullReports(), true)).toEqual({ status: 'loading' });
+  it('loads while a count is pending', () => {
+    expect(resolveNeedsYou(ALL_ON, fullReports(), { pending: true })).toEqual({ status: 'loading' });
   });
 
-  it('stays up with no rows once every source answered with nothing', () => {
+  it('stays up with an empty queue and zero counts once every source answered with nothing', () => {
     const empty: NeedsYouReports = {
       approvals: ready(),
       incidents: ready(),
@@ -120,7 +152,9 @@ describe('resolveNeedsYou', () => {
       software: ready(),
       disk: ready(),
     };
-    expect(resolveNeedsYou(ALL_ON, empty)).toEqual({ status: 'ready', rows: [], failures: [] });
+    const view = resolveNeedsYou(ALL_ON, empty);
+    expect(keys(view)).toEqual([]);
+    expect(counts(view)).toEqual({ incidents: 0, approvals: 0, tickets: 0, tenants: 0, software: 0, devices: 0 });
   });
 
   it('hides when every gate is off', () => {
@@ -135,70 +169,129 @@ describe('resolveNeedsYou', () => {
     expect(resolveNeedsYou(off, {})).toEqual({ status: 'hidden' });
   });
 
-  it('keeps the card up with a failure instead of claiming nothing needs the user', () => {
+  it('a failed source is a failure and its category has no count, beside the rows that loaded', () => {
     const retry = () => {};
-    const view = resolveNeedsYou(
-      { ...ALL_ON, incidents: 'off', disk: 'off' },
-      {
-        approvals: ready(),
-        tickets: ready(),
-        tenants: { status: 'error', isOffline: false, retry },
-        software: ready(),
-      },
-    );
-    expect(view).toEqual({ status: 'ready', rows: [], failures: [{ source: 'tenants', isOffline: false, retry }] });
+    const view = resolveNeedsYou(ALL_ON, { ...fullReports(), tenants: { status: 'error', isOffline: false, retry } });
+    expect(view.status === 'ready' && view.failures).toEqual([{ source: 'tenants', isOffline: false, retry }]);
+    expect(view.status === 'ready' && view.categories.find(c => c.category === 'tenants')).toEqual({
+      category: 'tenants',
+      count: null,
+      failures: [{ source: 'tenants', isOffline: false, retry }],
+    });
+    expect(keys(view)).not.toContain('tenants:1');
+    expect(keys(view)).toContain('software:1');
   });
 
-  it('lists a thing once: a later row about it gives way to the next candidate', () => {
+  it('a devices failure (the insights backend) takes the incidents count with it', () => {
+    const retry = () => {};
+    const failed = { status: 'error', isOffline: true, retry } as const;
+    const view = resolveNeedsYou(ALL_ON, { ...fullReports(), incidents: failed, disk: failed });
+    expect(counts(view)).toMatchObject({ incidents: null, devices: null });
+  });
+
+  it('lists a thing once: the newer row about it wins', () => {
     const view = resolveNeedsYou(ALL_ON, {
       ...fullReports(),
-      approvals: ready(row('approvals', '1', ['approval:1', 'ticket:7'])),
-      tickets: ready(
-        row('tickets', '7', ['ticket:7']),
-        row('tickets', '8', ['ticket:8']),
-        row('tickets', '9', ['ticket:9']),
-      ),
-      incidents: ready(row('incidents', 'a', ['insight:a'])),
-      disk: ready(row('disk', 'a', ['insight:a']), row('disk', 'b', ['insight:b'])),
+      approvals: ready(row('approvals', '1', 90, ['approval:1', 'ticket:7'])),
+      tickets: ready(row('tickets', '7', 95, ['ticket:7']), row('tickets', '8', 1, ['ticket:8'])),
+      incidents: ready(row('incidents', 'a', 10, ['insight:a'])),
+      disk: ready(row('disk', 'a', 80, ['insight:a'])),
     });
-    expect(keys(view)).toEqual([
-      'approvals:1',
-      'incidents:a',
-      'tickets:8',
-      'tickets:9',
-      'tenants:1',
-      'software:1',
-      'disk:b',
-    ]);
+    expect(keys(view)).toEqual(['tickets:7', 'disk:a', 'tenants:1', 'software:1', 'tickets:8']);
+  });
+
+  it('leaves out what the user dismissed, and the next row moves up', () => {
+    const view = resolveNeedsYou(ALL_ON, fullReports(), { dismissed: { 'disk:1': 100, 'approvals:1': 100 } });
+    expect(keys(view).slice(0, 3)).toEqual(['incidents:1', 'tickets:1', 'tenants:1']);
+  });
+
+  it('a dismissed row still counts in its category', () => {
+    expect(counts(resolveNeedsYou(ALL_ON, fullReports(), { dismissed: { 'disk:1': 100 } })).devices).toBe(1);
+  });
+
+  it('a dismissed row about a thing still hides the older row about it', () => {
+    const view = resolveNeedsYou(
+      ALL_ON,
+      {
+        ...fullReports(),
+        incidents: ready(row('incidents', 'a', 10, ['insight:a'])),
+        disk: ready(row('disk', 'a', 80, ['insight:a'])),
+      },
+      { dismissed: { 'disk:a': 100 } },
+    );
+    expect(keys(view)).not.toContain('incidents:a');
+    expect(keys(view)).not.toContain('disk:a');
   });
 });
 
-describe('needsYouFooter', () => {
-  it('prints the three counts', () => {
-    expect(needsYouFooter({ aiHandled: 3, needTechnician: 2, newIncidents: 4 })).toBe(
-      '3 tickets handled by AI · 2 need a technician · 4 new incidents',
-    );
-    expect(needsYouFooter({ aiHandled: 1, needTechnician: 1, newIncidents: 1 })).toBe(
-      '1 ticket handled by AI · 1 needs a technician · 1 new incident',
-    );
-  });
-
-  it('leaves out what is gated off or unknown', () => {
-    expect(needsYouFooter({ aiHandled: null, needTechnician: null, newIncidents: 0 })).toBe('0 new incidents');
-    expect(needsYouFooter({ aiHandled: 5, needTechnician: 0, newIncidents: null })).toBe(
-      '5 tickets handled by AI · 0 need a technician',
-    );
-    expect(needsYouFooter({ aiHandled: null, needTechnician: null, newIncidents: null })).toBeNull();
+describe('isDismissed', () => {
+  it('hides a row up to the time it was dismissed; one that needs the user again later comes back', () => {
+    const r = row('tickets', '1', 1_000);
+    expect(isDismissed(r, {})).toBe(false);
+    expect(isDismissed(r, { 'tickets:1': 1_000 })).toBe(true);
+    expect(isDismissed(r, { 'tickets:1': 2_000 })).toBe(true);
+    expect(isDismissed({ ...r, at: 3_000 }, { 'tickets:1': 2_000 })).toBe(false);
   });
 });
 
 describe('sameReport', () => {
   it('compares rows by content, not identity', () => {
-    expect(sameReport(ready(row('tenants', '1')), ready(row('tenants', '1')))).toBe(true);
-    expect(sameReport(ready(row('tenants', '1')), ready(row('tenants', '2')))).toBe(false);
+    expect(sameReport(ready(row('tenants', '1', 1)), ready(row('tenants', '1', 1)))).toBe(true);
+    expect(sameReport(ready(row('tenants', '1', 1)), ready(row('tenants', '2', 1)))).toBe(false);
+    expect(sameReport(ready(row('tenants', '1', 1)), ready(row('tenants', '1', 2)))).toBe(false);
     expect(sameReport({ status: 'ready', rows: [], count: 1 }, { status: 'ready', rows: [], count: 2 })).toBe(false);
     expect(sameReport(undefined, { status: 'loading' })).toBe(false);
     expect(sameReport({ status: 'loading' }, ready())).toBe(false);
+  });
+});
+
+describe('categoryHref', () => {
+  const ids = { techRequiredStatusIds: ['s-1', 's-2'] };
+  it('opens each category page, narrowed to what the count counts where the page reads it', () => {
+    expect(categoryHref('incidents', ids)).toBe(routes.incidents.filtered({ status: ['NEW'] }));
+    expect(categoryHref('approvals', ids)).toBe(routes.approvals);
+    expect(categoryHref('tickets', ids)).toBe(routes.tickets.filtered({ status: ['s-1', 's-2'] }));
+    expect(categoryHref('tenants', ids)).toBe(routes.cloudTenantManagement.list);
+    expect(categoryHref('software', ids)).toBe('/software/actions?status=FAILED');
+    expect(categoryHref('devices', ids)).toBe(routes.devices.list);
+  });
+
+  it('the whole tickets list while the Tech Required statuses are unknown', () => {
+    expect(categoryHref('tickets', { techRequiredStatusIds: [] })).toBe(routes.tickets.list);
+  });
+});
+
+describe('epochOf', () => {
+  it('reads an Instant or epoch ms, and 0 for nothing or garbage', () => {
+    expect(epochOf('2026-10-16T08:00:00Z')).toBe(Date.UTC(2026, 9, 16, 8));
+    expect(epochOf(1_234)).toBe(1_234);
+    expect(epochOf(null)).toBe(0);
+    expect(epochOf(undefined)).toBe(0);
+    expect(epochOf('not a date')).toBe(0);
+    expect(epochOf(Number.NaN)).toBe(0);
+  });
+});
+
+describe('needsYouMingoPrompt', () => {
+  it('tells Mingo what the item is, why, what else is known and where it is', () => {
+    expect(
+      needsYouMingoPrompt({
+        ...row('tickets', '1', 1),
+        entity: 'ticket',
+        name: '1003: VPN down',
+        reason: 'Escalated by user',
+        detail: 'Acme · host-9',
+        href: '/tickets/dialog?id=t-9',
+      }),
+    ).toBe(
+      'Ticket "1003: VPN down" needs my attention (escalated by user).\nDetails: Acme · host-9.\nPage: /tickets/dialog?id=t-9\nHelp me resolve it.',
+    );
+  });
+
+  it('leaves out the details it does not have', () => {
+    expect(
+      needsYouMingoPrompt({ ...row('tenants', '1', 1), entity: 'tenant', name: 'Acme M365', reason: 'Sync failed' }),
+    ).not.toContain('Details');
   });
 });
 
@@ -222,8 +315,12 @@ describe('row builders', () => {
       reason: 'Needs approval',
       tone: 'warning',
       href: routes.tickets.dialog('t-1'),
+      at: 0,
       subjects: ['approval:a-1', 'ticket:t-1'],
     });
+    expect(
+      approvalRow(approval({ notificationType: 'TICKET_APPROVAL_REQUEST', ticketId: 't-1' }, { createdAt: 42 }))?.at,
+    ).toBe(42);
   });
 
   it('a Mingo approval opens its chat', () => {
@@ -275,8 +372,9 @@ describe('row builders', () => {
       name: 'Disk is almost full',
       detail: 'LAPTOP-1 · Acme',
       reason: 'Critical',
-      tone: 'error',
+      tone: 'critical',
       href: routes.incidents.details('SW5zaWdodDox'),
+      at: Date.UTC(2026, 9, 16, 8),
     });
   });
 
@@ -284,9 +382,10 @@ describe('row builders', () => {
     expect(diskWarningRow(incident)).toMatchObject({
       entity: 'device',
       name: 'LAPTOP-1',
-      reason: 'Low disk space',
-      tone: 'warning',
+      reason: 'Low disk',
+      tone: 'neutral',
       href: routes.devices.details('m-1'),
+      at: Date.UTC(2026, 9, 16, 8),
     });
     expect(diskWarningRow({ ...incident, hasDevice: false }).href).toBe(routes.incidents.details('SW5zaWdodDox'));
   });
@@ -299,25 +398,36 @@ describe('row builders', () => {
       organizationName: 'Acme',
       deviceHostname: 'host-9',
       owner: { type: 'CLIENT', machineId: 'm-9' },
+      createdAt: '2026-10-01T00:00:00Z',
+      statusUpdatedAt: '2026-10-02T00:00:00Z',
     } as Dialog;
     expect(escalatedTicketRow(ticket)).toMatchObject({
       name: '1003: VPN down',
       detail: 'Acme · host-9',
       reason: 'Escalated by user',
-      tone: 'error',
+      tone: 'warning',
       href: routes.tickets.dialog('t-9'),
+      at: Date.UTC(2026, 9, 2),
       subjects: ['ticket:t-9'],
     });
+    expect(escalatedTicketRow({ ...ticket, statusUpdatedAt: null }).at).toBe(Date.UTC(2026, 9, 1));
   });
 
   it('a failed sync opens the cloud tenant', () => {
     expect(
-      failedSyncTenantRow({ id: 'c-1', name: 'Acme M365', provider: 'MICROSOFT_365', customerName: 'Acme' }),
+      failedSyncTenantRow({
+        id: 'c-1',
+        name: 'Acme M365',
+        provider: 'MICROSOFT_365',
+        customerName: 'Acme',
+        lastSyncAt: '2026-10-03T00:00:00Z',
+      }),
     ).toMatchObject({
       detail: 'Microsoft 365 · Acme',
       reason: 'Sync failed',
-      tone: 'error',
+      tone: 'neutral',
       href: routes.cloudTenantManagement.details('c-1'),
+      at: Date.UTC(2026, 9, 3),
     });
   });
 
@@ -330,7 +440,14 @@ describe('row builders', () => {
         engine: 'WINGET',
         respondedMachineCount: 2,
         totalMachineCount: 5,
+        finishedAt: null,
+        dispatchedAt: '2026-10-04T00:00:00Z',
       }),
-    ).toMatchObject({ reason: 'Failed', tone: 'error', href: routes.software.action('sa-1') });
+    ).toMatchObject({
+      reason: 'Action failed',
+      tone: 'neutral',
+      href: routes.software.action('sa-1'),
+      at: Date.UTC(2026, 9, 4),
+    });
   });
 });

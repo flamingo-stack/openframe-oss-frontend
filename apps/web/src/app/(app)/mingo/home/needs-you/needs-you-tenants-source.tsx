@@ -6,11 +6,8 @@ import type { needsYouTenantsSourceQuery as NeedsYouTenantsSourceQueryType } fro
 import { useTenantManagementV2Gate } from '@/app/(app)/cloud-tenant-management/components/shared/use-tenant-management-gate';
 import { boundCustomerOptions } from '@/app/(app)/cloud-tenant-management/components/tenant-form/bound-customer';
 import { useRetryKey } from '@/app/components/shared/content-error-boundary';
-import { failedSyncTenantRow, type ReportSource } from './needs-you-rows';
+import { failedSyncTenantRow, NEEDS_YOU_CANDIDATES, type ReportSource } from './needs-you-rows';
 import { NeedsYouTenantsSourceV1 } from './v1/needs-you-tenants-source-v1';
-
-/** How many failed connections are read: the card's cap, plus room for rows it drops as duplicates. */
-const TENANT_CANDIDATES = 5;
 
 /**
  * Cloud tenants whose last sync failed, filtered by the server (`lastSyncStatuses`), so a
@@ -25,11 +22,13 @@ const needsYouTenantsSourceQuery = graphql`
           id
           name
           provider
+          lastSyncAt
           customers {
             ...boundCustomer_customer
           }
         }
       }
+      totalCount
     }
   }
 `;
@@ -49,7 +48,7 @@ function NeedsYouTenantsSourceV2({ onReport }: { onReport: ReportSource }) {
   const retryKey = useRetryKey();
   const data = useLazyLoadQuery<NeedsYouTenantsSourceQueryType>(
     needsYouTenantsSourceQuery,
-    { first: TENANT_CANDIDATES },
+    { first: NEEDS_YOU_CANDIDATES },
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
@@ -64,16 +63,19 @@ function NeedsYouTenantsSourceV2({ onReport }: { onReport: ReportSource }) {
           customerName: boundCustomerOptions(node.customers)
             .map(customer => customer.name)
             .join(', '),
+          lastSyncAt: node.lastSyncAt,
         }),
       ),
     [data.directoryConnections.edges],
   );
 
+  const count = data.directoryConnections.totalCount;
+
   // Before paint: a source read from the store answers in the same commit, so a return to
   // the page draws its rows, not the card's loading form, for a frame.
   useLayoutEffect(() => {
-    onReport('tenants', { status: 'ready', rows });
-  }, [onReport, rows]);
+    onReport('tenants', { status: 'ready', rows, count });
+  }, [onReport, rows, count]);
 
   return null;
 }

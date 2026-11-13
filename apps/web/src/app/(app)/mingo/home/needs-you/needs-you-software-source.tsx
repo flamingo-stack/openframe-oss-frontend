@@ -4,9 +4,9 @@ import { useLayoutEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { needsYouSoftwareSourceQuery as NeedsYouSoftwareSourceQueryType } from '@/__generated__/needsYouSoftwareSourceQuery.graphql';
 import { useRetryKey } from '@/app/components/shared/content-error-boundary';
-import { failedSoftwareActionRow, NEEDS_YOU_CAPS, type ReportSource } from './needs-you-rows';
+import { failedSoftwareActionRow, NEEDS_YOU_CANDIDATES, type ReportSource } from './needs-you-rows';
 
-/** Software install / update runs that FAILED, newest first (the list's own order). */
+/** Software install / update runs that FAILED, newest first (the list's own order), and how many there are. */
 const needsYouSoftwareSourceQuery = graphql`
   query needsYouSoftwareSourceQuery($first: Int!) {
     softwareActions(filter: { statuses: [FAILED] }, first: $first) {
@@ -18,8 +18,11 @@ const needsYouSoftwareSourceQuery = graphql`
           engine
           respondedMachineCount
           totalMachineCount
+          finishedAt
+          dispatchedAt
         }
       }
+      filteredCount
     }
   }
 `;
@@ -29,7 +32,7 @@ export function NeedsYouSoftwareSource({ onReport }: { onReport: ReportSource })
   const retryKey = useRetryKey();
   const data = useLazyLoadQuery<NeedsYouSoftwareSourceQueryType>(
     needsYouSoftwareSourceQuery,
-    { first: NEEDS_YOU_CAPS.software },
+    { first: NEEDS_YOU_CANDIDATES },
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
@@ -44,16 +47,20 @@ export function NeedsYouSoftwareSource({ onReport }: { onReport: ReportSource })
           engine: node.engine,
           respondedMachineCount: node.respondedMachineCount,
           totalMachineCount: node.totalMachineCount,
+          finishedAt: node.finishedAt,
+          dispatchedAt: node.dispatchedAt,
         }),
       ),
     [data.softwareActions.edges],
   );
 
+  const count = data.softwareActions.filteredCount;
+
   // Before paint: a source read from the store answers in the same commit, so a return to
   // the page draws its rows, not the card's loading form, for a frame.
   useLayoutEffect(() => {
-    onReport('software', { status: 'ready', rows });
-  }, [onReport, rows]);
+    onReport('software', { status: 'ready', rows, count });
+  }, [onReport, rows, count]);
 
   return null;
 }

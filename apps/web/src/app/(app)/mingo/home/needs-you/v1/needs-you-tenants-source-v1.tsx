@@ -5,10 +5,7 @@ import { useLayoutEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { needsYouTenantsSourceV1Query as NeedsYouTenantsSourceV1QueryType } from '@/__generated__/needsYouTenantsSourceV1Query.graphql';
 import { useRetryKey } from '@/app/components/shared/content-error-boundary';
-import { failedSyncTenantRow, type ReportSource } from '../needs-you-rows';
-
-/** How many failed connections are read: the card's cap, plus room for rows it drops as duplicates. */
-const TENANT_CANDIDATES = 5;
+import { failedSyncTenantRow, NEEDS_YOU_CANDIDATES, type ReportSource } from '../needs-you-rows';
 
 /**
  * Cloud tenants whose last sync failed, filtered by the server (`lastSyncStatuses`), so a
@@ -23,11 +20,13 @@ const needsYouTenantsSourceV1Query = graphql`
           id
           name
           provider
+          lastSyncAt
           organization {
             name
           }
         }
       }
+      totalCount
     }
   }
 `;
@@ -37,7 +36,7 @@ export function NeedsYouTenantsSourceV1({ onReport }: { onReport: ReportSource }
   const retryKey = useRetryKey();
   const data = useLazyLoadQuery<NeedsYouTenantsSourceV1QueryType>(
     needsYouTenantsSourceV1Query,
-    { first: TENANT_CANDIDATES },
+    { first: NEEDS_YOU_CANDIDATES },
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
@@ -50,16 +49,19 @@ export function NeedsYouTenantsSourceV1({ onReport }: { onReport: ReportSource }
           name: node.name,
           provider: node.provider,
           customerName: node.organization?.name ?? '',
+          lastSyncAt: node.lastSyncAt,
         }),
       ),
     [data.directoryConnections.edges],
   );
 
+  const count = data.directoryConnections.totalCount;
+
   // Before paint: a source read from the store answers in the same commit, so a return to
   // the page draws its rows, not the card's loading form, for a frame.
   useLayoutEffect(() => {
-    onReport('tenants', { status: 'ready', rows });
-  }, [onReport, rows]);
+    onReport('tenants', { status: 'ready', rows, count });
+  }, [onReport, rows, count]);
 
   return null;
 }

@@ -1,51 +1,61 @@
 'use client';
 
-import { MediaSkeleton, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { AgentMark, MediaSkeleton, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   AlertTriangleIcon,
+  ArrowRightUpIcon,
   CheckCircleIcon,
-  CodingForkIcon,
+  CloudIcon,
+  MonitorIcon,
   Parcel02Icon,
   ShieldCheckIcon,
   TicketIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
+  FloatingTooltip,
   LoadingWhen,
-  type PanelRow,
-  StackedRowsPanel,
   Tag,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import Link from 'next/link';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ComponentType, type ReactNode, useCallback, useState } from 'react';
 import { useTicketsOverview } from '@/app/(app)/dashboard/hooks/use-dashboard-stats';
 import { useRevealHeld, useRevealPart } from '@/app/components/shared/reveal-together';
 import { loadErrorProps } from '@/lib/query-state';
+import { useMingoLauncherStore } from '../../stores/mingo-launcher-store';
 import { NeedsYouApprovalsSource } from './needs-you-approvals-source';
 import { NeedsYouInsightsSource } from './needs-you-insights-source';
 import {
-  NEEDS_YOU_PREVIEW_ROWS,
+  categoryHref,
+  NEEDS_YOU_CATEGORIES,
+  NEEDS_YOU_ROWS,
+  NEEDS_YOU_SOURCE_CATEGORY,
+  NEEDS_YOU_SOURCES,
+  type NeedsYouCategory,
+  type NeedsYouCategoryCount,
   type NeedsYouEntity,
-  type NeedsYouFailure,
   type NeedsYouGates,
-  needsYouFooter,
+  needsYouMingoPrompt,
   type NeedsYouReports,
   type NeedsYouRow,
   type NeedsYouSource,
+  type NeedsYouTone,
   type NeedsYouView,
   type ReportSource,
   resolveNeedsYou,
   sameReport,
+  type SourceReport,
 } from './needs-you-rows';
 import { NeedsYouSoftwareSource } from './needs-you-software-source';
 import { NeedsYouSourceBoundary } from './needs-you-source-boundary';
 import { NeedsYouTenantsSource } from './needs-you-tenants-source';
-import { useEscalatedTicketsReport } from './use-escalated-tickets-report';
+import { useEscalatedTicketsReport, useTechRequiredStatusIds } from './use-escalated-tickets-report';
+import { useNeedsYouDismissed } from './use-needs-you-dismissed';
 import { useNeedsYouGates } from './use-needs-you-gates';
 
-const CAPTION = 'Needs you';
+const CAPTION = 'Needs your attention:';
 
 // Module constants: each boundary reports a failure for these, from an effect keyed on them.
 const APPROVALS: readonly NeedsYouSource[] = ['approvals'];
@@ -62,12 +72,24 @@ const NEEDS_YOU_GATES_LOADING: NeedsYouGates = {
   disk: 'loading',
 };
 
+interface NeedsYouState {
+  view: NeedsYouView;
+  /** The categories with a source that is not gated off: what the loading form draws a quick action for. */
+  openCategories: readonly NeedsYouCategory[];
+  /** Where the Tickets quick action leads. */
+  techRequiredStatusIds: readonly string[];
+  /** Takes a row out of the queue: the user acted on it. */
+  dismiss: (row: NeedsYouRow) => void;
+  sources: ReactNode;
+}
+
 /**
- * What "Needs you" holds: up to 2 pending approvals, 2 NEW critical incidents, 2
- * escalated Tech Required tickets, 1 cloud tenant whose sync failed, 1 failed software
- * action and 1 device low on disk, in that order (`needs-you-rows.ts`); then a line of
- * counts. Every source is gated like its sidebar entry (`useNeedsYouGates`). Loading until
- * every open source answered; hidden only when no source is open.
+ * What "Needs you" holds: every row of the six sources (pending approvals, NEW critical
+ * incidents, escalated Tech Required tickets, cloud tenants whose sync failed, failed software
+ * actions, devices low on disk), newest first, without the ones the user dismissed; and one
+ * count per category (`needs-you-rows.ts`). Every source is gated like its sidebar entry
+ * (`useNeedsYouGates`). Loading until every open source answered; hidden only when no source
+ * is open.
  *
  * `sources` must be rendered for the view to fill: the Relay sources render nothing and
  * report what they found (the board's column subscribers do the same). Each fetches under
@@ -78,7 +100,7 @@ const NEEDS_YOU_GATES_LOADING: NeedsYouGates = {
  *
  * `enabled` off: no source runs and the view stays loading.
  */
-export function useNeedsYou(enabled = true): { view: NeedsYouView; footer: string | null; sources: ReactNode } {
+export function useNeedsYou(enabled = true): NeedsYouState {
   const allGates = useNeedsYouGates();
   const gates: NeedsYouGates = enabled ? allGates : NEEDS_YOU_GATES_LOADING;
   const [reports, setReports] = useState<NeedsYouReports>({});
@@ -86,20 +108,24 @@ export function useNeedsYou(enabled = true): { view: NeedsYouView; footer: strin
   const report = useCallback<ReportSource>((source, next) => {
     setReports(prev => (sameReport(prev[source], next) ? prev : { ...prev, [source]: next }));
   }, []);
+  const [dismissed, dismiss] = useNeedsYouDismissed();
 
-  const tickets = useEscalatedTicketsReport(gates.tickets);
-  // The Tickets section's counts (same query, same cache).
+  const escalated = useEscalatedTicketsReport(gates.tickets);
+  const techRequiredStatusIds = useTechRequiredStatusIds(gates.tickets);
+  // The Tickets quick action counts every Tech Required ticket: the Tickets section's count (same query, same cache).
   const ticketStats = useTicketsOverview();
   const ticketsOn = gates.tickets === 'on';
-  const incidentsReport = reports.incidents;
+  const tickets: SourceReport =
+    escalated.status === 'ready' ? { ...escalated, count: ticketStats.techRequired ?? undefined } : escalated;
 
-  const view = resolveNeedsYou(gates, { ...reports, tickets }, ticketsOn && ticketStats.isLoading);
-  const footer = needsYouFooter({
-    aiHandled: ticketsOn ? ticketStats.aiAssistance : null,
-    needTechnician: ticketsOn ? ticketStats.techRequired : null,
-    newIncidents:
-      gates.incidents === 'on' && incidentsReport?.status === 'ready' ? (incidentsReport.count ?? null) : null,
-  });
+  const view = resolveNeedsYou(
+    gates,
+    { ...reports, tickets },
+    { pending: ticketsOn && ticketStats.isLoading, dismissed },
+  );
+  const openCategories = NEEDS_YOU_CATEGORIES.filter(category =>
+    NEEDS_YOU_SOURCES.some(source => NEEDS_YOU_SOURCE_CATEGORY[source] === category && gates[source] !== 'off'),
+  );
 
   const sources = (
     <>
@@ -125,21 +151,21 @@ export function useNeedsYou(enabled = true): { view: NeedsYouView; footer: strin
       )}
     </>
   );
-  return { view, footer, sources };
+  return { view, openCategories, techRequiredStatusIds, dismiss, sources };
 }
 
-/** How many rows "Needs you" shows (0 while it loads, fails only or is hidden), and the sources that feed it. */
+/** How many rows wait in the queue (0 while it loads or is hidden), and the sources that feed it. */
 export function useNeedsYouCount(enabled = true): { count: number; sources: ReactNode } {
   const { view, sources } = useNeedsYou(enabled);
-  return { count: view.status === 'ready' ? view.rows.length : 0, sources };
+  return { count: view.status === 'ready' ? view.queue.length : 0, sources };
 }
 
 /**
- * "Needs you" on Start Work (`useNeedsYou`), each row opening its entity's page. Drawn the same
- * size loading and loaded (`NeedsYouPanel`), so the page does not move when it answers.
+ * "Needs you" on Start Work and the dashboard (`useNeedsYou`). Drawn the same size loading and
+ * loaded (`NeedsYouPanel`), so the page does not move when it answers.
  */
 export function NeedsYouCard() {
-  const { view, footer, sources } = useNeedsYou();
+  const { view, openCategories, techRequiredStatusIds, dismiss, sources } = useNeedsYou();
   useRevealPart('needs-you', view.status !== 'loading');
   // The page's loading state draws the card's own, as its unanswered sources do, and so does
   // a page still holding its sections (`RevealTogether`).
@@ -152,156 +178,328 @@ export function NeedsYouCard() {
     <>
       {sources}
       {(loading || ready) && (
-        <NeedsYouPanel loading={loading} rows={ready?.rows} failures={ready?.failures} footer={footer} />
+        <NeedsYouPanel
+          loading={loading}
+          queue={ready?.queue}
+          categories={ready?.categories}
+          loadingCategories={openCategories}
+          techRequiredStatusIds={techRequiredStatusIds}
+          onDismiss={dismiss}
+        />
       )}
     </>
   );
 }
 
-const ENTITY_ICON: Record<Exclude<NeedsYouEntity, 'device'>, ComponentType<{ className?: string }>> = {
+type IconComponent = ComponentType<{ className?: string; size?: number }>;
+
+const ENTITY_ICON: Record<Exclude<NeedsYouEntity, 'device'>, IconComponent> = {
   approval: ShieldCheckIcon,
   incident: AlertTriangleIcon,
   ticket: TicketIcon,
-  tenant: CodingForkIcon,
+  tenant: CloudIcon,
   software: Parcel02Icon,
 };
 
-const ICON_CLASS = 'size-6 text-ods-text-secondary';
+const ROW_ICON_CLASS = 'size-6 shrink-0 text-ods-text-secondary';
 
 function EntityIcon({ row }: { row: NeedsYouRow }) {
-  if (row.entity === 'device') return renderDeviceTypeIcon(row.deviceType ?? undefined, ICON_CLASS);
+  if (row.entity === 'device') return renderDeviceTypeIcon(row.deviceType ?? undefined, ROW_ICON_CLASS);
   const Icon = ENTITY_ICON[row.entity];
-  return <Icon className={ICON_CLASS} />;
+  return <Icon className={ROW_ICON_CLASS} />;
 }
 
-/**
- * A row of the card. The name is the row's link, and its `after` box spans the whole row,
- * so the row is one click target and one tab stop, and the focus ring outlines the row.
- */
-function toPanelRow(row: NeedsYouRow): PanelRow {
-  return {
-    id: row.key,
-    className: 'relative transition-colors hover:bg-ods-bg-hover',
-    columns: [
-      {
-        key: 'entity',
-        leadingIcon: <EntityIcon row={row} />,
-        value: (
-          <Link
-            href={row.href}
-            title={row.name}
-            className="outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ods-accent"
-          >
-            {row.name}
-          </Link>
-        ),
-        label: row.detail || undefined,
-      },
-      { key: 'reason', content: <Tag label={row.reason} variant={row.tone} />, width: 'shrink-0', align: 'right' },
-    ],
-  };
+/** The shell's attention tint (fill, border, text), with no hover of its own: these tags are not controls. */
+const WARNING_TINT_CLASS =
+  'border border-ods-warning-tint-border bg-ods-warning-tint text-ods-warning-tint-text hover:bg-ods-warning-tint active:bg-ods-warning-tint';
+
+/** The status tag per tone: critical is the filled red, warning the attention tint, neutral the plain tag. */
+const TONE_TAG: Record<NeedsYouTone, { variant: 'critical' | 'warning' | 'outline'; className?: string }> = {
+  critical: { variant: 'critical' },
+  warning: { variant: 'warning', className: WARNING_TINT_CLASS },
+  neutral: { variant: 'outline' },
+};
+
+/** A queue row: 48px, its four cells (the item, its status, Mingo, open) in the design's proportions. */
+const ROW_CLASS = 'flex h-12 items-stretch border-b border-ods-border';
+const ITEM_CELL_CLASS =
+  'flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xsf)] px-[var(--spacing-system-sf)]';
+const STATUS_CELL_CLASS = 'flex min-w-0 flex-1 items-center px-[var(--spacing-system-sf)]';
+const ACTION_CELL_CLASS = 'w-12 border-l border-ods-border px-0';
+
+/** The last of the three rows sits on the card's own border. */
+const rowClass = (index: number) => cn(ROW_CLASS, index === NEEDS_YOU_ROWS - 1 && 'border-b-0');
+
+function QueueRow({
+  row,
+  index,
+  canAskMingo,
+  onDismiss,
+}: {
+  row: NeedsYouRow;
+  index: number;
+  canAskMingo: boolean;
+  onDismiss: (row: NeedsYouRow) => void;
+}) {
+  const tag = TONE_TAG[row.tone];
+  return (
+    <li className={rowClass(index)}>
+      <div className={ITEM_CELL_CLASS}>
+        <EntityIcon row={row} />
+        <span className="min-w-0 truncate text-ods-text-primary text-h4" title={row.name}>
+          {row.name}
+        </span>
+      </div>
+      <div className={STATUS_CELL_CLASS}>
+        <Tag label={row.reason} variant={tag.variant} size="compact" className={cn('max-w-full', tag.className)} />
+      </div>
+      <FloatingTooltip content="Fix with Mingo" side="top" triggerClassName="flex">
+        <Button
+          variant="cell"
+          className={ACTION_CELL_CLASS}
+          aria-label={`Fix with Mingo: ${row.name}`}
+          disabled={!canAskMingo}
+          onClick={() => {
+            useMingoLauncherStore.getState().sendToMingo(needsYouMingoPrompt(row));
+            onDismiss(row);
+          }}
+        >
+          <AgentMark agent="mingo" className="size-6" />
+        </Button>
+      </FloatingTooltip>
+      <Button
+        variant="cell"
+        href={row.href}
+        className={ACTION_CELL_CLASS}
+        aria-label={`Open ${row.name}`}
+        onClick={() => onDismiss(row)}
+      >
+        <ArrowRightUpIcon />
+      </Button>
+    </li>
+  );
 }
 
-/** Nothing needs the user: one row in the shape of the others, so the card keeps its size. */
-const ALL_CLEAR_ROW: PanelRow = {
-  id: 'all-clear',
-  columns: [
-    {
-      key: 'entity',
-      leadingIcon: <CheckCircleIcon className={ICON_CLASS} />,
-      value: 'Nothing needs you right now',
-      label: 'Approvals, critical incidents and escalations will show up here',
-    },
-  ],
+/** A queue row while it is read: the loaded row's boxes, with a bar for each thing still coming. */
+function LoadingQueueRow({ index }: { index: number }) {
+  return (
+    <li className={rowClass(index)} data-loading-item>
+      <div className={ITEM_CELL_CLASS}>
+        <MediaSkeleton.Icon className="shrink-0" />
+        <TextLineSkeleton type="h4" as="span" className="w-1/2" />
+      </div>
+      <div className={STATUS_CELL_CLASS}>
+        <Tag label="" loading size="compact" />
+      </div>
+      <div className={cn('flex items-center justify-center', ACTION_CELL_CLASS)}>
+        <MediaSkeleton.Icon />
+      </div>
+      <div className={cn('flex items-center justify-center', ACTION_CELL_CLASS)}>
+        <MediaSkeleton.Icon />
+      </div>
+    </li>
+  );
+}
+
+/** Nothing needs the user: said once, in the middle of the queue's box. */
+function AllClear() {
+  return (
+    <div
+      role="status"
+      className="flex h-full flex-col items-center justify-center gap-[var(--spacing-system-xxs)] px-[var(--spacing-system-m)] text-center"
+    >
+      <CheckCircleIcon className="mb-[var(--spacing-system-xs)] size-6 text-ods-text-secondary" />
+      <p className="text-ods-text-secondary text-h4">All Clear</p>
+      <p className="text-ods-text-secondary text-h6">No items need your attention</p>
+    </div>
+  );
+}
+
+const CATEGORY_LABEL: Record<NeedsYouCategory, string> = {
+  incidents: 'Incidents',
+  approvals: 'Approval requests',
+  tickets: 'Tickets',
+  tenants: 'Cloud tenants',
+  software: 'Software',
+  devices: 'Devices',
+};
+
+const CATEGORY_ICON: Record<NeedsYouCategory, IconComponent> = {
+  incidents: AlertTriangleIcon,
+  approvals: ShieldCheckIcon,
+  tickets: TicketIcon,
+  tenants: CloudIcon,
+  software: Parcel02Icon,
+  devices: MonitorIcon,
 };
 
 /**
- * The loading form: rows in the shape of the loaded ones (the icon, the name over its detail,
- * the tag on the right), their text not here yet, so the lib draws bars in its place.
+ * A quick action's colour while its category holds something: incidents red, approvals and tickets the attention
+ * tint; the rest, and any category at 0, the plain tag. A count of 0 (or none, when it failed) is grey. ODS has no red twin of the warning tint yet (Figma's red chip
+ * fill), so the red chip is the error-secondary tag with a border.
  */
-const LOADING_ROWS: PanelRow[] = Array.from({ length: NEEDS_YOU_PREVIEW_ROWS }, (_, index) => ({
-  id: `loading-${index}`,
-  columns: [
-    { key: 'entity', leadingIcon: <MediaSkeleton.Icon />, value: null, label: null },
-    { key: 'reason', content: <Tag label="" />, width: 'shrink-0', align: 'right' },
-  ],
-}));
+const CATEGORY_ACTIVE_TAG: Partial<Record<NeedsYouCategory, { variant: 'error' | 'warning'; className: string }>> = {
+  incidents: { variant: 'error', className: 'border border-ods-error-secondary-active' },
+  approvals: { variant: 'warning', className: WARNING_TINT_CLASS },
+  tickets: { variant: 'warning', className: WARNING_TINT_CLASS },
+};
 
-/**
- * Sources that did not answer: a row in the shape of the others (two columns, so the column row's
- * height even with no Retry while offline), first, so it is never under the fade, announced.
- */
-function failureRow(failures: readonly NeedsYouFailure[]): PanelRow {
-  const { message, onRetry } = loadErrorProps(
-    failures.some(failure => failure.isOffline),
-    "Couldn't load everything that needs you",
-    () => {
-      for (const failure of failures) failure.retry();
-    },
+const CHIP_BUTTON_CLASS = 'flex w-auto shrink-0';
+
+function CategoryChip({ entry, href }: { entry: NeedsYouCategoryCount; href: string }) {
+  const label = CATEGORY_LABEL[entry.category];
+  const Icon = CATEGORY_ICON[entry.category];
+  const { count } = entry;
+  const active = count !== null && count > 0 ? CATEGORY_ACTIVE_TAG[entry.category] : undefined;
+  const tag = (
+    <Tag
+      variant={active?.variant ?? 'outline'}
+      size="compact"
+      className={active?.className}
+      icon={<Icon size={16} />}
+      label={
+        <>
+          {label} <span className={cn(!count && 'text-ods-text-secondary')}>({count === null ? '—' : count})</span>
+        </>
+      }
+    />
   );
-  return {
-    id: 'failures',
-    columns: [
-      {
-        key: 'entity',
-        leadingIcon: <AlertTriangleIcon className={ICON_CLASS} />,
-        value: <span role="status">{message}</span>,
+
+  if (count === null) {
+    const { message, onRetry } = loadErrorProps(
+      entry.failures.some(failure => failure.isOffline),
+      `Couldn't load ${label.toLowerCase()}`,
+      () => {
+        for (const failure of entry.failures) failure.retry();
       },
-      {
-        key: 'retry',
-        content: onRetry && (
-          <Button variant="outline" size="small" onClick={onRetry} aria-label={`Retry: ${message}`}>
-            Retry
+    );
+    return (
+      <FloatingTooltip content={onRetry ? `${message}. Retry` : message} side="top" triggerClassName="flex">
+        {onRetry ? (
+          <Button variant="card" className={CHIP_BUTTON_CLASS} aria-label={`${message}. Retry`} onClick={onRetry}>
+            {tag}
           </Button>
-        ),
-        width: 'shrink-0',
-        align: 'right',
-      },
-    ],
-  };
+        ) : (
+          <Button variant="card" href={href} className={CHIP_BUTTON_CLASS} aria-label={`${label}: ${message}`}>
+            {tag}
+          </Button>
+        )}
+      </FloatingTooltip>
+    );
+  }
+  return (
+    <Button variant="card" href={href} className={CHIP_BUTTON_CLASS} aria-label={`${label} (${count})`}>
+      {tag}
+    </Button>
+  );
+}
+
+/** A quick action while its count is read: the real icon and label, a bar in place of the count. */
+function LoadingCategoryChip({ category }: { category: NeedsYouCategory }) {
+  const Icon = CATEGORY_ICON[category];
+  return (
+    <Tag
+      variant="outline"
+      size="compact"
+      data-loading-item
+      icon={<Icon size={16} />}
+      label={
+        <>
+          {CATEGORY_LABEL[category]}{' '}
+          <TextLineSkeleton type="inherit" as="span" className="inline-block w-[3ch] align-middle" />
+        </>
+      }
+    />
+  );
 }
 
 interface NeedsYouPanelProps {
-  rows?: readonly NeedsYouRow[];
-  failures?: readonly NeedsYouFailure[];
-  footer?: string | null;
-  /** Still being read: `NEEDS_YOU_PREVIEW_ROWS` rows in the loaded rows' shape and the counts' bar, beside the real caption. */
+  /** Every row still needing the user, newest first; the first `NEEDS_YOU_ROWS` are drawn. */
+  queue?: readonly NeedsYouRow[];
+  categories?: readonly NeedsYouCategoryCount[];
+  /** The quick actions the loading form draws: the categories not gated off (all of them by default). */
+  loadingCategories?: readonly NeedsYouCategory[];
+  techRequiredStatusIds?: readonly string[];
+  onDismiss?: (row: NeedsYouRow) => void;
+  /** Still being read: the queue's three rows and the quick actions, in their loaded boxes. */
   loading?: boolean;
 }
 
+/** The loading form draws the queue's full height: every row it can show. */
+const NEEDS_YOU_SKELETON_ROWS = NEEDS_YOU_ROWS;
+
+const NO_ROWS: readonly NeedsYouRow[] = [];
+const NO_COUNTS: readonly NeedsYouCategoryCount[] = [];
+const NO_IDS: readonly string[] = [];
+const noop = () => {};
+
 /**
- * The card itself, without its sources: what the shell holds in the page's slot (`loading`)
- * needs no request. The caption with the counts beside it, then `NEEDS_YOU_PREVIEW_ROWS` rows,
- * the rest faded out under "Show N more": the same size loading and loaded, whatever the
- * sources answer.
+ * The block itself, without its sources: what the shell holds in the page's slot (`loading`)
+ * needs no request. The caption, the queue (always `NEEDS_YOU_ROWS` rows high, whatever it holds,
+ * loading included, so the page never moves when it answers), and the category quick actions
+ * under it, which wrap onto more lines on a narrow column.
  */
-export function NeedsYouPanel({ rows = [], failures = [], footer = null, loading = false }: NeedsYouPanelProps) {
+export function NeedsYouPanel({
+  queue = NO_ROWS,
+  categories = NO_COUNTS,
+  loadingCategories = NEEDS_YOU_CATEGORIES,
+  techRequiredStatusIds = NO_IDS,
+  onDismiss = noop,
+  loading = false,
+}: NeedsYouPanelProps) {
   const loadingForm = useLoadingScope() || loading;
-  let panelRows: PanelRow[];
-  if (loadingForm) panelRows = LOADING_ROWS;
-  else if (rows.length === 0 && failures.length === 0) panelRows = [ALL_CLEAR_ROW];
-  else panelRows = [...(failures.length > 0 ? [failureRow(failures)] : []), ...rows.map(toPanelRow)];
+  const canAskMingo = useMingoLauncherStore(state => state.dockMounted);
+  const shown = queue.slice(0, NEEDS_YOU_ROWS);
+
+  let body: ReactNode;
+  if (loadingForm) {
+    body = (
+      <ul aria-hidden className="h-full">
+        {Array.from({ length: NEEDS_YOU_SKELETON_ROWS }, (_slot, index) => (
+          <LoadingQueueRow key={index} index={index} />
+        ))}
+      </ul>
+    );
+  } else if (shown.length === 0) {
+    body = <AllClear />;
+  } else {
+    body = (
+      <ul className="h-full">
+        {shown.map((row, index) => (
+          <QueueRow key={row.key} row={row} index={index} canAskMingo={canAskMingo} onDismiss={onDismiss} />
+        ))}
+      </ul>
+    );
+  }
 
   return (
-    <section aria-label={CAPTION}>
+    <section aria-label="Needs your attention">
       <LoadingWhen
         loading={loadingForm}
-        label="Loading what needs you"
-        className="flex flex-col gap-[var(--spacing-system-xxs)]"
+        label="Loading what needs your attention"
+        className="flex flex-col gap-[var(--spacing-system-mf)]"
       >
-        <div className="flex items-center justify-between gap-[var(--spacing-system-m)]">
-          <p className="shrink-0 text-ods-text-secondary text-h5">{CAPTION}</p>
-          {loadingForm ? (
-            <TextLineSkeleton type="h6" as="span" className="w-1/3" />
-          ) : (
-            footer && (
-              <p className="min-w-0 truncate text-ods-text-secondary text-h6" title={footer}>
-                {footer}
-              </p>
-            )
-          )}
+        <div className="flex flex-col gap-[var(--spacing-system-xsf)]">
+          <p className="text-ods-text-secondary text-h5">{CAPTION}</p>
+          {/* Three 48px rows inside a 1px border, whatever the queue holds. */}
+          <div
+            data-testid="needs-you-queue"
+            className="box-content h-36 overflow-clip rounded-md border border-ods-border bg-ods-card"
+          >
+            {body}
+          </div>
         </div>
-        <StackedRowsPanel rows={panelRows} previewRows={NEEDS_YOU_PREVIEW_ROWS} listItems />
+        <div className="flex flex-wrap gap-[var(--spacing-system-xsf)]">
+          {loadingForm
+            ? loadingCategories.map(category => <LoadingCategoryChip key={category} category={category} />)
+            : categories.map(entry => (
+                <CategoryChip
+                  key={entry.category}
+                  entry={entry}
+                  href={categoryHref(entry.category, { techRequiredStatusIds })}
+                />
+              ))}
+        </div>
       </LoadingWhen>
     </section>
   );

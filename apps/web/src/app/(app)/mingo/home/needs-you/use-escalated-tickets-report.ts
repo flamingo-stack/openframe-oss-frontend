@@ -7,12 +7,22 @@ import { dialogsQueryKeys } from '@/app/(app)/tickets/utils/query-keys';
 import { TICKET_STATUS_KIND } from '@/app/(app)/tickets/utils/ticket-statistics';
 import type { FeatureFlagGate } from '@/lib/feature-flags';
 import { queryState } from '@/lib/query-state';
-import { escalatedTicketRow, type SourceReport } from './needs-you-rows';
+import { escalatedTicketRow, NEEDS_YOU_CANDIDATES, type SourceReport } from './needs-you-rows';
 
 const NO_IDS: readonly string[] = [];
 
-/** How many escalated tickets are read: the card's cap, plus room for rows it drops as duplicates. */
-const ESCALATED_CANDIDATES = 5;
+type TicketStatusesData = ReturnType<typeof useTicketStatusesQuery>['data'];
+
+function techRequiredStatusIds(data: TicketStatusesData): readonly string[] {
+  return data
+    ? data.snapshot.filter(status => status.kind === TICKET_STATUS_KIND.TECH_REQUIRED).map(status => status.id)
+    : NO_IDS;
+}
+
+/** The tenant's Tech Required statuses (empty until read, or with the gate off): what the Tickets quick action filters by. */
+export function useTechRequiredStatusIds(gate: FeatureFlagGate): readonly string[] {
+  return techRequiredStatusIds(useTicketStatusesQuery({ enabled: gate === 'on' }).data);
+}
 
 /**
  * The "Needs you" tickets source: Tech Required tickets the end user escalated, filtered
@@ -24,9 +34,7 @@ const ESCALATED_CANDIDATES = 5;
 export function useEscalatedTicketsReport(gate: FeatureFlagGate): SourceReport {
   const enabled = gate === 'on';
   const statuses = useTicketStatusesQuery({ enabled });
-  const statusIds = statuses.data
-    ? statuses.data.snapshot.filter(status => status.kind === TICKET_STATUS_KIND.TECH_REQUIRED).map(status => status.id)
-    : NO_IDS;
+  const statusIds = techRequiredStatusIds(statuses.data);
 
   const tickets = useQuery({
     queryKey: [...dialogsQueryKeys.all, 'needsYouEscalated', statusIds] as const,
@@ -34,7 +42,7 @@ export function useEscalatedTicketsReport(gate: FeatureFlagGate): SourceReport {
     queryFn: () =>
       statusIds.length === 0
         ? Promise.resolve([])
-        : ticketService.fetchEscalatedTickets({ statusIds, limit: ESCALATED_CANDIDATES }),
+        : ticketService.fetchEscalatedTickets({ statusIds, limit: NEEDS_YOU_CANDIDATES }),
     enabled: enabled && statuses.data !== undefined,
     staleTime: 60_000,
     // Read again on every return to the dashboard, drawn over the last answer: no skeleton.

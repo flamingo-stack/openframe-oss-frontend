@@ -19,7 +19,13 @@
  * existing bookmarks stay valid.
  */
 import type { LegalDocumentType } from '@flamingo-stack/openframe-frontend-core/utils';
-import type { DeviceStatus, InsightSeverity, InsightStatus, NotificationEntityType } from '@/generated/schema-enums';
+import type {
+  DeviceStatus,
+  InsightSeverity,
+  InsightStatus,
+  NotificationEntityType,
+  SoftwareActionStatus,
+} from '@/generated/schema-enums';
 
 // --------------------------------------------------------------------------
 // Tab ids (single source of truth, shared with the tab-component arrays)
@@ -223,6 +229,7 @@ export function isMingoWhatToAsk(query: Pick<URLSearchParams, 'get'>): boolean {
 const DEVICES_LIST_PATH = '/devices';
 const TICKETS_LIST_PATH = '/tickets';
 const INCIDENTS_LIST_PATH = '/incidents';
+const SOFTWARE_ACTIONS_PATH = '/software/actions';
 
 export const routes = {
   root: '/',
@@ -410,7 +417,10 @@ export const routes = {
   software: {
     list: '/software',
     /** Software Actions — install/update runs, dispatched and scheduled. */
-    actions: '/software/actions',
+    actions: SOFTWARE_ACTIONS_PATH,
+    /** Software Actions narrowed by run status (`?status=`, the list's own funnel). */
+    actionsFiltered: (o: { status?: readonly SoftwareActionStatus[] }) =>
+      withQuery(SOFTWARE_ACTIONS_PATH, { status: o.status }),
     vulnerabilities: '/software/vulnerabilities',
     install: '/software/install',
     update: '/software/update',
