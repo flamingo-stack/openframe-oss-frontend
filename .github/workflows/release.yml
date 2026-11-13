@@ -121,7 +121,7 @@ jobs:
   build_web_export:
     name: 'Build Web Export'
     needs: [version, changes]
-    if: needs.changes.outputs.desktop == 'true'
+    if: needs.changes.outputs.desktop == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
