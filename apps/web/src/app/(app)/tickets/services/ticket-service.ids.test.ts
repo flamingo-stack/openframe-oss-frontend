@@ -107,6 +107,8 @@ describe('ticketService escalated tickets', () => {
     expect(sentVariables()).toEqual({ statusIds: ['st-1', 'st-2'], limit: 5 });
     const { query } = spies.post.mock.calls.at(-1)?.[1] as { query: string };
     expect(query).toContain('escalatedByUser: true');
+    // Newest first, so the few the Needs you queue reads are the newest ones.
+    expect(query).toContain('sort: { field: "ticketNumber", direction: DESC }');
     expect(tickets[0]).toMatchObject({ id: RAW_TICKET_ID, dialogId: RAW_DIALOG_ID });
   });
 });

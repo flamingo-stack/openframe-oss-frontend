@@ -407,10 +407,11 @@ describe('row builders', () => {
       reason: 'Escalated by user',
       tone: 'warning',
       href: routes.tickets.dialog('t-9'),
-      at: Date.UTC(2026, 9, 2),
+      at: Date.UTC(2026, 9, 1),
       subjects: ['ticket:t-9'],
     });
-    expect(escalatedTicketRow({ ...ticket, statusUpdatedAt: null }).at).toBe(Date.UTC(2026, 9, 1));
+    // Not the last update of any kind (`statusUpdatedAt`): an edit does not make an old ticket new.
+    expect(escalatedTicketRow({ ...ticket, statusUpdatedAt: '2026-11-01T00:00:00Z' }).at).toBe(Date.UTC(2026, 9, 1));
   });
 
   it('a failed sync opens the cloud tenant', () => {

@@ -345,8 +345,9 @@ export function escalatedTicketRow(ticket: Dialog): NeedsYouRow {
     reason: 'Escalated by user',
     tone: 'warning',
     href: routes.tickets.dialog(ticket.id),
-    // When it moved to Tech Required; a ticket whose move is not read, when it was opened.
-    at: epochOf(ticket.statusUpdatedAt ?? ticket.createdAt),
+    // When it was opened: the escalation itself is not exposed (`statusUpdatedAt` is the ticket's
+    // last update of any kind), and the source reads the newest by ticket number, the same order.
+    at: epochOf(ticket.createdAt),
     subjects: [`ticket:${ticket.id}`],
   };
 }
