@@ -100,7 +100,7 @@ import { SessionUnavailableScreen } from './session-unavailable-screen';
 import { SubscriptionGuard, useSubscriptionLock } from './subscription-lock/subscription-guard';
 import { SubscriptionLockContent } from './subscription-lock/subscription-lock-content';
 import { isRouteOpenWhileLocked } from './subscription-lock/subscription-status';
-import { SuperUserBanner } from './super-user-banner';
+import { SuperUserBanner, SuperUserBannerSeed } from './super-user-banner';
 import { TimeTrackerHostProvider } from './time-tracker-host-provider';
 import { UnauthorizedOverlay } from './unauthorized-overlay';
 import { WalkthroughVideo } from './walkthrough-video';
@@ -1005,7 +1005,8 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
                     // previous session cannot flash it ahead of `/me`.
                     topBar={
                       <>
-                        {sessionResolved && <SuperUserBanner />}
+                        {/* Until then, its room for a session that was a super user's (`super-user-seed.ts`). */}
+                        {sessionResolved ? <SuperUserBanner /> : <SuperUserBannerSeed />}
                         {topBar}
                         {centre && squeeze.compact && (
                           <ManhattanCompactBar

@@ -9,6 +9,7 @@ import { MANHATTAN_WORK_AREA_STORAGE_KEY, sidebarWidthFoucScript } from '@/lib/n
 import { Toaster } from '@/lib/openframe-core-ui';
 import { PostHogAnalyticsBridge } from '@/lib/posthog/posthog-analytics-bridge';
 import { runtimeEnv } from '@/lib/runtime-config';
+import { superUserSeedScript } from '@/lib/super-user-seed';
 import { getAppUrl } from '@/lib/utils';
 import { FeatureFlagsLoader } from '../components/feature-flags-loader';
 import { RouteGuard } from '../components/route-guard';
@@ -124,10 +125,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* React's dangerouslySetInnerHTML requires the __html key */}
         <script
           dangerouslySetInnerHTML={{
-            // The Manhattan v2 divider's place too, so the first paint draws the split where the user left it.
+            // The Manhattan v2 divider's place too, so the first paint draws the split where the user left it,
+            // and the super user strip's room (`super-user-seed.ts`).
             __html:
               sidebarWidthFoucScript(isSaasTenantMode()) +
-              (isSaasTenantMode() ? workAreaShareSeedScript(MANHATTAN_WORK_AREA_STORAGE_KEY) : ''),
+              (isSaasTenantMode()
+                ? workAreaShareSeedScript(MANHATTAN_WORK_AREA_STORAGE_KEY) + superUserSeedScript()
+                : ''),
           }}
         />
       </head>

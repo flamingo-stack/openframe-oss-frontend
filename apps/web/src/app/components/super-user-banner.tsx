@@ -109,3 +109,18 @@ export function SuperUserBanner() {
     </SuperUserBannerBoundary>
   );
 }
+
+/**
+ * The strip's room before `/me` answers, for a session whose stored user was a super user
+ * (`super-user-seed.ts` marks `<html>` before paint): the strip's own box (its fill, its rule,
+ * its height) with nothing in it, so the page under it does not move when the real one
+ * replaces it, and a stored flag that turns out stale never shows "Super user access" to a
+ * tenant user. Hidden in CSS everywhere else, the server's markup included.
+ */
+export function SuperUserBannerSeed() {
+  return (
+    <div aria-hidden className="hidden [&>*>*]:invisible [html[data-super-user]_&]:contents">
+      <SuperUserBannerView loading tenantName="" />
+    </div>
+  );
+}
