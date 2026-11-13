@@ -28,6 +28,8 @@ import { useChatPageSelection } from './use-chat-page-selection';
  * itself: a dialog that does not exist, one that failed to load, a crashed session.
  * An archived chat opens read-only — the chat does that from the dialog's record.
  * `null`: a chat not created yet ("What to ask Mingo?"), the page of the one it creates next.
+ * On a Manhattan v2 desktop the thread does not portal here: once this page lets it in
+ * (`threadReady`) the chat column takes the centre and shows it (`chat-page-node-store.ts`).
  */
 export function MingoChatView({ dialogId }: { dialogId: string | null }) {
   // A surface: the page shows the chat, so the session runs while it is up even

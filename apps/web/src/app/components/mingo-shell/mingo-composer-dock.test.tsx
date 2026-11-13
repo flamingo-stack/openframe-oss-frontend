@@ -7,6 +7,7 @@
  */
 
 import { act, forwardRef, type ReactNode, useEffect, useImperativeHandle } from 'react';
+import { createPortal } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
@@ -38,6 +39,8 @@ const {
   panel: {
     props: null as Record<string, unknown> | null,
     mounts: 0,
+    /** The thread portalled into `threadContainer` mounted: once per container it lands in. */
+    threadMounts: 0,
     /** The chat module has loaded: the handle exists. */
     loaded: true,
     /** The locked composer's props, while it draws. */
@@ -64,38 +67,49 @@ const {
   RENDER_CONTEXT_ITEM: () => null,
 }));
 
-vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({
-  EmbeddableChat: forwardRef<unknown, Record<string, unknown>>(function FakeEmbeddableChat(props, ref) {
-    const { loaded } = panel;
-    useImperativeHandle(
-      ref,
-      () =>
-        loaded
-          ? {
-              startNewChat: panel.startNewChat,
-              prefillDraft: panel.prefillDraft,
-              showWhatToAsk: panel.showWhatToAsk,
-              focusComposer: panel.focusComposer,
-            }
-          : null,
-      [loaded],
-    );
+vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => {
+  function FakeThread() {
     useEffect(() => {
-      panel.mounts += 1;
+      panel.threadMounts += 1;
     }, []);
-    panel.props = props;
     return null;
-  }),
-  ChatIdentityProvider: ({ children, enabled }: { children: ReactNode; enabled: boolean }) => {
-    identity.enabled = enabled;
-    return children;
-  },
-  ChatComposer: (props: Record<string, unknown>) => {
-    panel.loading = props;
-    return <p>locked composer</p>;
-  },
-  ModelDisplay: () => null,
-}));
+  }
+  return {
+    EmbeddableChat: forwardRef<unknown, Record<string, unknown>>(function FakeEmbeddableChat(props, ref) {
+      const { loaded } = panel;
+      useImperativeHandle(
+        ref,
+        () =>
+          loaded
+            ? {
+                startNewChat: panel.startNewChat,
+                prefillDraft: panel.prefillDraft,
+                showWhatToAsk: panel.showWhatToAsk,
+                focusComposer: panel.focusComposer,
+              }
+            : null,
+        [loaded],
+      );
+      useEffect(() => {
+        panel.mounts += 1;
+      }, []);
+      panel.props = props;
+      // As the real chat does: the thread portals into its container, so a new container is a
+      // new thread (React remounts a portal whose container changes).
+      const container = props.threadContainer;
+      return container instanceof HTMLElement ? createPortal(<FakeThread />, container) : null;
+    }),
+    ChatIdentityProvider: ({ children, enabled }: { children: ReactNode; enabled: boolean }) => {
+      identity.enabled = enabled;
+      return children;
+    },
+    ChatComposer: (props: Record<string, unknown>) => {
+      panel.loading = props;
+      return <p>locked composer</p>;
+    },
+    ModelDisplay: () => null,
+  };
+});
 vi.mock('@flamingo-stack/openframe-frontend-core/components', () => ({
   LoadingRegion: ({ children }: { children: ReactNode }) => <div aria-busy="true">{children}</div>,
 }));
@@ -258,6 +272,7 @@ describe('MingoComposerDock', () => {
     vi.clearAllMocks();
     panel.props = null;
     panel.mounts = 0;
+    panel.threadMounts = 0;
     panel.loaded = true;
     panel.loading = null;
     pageChip.node = null;
@@ -762,6 +777,60 @@ describe('MingoComposerDock', () => {
       expect(props().threadContainer).toBe(columnNode);
       renderV2('/devices/');
       expect(panel.showWhatToAsk).toHaveBeenCalledOnce();
+    });
+
+    describe("a chat's own page (CU-17tkuw66n0m)", () => {
+      const pageNode = document.createElement('div');
+
+      it('shows the thread beside a page and on the chat page in one column node: it never remounts', () => {
+        setSurface({ activeDialogId: 'd-1' });
+        useChatPageNodeStore.setState({ node: null, threadReady: false });
+        renderV2('/devices/');
+        expect(props().threadContainer).toBe(columnNode);
+        // "Close page" goes here: the chat page lets the thread in one commit after it arrives
+        // (its layout effect). The thread waits in the column meanwhile.
+        useChatPageNodeStore.setState({ node: pageNode });
+        renderV2('/mingo/chat/?id=d-1');
+        expect(props().threadContainer).toBe(columnNode);
+        act(() => useChatPageNodeStore.setState({ threadReady: true }));
+        expect(props().threadContainer).toBe(columnNode);
+        act(() => useChatPageNodeStore.setState({ node: null, threadReady: false }));
+        renderV2('/devices/');
+        expect(props().threadContainer).toBe(columnNode);
+        expect(panel.threadMounts).toBe(1);
+      });
+
+      it("from Mingo's home, lets the thread into the column once the page lets it in, never into the page", () => {
+        setSurface({ activeDialogId: 'd-1' });
+        useChatPageNodeStore.setState({ node: null, threadReady: false });
+        renderV2('/mingo/');
+        expect(props().threadContainer).toBeNull();
+        useChatPageNodeStore.setState({ node: pageNode });
+        renderV2('/mingo/chat/?id=d-1');
+        // The page's skeleton is up (the page column): no thread behind it yet.
+        expect(props().threadContainer).toBeNull();
+        act(() => useChatPageNodeStore.setState({ threadReady: true }));
+        expect(props().threadContainer).toBe(columnNode);
+        expect(panel.threadMounts).toBe(1);
+      });
+
+      it('on a phone keeps the thread on the chat page itself', () => {
+        viewport.mdUp = false;
+        setSurface({ activeDialogId: 'd-1' });
+        useChatPageNodeStore.setState({ node: pageNode, threadReady: true });
+        renderV2('/mingo/chat/?id=d-1');
+        expect(props().threadContainer).toBe(pageNode);
+      });
+
+      it("the tour block's × leaves the chat page, as the chat's own close does", () => {
+        setSurface({ activeDialogId: 'd-1' });
+        useMingoSheetStore.setState({ lastPage: '/devices/' });
+        useChatPageNodeStore.setState({ node: pageNode, threadReady: true });
+        renderV2('/mingo/chat/?id=d-1');
+        act(() => tour.input?.onClose?.());
+        expect(nav.push).toHaveBeenCalledWith('/devices/');
+        expect(useManhattanCentreStore.getState().chatView).toBe('split');
+      });
     });
   });
 

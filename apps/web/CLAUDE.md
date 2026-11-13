@@ -342,7 +342,10 @@ paint, so nothing waits for a flag and no page shows a loader on the way.
   context and uploads survive navigation. The chat page publishes a node (`useChatPageNodeStore`) and
   the dock portals the header and thread into it: `threadContainer` is that node or `null`, **never
   `undefined`** — that switches the chat back to its in-place layout and remounts the composer, draft
-  and all. Nothing above the dock may clip or transform it (its menus open upwards). A chat capability
+  and all. A new container is a new portal: the whole thread remounts and opens on its latest message.
+  So the Manhattan v2 shell on a desktop keeps the thread in its chat column on the chat page too (the
+  column takes the centre there once the page sets `threadReady`), and only a phone's chat page holds
+  it. Nothing above the dock may clip or transform it (its menus open upwards). A chat capability
   goes into `useOpenframeChatProps()` (`mingo-shell/use-openframe-chat-props.ts`). On a plain page the
   dock lies over the page's end (`dockViewOf(route).floats`): the page scrolls on under it and fades out to
   transparent over its height (the lib's shared preview fade, `previewFadeMask`, `FadePreview`'s mask), seen
