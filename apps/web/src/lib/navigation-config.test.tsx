@@ -374,6 +374,39 @@ describe('sectioned navigation (Manhattan v2 shell)', () => {
     ]);
   });
 
+  it('draws the Figma icons (nav/dashboard-sidebar, node 4668:14767)', () => {
+    setAppMode('saas-tenant');
+    const iconOf = (item: NavigationSidebarItem) => {
+      const icon = item.icon as ReactElement<{ size?: number }>;
+      return `${(icon.type as { name?: string }).name}@${icon.props.size}`;
+    };
+    const items = getSectionedNavigationItems(ALL_ON);
+    expect(items.map(item => [item.id, iconOf(item), (item.children ?? []).map(iconOf)])).toEqual([
+      ['service-desk', 'HeadsetIcon@20', ['TagIcon@20', 'ClockHistoryIcon@20']],
+      ['monitoring', 'ActivityIcon@20', ['AlertTriangleIcon@20', 'ClipboardListIcon@20']],
+      ['assets', 'LayersIcon@20', ['MonitorIcon@20', 'Parcel02Icon@20']],
+      ['directory', 'AddressBookIcon@20', ['IdCardIcon@20', 'UsersIcon@20', 'CloudIcon@20']],
+      [
+        'automation',
+        'RouteIcon@20',
+        ['BracketCurlyIcon@20', 'TimerIcon@20', 'FolderShieldIcon@20', 'BracketCurlyEllipsisVrIcon@20'],
+      ],
+      ['knowledge-base', 'BookBookmarkIcon@20', []],
+      ['help-center', 'QuestionCircleIcon@20', []],
+      ['settings', 'Settings02Icon@20', []],
+    ]);
+  });
+
+  it("keeps Cloud Tenants' cloud icon to itself: the other shells still draw the coding fork", () => {
+    setAppMode('saas-tenant');
+    const grouped = getGroupedNavigationItems(ALL_ON).flatMap(item => [item, ...(item.children ?? [])]);
+    const integrations = grouped.find(item => item.id === 'integrations');
+    expect((integrations?.icon as ReactElement).type).toBe(
+      (getNavigationItems('/', ALL_ON).find(item => item.id === 'integrations')?.icon as ReactElement).type,
+    );
+    expect(((integrations?.icon as ReactElement).type as { name?: string }).name).toBe('CodingForkIcon');
+  });
+
   it('has no Dashboard, no Needs approval and no Beta stamps', () => {
     setAppMode('saas-tenant');
     const all = getSectionedNavigationItems(ALL_ON).flatMap(item => [item, ...(item.children ?? [])]);
