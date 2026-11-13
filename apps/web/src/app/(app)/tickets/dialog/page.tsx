@@ -10,7 +10,7 @@ export default function TicketDetailsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const id = searchParams.get('id') ?? undefined;
-  // A link from a bundle older than the raw-id mapping, or an `@ticket:` mention one of
+  // A link from a bundle older than the raw-id mapping, or a `record://ticket/` link one of
   // them wrote into a chat, carries the Relay global `Ticket.id`. The page keys its
   // queries on the id it is given and notifications route by the raw one, so the view
   // only ever sees the raw id.

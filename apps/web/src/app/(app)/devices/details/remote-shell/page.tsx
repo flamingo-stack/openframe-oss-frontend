@@ -1,6 +1,7 @@
 'use client';
 
 import { Button, PageLayout } from '@flamingo-stack/openframe-frontend-core';
+import { OPENFRAME_RECORD_KIND } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -11,7 +12,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { RemoteShellDeviceBar } from '@/app/(app)/devices/components/remote-shell/remote-shell-device-bar';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
-import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
 import { useTrackOpenView } from '@/app/(app)/mingo/context/use-track-open-view';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { MeshControlClient } from '@/lib/meshcentral/meshcentral-control';
@@ -66,7 +66,7 @@ function RemoteShellSession() {
   // Keep this device as the Mingo "open view" while on the remote-shell surface
   // (the parent detail page unmounted on navigation, clearing its own openView).
   useTrackOpenView(
-    deviceDetails ? { type: CONTEXT_ENTITY_KIND.DEVICE, id: deviceId, label: deviceName || deviceId } : null,
+    deviceDetails ? { type: OPENFRAME_RECORD_KIND.DEVICE, id: deviceId, label: deviceName || deviceId } : null,
     { loading: isDeviceLoading },
   );
 

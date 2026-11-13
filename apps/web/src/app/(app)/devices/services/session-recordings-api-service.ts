@@ -116,7 +116,7 @@ const deviceCustomerFragment = graphql`
 
 const listQuery = graphql`
   query sessionRecordingsApiServiceListQuery($deviceId: String!, $first: Int!, $after: String) {
-    remoteSessions(deviceId: $deviceId, first: $first, after: $after) {
+    remoteSessions(filter: { deviceIds: [$deviceId] }, first: $first, after: $after) {
       edges {
         node {
           ...sessionRecordingsApiService_session

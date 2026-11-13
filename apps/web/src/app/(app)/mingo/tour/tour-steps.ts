@@ -1,3 +1,4 @@
+import { recordLinkMarkdown, OPENFRAME_RECORD_TYPE } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import {
   AlertCircleIcon,
   AlertOctagonIcon,
@@ -19,7 +20,6 @@ import {
 import type { ComponentType } from 'react';
 import { UserOnboardingStep } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
-import { CONTEXT_ENTITY_MARKER } from '../context/context-types';
 
 /** The conversation the tour lives in, as the chat list names it. */
 export const TOUR_DIALOG_TITLE = 'Welcome to OpenFrame';
@@ -41,7 +41,7 @@ export interface TourAction {
   /**
    * What the chip sends to Mingo in the tour's conversation. A prompt about the
    * workspace's first device is a function of how that device is named in the
-   * message: its `@device:<id>` mention when the device is known, else "my
+   * message: its record link when the device is known, else "my
    * device" (`tourPrompt`). Mingo does not resolve "my device" on its own.
    */
   prompt: string | ((device: string) => string);
@@ -287,11 +287,14 @@ export const TOUR_DEVICE_FALLBACK = 'my device';
 
 /**
  * The text a chip sends: a prompt about the first device names it by its
- * `@device:<id>` mention (the token the composer's own @-mention commits, so
- * Mingo targets that exact machine), or by "my device" without one.
+ * record link (`[name](record://device/<id>)`, what the composer's own
+ * @-mention commits, so Mingo targets that exact machine), or by "my device"
+ * without one.
  */
-export function tourPrompt(action: TourAction, device: { mentionId: string | null } | null): string {
+export function tourPrompt(action: TourAction, device: { mentionId: string | null; name: string } | null): string {
   if (typeof action.prompt === 'string') return action.prompt;
   const id = device?.mentionId;
-  return action.prompt(id ? `@${CONTEXT_ENTITY_MARKER.DEVICE}:${id}` : TOUR_DEVICE_FALLBACK);
+  return action.prompt(
+    id && device ? recordLinkMarkdown({ type: OPENFRAME_RECORD_TYPE.DEVICE, id }, device.name) : TOUR_DEVICE_FALLBACK,
+  );
 }

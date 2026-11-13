@@ -1,15 +1,13 @@
 /**
- * `@chat:<dialogId>` reaches the chat-reference chip with the chats glyph
- * (two overlapping bubbles) as its lead icon — the marker is not an entity, so
- * it has no picker entry to take an icon from, and the icon is pinned here
- * instead of in `MINGO_CONTEXT_ENTITY_TYPES`.
+ * `record://chat/<dialogId>` reaches the chat-reference chip, and an inline chip draws no icon.
  */
 
-import { ChatsIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { RecordChip } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { isValidElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { ChatReferenceChip } from './chat-reference-chip';
-import { renderMingoMention } from './render-mention';
+import { GraphqlMentionChip } from './relay-mention-chips';
+import { renderMingoRecordChip } from './render-mention';
 
 // The entity chips reach Relay (`graphql` tags need the compiler transform) and
 // the picker's data components; none of them run for a chat reference.
@@ -18,20 +16,40 @@ vi.mock('./relay-mention-chips', () => ({ GraphqlMentionChip: vi.fn() }));
 vi.mock('./rest-mention-chips', () => ({ RestMentionChip: vi.fn() }));
 vi.mock('../context-sources', () => ({ MINGO_CONTEXT_ENTITY_TYPES: [] }));
 
-describe('renderMingoMention', () => {
-  it('renders @chat as the chat-reference chip led by the chats icon', () => {
-    const element = renderMingoMention({ marker: 'chat', id: 'd-1' });
+describe('renderMingoRecordChip', () => {
+  it('renders a chat record as the chat-reference chip, with no icon', () => {
+    const element = renderMingoRecordChip({ type: 'chat', id: 'd-1' });
 
     expect(isValidElement(element)).toBe(true);
-    if (!isValidElement<{ id: string; icon: unknown }>(element)) return;
+    if (!isValidElement<{ id: string; icon?: unknown }>(element)) return;
     expect(element.type).toBe(ChatReferenceChip);
     expect(element.props.id).toBe('d-1');
-    expect(isValidElement(element.props.icon)).toBe(true);
-    if (!isValidElement(element.props.icon)) return;
-    expect(element.props.icon.type).toBe(ChatsIcon);
+    expect(element.props.icon).toBeUndefined();
   });
 
-  it('leaves an unknown marker to the lib as bare text', () => {
-    expect(renderMingoMention({ marker: 'nothing', id: 'x' })).toBeNull();
+  it("leaves an unknown type to the lib's own chip", () => {
+    expect(renderMingoRecordChip({ type: 'nothing', id: 'x' })).toBeNull();
+  });
+
+  const propsOf = (element: unknown) =>
+    isValidElement<{ label?: string; fallbackLabel?: string; href?: string | null }>(element) ? element : null;
+
+  it('draws a vulnerability as its CVE id, linked to its page, with no fetch', () => {
+    const chip = propsOf(renderMingoRecordChip({ type: 'vulnerability', id: 'CVE-2024-1234' }));
+    expect(chip?.type).toBe(RecordChip);
+    expect(chip?.props.label).toBe('CVE-2024-1234');
+    expect(chip?.props.href).toContain('CVE-2024-1234');
+  });
+
+  it("hands a record's known name to its chip as the fallback", () => {
+    const chip = propsOf(renderMingoRecordChip({ type: 'device', id: 'm1', label: 'MacBook' }));
+    expect(chip?.type).toBe(GraphqlMentionChip);
+    expect(chip?.props.fallbackLabel).toBe('MacBook');
+  });
+
+  it('reads every script id through Relay, whatever its shape', () => {
+    for (const id of ['507f1f77bcf86cd799439011', '42']) {
+      expect(propsOf(renderMingoRecordChip({ type: 'script', id }))?.type).toBe(GraphqlMentionChip);
+    }
   });
 });

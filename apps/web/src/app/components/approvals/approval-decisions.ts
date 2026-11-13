@@ -1,7 +1,6 @@
 import type { InfiniteData, QueryClient } from '@tanstack/react-query';
 import { create } from 'zustand';
-import type { MingoDialogsPage } from '@/app/(app)/mingo/utils/dialog-row-status';
-import { mingoDialogQueryKeys } from '@/app/(app)/mingo/utils/query-keys';
+import { settleMingoRowApproval } from '@/app/(app)/mingo/stores/mingo-dialog-rows-store';
 import type { TicketsPage } from '@/app/(app)/tickets/services/ticket-service.types';
 import { dialogsQueryKeys, ticketsQueryKeys } from '@/app/(app)/tickets/utils/query-keys';
 
@@ -80,18 +79,5 @@ export function settleApprovalCaches(queryClient: QueryClient, approvalRequestId
     void queryClient.invalidateQueries({ queryKey: ticketsQueryKeys.detail(ticketId) });
   }
 
-  queryClient.setQueriesData<InfiniteData<MingoDialogsPage>>({ queryKey: mingoDialogQueryKeys.lists }, data => {
-    if (!data?.pages.some(page => page.dialogs.some(dialog => dialog.pendingApproval?.id === approvalRequestId))) {
-      return data;
-    }
-    return {
-      ...data,
-      pages: data.pages.map(page => ({
-        ...page,
-        dialogs: page.dialogs.map(dialog =>
-          dialog.pendingApproval?.id === approvalRequestId ? { ...dialog, pendingApproval: null } : dialog,
-        ),
-      })),
-    };
-  });
+  settleMingoRowApproval(approvalRequestId);
 }
