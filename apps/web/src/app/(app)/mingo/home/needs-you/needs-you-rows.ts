@@ -1,9 +1,4 @@
 import { getApprovalMeta, type Notification } from '@flamingo-stack/openframe-frontend-core';
-import {
-  packageManagerLabel,
-  providerMark,
-  softwareActionCopy,
-} from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { IncidentRow } from '@/app/(app)/incidents/utils/incident-transform';
 import type { Dialog } from '@/app/(app)/tickets/types/dialog.types';
 import { getTicketDeviceName } from '@/app/(app)/tickets/utils/ticket-device-name';
@@ -12,60 +7,66 @@ import { untitledRequestName } from '@/app/components/approvals/approval-inbox';
 import { resolveNotificationRoute } from '@/app/components/notifications/notification-navigation';
 import { isApprovalResolved } from '@/graphql/notifications/notification-attributes';
 import type { FeatureFlagGate } from '@/lib/feature-flags';
-import { formatCount } from '@/lib/format-number';
-import { pluralize } from '@/lib/pluralize';
 import { routes } from '@/lib/routes';
 
 /**
- * "Needs you" on Mingo's home: one card listing what waits for a person, composed on the
- * client from six existing contracts (FE_PROMPT §3.2, §12.2) — there is no combined feed.
- * This module is the card's logic as plain data: which source may add how many rows, in
- * what order, what each row says, and when the card loads, hides or reports a failure.
+ * "Needs you" on Mingo's home and the dashboard: a queue of what waits for a person, composed
+ * on the client from three existing contracts — pending approvals, NEW critical incidents and
+ * tickets the end user escalated; there is no combined feed — over one quick action per category. This module is the block's logic as plain data:
+ * what each row says and when it started needing someone, the queue's order, the counts, and
+ * when the block loads, hides or reports a failure.
  */
 
-/** The sources, in the order their rows appear on the card. */
-export const NEEDS_YOU_SOURCES = ['approvals', 'incidents', 'tickets', 'tenants', 'software', 'disk'] as const;
+/** The sources, one read each. */
+export const NEEDS_YOU_SOURCES = ['approvals', 'incidents', 'tickets'] as const;
 export type NeedsYouSource = (typeof NEEDS_YOU_SOURCES)[number];
 
-/** How many rows each source may put on the card. */
-export const NEEDS_YOU_CAPS = {
-  approvals: 2,
-  incidents: 2,
-  tickets: 2,
-  tenants: 1,
-  software: 1,
-  disk: 1,
-} as const satisfies Record<NeedsYouSource, number>;
+/** The quick actions under the queue, in the order they are drawn. */
+export const NEEDS_YOU_CATEGORIES = ['incidents', 'approvals', 'tickets'] as const;
+export type NeedsYouCategory = (typeof NEEDS_YOU_CATEGORIES)[number];
+
+/** The category a source's rows and count belong to. */
+export const NEEDS_YOU_SOURCE_CATEGORY = {
+  approvals: 'approvals',
+  incidents: 'incidents',
+  tickets: 'tickets',
+} as const satisfies Record<NeedsYouSource, NeedsYouCategory>;
+
+/** The rows the queue shows, loading or loaded: the block is this many rows high, whatever it holds. */
+export const NEEDS_YOU_ROWS = 3;
 
 /**
- * The rows the card shows, loading or loaded; the rest fade out under "Show N more". A fixed
- * number, so the card takes the same space whatever the sources answer.
+ * How many candidates each source reads: enough to fill the queue on its own after the rows the
+ * user dismissed and the ones another source already lists.
  */
-export const NEEDS_YOU_PREVIEW_ROWS = 3;
+export const NEEDS_YOU_CANDIDATES = 5;
 
 /** What a row is about — it picks the row's icon. */
+export type NeedsYouEntity = 'approval' | 'incident' | 'ticket';
 
-export type NeedsYouEntity = 'approval' | 'incident' | 'ticket' | 'tenant' | 'software' | 'device';
+/** The status tag's look: `critical` red filled, `warning` the attention tint. */
+export type NeedsYouTone = 'critical' | 'warning';
 
 export interface NeedsYouRow {
   /** Unique on the card. */
   key: string;
   entity: NeedsYouEntity;
-  /** The device's type, for a `device` row's icon. */
-  deviceType?: string | null;
   name: string;
-  /** The secondary line. */
+  /** What else the row knows about the item (customer, device…): told to Mingo, not drawn. */
   detail: string;
-  /** The tag on the right: why it needs a person. */
+  /** The status tag: why it needs a person. */
   reason: string;
-  /** `error` for a failure, a critical finding, an escalation or a disconnect; `warning` otherwise. */
-  tone: 'error' | 'warning';
+  tone: NeedsYouTone;
   /** The entity's page. */
   href: string;
   /**
-   * The things this row stands for (`ticket:<id>`, `insight:<id>`). A thing already on the
-   * card is not listed twice: a later source's row naming it is skipped, and the next one
-   * of that source takes its place.
+   * When the item started needing a person, in epoch ms (0 when unknown): the queue is newest
+   * first, and a dismissal hides the item only up to this time.
+   */
+  at: number;
+  /**
+   * The things this row stands for (`ticket:<id>`, `insight:<id>`). A thing already in the
+   * queue is not listed twice: the older row naming it is skipped.
    */
   subjects: readonly string[];
 }
@@ -75,9 +76,9 @@ export type SourceReport =
   | { status: 'loading' }
   | {
       status: 'ready';
-      /** Every candidate the source found, best first — the card applies the cap. */
+      /** The candidates the source read. */
       rows: readonly NeedsYouRow[];
-      /** A total the footer prints (incidents: every NEW incident). */
+      /** The category's count; the rows read when the source has no count of its own. */
       count?: number;
     }
   | { status: 'error'; isOffline: boolean; retry: () => void };
@@ -92,69 +93,112 @@ export interface NeedsYouFailure {
   retry: () => void;
 }
 
+/** A quick action: the category's count, or its failure. */
+export interface NeedsYouCategoryCount {
+  category: NeedsYouCategory;
+  /** `null` when the category's source failed. */
+  count: number | null;
+  /** The category's failed sources (empty when it loaded). */
+  failures: NeedsYouFailure[];
+}
+
+/** Rows the user dismissed: the row's key and when, in epoch ms. */
+export type NeedsYouDismissed = Readonly<Record<string, number>>;
+
 export type NeedsYouView =
   | { status: 'loading' }
-  /** No source is open (every gate is off): the card has nothing to say. */
+  /** No source is open (every gate is off): the block has nothing to say. */
   | { status: 'hidden' }
-  | { status: 'ready'; rows: NeedsYouRow[]; failures: NeedsYouFailure[] };
+  | {
+      status: 'ready';
+      /** Every row still needing the user, newest first; the block shows the first `NEEDS_YOU_ROWS`. */
+      queue: NeedsYouRow[];
+      /** One per category that has an open source, in `NEEDS_YOU_CATEGORIES` order. */
+      categories: NeedsYouCategoryCount[];
+      failures: NeedsYouFailure[];
+    };
+
+/** Whether the user dismissed this row after it last started needing them. */
+export function isDismissed(row: NeedsYouRow, dismissed: NeedsYouDismissed): boolean {
+  const at = dismissed[row.key];
+  return at !== undefined && row.at <= at;
+}
 
 /**
- * The card from what the sources said.
+ * The block from what the sources said.
  *
  * - **Loading** while any gate is unanswered, any source behind an open gate has not
- *   answered, or `pending` (the footer's own counts) holds. Rows from early sources are
- *   not shown ahead of the rest: they would move when a source above them lands.
- * - **Ready** with no rows once everything answered with nothing: the card stays, saying so,
- *   so the page does not move. A source that FAILED is listed as a failure instead.
+ *   answered, or `pending` (a count still being read) holds. Early rows are not shown ahead of
+ *   the rest: a newer row landing later would push them down.
+ * - **Ready** once everything answered: every row, newest first, without the ones the user
+ *   dismissed and without an older row about a thing a newer one already lists; and one count
+ *   per category with an open source. A source that FAILED is a failure, and its category's
+ *   count is `null`.
  * - **Hidden** only when every gate is off.
  * - A source behind a gate that is off contributes nothing and is not waited for.
  */
-export function resolveNeedsYou(gates: NeedsYouGates, reports: NeedsYouReports, pending = false): NeedsYouView {
+export function resolveNeedsYou(
+  gates: NeedsYouGates,
+  reports: NeedsYouReports,
+  { pending = false, dismissed = {} }: { pending?: boolean; dismissed?: NeedsYouDismissed } = {},
+): NeedsYouView {
   let loading = pending;
-  let open = false;
-  const rows: NeedsYouRow[] = [];
+  const candidates: NeedsYouRow[] = [];
   const failures: NeedsYouFailure[] = [];
-  const listed = new Set<string>();
+  const counts = new Map<NeedsYouCategory, NeedsYouCategoryCount>();
 
   for (const source of NEEDS_YOU_SOURCES) {
     const gate = gates[source];
     if (gate === 'off') continue;
-    open = true;
+    const category = NEEDS_YOU_SOURCE_CATEGORY[source];
+    const entry = counts.get(category) ?? { category, count: 0, failures: [] };
+    counts.set(category, entry);
     const report = reports[source];
     if (gate === 'loading' || !report || report.status === 'loading') {
       loading = true;
       continue;
     }
     if (report.status === 'error') {
-      failures.push({ source, isOffline: report.isOffline, retry: report.retry });
+      const failure = { source, isOffline: report.isOffline, retry: report.retry };
+      failures.push(failure);
+      entry.failures.push(failure);
+      entry.count = null;
       continue;
     }
-
-    let taken = 0;
-    for (const row of report.rows) {
-      if (taken === NEEDS_YOU_CAPS[source]) break;
-      if (row.subjects.some(subject => listed.has(subject))) continue;
-      for (const subject of row.subjects) listed.add(subject);
-      rows.push(row);
-      taken += 1;
-    }
+    if (entry.count !== null) entry.count += report.count ?? report.rows.length;
+    candidates.push(...report.rows);
   }
 
   if (loading) return { status: 'loading' };
-  if (!open) return { status: 'hidden' };
-  return { status: 'ready', rows, failures };
+  if (counts.size === 0) return { status: 'hidden' };
+
+  // Newest first; a tie keeps the sources' order (the sort is stable).
+  candidates.sort((a, b) => b.at - a.at);
+  const queue: NeedsYouRow[] = [];
+  const listed = new Set<string>();
+  for (const row of candidates) {
+    if (row.subjects.some(subject => listed.has(subject))) continue;
+    for (const subject of row.subjects) listed.add(subject);
+    if (!isDismissed(row, dismissed)) queue.push(row);
+  }
+
+  const categories = NEEDS_YOU_CATEGORIES.flatMap(category => {
+    const entry = counts.get(category);
+    return entry ? [entry] : [];
+  });
+  return { status: 'ready', queue, categories, failures };
 }
 
 function sameRow(a: NeedsYouRow, b: NeedsYouRow): boolean {
   return (
     a.key === b.key &&
     a.entity === b.entity &&
-    a.deviceType === b.deviceType &&
     a.name === b.name &&
     a.detail === b.detail &&
     a.reason === b.reason &&
     a.tone === b.tone &&
     a.href === b.href &&
+    a.at === b.at &&
     a.subjects.length === b.subjects.length &&
     a.subjects.every((subject, index) => subject === b.subjects[index])
   );
@@ -178,22 +222,32 @@ export function sameReport(previous: SourceReport | undefined, next: SourceRepor
   );
 }
 
-/** The footer's counts; `null` leaves a part out (its gate is off, or the count is unknown). */
-export interface NeedsYouFooterCounts {
-  aiHandled: number | null;
-  needTechnician: number | null;
-  newIncidents: number | null;
+/**
+ * Where a quick action leads: its category's page, narrowed to what its count counts where the
+ * page reads such a filter from its URL. The tickets list has no escalation filter, so Tickets
+ * opens the Tech Required lanes, where the escalated tickets are.
+ */
+export function categoryHref(
+  category: NeedsYouCategory,
+  { techRequiredStatusIds }: { techRequiredStatusIds: readonly string[] },
+): string {
+  const href: Record<NeedsYouCategory, string> = {
+    incidents: routes.incidents.filtered({ severity: ['CRITICAL'], status: ['NEW'] }),
+    approvals: routes.approvals,
+    tickets:
+      techRequiredStatusIds.length > 0
+        ? routes.tickets.filtered({ status: techRequiredStatusIds })
+        : routes.tickets.list,
+  };
+  return href[category];
 }
 
-/** "3 tickets handled by AI · 2 need a technician · 4 new incidents", or null with nothing to say. */
-export function needsYouFooter({ aiHandled, needTechnician, newIncidents }: NeedsYouFooterCounts): string | null {
-  const parts: string[] = [];
-  if (aiHandled !== null) parts.push(`${pluralize(aiHandled, 'ticket')} handled by AI`);
-  if (needTechnician !== null) {
-    parts.push(`${formatCount(needTechnician)} ${needTechnician === 1 ? 'needs' : 'need'} a technician`);
-  }
-  if (newIncidents !== null) parts.push(pluralize(newIncidents, 'new incident'));
-  return parts.length > 0 ? parts.join(' · ') : null;
+/** An `Instant` / ISO string, or epoch ms, as epoch ms; 0 when missing or unreadable. */
+export function epochOf(value: string | number | null | undefined): number {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (!value) return 0;
+  const ms = Date.parse(value);
+  return Number.isNaN(ms) ? 0 : ms;
 }
 
 const joinDetail = (...parts: (string | null | undefined)[]) => parts.filter(Boolean).join(' · ');
@@ -223,6 +277,7 @@ export function approvalRow(
     reason: 'Needs approval',
     tone: 'warning',
     href,
+    at: epochOf(notification.createdAt),
     subjects: approval.ticketId
       ? [`approval:${approval.approvalRequestId}`, `ticket:${approval.ticketId}`]
       : [`approval:${approval.approvalRequestId}`],
@@ -237,27 +292,9 @@ export function criticalIncidentRow(incident: IncidentRow): NeedsYouRow {
     name: incident.title,
     detail: joinDetail(incident.deviceName, incident.organizationName),
     reason: 'Critical',
-    tone: 'error',
+    tone: 'critical',
     href: routes.incidents.details(incident.id),
-    subjects: [`insight:${incident.id}`],
-  };
-}
-
-/**
- * A device whose disk is running out (the `DISK_SPACE_LOW` detector). The row is the
- * device, so it opens the device; a machine that no longer resolves has no page, and
- * the finding itself opens instead.
- */
-export function diskWarningRow(incident: IncidentRow): NeedsYouRow {
-  return {
-    key: `disk:${incident.id}`,
-    entity: 'device',
-    deviceType: incident.deviceType,
-    name: incident.deviceName,
-    detail: joinDetail(incident.title, incident.organizationName),
-    reason: 'Low disk space',
-    tone: 'warning',
-    href: incident.hasDevice ? routes.devices.details(incident.machineId) : routes.incidents.details(incident.id),
+    at: epochOf(incident.detectedAt),
     subjects: [`insight:${incident.id}`],
   };
 }
@@ -270,52 +307,25 @@ export function escalatedTicketRow(ticket: Dialog): NeedsYouRow {
     name: formatTicketRef(ticket, ticket.id),
     detail: joinDetail(ticket.organizationName, getTicketDeviceName(ticket)),
     reason: 'Escalated by user',
-    tone: 'error',
+    tone: 'warning',
     href: routes.tickets.dialog(ticket.id),
+    // When it was opened: the escalation itself is not exposed (`statusUpdatedAt` is the ticket's
+    // last update of any kind), and the source reads the newest by ticket number, the same order.
+    at: epochOf(ticket.createdAt),
     subjects: [`ticket:${ticket.id}`],
   };
 }
 
-/** A cloud tenant (directory connection) whose last sync failed. */
-export function failedSyncTenantRow(tenant: {
-  id: string;
-  name: string;
-  provider: string;
-  customerName: string;
-}): NeedsYouRow {
-  return {
-    key: `tenant:${tenant.id}`,
-    entity: 'tenant',
-    name: tenant.name,
-    detail: joinDetail(providerMark(tenant.provider).label, tenant.customerName),
-    reason: 'Sync failed',
-    tone: 'error',
-    href: routes.cloudTenantManagement.details(tenant.id),
-    subjects: [`tenant:${tenant.id}`],
-  };
-}
+const ENTITY_NOUN: Record<NeedsYouEntity, string> = {
+  approval: 'Approval request',
+  incident: 'Incident',
+  ticket: 'Ticket',
+};
 
-/** A software install / update run that FAILED. */
-export function failedSoftwareActionRow(action: {
-  id: string;
-  software: string;
-  action: string;
-  engine: string;
-  respondedMachineCount: number;
-  totalMachineCount: number;
-}): NeedsYouRow {
-  const verb = softwareActionCopy(action.action)?.verb;
-  return {
-    key: `software:${action.id}`,
-    entity: 'software',
-    name: verb ? `${verb} ${action.software}` : action.software,
-    detail: joinDetail(
-      packageManagerLabel(action.engine),
-      `${formatCount(action.respondedMachineCount)} / ${pluralize(action.totalMachineCount, 'device')}`,
-    ),
-    reason: 'Failed',
-    tone: 'error',
-    href: routes.software.action(action.id),
-    subjects: [`software:${action.id}`],
-  };
+/** What the Mingo button sends: the item, why it needs the user, what else is known, and where it is. */
+export function needsYouMingoPrompt(row: NeedsYouRow): string {
+  const what = `${ENTITY_NOUN[row.entity]} "${row.name}" needs my attention (${row.reason.toLowerCase()}).`;
+  return [what, row.detail && `Details: ${row.detail}.`, `Page: ${row.href}`, 'Help me resolve it.']
+    .filter(Boolean)
+    .join('\n');
 }

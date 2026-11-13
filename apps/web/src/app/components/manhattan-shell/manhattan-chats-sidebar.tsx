@@ -11,12 +11,10 @@ import {
   NotificationsBellButton,
 } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useNeedsYouCount } from '@/app/(app)/mingo/home/needs-you/needs-you-card';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { MingoAccountPopover } from '@/app/components/mingo-shell/mingo-account-popover';
 import { MingoSidebarHistory } from '@/app/components/mingo-shell/mingo-sidebar-history';
 import { closeMobileMenu } from '@/app/components/mingo-shell/mobile-menu-store';
-import { useSubscriptionOpen } from '@/app/components/subscription-lock/subscription-guard';
 
 /**
  * The Manhattan v2 shell's left sidebar (Figma "mingo (Manhattan)"
@@ -29,9 +27,8 @@ import { useSubscriptionOpen } from '@/app/components/subscription-lock/subscrip
 /**
  * "New Chat" (Figma `start-work`, 1366:93304): Mingo's home, Start Work, where a new chat
  * starts. The same launcher action as the Mingo-first shell's "New chat" (the dock goes
- * home and resets the chat there). Its counter is how many rows Start Work's "Needs you"
- * shows, read from the same sources (no request of its own once the page has read them);
- * none while they load, behind the paywall or behind the lock screen.
+ * home and resets the chat there). No counter: "Needs you" is a queue of three over exact
+ * per-category counts, so no one number of its rows means anything (CU-17tkuw66m19).
  */
 export function ManhattanStartWorkRow({
   minimized,
@@ -43,26 +40,19 @@ export function ManhattanStartWorkRow({
   /** Behind the paywall, as the Mingo-first rows are. */
   disabled?: boolean;
 }) {
-  const open = useSubscriptionOpen();
-  const { count, sources } = useNeedsYouCount(open && !disabled);
   return (
-    <>
-      {sources}
-      <NavigationSidebarActionRow
-        size="sectioned"
-        icon={<PlusCircleIcon />}
-        label="New Chat"
-        count={disabled ? 0 : count}
-        countTone="warning"
-        active={active}
-        disabled={disabled}
-        minimized={minimized}
-        onClick={() => {
-          useMingoLauncherStore.getState().startNewChat();
-          closeMobileMenu();
-        }}
-      />
-    </>
+    <NavigationSidebarActionRow
+      size="sectioned"
+      icon={<PlusCircleIcon />}
+      label="New Chat"
+      active={active}
+      disabled={disabled}
+      minimized={minimized}
+      onClick={() => {
+        useMingoLauncherStore.getState().startNewChat();
+        closeMobileMenu();
+      }}
+    />
   );
 }
 
