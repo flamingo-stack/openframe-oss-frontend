@@ -30,6 +30,10 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', async importO
 vi.mock('./app-layout', () => ({ AppLayout: ({ children }: { children: ReactNode }) => <>{children}</> }));
 vi.mock('./mingo-dialog-param-bridge', () => ({ MingoDialogParamBridge: () => null }));
 vi.mock('./shell-navigator-registrar', () => ({ ShellNavigatorRegistrar: () => null }));
+// The device status gate asks the backend through Relay; the layout's navigation is what this file tests.
+vi.mock('./device-status-support-gate', () => ({
+  DeviceStatusSupportGate: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
 
 const KB = '/help-center/knowledge-base';
 const NODES = new Set(['openframe-cli/getting-started/quick-start.md', 'openframe-cli/README.md']);

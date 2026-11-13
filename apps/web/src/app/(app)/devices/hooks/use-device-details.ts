@@ -206,6 +206,8 @@ export function createDevice(
 
     // System Status
     status: node.status || fleetData?.status || 'UNKNOWN',
+    // Only the backend says whether the device is online right now; null (never reported) reads as offline.
+    connectivity: node.connectivity ?? null,
     uptime: fleetData?.uptime,
     last_seen: fleetData?.seen_time || node.lastSeen,
     lastSeen: fleetData?.seen_time || node.lastSeen,

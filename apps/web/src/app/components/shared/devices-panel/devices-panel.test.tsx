@@ -329,7 +329,7 @@ describe('DevicesPanel and the directory gate', () => {
     const dialog = () => document.querySelector('[role="dialog"]');
 
     it('keeps the header filters when Device Tags are applied', async () => {
-      setAddress('?statuses=ONLINE');
+      setAddress('?statuses=PENDING');
       flagsOn();
       render();
       await settle();
@@ -348,8 +348,8 @@ describe('DevicesPanel and the directory gate', () => {
       push.mockRestore();
       // Apply ran (it closes the window); the params it sent equal the address's, so nothing need be written.
       expect(dialog()?.getAttribute('data-state')).toBe('closed');
-      expect(written.every(url => url.includes('statuses=ONLINE'))).toBe(true);
-      expect(window.location.search).toContain('statuses=ONLINE');
+      expect(written.every(url => url.includes('statuses=PENDING'))).toBe(true);
+      expect(window.location.search).toContain('statuses=PENDING');
     });
 
     it('carries SOURCES from lg until xl, where beside the customer column its header has no funnel', async () => {

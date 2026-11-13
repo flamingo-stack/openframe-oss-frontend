@@ -5,6 +5,8 @@ import { usePathname } from 'next/navigation';
 import { Suspense } from 'react';
 import { AppLayout } from '../components/app-layout';
 import { APP_MAIN_CLASS_NAME, getMainClassNameOverride } from '../components/app-shell-chrome';
+import { DeviceStatusDisplayFromFlag } from '../components/device-status-display-from-flag';
+import { DeviceStatusSupportGate } from '../components/device-status-support-gate';
 import { MingoDialogParamBridge } from '../components/mingo-dialog-param-bridge';
 import { OpenframeChatRuntimeProvider } from '../components/openframe-chat-runtime-provider';
 import { ShellNavigatorRegistrar } from '../components/shell-navigator-registrar';
@@ -31,7 +33,13 @@ export default function AppGroupLayout({ children }: { children: React.ReactNode
         <Suspense fallback={null}>
           <MingoDialogParamBridge />
         </Suspense>
-        <AppLayout mainClassName={mainClassNameOverride || APP_MAIN_CLASS_NAME}>{children}</AppLayout>
+        {/* The device status look (`device-managed-status`), for the pages and the Mingo panel alike. */}
+        <DeviceStatusDisplayFromFlag>
+          <AppLayout mainClassName={mainClassNameOverride || APP_MAIN_CLASS_NAME}>
+            {/* Device lists send MANAGED only to a backend that has it (device status phase 2). */}
+            <DeviceStatusSupportGate>{children}</DeviceStatusSupportGate>
+          </AppLayout>
+        </DeviceStatusDisplayFromFlag>
       </OpenframeChatRuntimeProvider>
     </DocNavigationProvider>
   );

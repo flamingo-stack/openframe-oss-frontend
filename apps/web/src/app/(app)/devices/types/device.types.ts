@@ -188,7 +188,10 @@ export interface Device {
   macAddress?: string;
 
   // System Status
+  /** Lifecycle: PENDING, MANAGED (legacy ONLINE / OFFLINE), PENDING_DELETION, ARCHIVED, DELETED. */
   status: string;
+  /** ONLINE / OFFLINE right now, apart from the lifecycle; null = never reported (reads as offline). */
+  connectivity?: string | null;
   uptime?: number; // seconds
   last_seen?: string;
   lastSeen?: string;
@@ -311,6 +314,7 @@ export type DeviceGraphQlNode = {
   osUuid?: string;
   agentVersion?: string;
   status: string;
+  connectivity?: string | null;
   lastSeen?: string;
   organization?: {
     id: string;

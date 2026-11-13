@@ -65,7 +65,7 @@ interface ScopedBundleDevicePickerProps {
  */
 function ScopedBundleDevicePicker({ osTypesKey, bundleId, createError, onRetryCreate }: ScopedBundleDevicePickerProps) {
   const scope = useMemo<DeviceFilterInput>(
-    () => ({ statuses: [DEVICE_STATUS.ONLINE, DEVICE_STATUS.OFFLINE], osTypes: osTypesKey.split(',') }),
+    () => ({ statuses: [DEVICE_STATUS.MANAGED], osTypes: osTypesKey.split(',') }),
     [osTypesKey],
   );
   return (

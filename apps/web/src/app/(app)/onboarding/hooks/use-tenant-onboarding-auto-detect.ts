@@ -7,16 +7,17 @@ import type { FetchPolicy } from 'relay-runtime';
 import type { tenantOnboardingAutoDetectRelayQuery as AutoDetectQuery } from '@/__generated__/tenantOnboardingAutoDetectRelayQuery.graphql';
 import { TENANT_ONBOARDING_STEPS } from '@/app/(app)/onboarding/onboarding-steps';
 import { TenantOnboardingStep } from '@/generated/schema-enums';
+import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
 import { tenantOnboardingAutoDetectRelayQuery } from '@/graphql/onboarding/tenant-onboarding-auto-detect-relay';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 
-// Device-status filter: only ONLINE/OFFLINE count as "a device connected" — ARCHIVED
-// (removed) and PENDING (still enrolling) must NOT auto-complete DEVICE_MANAGEMENT.
-// Module-level for a stable reference (see AUTO_DETECT_OPTIONS).
-const AUTO_DETECT_VARIABLES = {
-  deviceFilter: { statuses: [DEVICE_STATUS.ONLINE, DEVICE_STATUS.OFFLINE] },
-};
+// Device-status filter: only MANAGED (legacy ONLINE / OFFLINE) counts as "a device connected" — ARCHIVED
+// (removed) and PENDING (still enrolling) must NOT auto-complete DEVICE_MANAGEMENT. Built when the hook runs, not
+// at module load: whether MANAGED goes out is answered after the app starts (Relay compares variables by value).
+const autoDetectVariables = () => ({
+  deviceFilter: toRelayDeviceFilter({ statuses: [DEVICE_STATUS.MANAGED] }),
+});
 
 // `store-and-network`: fresh on every mount (each dashboard visit), then store-served on
 // re-render WITHOUT re-suspending. `network-only` can thrash when a component keeps
@@ -58,7 +59,7 @@ export type DataDetectableStep =
  * Criteria:
  *   - MSP_SETUP:         name + website + logo all filled
  *   - CUSTOMERS_SETUP:   at least one organization that is not the default one
- *   - DEVICE_MANAGEMENT: at least one ONLINE/OFFLINE device
+ *   - DEVICE_MANAGEMENT: at least one managed device
  *   - MEET_MINGO:        nothing to detect — the visitor marks it done
  */
 export function useTenantOnboardingAutoDetect(): Set<TenantOnboardingStep> {
@@ -67,7 +68,7 @@ export function useTenantOnboardingAutoDetect(): Set<TenantOnboardingStep> {
 
   const data = useLazyLoadQuery<AutoDetectQuery>(
     tenantOnboardingAutoDetectRelayQuery,
-    AUTO_DETECT_VARIABLES,
+    autoDetectVariables(),
     AUTO_DETECT_OPTIONS,
   );
   const mspComplete = Boolean(

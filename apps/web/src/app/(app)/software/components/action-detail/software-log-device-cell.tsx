@@ -1,12 +1,13 @@
 'use client';
 
 import {
+  DeviceConnectivityIcon,
+  DeviceLifecycleTag,
   DeviceTypeTile,
   formatLastOnline,
   getDeviceName,
-  getDeviceStatusConfig,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { Tag, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { softwareLogDeviceCell_machine$key } from '@/__generated__/softwareLogDeviceCell_machine.graphql';
 import { ValueText } from '@/app/components/shared';
@@ -17,6 +18,7 @@ const softwareLogDeviceCellFragment = graphql`
     displayName
     hostname
     status
+    connectivity
     type
     lastSeen
   }
@@ -28,11 +30,15 @@ export function SoftwareLogDeviceCell({ machine }: { machine: softwareLogDeviceC
   // draw their bars.
   const loading = useLoadingScope();
   const data = useFragment(softwareLogDeviceCellFragment, loading ? null : machine);
-  const status = data?.status ? getDeviceStatusConfig(data.status) : null;
 
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-mf)]">
-      <DeviceTypeTile type={data?.type} />
+      {/* Whether the device is online right now (Figma 3324-6819); its lifecycle is the tag beside the name. */}
+      <DeviceConnectivityIcon
+        connectivity={data?.connectivity}
+        lastSeen={data?.lastSeen}
+        legacyIcon={<DeviceTypeTile type={data?.type} />}
+      />
       <div className="flex min-w-0 flex-1 flex-col justify-center">
         <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
           <div className="min-w-0">
@@ -44,7 +50,9 @@ export function SoftwareLogDeviceCell({ machine }: { machine: softwareLogDeviceC
               })}
             />
           </div>
-          {status && <Tag label={status.label} variant={status.variant} />}
+          {data?.status && (
+            <DeviceLifecycleTag status={data.status} connectivity={data.connectivity ?? null} data-loading-optional />
+          )}
         </div>
         <TruncateText variant="h6" tone="secondary" loading={loading}>
           {formatLastOnline(data?.lastSeen)}

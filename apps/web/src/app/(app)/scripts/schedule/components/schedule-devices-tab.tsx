@@ -20,7 +20,8 @@ import type { Device } from '@/app/(app)/devices/types/device.types';
 import { machineRowToDevice } from '@/app/(app)/devices/utils/device-transform';
 import { ContentErrorBoundary, NO_ITEMS, useRetryKey } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
-import { type DeviceStatus, ScheduleDeviceSelectionMode } from '@/generated/schema-enums';
+import { type DeviceConnectivity, type DeviceStatus, ScheduleDeviceSelectionMode } from '@/generated/schema-enums';
+import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
 import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedule-detail-relay';
 import {
   scriptScheduleDevicesRelayFragment,
@@ -46,7 +47,8 @@ const EMPTY_STATE = {
  * the enum coming from the generated SDL enums, per the project rule.
  */
 interface AssignedDevicesFilter {
-  statuses?: DeviceStatus[];
+  statuses?: DeviceStatus[] | null;
+  connectivity?: DeviceConnectivity[] | null;
   osTypes?: string[];
   organizationIds?: string[];
   tagValues?: string[];
@@ -64,7 +66,12 @@ function toDeviceFilter(narrowing: Omit<DevicesListNarrowing, 'search'>): Assign
   });
 
   return {
-    ...(narrowing.statuses.length > 0 && { statuses: narrowing.statuses as DeviceStatus[] }),
+    // UI statuses (MANAGED stands for the legacy ONLINE / OFFLINE too) and connectivity, through the one boundary
+    // that knows whether the backend has MANAGED.
+    ...(narrowing.statuses.length > 0 && { statuses: toRelayDeviceFilter({ statuses: narrowing.statuses })?.statuses }),
+    ...(narrowing.connectivity?.length && {
+      connectivity: toRelayDeviceFilter({ connectivity: narrowing.connectivity })?.connectivity,
+    }),
     ...(narrowing.osTypes.length > 0 && { osTypes: narrowing.osTypes }),
     ...(narrowing.organizationIds.length > 0 && { organizationIds: narrowing.organizationIds }),
     ...(tagValues.length > 0 && { tagValues }),
@@ -104,10 +111,10 @@ function ScheduleDevicesTabContent({ scheduleId }: { scheduleId: string }) {
   // in the search box replaces that object, and rebuilding the filter with it
   // would hand `useDeferredQuery` a new identity per character — dimming the
   // table on each one for a filter that never changed.
-  const { statuses, osTypes, organizationIds, tags } = narrowing;
+  const { statuses, connectivity, osTypes, organizationIds, tags } = narrowing;
   const filter = useMemo(
-    () => toDeviceFilter({ statuses, osTypes, organizationIds, tags }),
-    [statuses, osTypes, organizationIds, tags],
+    () => toDeviceFilter({ statuses, connectivity, osTypes, organizationIds, tags }),
+    [statuses, connectivity, osTypes, organizationIds, tags],
   );
 
   // Typing is a keystroke; a query is not. The fleet page debounces the same

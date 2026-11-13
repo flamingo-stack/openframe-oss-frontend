@@ -4,7 +4,10 @@ import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/compon
 import {
   DeviceTypeTile,
   formatLastOnline,
+  DeviceLifecycleTag,
+  getDeviceLifecycleConfig,
   getDeviceStatusConfig,
+  useDeviceStatusDisplay,
   OSTypeBadge,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Filter02Icon, MonitorIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
@@ -114,15 +117,18 @@ function QueryDevicesTableView({ rows, isLoading, query }: QueryDevicesTableView
 
   // Column-header filter options, built from the full assigned-device set so the
   // choices stay stable regardless of the active search/tag/column filters.
+  const statusDisplay = useDeviceStatusDisplay();
   const statusOptions = useMemo(() => {
+    // The legacy display's rows already carry its words (ONLINE / OFFLINE, `queryRowStatus`).
+    const labelOf = statusDisplay === 'legacy' ? getDeviceStatusConfig : getDeviceLifecycleConfig;
     const seen = new Map<string, { id: string; label: string; value: string }>();
     for (const row of rows) {
       if (!seen.has(row.status)) {
-        seen.set(row.status, { id: row.status, label: getDeviceStatusConfig(row.status).label, value: row.status });
+        seen.set(row.status, { id: row.status, label: labelOf(row.status).label, value: row.status });
       }
     }
     return Array.from(seen.values()).sort((a, b) => a.label.localeCompare(b.label));
-  }, [rows]);
+  }, [rows, statusDisplay]);
 
   const osOptions = useMemo(() => {
     const seen = new Map<string, { id: string; label: string; value: string }>();
@@ -194,7 +200,9 @@ function QueryDevicesTableView({ rows, isLoading, query }: QueryDevicesTableView
         id: QUERY_DEVICE_COLUMNS.status.id,
         accessorKey: 'status',
         header: QUERY_DEVICE_COLUMNS.status.header,
-        cell: ({ row }: { row: Row<QueryDeviceRow> }) => <DeviceStatusCell status={row.original.status} />,
+        cell: ({ row }: { row: Row<QueryDeviceRow> }) => (
+          <DeviceStatusCell status={row.original.status} connectivity={row.original.connectivity} />
+        ),
         filterFn: multiSelectFilterFn,
         meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.status, { filter: { options: statusOptions } }),
       },
@@ -333,9 +341,9 @@ function DeviceLastOnline({ lastSeen }: { lastSeen: QueryDeviceRow['lastSeen'] |
 }
 
 /** The device's own state as its tag; the tag's own loading form while the row is read. */
-function DeviceStatusCell({ status }: { status: string | undefined }) {
+function DeviceStatusCell({ status, connectivity }: { status: string | undefined; connectivity?: string | null }) {
   const loading = useLoadingScope() && !status;
   // A loading placeholder row has no status: nothing to look up, the tag draws its loading form.
-  const config = status === undefined ? null : getDeviceStatusConfig(status);
-  return <Tag label={config?.label} variant={config?.variant} loading={loading || !config} />;
+  if (loading || status === undefined) return <Tag label="" loading />;
+  return <DeviceLifecycleTag status={status} connectivity={connectivity} />;
 }

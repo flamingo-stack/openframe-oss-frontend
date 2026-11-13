@@ -1,10 +1,21 @@
-import type { DeviceFilterInput } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { DeviceStatus, DeviceType, DirectorySource, DirectoryUserLink } from '@/generated/schema-enums';
+import {
+  type DeviceFilterInput,
+  expandDeviceStatuses,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
+  DeviceConnectivity,
+  DeviceStatus,
+  DeviceType,
+  DirectorySource,
+  DirectoryUserLink,
+} from '@/generated/schema-enums';
+import { isManagedStatusSupported } from '@/lib/device-status-support';
 import { knownValues } from '@/lib/exhaustive-map';
 
 /** The enum-typed shape the generated Relay operations expect for `DeviceFilterInput`. */
 export interface RelayDeviceFilter {
   statuses?: DeviceStatus[] | null;
+  connectivity?: DeviceConnectivity[] | null;
   deviceTypes?: DeviceType[] | null;
   osTypes?: string[] | null;
   organizationIds?: string[] | null;
@@ -28,11 +39,19 @@ function knownOrNull<T extends string>(values: Record<string, T>, selected: read
  * query params — arbitrary user input. An unrecognised value is dropped here
  * rather than sent, where it would fail the whole query on a GraphQL enum
  * coercion error and blank the list.
+ *
+ * Statuses are the UI's: MANAGED stands for MANAGED plus the legacy ONLINE / OFFLINE, and goes out as MANAGED only to
+ * a backend that has it (`isManagedStatusSupported`).
  */
 export function toRelayDeviceFilter(filter: DeviceFilterInput | undefined | null): RelayDeviceFilter | null {
   if (!filter) return null;
   return {
-    statuses: knownOrNull(DeviceStatus, filter.statuses),
+    statuses: knownOrNull(
+      DeviceStatus,
+      filter.statuses == null ? undefined : expandDeviceStatuses(filter.statuses, isManagedStatusSupported()),
+    ),
+    // Absent when unset, like the directory fields below.
+    ...(filter.connectivity != null && { connectivity: knownValues(DeviceConnectivity, filter.connectivity) }),
     deviceTypes: knownOrNull(DeviceType, filter.deviceTypes),
     osTypes: filter.osTypes ?? null,
     organizationIds: filter.organizationIds ?? null,

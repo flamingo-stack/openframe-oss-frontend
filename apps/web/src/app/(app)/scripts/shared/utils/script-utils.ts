@@ -1,16 +1,21 @@
-import { DEVICE_STATUS, type DeviceFilterInput } from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
+  DEVICE_CONNECTIVITY,
+  DEVICE_STATUS,
+  type DeviceFilterInput,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 
 export { AVAILABLE_PLATFORMS, DISABLED_PLATFORMS } from '@/lib/platforms';
 
 /**
- * The device filter a TEST-run picker offers: ONLINE only, because a test run
- * needs the machine reachable right now — narrower than `runDeviceFilter`, which
- * also offers offline devices. Shared by the v2 and legacy test modals.
+ * The device filter a TEST-run picker offers: managed devices online right now,
+ * because a test run needs the machine reachable — narrower than `runDeviceFilter`,
+ * which also offers offline devices. Shared by the v2 and legacy test modals.
  */
 export function testDeviceFilter(supportedPlatforms: string[]): DeviceFilterInput {
   const osTypes = mapPlatformsToOsTypes(supportedPlatforms);
   return {
-    statuses: [DEVICE_STATUS.ONLINE],
+    statuses: [DEVICE_STATUS.MANAGED],
+    connectivity: [DEVICE_CONNECTIVITY.ONLINE],
     ...(osTypes.length > 0 && { osTypes }),
   };
 }
@@ -23,7 +28,7 @@ export function testDeviceFilter(supportedPlatforms: string[]): DeviceFilterInpu
 export function runDeviceFilter(supportedPlatforms: string[]): DeviceFilterInput {
   const osTypes = mapPlatformsToOsTypes(supportedPlatforms);
   return {
-    statuses: [DEVICE_STATUS.ONLINE, DEVICE_STATUS.OFFLINE],
+    statuses: [DEVICE_STATUS.MANAGED],
     ...(osTypes.length > 0 && { osTypes }),
   };
 }

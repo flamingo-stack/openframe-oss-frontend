@@ -14,7 +14,11 @@ import { ContextItemsList } from '@flamingo-stack/openframe-frontend-core/compon
  */
 import {
   DEFAULT_DEVICES_LIST_STATUSES,
+  getDeviceConnectivityConfig,
+  getDeviceLifecycleConfig,
   getDeviceName,
+  getLegacyDeviceStatusConfig,
+  useDeviceStatusDisplay,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useMemo } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
@@ -57,15 +61,16 @@ import { type ContextItemsProps, MINGO_CONTEXT_PAGE_SIZE } from './items-shared'
 
 // ───────────────────────────── Device ───────────────────────────────────────
 
-// Mingo device context is restricted to live/relevant devices only: ONLINE
-// (rendered as the green "active" state) and OFFLINE. Pending (still enrolling),
+// Mingo device context is restricted to live/relevant devices only: MANAGED
+// (online or offline right now) and PENDING_DELETION. Pending (still enrolling),
 // archived, deleted, decommissioned, etc. are excluded so Mingo never lists or
 // suggests actions on irrelevant devices.
 //
 // The filter is a VARIABLE, not an inline literal, so the status rule comes from
 // `DEFAULT_DEVICES_LIST_STATUSES` — the same constant the Devices page and every
 // react-query device read use — instead of drifting in this document.
-const MINGO_DEVICE_FILTER = toRelayDeviceFilter({ statuses: [...DEFAULT_DEVICES_LIST_STATUSES] });
+// Built when the list renders, not at module load: whether MANAGED goes out is answered after the app starts.
+const mingoDeviceFilter = () => toRelayDeviceFilter({ statuses: [...DEFAULT_DEVICES_LIST_STATUSES] });
 
 const DEVICES_FRAGMENT = graphql`
   fragment relayItemsDevices_query on Query
@@ -86,6 +91,7 @@ const DEVICES_FRAGMENT = graphql`
           displayName
           nickname
           status
+          connectivity
         }
       }
     }
@@ -100,7 +106,7 @@ const DEVICES_LIST_QUERY = graphql`
 
 export function DeviceItems({ query, selectedKeys, onToggle, atLimit }: ContextItemsProps) {
   const root = useLazyLoadQuery<relayItemsDevicesListQuery>(DEVICES_LIST_QUERY, {
-    filter: MINGO_DEVICE_FILTER,
+    filter: mingoDeviceFilter(),
     search: query || null,
     first: MINGO_CONTEXT_PAGE_SIZE,
   });
@@ -108,6 +114,7 @@ export function DeviceItems({ query, selectedKeys, onToggle, atLimit }: ContextI
     relayItemsDevicesPaginationQuery,
     relayItemsDevices_query$key
   >(DEVICES_FRAGMENT, root as relayItemsDevices_query$key);
+  const statusDisplay = useDeviceStatusDisplay();
   const items = useMemo(
     () =>
       (data.devices?.edges ?? []).flatMap(e =>
@@ -127,12 +134,18 @@ export function DeviceItems({ query, selectedKeys, onToggle, atLimit }: ContextI
                 // show, so the picked label can't disagree with the chip it
                 // becomes.
                 label: getDeviceName(e.node) || e.node.machineId,
-                description: e.node.status ?? undefined,
+                // The lifecycle and whether it is online right now, as the device views show them; the one legacy
+                // label (ONLINE / OFFLINE / PENDING) in the legacy display.
+                description: e.node.status
+                  ? statusDisplay === 'legacy'
+                    ? getLegacyDeviceStatusConfig(e.node.status, e.node.connectivity ?? null).label
+                    : `${getDeviceLifecycleConfig(e.node.status).label} · ${getDeviceConnectivityConfig(e.node.connectivity).label}`
+                  : undefined,
               },
             ]
           : [],
       ),
-    [data],
+    [data, statusDisplay],
   );
   return (
     <ContextItemsList

@@ -76,6 +76,7 @@ export function rowFieldsToDevice(machine: DeviceRowFields): Device {
 
     // System Status
     status: machine.status ?? '',
+    connectivity: machine.connectivity ?? null,
     last_seen: machine.lastSeen ?? undefined,
     lastSeen: machine.lastSeen ?? undefined,
 

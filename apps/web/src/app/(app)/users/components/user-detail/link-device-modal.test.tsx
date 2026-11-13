@@ -20,6 +20,7 @@ function machine(machineId: string, name: string): LinkMachine {
     hostname: name,
     type: null,
     status: 'ONLINE',
+    connectivity: null,
     lastSeen: null,
     summary: '',
     facts: '',
