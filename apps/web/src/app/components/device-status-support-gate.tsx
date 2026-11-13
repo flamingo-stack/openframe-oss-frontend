@@ -1,6 +1,7 @@
 'use client';
 
 import { type ReactNode, useEffect, useSyncExternalStore } from 'react';
+import { useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
 import { resolveManagedStatusSupport } from '@/lib/device-status-probe';
 import {
   isManagedStatusSupportKnown,
@@ -40,7 +41,8 @@ function isKnownOnServer(): boolean {
 }
 
 /**
- * Holds the page until the app knows whether the backend's device status enum has MANAGED
+ * Holds the page until the flags have answered (the device status look, `DeviceStatusDisplayFromFlag`, is one) and the
+ * app knows whether the backend's device status enum has MANAGED
  * (`device-status-support.ts`), so the first device query a page builds already sends the right statuses. Asked
  * once per tab (a reload in the tab reuses the answer); the shell around the page renders meanwhile. Always mounted
  * and never swaps what it renders once ready, so nothing below remounts.
@@ -49,7 +51,10 @@ function isKnownOnServer(): boolean {
  * exists only in the browser, and reading it in the first client render would not match the server's HTML.
  */
 export function DeviceStatusSupportGate({ children }: { children: ReactNode }) {
-  const ready = useSyncExternalStore(subscribe, isKnown, isKnownOnServer);
+  const known = useSyncExternalStore(subscribe, isKnown, isKnownOnServer);
+  // Settles on its own: `FeatureFlagsLoader` marks the flags loaded on a failed query too.
+  const flagsReady = useFeatureFlagsReady();
+  const ready = known && flagsReady;
 
   useEffect(() => {
     if (isKnown()) return undefined;

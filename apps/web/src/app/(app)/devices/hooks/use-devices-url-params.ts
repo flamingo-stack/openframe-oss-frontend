@@ -3,8 +3,10 @@
 import {
   DEFAULT_DEVICES_LIST_STATUSES,
   DEVICE_CONNECTIVITY_FILTER_SECTION,
+  deviceStatusFilterGroups,
   type DeviceFilterInput,
   splitStatusFilterValue,
+  useDeviceStatusDisplay,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { TagSearchOption } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -50,6 +52,7 @@ export function translateLegacyDeviceStatuses(
 
 export function useDevicesUrlParams(options: UseDevicesUrlParamsOptions = {}) {
   const defaultStatuses = options.defaultStatuses ?? DEFAULT_DEVICES_LIST_STATUSES;
+  const statusDisplay = useDeviceStatusDisplay();
 
   const { params, setParam, setParams } = useApiParams({
     search: { type: 'string', default: '' },
@@ -146,14 +149,21 @@ export function useDevicesUrlParams(options: UseDevicesUrlParamsOptions = {}) {
   // header carries it inside the STATUS funnel (the panel joins the two for the table).
   const tableFilters = useMemo(
     () => ({
-      status: selectedStatuses,
-      [DEVICE_CONNECTIVITY_FILTER_SECTION]: selectedConnectivity,
+      ...deviceStatusFilterGroups(selectedStatuses, selectedConnectivity, statusDisplay),
       os: params.osTypes,
       organization: params.organizationIds,
       user: userLinks,
       sources: directorySources,
     }),
-    [selectedStatuses, selectedConnectivity, params.osTypes, params.organizationIds, userLinks, directorySources],
+    [
+      selectedStatuses,
+      selectedConnectivity,
+      params.osTypes,
+      params.organizationIds,
+      userLinks,
+      directorySources,
+      statusDisplay,
+    ],
   );
 
   const tagOptions: TagSearchOption<string>[] = useMemo(

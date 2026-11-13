@@ -10,6 +10,7 @@ import {
   getDeviceActionsColumn,
   getDeviceFilterColumns,
   joinStatusFilterValue,
+  useDeviceStatusDisplay,
   useTagFilterModal,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
@@ -266,6 +267,7 @@ function DevicesPanelLoaded({
   const { devices, isFetchingNextPage, hasNextPage, fetchNextPage, filteredCount } = list;
   // The grid where its switch is drawn, the table on a narrower page (`devicesViewMode`).
   const viewMode = devicesViewMode(params.viewMode, useContentMdUp());
+  const statusDisplay = useDeviceStatusDisplay();
 
   // The status column reflects only the user's explicit selection — the default
   // statuses are a query-side fallback and must not render as checked filters.
@@ -296,8 +298,10 @@ function DevicesPanelLoaded({
     // Off, `roomyDirectory` puts SOURCES in the filter window on a desktop, where the table header has no funnel for it
     // beside the customer column (`DevicesTableBody`'s rule). The grid draws a SOURCES dropdown of its own.
     const roomyDirectory = viewMode === 'grid' || (hideColumns?.includes('organization') ?? false);
-    return getDeviceFilterColumns(deviceFilters, { directoryColumns, roomyDirectory }).filter(c => !hidden.has(c.key));
-  }, [deviceFilters, hideFilters, hideColumns, directoryColumns, viewMode]);
+    return getDeviceFilterColumns(deviceFilters, { directoryColumns, roomyDirectory, statusDisplay }).filter(
+      c => !hidden.has(c.key),
+    );
+  }, [deviceFilters, hideFilters, hideColumns, directoryColumns, viewMode, statusDisplay]);
   // Post-action list refresh is handled centrally: useDeviceActions invalidates
   // the device query roots, so no per-row refetch callback is needed.
   // The row menus disable Remote Control on DENY_ACCESS; only the table has them.

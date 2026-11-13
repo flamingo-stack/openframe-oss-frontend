@@ -19,6 +19,7 @@ const url = vi.hoisted(() => ({
     tags: [] as string[],
     viewMode: 'table',
   },
+  statusDisplay: 'lifecycle' as 'lifecycle' | 'legacy',
 }));
 
 vi.mock('@flamingo-stack/openframe-frontend-core/components/features', () => ({
@@ -28,6 +29,11 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/features', () => ({
     statuses: (values ?? []).filter(v => !v.startsWith('connectivity:')),
     connectivity: (values ?? []).filter(v => v.startsWith('connectivity:')).map(v => v.slice('connectivity:'.length)),
   }),
+  useDeviceStatusDisplay: () => url.statusDisplay,
+  deviceStatusFilterGroups: (statuses: string[], connectivity: string[], display: 'lifecycle' | 'legacy') =>
+    display === 'legacy'
+      ? { status: [...statuses, ...connectivity.map(v => `connectivity:${v}`)] }
+      : { status: statuses, connectivity },
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', () => ({
   useApiParams: () => ({ params: url.params, setParam: vi.fn(), setParams: vi.fn() }),
@@ -101,6 +107,7 @@ describe('useDevicesUrlParams, lifecycle and connectivity', () => {
     container.remove();
     url.params.statuses = [];
     url.params.connectivity = [];
+    url.statusDisplay = 'lifecycle';
   });
 
   it('queries the default lifecycle and narrows by connectivity from the address', () => {
@@ -116,6 +123,16 @@ describe('useDevicesUrlParams, lifecycle and connectivity', () => {
     const { filters, tableFilters } = render();
     expect(filters).toMatchObject({ statuses: ['MANAGED'], connectivity: ['ONLINE'] });
     expect(tableFilters).toMatchObject({ status: ['MANAGED'], connectivity: ['ONLINE'] });
+  });
+
+  // `device-managed-status` off: Online / Offline are STATUS options again, so their picks ride in STATUS.
+  it('hands the filters Online / Offline inside STATUS in the legacy display, and queries the same', () => {
+    url.statusDisplay = 'legacy';
+    url.params.connectivity = ['ONLINE'];
+    const { filters, tableFilters } = render();
+    expect(filters).toMatchObject({ statuses: ['MANAGED', 'PENDING_DELETION'], connectivity: ['ONLINE'] });
+    expect(tableFilters).toMatchObject({ status: ['connectivity:ONLINE'] });
+    expect(tableFilters).not.toHaveProperty('connectivity');
   });
 });
 

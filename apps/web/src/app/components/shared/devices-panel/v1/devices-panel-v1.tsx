@@ -9,6 +9,7 @@ import {
   DevicesPanelView,
   getDeviceActionsColumn,
   getDeviceFilterColumns,
+  useDeviceStatusDisplay,
   useTagFilterModal,
   joinStatusFilterValue,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
@@ -224,10 +225,11 @@ function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters
   const showEmptyState =
     !!emptyState && !isNarrowing && !debouncedSearch && !hasActiveDeviceFilters && devices.length === 0;
 
+  const statusDisplay = useDeviceStatusDisplay();
   const filterColumns = useMemo(() => {
     const hidden = new Set(hideFilters ?? []);
-    return getDeviceFilterColumns(deviceFilters).filter(c => !hidden.has(c.key));
-  }, [deviceFilters, hideFilters]);
+    return getDeviceFilterColumns(deviceFilters, { statusDisplay }).filter(c => !hidden.has(c.key));
+  }, [deviceFilters, hideFilters, statusDisplay]);
   // Post-action list refresh is handled centrally: useDeviceActions invalidates
   // the device query roots, so no per-row refetch callback is needed.
   // The row menus disable Remote Control on DENY_ACCESS; only the table has them.

@@ -3,6 +3,7 @@
 import {
   DeviceConnectivityIcon,
   DeviceLifecycleTag,
+  DeviceTypeTile,
   getDeviceName,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -35,7 +36,11 @@ export function SoftwareDeviceCell({ machine }: { machine: softwareDeviceCell_ma
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-m)]">
       {/* Whether the device is online right now (Figma 3324-6819); its lifecycle is the tag beside the name. */}
-      <DeviceConnectivityIcon connectivity={data?.connectivity} lastSeen={data?.lastSeen} />
+      <DeviceConnectivityIcon
+        connectivity={data?.connectivity}
+        lastSeen={data?.lastSeen}
+        legacyIcon={<DeviceTypeTile type={data?.type} />}
+      />
       <div className="flex min-w-0 flex-col justify-center">
         <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
           <ValueText
@@ -43,7 +48,9 @@ export function SoftwareDeviceCell({ machine }: { machine: softwareDeviceCell_ma
               data && getDeviceName({ nickname: data.nickname, displayName: data.displayName, hostname: data.hostname })
             }
           />
-          {data?.status && <DeviceLifecycleTag status={data.status} data-loading-optional />}
+          {data?.status && (
+            <DeviceLifecycleTag status={data.status} connectivity={data.connectivity ?? null} data-loading-optional />
+          )}
         </div>
         {(loading || customer) && (
           <TruncateText variant="h6" tone="secondary">

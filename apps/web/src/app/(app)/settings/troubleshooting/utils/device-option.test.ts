@@ -42,6 +42,16 @@ describe('toDeviceOption', () => {
     expect(toDeviceOption(device({ status: 'ONLINE', connectivity: null })).description).toBe('Managed · Offline');
   });
 
+  // `device-managed-status` off: the one word from before the split, still from connectivity.
+  it('says Online / Offline / Pending in the legacy display', () => {
+    expect(toDeviceOption(device({}), 'legacy').description).toBe('Online');
+    const lastSeen = '2026-01-01T00:00:00Z';
+    expect(toDeviceOption(device({ connectivity: 'OFFLINE', lastSeen }), 'legacy').description).toBe(
+      `Offline · ${formatRelativeTime(lastSeen)}`,
+    );
+    expect(toDeviceOption(device({ status: 'PENDING', connectivity: 'ONLINE' }), 'legacy').description).toBe('Pending');
+  });
+
   it('falls back to the machineId when the device has no name at all', () => {
     expect(toDeviceOption(device({ hostname: '' }))).toEqual({
       label: 'm-1',

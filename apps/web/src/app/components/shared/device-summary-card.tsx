@@ -4,6 +4,7 @@ import {
   deviceLifecycleTagProps,
   getDeviceName,
   getDeviceOperatingSystem,
+  useDeviceStatusDisplay,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { DeviceCard } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { DeviceDetailsButton } from '@/app/(app)/devices/components/device-details-button';
@@ -26,6 +27,7 @@ interface DeviceSummaryCardProps {
 export function DeviceSummaryCard({ device, deviceId, loading, onNavigate }: DeviceSummaryCardProps) {
   const id = device?.id || deviceId || '';
   const machineId = device?.machineId || deviceId || '';
+  const statusDisplay = useDeviceStatusDisplay();
   return (
     <DeviceCard
       loading={loading}
@@ -39,7 +41,14 @@ export function DeviceSummaryCard({ device, deviceId, loading, onNavigate }: Dev
         lastSeen: device?.lastSeen || device?.last_seen,
         operatingSystem: getDeviceOperatingSystem(device?.osType),
       }}
-      statusTag={device?.status ? deviceLifecycleTagProps(device.status) : undefined}
+      statusTag={
+        device?.status
+          ? deviceLifecycleTagProps(device.status, {
+              connectivity: device.connectivity ?? null,
+              display: statusDisplay,
+            })
+          : undefined
+      }
       // Whether the device is online right now: the card's device icon says so (absent while it is read).
       connectivity={device ? (device.connectivity ?? null) : undefined}
       actions={{

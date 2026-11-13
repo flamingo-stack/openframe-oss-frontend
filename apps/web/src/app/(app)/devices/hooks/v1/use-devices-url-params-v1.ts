@@ -4,8 +4,10 @@
 import {
   DEFAULT_DEVICES_LIST_STATUSES,
   DEVICE_CONNECTIVITY_FILTER_SECTION,
+  deviceStatusFilterGroups,
   type DeviceFilterInput,
   splitStatusFilterValue,
+  useDeviceStatusDisplay,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { TagSearchOption } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -27,6 +29,7 @@ interface UseDevicesUrlParamsOptions {
 
 export function useDevicesUrlParamsV1(options: UseDevicesUrlParamsOptions = {}) {
   const defaultStatuses = options.defaultStatuses ?? DEFAULT_DEVICES_LIST_STATUSES;
+  const statusDisplay = useDeviceStatusDisplay();
 
   const { params, setParam, setParams } = useApiParams({
     search: { type: 'string', default: '' },
@@ -106,12 +109,11 @@ export function useDevicesUrlParamsV1(options: UseDevicesUrlParamsOptions = {}) 
 
   const tableFilters = useMemo(
     () => ({
-      status: selectedStatuses,
-      [DEVICE_CONNECTIVITY_FILTER_SECTION]: selectedConnectivity,
+      ...deviceStatusFilterGroups(selectedStatuses, selectedConnectivity, statusDisplay),
       os: params.osTypes,
       organization: params.organizationIds,
     }),
-    [selectedStatuses, selectedConnectivity, params.osTypes, params.organizationIds],
+    [selectedStatuses, selectedConnectivity, params.osTypes, params.organizationIds, statusDisplay],
   );
 
   const tagOptions: TagSearchOption<string>[] = useMemo(

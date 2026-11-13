@@ -17,6 +17,8 @@ import {
   getDeviceConnectivityConfig,
   getDeviceLifecycleConfig,
   getDeviceName,
+  getLegacyDeviceStatusConfig,
+  useDeviceStatusDisplay,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useMemo } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
@@ -112,6 +114,7 @@ export function DeviceItems({ query, selectedKeys, onToggle, atLimit }: ContextI
     relayItemsDevicesPaginationQuery,
     relayItemsDevices_query$key
   >(DEVICES_FRAGMENT, root as relayItemsDevices_query$key);
+  const statusDisplay = useDeviceStatusDisplay();
   const items = useMemo(
     () =>
       (data.devices?.edges ?? []).flatMap(e =>
@@ -131,15 +134,18 @@ export function DeviceItems({ query, selectedKeys, onToggle, atLimit }: ContextI
                 // show, so the picked label can't disagree with the chip it
                 // becomes.
                 label: getDeviceName(e.node) || e.node.machineId,
-                // The lifecycle and whether it is online right now, as the device views show them.
+                // The lifecycle and whether it is online right now, as the device views show them; the one legacy
+                // label (ONLINE / OFFLINE / PENDING) in the legacy display.
                 description: e.node.status
-                  ? `${getDeviceLifecycleConfig(e.node.status).label} · ${getDeviceConnectivityConfig(e.node.connectivity).label}`
+                  ? statusDisplay === 'legacy'
+                    ? getLegacyDeviceStatusConfig(e.node.status, e.node.connectivity ?? null).label
+                    : `${getDeviceLifecycleConfig(e.node.status).label} · ${getDeviceConnectivityConfig(e.node.connectivity).label}`
                   : undefined,
               },
             ]
           : [],
       ),
-    [data],
+    [data, statusDisplay],
   );
   return (
     <ContextItemsList

@@ -4,6 +4,7 @@ import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/compone
 import {
   DeviceConnectivityIcon,
   DeviceLifecycleTag,
+  DeviceTypeTile,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   Button,
@@ -87,7 +88,11 @@ function MachineRow({ machine, suggested }: { machine: LinkMachine; suggested: b
   return (
     <label className="flex cursor-pointer items-center gap-[var(--spacing-system-xs)] p-[var(--spacing-system-xs)]">
       <RadioGroupItem value={machine.machineId} aria-label={machine.name} />
-      <DeviceConnectivityIcon connectivity={machine.connectivity} lastSeen={machine.lastSeen} />
+      <DeviceConnectivityIcon
+        connectivity={machine.connectivity}
+        lastSeen={machine.lastSeen}
+        legacyIcon={<DeviceTypeTile type={machine.type} />}
+      />
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex min-w-0 items-center gap-[var(--spacing-system-xs)]">
           <TruncateText>{machine.name}</TruncateText>
@@ -103,7 +108,7 @@ function MachineRow({ machine, suggested }: { machine: LinkMachine; suggested: b
         </TruncateText>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-[var(--spacing-system-xxs)]">
-        <DeviceLifecycleTag status={machine.status} />
+        <DeviceLifecycleTag status={machine.status} connectivity={machine.connectivity} />
         {machine.lastSeen && (
           <span className="text-ods-text-secondary text-h6">{formatRelativeTime(machine.lastSeen)}</span>
         )}

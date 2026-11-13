@@ -54,7 +54,7 @@ function DeviceStatusAdornment({ device }: { device: Pick<Device, 'status' | 'co
       {loading ? (
         <Tag label="" loading className="shrink-0" />
       ) : (
-        <DeviceLifecycleTag status={device.status} className="shrink-0" />
+        <DeviceLifecycleTag status={device.status} connectivity={device.connectivity ?? null} className="shrink-0" />
       )}
     </span>
   );
