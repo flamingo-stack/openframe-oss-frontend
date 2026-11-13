@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { markNotificationReadById } from '@/graphql/notifications/mark-notification-read-mutation';
 import { primeShellVersion } from '@/lib/client-identity';
+import { startDownloadHandoff } from '@/lib/desktop-download-handoff';
 import { initKeyboardInset } from '@/lib/keyboard-inset';
 import { initNativeBack } from '@/lib/native-back';
 import {
@@ -48,7 +49,9 @@ let bundleBootConfirmed = false;
  *   system browser, or in the app on the tenant's origin, read by the click's
  *   `notificationId`; else the route; else the notifications page. And the
  *   download id an "Open the app" link brought, stored for the signup
- *   (`registration-attribution.ts`).
+ *   (`registration-attribution.ts`); on an install with none, the one-time
+ *   hand-off that fetches it from the browser that downloaded the app
+ *   (`desktop-download-handoff.ts`).
  *
  * The keyboard inset also runs on the touch web; every other step below is a
  * no-op outside a shell.
@@ -138,18 +141,22 @@ export function NativeShellInitializer() {
     if (isDesktopShell() && !downloadLinkHandlingInitialized) {
       downloadLinkHandlingInitialized = true;
       const takeDownloadId = () =>
-        void takeDesktopDownloadId().then(id => {
+        takeDesktopDownloadId().then(id => {
           if (id) storeDownloadId(id);
         });
       void (async () => {
         try {
-          await onDesktopDownloadLink(takeDownloadId);
+          await onDesktopDownloadLink(() => void takeDownloadId());
         } catch (error) {
           console.error('[Native Shell] download link listener failed:', error);
         }
         // After the listener, so a link that lands in between is taken by one of the two: a link
         // that started the app is already waiting, one that arrives later signals.
-        takeDownloadId();
+        await takeDownloadId();
+        // After the take and the token hydration: an id a link brought, or a session, makes the
+        // hand-off unnecessary. The id it fetches comes back through the listener above.
+        await initTokenStore();
+        startDownloadHandoff();
       })();
     }
   }, [router]);

@@ -92,6 +92,11 @@ export interface PendingSsoJoin extends PendingSsoIdentity {
   roles: string[];
 }
 
+/** The gateway's answer to the desktop download hand-off: the id from this browser's `of_src`, if any. */
+export interface DesktopDownloadHandoff {
+  downloadId: string | null;
+}
+
 /** What the `/auth/error` page shows for a `ref`, as the auth server's `authErrorMessage` answers it. */
 export interface AuthErrorMessage {
   /** An `AuthErrorCode` name; `UNEXPECTED` for anything the server did not recognise. */
@@ -298,6 +303,15 @@ class AuthApiClient {
   }
 
   /**
+   * The download id this browser's installer download was recorded with, which the gateway reads
+   * from its `of_src` cookie (HttpOnly, so the page cannot): `null` when the cookie is missing or
+   * carries none. For the desktop app's first-launch hand-off (`lib/desktop-download-handoff.ts`).
+   */
+  desktopDownloadHandoff(signal?: AbortSignal): Promise<AuthApiResponse<DesktopDownloadHandoff>> {
+    return this.sessionGet<DesktopDownloadHandoff>('/v0/api/assets/download/handoff', signal);
+  }
+
+  /**
    * Finishes the join after the Terms consent. Returns the URL rather than navigating: the response
    * is a 302 into `/oauth/continue` that sets the auth cookies, so the caller must perform a TOP-LEVEL
    * navigation - a fetch would follow the redirect without ever committing them. `agreeTerms` is the
@@ -325,13 +339,14 @@ class AuthApiClient {
    * identity parked in the SAS session. No bearer token and no 401 retry: an expired session here is
    * a 409 with a message for the user, not a credential that can be rotated.
    */
-  private async sessionGet<T>(path: string): Promise<AuthApiResponse<T>> {
+  private async sessionGet<T>(path: string, signal?: AbortSignal): Promise<AuthApiResponse<T>> {
     const url = buildAuthUrl(path);
     try {
       const res = await fetch(url, {
         method: 'GET',
         credentials: 'include',
         headers: { Accept: 'application/json' },
+        signal,
       });
       let data: (T & { message?: string }) | undefined;
       if ((res.headers.get('content-type') || '').includes('application/json')) {
