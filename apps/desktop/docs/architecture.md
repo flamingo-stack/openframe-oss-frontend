@@ -33,7 +33,9 @@ missing, runs `OPENFRAME_BUILD_TARGET=export npm run build`, and copies `dist/` 
 
 `release.yml` builds the shell on every dispatch and attaches it, with
 `updater.json`, to the same `x.y.z` release as the web image, so a desktop
-version is always the web version it bundles. See [Releasing](../README.md#releasing).
+version is always the web version it bundles. CI builds the export once per run
+instead of running `build-web.sh` in each desktop job; see
+[Releasing](../README.md#releasing).
 
 `www/` is a generated artifact. `tauri.conf.json` sets `frontendDist: "../www"`,
 and `generate_context!` embeds the directory **at compile time** — so `www/` must
@@ -52,6 +54,8 @@ server would have:
 - `window.__ENV` — `NEXT_PUBLIC_SHARED_HOST_URL`, `NEXT_PUBLIC_APP_MODE`, the
   dev-ticket observer flag, and `NEXT_PUBLIC_GTM_CONTAINER_ID`. This is what
   `next-runtime-env` reads; export builds omit `<PublicEnvScript />`.
+  `release.yml` prerenders the export in the same `NEXT_PUBLIC_APP_MODE`
+  (`saas-tenant`), so a change of mode changes both.
   `NEXT_PUBLIC_TENANT_HOST_URL` is deliberately **absent**, so the frontend falls
   through to the tenant host learned at login.
 
