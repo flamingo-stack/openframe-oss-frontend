@@ -153,6 +153,23 @@ describe('useRemoteSessionChat lines', () => {
     expect(lines()?.at(-1)).toEqual(['technician', 'Dana', 'Joining']);
   });
 
+  it('draws no line for a send that failed, so a retry is not drawn twice', async () => {
+    feed.send.mockRejectedValueOnce(new Error('503'));
+    await mount();
+    await act(async () => {
+      expect(await state.chat?.send('On it')).toBe(false);
+    });
+    expect(lines()).toEqual([['user', 'User', 'Earlier']]);
+
+    await act(async () => {
+      expect(await state.chat?.send('On it')).toBe(true);
+    });
+    expect(lines()).toEqual([
+      ['user', 'User', 'Earlier'],
+      ['technician', 'Roman K.', 'On it'],
+    ]);
+  });
+
   it('sends nothing blank', async () => {
     await mount();
     await act(async () => {
@@ -249,6 +266,26 @@ describe('useRemoteSessionChat until the feed is subscribed', () => {
     await subscribe();
     await tick(HISTORY_FALLBACK_MS * 3);
     expect(feed.history).toHaveBeenCalledTimes(1);
+  });
+
+  // A re-read keeps only the latest page: what has been seen is a position in the dialog, not a count of lines.
+  it("still marks the end user's next line unread after a re-read shortened the thread", async () => {
+    const line = (seq: number): ChatMessage => ({
+      ...historyLine,
+      id: `h-${seq}`,
+      metadata: { ...historyLine.metadata, streamSeq: seq },
+    });
+    feed.history.mockResolvedValue({ thread: [line(1), line(2), line(3)], nextCursor: null });
+    await mount(false);
+    expect(unread()).toBe(false);
+
+    feed.history.mockResolvedValue({ thread: [line(3)], nextCursor: null });
+    await tick(HISTORY_FALLBACK_MS);
+    expect(lines()).toHaveLength(1);
+    expect(unread()).toBe(false);
+
+    deliver(direct(4, 'CLIENT', 'Are you there?'));
+    expect(unread()).toBe(true);
   });
 
   it('sends nothing while the session is paused', async () => {

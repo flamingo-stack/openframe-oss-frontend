@@ -111,7 +111,11 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
       // 1. In-page doc-tree swap when the link (`path`, else the address) is a document of a mounted viewer. An address
       //    with a fragment or a query names a place the swap would lose (it opens the document at its top), so it goes
       //    to the router.
-      if (path != null ? docNav.navigate(path) : !/[?#]/.test(target) && docNav.navigate(target)) return true;
+      //    Manhattan v2: the swapped document comes on screen too, as a routed page does below.
+      if (path != null ? docNav.navigate(path) : !/[?#]/.test(target) && docNav.navigate(target)) {
+        useManhattanCentreStore.getState().requestLinkedPage();
+        return true;
+      }
       // 2. Same-origin URL → soft-nav (hash targets get the smooth same-page tween
       //    + synthetic `hashchange` so FAQ auto-expand / scroll-to-hash still fire).
       if (!isCrossOriginUrl(href)) {

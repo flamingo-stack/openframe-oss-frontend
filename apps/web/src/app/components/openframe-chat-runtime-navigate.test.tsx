@@ -12,6 +12,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ push: vi.fn(), selectNode: vi.fn() }));
 
+import { useManhattanCentreStore } from './manhattan-shell/manhattan-centre-store';
+
 vi.mock('next/navigation', async importOriginal => ({
   ...(await importOriginal<Record<string, unknown>>()),
   useRouter: () => ({ push: mocks.push }),
@@ -150,6 +152,21 @@ describe('OpenframeChatRuntimeProvider navigate', () => {
     expect(navigate({ href: `${KB}/not/in/the/tree.md`, path: null })).toBe(true);
     expect(mocks.selectNode).not.toHaveBeenCalled();
     expect(mocks.push).toHaveBeenCalledWith(`${KB}/not/in/the/tree.md`);
+  });
+
+  // Manhattan v2: a chat covering the page brings the page a link leads to on screen, a swapped document included.
+  it('brings the page on screen for a swapped document, from the address or the path, and for a routed page', async () => {
+    const navigate = await mount();
+    const requests = () => useManhattanCentreStore.getState().linkedPageRequests;
+    const before = requests();
+
+    navigate({ href: `${KB}/openframe-cli/README.md`, path: null });
+    navigate({ href: 'https://www.flamingo.run/whatever', path: 'openframe-cli/README.md' });
+    navigate({ href: `${KB}/not/in/the/tree.md`, path: null });
+    expect(requests()).toBe(before + 3);
+
+    navigate({ href: 'https://www.flamingo.run/blog/openframe-vs-atera', path: null });
+    expect(requests()).toBe(before + 3);
   });
 
   it('leaves a cross-origin address to the lib, which opens it', async () => {

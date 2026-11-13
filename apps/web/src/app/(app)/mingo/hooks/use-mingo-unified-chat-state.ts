@@ -71,6 +71,7 @@ import {
   useMingoDialogRowsStore,
 } from '../stores/mingo-dialog-rows-store';
 import { mingoThreadStore } from '../stores/mingo-thread-store';
+import { retryingRead } from '../utils/retrying-read';
 import { useMingoDialogRowStatus } from './use-mingo-dialog-row-status';
 
 const ADMIN_CHAT_TYPE: MingoChatType = 'ADMIN_AI_CHAT';
@@ -134,14 +135,15 @@ export const mingoDialogs = createMingoGraphqlDialogs(postMingoGraphql, {
   imageUrlOf: image => getFullImageUrl(image.imageUrl, image.hash) ?? null,
 });
 
-const fetchMingoHistory = createMingoGraphqlHistory(postMingoGraphql, { chatType: ADMIN_CHAT_TYPE });
+/** The open dialog's history, a page at a time; a failed read tries again (`retryingRead`). */
+const fetchMingoHistory = retryingRead(createMingoGraphqlHistory(postMingoGraphql, { chatType: ADMIN_CHAT_TYPE }));
 
 /** The open dialog's record; a dialog that does not resolve is noted, so the app can tell "gone" from "failed". */
-async function fetchMingoDialog(dialogId: string) {
+const fetchMingoDialog = retryingRead(async (dialogId: string) => {
   const record = await mingoDialogs.fetchDialog(dialogId);
   if (!record) noteMingoDialogMissing(dialogId);
   return record;
-}
+});
 
 /** What a Mingo message carries besides its text. */
 export interface MingoSendContext {
@@ -330,6 +332,7 @@ function useCopyDialogLink(): (dialog: DialogItem) => void {
 }
 
 export function useMingoUnifiedChatState(): MingoUnifiedChat {
+  const { toast } = useToast();
   const { aiModel } = useAiModelStatus();
   const currentUserId = useAuthStore(s => s.user?.id);
   const transport = useMingoTransport();
@@ -361,6 +364,15 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     avatarUrlOf,
     copyDialogLink,
     refresh: MINGO_REFRESH,
+    // An approval the server refused (no AI budget left, already answered elsewhere): the card goes back to pending, and
+    // the user is told why instead of facing the same buttons again.
+    onActionError: (action, error) =>
+      toast({
+        title: action.startsWith('approve') ? 'Approval Failed' : 'Rejection Failed',
+        description: error instanceof Error ? error.message : 'Unable to resolve request',
+        variant: 'destructive',
+        duration: 5000,
+      }),
   });
 
   const { activeDialogId, messages, streamingPhase, isMessagesLoading } = state;

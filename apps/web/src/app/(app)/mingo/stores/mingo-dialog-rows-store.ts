@@ -26,8 +26,19 @@ export const useMingoDialogRowsStore = create<MingoDialogRowsState>()(() => ({
   missing: new Set(),
 }));
 
-function rowOf(node: MingoDialogNode): MingoDialogRow {
-  return { ...serverRowState(node), createdAt: node.createdAt };
+/**
+ * The row a node answers. A field the node's query did not select keeps the row as it was: the open dialog's record does
+ * not select `pendingApproval`, and read as "none" it wiped the approval glyph a list page had just set.
+ */
+function rowOf(node: MingoDialogNode, known: MingoDialogRow | undefined): MingoDialogRow {
+  const answered = serverRowState(node);
+  return {
+    streaming: 'streamState' in node || !known ? answered.streaming : known.streaming,
+    ...('pendingApproval' in node || !known
+      ? { awaitingApproval: answered.awaitingApproval, approvalRequestId: answered.approvalRequestId }
+      : { awaitingApproval: known.awaitingApproval, approvalRequestId: known.approvalRequestId }),
+    createdAt: node.createdAt,
+  };
 }
 
 function sameRow(a: MingoDialogRow | undefined, b: MingoDialogRow): boolean {
@@ -60,8 +71,9 @@ export function noteMingoDialogResponse(data: unknown): void {
     let rows: Map<string, MingoDialogRow> | null = null;
     let missing: Set<string> | null = null;
     for (const node of nodes) {
-      const row = rowOf(node);
-      if (!sameRow(state.rows.get(node.dialogId), row)) {
+      const known = state.rows.get(node.dialogId);
+      const row = rowOf(node, known);
+      if (!sameRow(known, row)) {
         rows ??= new Map(state.rows);
         rows.set(node.dialogId, row);
       }

@@ -83,6 +83,19 @@ describe('useMingoUnifiedChatState: the engine config', () => {
     expect(config().refresh?.allowed).toEqual(expect.any(Function));
   });
 
+  it('says why an approval or a rejection the server refused did not go through', () => {
+    render();
+    config().onActionError?.('approve', new Error('AI budget exhausted'));
+    config().onActionError?.('reject', 'boom');
+
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Approval Failed', description: 'AI budget exhausted', variant: 'destructive' }),
+    );
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Rejection Failed', description: 'Unable to resolve request' }),
+    );
+  });
+
   it('offers Compact behind its flag, and says when one is already running', async () => {
     render();
     expect(config().history?.compactDialog).toBeUndefined();

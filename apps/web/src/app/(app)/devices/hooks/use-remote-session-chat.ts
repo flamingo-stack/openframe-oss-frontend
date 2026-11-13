@@ -87,6 +87,16 @@ export function sessionChatLineOf(
   };
 }
 
+/** The technician's own row whose send failed: the turn after it is the engine's error. */
+function isFailedSend(message: ChatMessage, next: ChatMessage | undefined): boolean {
+  return (
+    message.role === 'user' &&
+    message.metadata?.author?.authorType !== 'user' &&
+    next?.role === 'assistant' &&
+    next.parts.some(part => part.type === 'data-error')
+  );
+}
+
 export interface RemoteSessionChatState {
   messages: RemoteSessionChatMessage[];
   isLoading: boolean;
@@ -101,12 +111,44 @@ export interface RemoteSessionChatState {
 }
 
 /** How many end-user lines the technician has seen in the dialog: the history it opened with, and what came in since. */
+/**
+ * How far into the dialog the technician has seen the end user's lines: the latest stream position and time among them.
+ * A position, not a count: a history re-read keeps only the latest page, so a count of lines can shrink under it and
+ * hide what came after.
+ */
 interface SeenLines {
   dialogId: string | null;
-  count: number;
+  seq: number;
+  at: number;
   /** The first page is in: until then nothing is counted as seen or unseen. */
   ready: boolean;
 }
+
+/** Where a line sits in the dialog: its stream position, and its time for a line that has none. */
+interface LineMark {
+  seq: number | undefined;
+  at: number;
+}
+
+const NOTHING_SEEN = { seq: Number.NEGATIVE_INFINITY, at: Number.NEGATIVE_INFINITY };
+
+function markOf(message: ChatMessage): LineMark {
+  const at = Date.parse(message.metadata?.createdAt ?? '');
+  return { seq: message.metadata?.streamSeq, at: Number.isNaN(at) ? Number.NEGATIVE_INFINITY : at };
+}
+
+/** The latest position and time among these lines (and what was seen before). */
+function latestOf(marks: readonly LineMark[], from = NOTHING_SEEN): { seq: number; at: number } {
+  let { seq, at } = from;
+  for (const mark of marks) {
+    if (mark.seq !== undefined && mark.seq > seq) seq = mark.seq;
+    if (mark.at > at) at = mark.at;
+  }
+  return { seq, at };
+}
+
+const isUnseen = (mark: LineMark, seen: { seq: number; at: number }) =>
+  mark.seq !== undefined ? mark.seq > seen.seq : mark.at > seen.at;
 
 /**
  * The session dialog's chat: the engine's thread as the panel's lines, and the Open Chat marker. The tail runs whether
@@ -161,24 +203,38 @@ export function useRemoteSessionChat(
     { active: dialogId !== null },
   );
 
-  const messages = useMemo(
-    () => chat.messages.flatMap(message => sessionChatLineOf(message, technician) ?? []),
-    [chat.messages, technician],
-  );
-  const endUserLines = messages.filter(line => line.author === 'user').length;
+  // A send that failed is no line: the engine leaves the technician's row with an error turn after it, which this chat
+  // does not draw, and the draft goes back to the composer. Drawn, it read as delivered, and a retry drew it twice.
+  const { messages, endUserMarks } = useMemo(() => {
+    const lines: RemoteSessionChatMessage[] = [];
+    const marks: LineMark[] = [];
+    chat.messages.forEach((message, index, all) => {
+      if (isFailedSend(message, all[index + 1])) return;
+      const line = sessionChatLineOf(message, technician);
+      if (!line) return;
+      lines.push(line);
+      if (line.author === 'user') marks.push(markOf(message));
+    });
+    return { messages: lines, endUserMarks: marks };
+  }, [chat.messages, technician]);
   const historyRead = dialogId !== null && !chat.isMessagesLoading;
 
   // What has been seen follows the thread during render (React's state from the previous render): the first page when
   // it arrives, and every line while the panel is open.
-  const [seen, setSeen] = useState<SeenLines>({ dialogId: null, count: 0, ready: false });
-  let next = seen.dialogId === dialogId ? seen : { dialogId, count: 0, ready: false };
-  if (historyRead && !next.ready) next = { ...next, count: endUserLines, ready: true };
-  if (next.ready && panelOpen && next.count !== endUserLines) next = { ...next, count: endUserLines };
+  const [seen, setSeen] = useState<SeenLines>({ dialogId: null, ...NOTHING_SEEN, ready: false });
+  let next: SeenLines = seen.dialogId === dialogId ? seen : { dialogId, ...NOTHING_SEEN, ready: false };
+  const unseen = next.ready && endUserMarks.some(mark => isUnseen(mark, next));
+  if (historyRead && !next.ready) next = { ...next, ...latestOf(endUserMarks), ready: true };
+  else if (panelOpen && unseen) next = { ...next, ...latestOf(endUserMarks, next) };
   if (next !== seen) setSeen(next);
 
   const markRead = useCallback(() => {
-    setSeen(prev => (prev.ready && prev.count !== endUserLines ? { ...prev, count: endUserLines } : prev));
-  }, [endUserLines]);
+    setSeen(prev =>
+      prev.ready && endUserMarks.some(mark => isUnseen(mark, prev))
+        ? { ...prev, ...latestOf(endUserMarks, prev) }
+        : prev,
+    );
+  }, [endUserMarks]);
 
   // Until the feed is subscribed to the dialog (a network that blocks the WebSocket, a socket still connecting), the
   // history is read again every 10 s, so the chat still moves. It stops once the feed is in; a gap after that is the
@@ -215,7 +271,7 @@ export function useRemoteSessionChat(
     sending,
     technician,
     send,
-    hasUnread: next.ready && endUserLines > next.count,
+    hasUnread: next.ready && endUserMarks.some(mark => isUnseen(mark, next)),
     markRead,
   };
 }
