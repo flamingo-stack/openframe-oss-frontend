@@ -10,6 +10,8 @@ import {
   Button,
   type ColumnDef,
   DataTable,
+  type DataTableSettings,
+  GRID_ACTION_COLUMN_SIZE,
   Input,
   type Row,
   type SortingState,
@@ -19,13 +21,19 @@ import {
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useQueryClient } from '@tanstack/react-query';
+import { differenceInCalendarDays } from 'date-fns';
 import { useCallback, useMemo, useState } from 'react';
 import { cveSeverityRank, resolveCveSeverity } from '@/app/components/shared/cve/cve-severity';
 import { CveSeverityTag } from '@/app/components/shared/cve/cve-severity-tag';
 import { DateWithAge } from '@/app/components/shared/date-with-age';
 import { LIVE_ROW_GAP_CLASS, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
+import { ValueGridCell } from '@/app/components/shared/value-grid-cell';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import type { TableLayout } from '@/app/hooks/use-table-layout';
+import { formatDate, toValidDate } from '@/lib/format-date';
+import { pluralize } from '@/lib/pluralize';
 import type { Device, Software, Vulnerability } from '../../types/device.types';
 import { deviceQueryKeys } from '../../utils/query-keys';
 import { getVulnerabilitiesEmptyReason, isVulnerabilityScanPending } from '../../utils/vulnerabilities-empty-state';
@@ -52,8 +60,19 @@ const FLEET_VULNERABILITY_COLUMNS = {
   open: { id: 'open', width: 'w-12 shrink-0 flex-none', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;
 
+/**
+ * The grid table's settings: the gear's menu of columns, with the viewer's layout kept in the browser under this
+ * table's own key (the module's vulnerability table on the same tab has another).
+ */
+const FLEET_VULNERABILITIES_TABLE_SETTINGS: DataTableSettings = { storageKey: 'device-fleet-vulnerabilities' };
+
 interface FleetVulnerabilitiesTabProps {
   device: Device | null;
+  /**
+   * The table's layout. `grid` draws the lib's grid table (48px one-line rows, the CVE column pinned, the open action
+   * pinned right, the gear menu), at the tab's natural height: the page scrolls. Default `cards`.
+   */
+  tableLayout?: TableLayout;
 }
 
 interface VulnerabilityWithSoftware extends Vulnerability {
@@ -109,6 +128,19 @@ function DiscoveredCell({ date }: { date: string | undefined }) {
   return <DateWithAge date={date} />;
 }
 
+/** The grid's one line: when the CVE was found, with its age after it (`DateWithAge` in a card row). */
+function DiscoveredGridCell({ date }: { date: string | undefined }) {
+  const loading = useLoadingScope();
+  const value = toValidDate(date);
+  if (loading || !value) return <ValueGridCell value={null} />;
+  return (
+    <DataTable.Cell
+      text={formatDate(value)}
+      secondary={pluralize(differenceInCalendarDays(new Date(), value), 'day')}
+    />
+  );
+}
+
 /** Opens Fleet's details link; static chrome, drawn real and inert on a loading row. */
 function OpenDetailsButton({ vuln }: { vuln: VulnerabilityWithSoftware }) {
   const loading = useLoadingScope();
@@ -149,7 +181,7 @@ function severityOf(vuln: { cvss_score?: number | null }) {
  * module's table instead (`vulnerabilities-tab.tsx`). The trailing button opens
  * Fleet's `details_link` (NVD) — without the module there is no CVE page to open.
  */
-export function FleetVulnerabilitiesTab({ device }: FleetVulnerabilitiesTabProps) {
+export function FleetVulnerabilitiesTab({ device, tableLayout = 'cards' }: FleetVulnerabilitiesTabProps) {
   const loading = useLoadingScope();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
@@ -202,7 +234,14 @@ export function FleetVulnerabilitiesTab({ device }: FleetVulnerabilitiesTabProps
             </div>
           </div>
         ),
-        meta: liveColumnMeta(FLEET_VULNERABILITY_COLUMNS.cve),
+        size: 200,
+        meta: liveColumnMeta(FLEET_VULNERABILITY_COLUMNS.cve, {
+          label: 'CVE ID',
+          // The package has its own column at every width in the grid: the CVE id alone.
+          gridCell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => (
+            <DataTable.Cell text={row.original.cve ?? ''} />
+          ),
+        }),
       },
       {
         id: FLEET_VULNERABILITY_COLUMNS.severity.id,
@@ -214,7 +253,9 @@ export function FleetVulnerabilitiesTab({ device }: FleetVulnerabilitiesTabProps
         enableSorting: true,
         sortingFn: (a: Row<VulnerabilityWithSoftware>, b: Row<VulnerabilityWithSoftware>) =>
           cveSeverityRank(severityOf(a.original)) - cveSeverityRank(severityOf(b.original)),
-        meta: liveColumnMeta(FLEET_VULNERABILITY_COLUMNS.severity),
+        size: 140,
+        // One line already (a tag): the grid draws the same cell.
+        meta: liveColumnMeta(FLEET_VULNERABILITY_COLUMNS.severity, { label: 'Severity' }),
       },
       {
         accessorKey: 'software_name',
@@ -222,7 +263,16 @@ export function FleetVulnerabilitiesTab({ device }: FleetVulnerabilitiesTabProps
         cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => (
           <SoftwareCell name={row.original.software_name} version={row.original.software_version} />
         ),
-        meta: liveColumnMeta(FLEET_VULNERABILITY_COLUMNS.software),
+        size: 320,
+        meta: liveColumnMeta(FLEET_VULNERABILITY_COLUMNS.software, {
+          label: 'Software',
+          gridCell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => (
+            <DataTable.Cell
+              text={row.original.software_name ?? ''}
+              secondary={row.original.software_version || undefined}
+            />
+          ),
+        }),
       },
       {
         accessorKey: 'created_at',
@@ -231,14 +281,34 @@ export function FleetVulnerabilitiesTab({ device }: FleetVulnerabilitiesTabProps
         enableSorting: true,
         // Least-needed column for mobile triage — hidden below md, where the row keeps
         // CVE (+ the folded-in package), severity and the details button.
-        meta: liveColumnMeta(FLEET_VULNERABILITY_COLUMNS.discovered),
+        size: 220,
+        meta: liveColumnMeta(FLEET_VULNERABILITY_COLUMNS.discovered, {
+          label: 'Discovered',
+          gridCell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => (
+            <DiscoveredGridCell date={row.original.created_at} />
+          ),
+        }),
       },
       {
         id: FLEET_VULNERABILITY_COLUMNS.open.id,
         header: '',
         cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => <OpenDetailsButton vuln={row.original} />,
         enableSorting: false,
-        meta: liveColumnMeta(FLEET_VULNERABILITY_COLUMNS.open),
+        // The grid's action column, kept by hand so that the card rows keep this column as it is: pinned right, never
+        // hidden, with the grid's borderless button.
+        size: GRID_ACTION_COLUMN_SIZE,
+        enableHiding: false,
+        meta: liveColumnMeta(FLEET_VULNERABILITY_COLUMNS.open, {
+          gridKind: 'action',
+          gridCell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => (
+            <OpenRowButton
+              grid
+              label={`Open ${row.original.cve} details`}
+              disabled={!row.original.details_link}
+              onClick={() => window.open(row.original.details_link, '_blank', 'noopener,noreferrer')}
+            />
+          ),
+        }),
       },
     ],
     [],
@@ -371,13 +441,19 @@ export function FleetVulnerabilitiesTab({ device }: FleetVulnerabilitiesTabProps
         </div>
       )}
 
-      <DataTable table={table}>
+      {/* The settings belong to the grid; the table keeps its natural height in both layouts (the page scrolls). */}
+      <DataTable
+        table={table}
+        layout={tableLayout}
+        settings={tableLayout === 'grid' ? FLEET_VULNERABILITIES_TABLE_SETTINGS : undefined}
+      >
         {!isEmpty && (
           <DataTable.Header
             sort={sortState}
             onSortChange={handleSortChange}
             stickyHeader
             stickyHeaderOffset={stickyHeaderOffset}
+            loading={loading}
           />
         )}
         <DataTable.Body

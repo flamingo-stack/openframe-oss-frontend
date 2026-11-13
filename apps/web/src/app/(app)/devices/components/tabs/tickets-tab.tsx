@@ -3,6 +3,9 @@
 import { TagIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
+  type DataTableSettings,
+  GRID_ACTION_COLUMN_SIZE,
+  GRID_MIN_WIDTH,
   LoadingWhen,
   PageError,
   SearchInput,
@@ -13,6 +16,7 @@ import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo, useState } from 'react';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import type { TableLayout } from '@/app/hooks/use-table-layout';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import {
   getTicketOpenColumn,
@@ -25,11 +29,32 @@ import type { Dialog } from '../../../tickets/types/dialog.types';
 import type { Device } from '../../types/device.types';
 import { TabEmptyState } from './tab-empty-state';
 
+/**
+ * The grid table's settings: the gear's menu of columns, with the viewer's layout (hidden columns, their order, resized
+ * widths) kept in the browser under this table's own key (the Tickets page's table has another).
+ */
+const DEVICE_TICKETS_TABLE_SETTINGS: DataTableSettings = { storageKey: 'device-tickets' };
+
+/**
+ * The grid widths of this tab's ticket columns, by column: the grid lays a column out by its `size`, the card rows by
+ * the widths of `DEVICE_TICKET_COLUMNS`. The cells' own one-line grid form belongs to the shared ticket columns.
+ */
+const GRID_COLUMN_SIZE: Record<string, { size: number; minSize?: number; label: string }> = {
+  title: { size: 420, label: 'Ticket' },
+  assignee: { size: 280, minSize: GRID_MIN_WIDTH.media, label: 'Assignee' },
+  status: { size: 180, label: 'Status' },
+};
+
 interface TicketsTabProps {
   device: Device | null;
+  /**
+   * The table's layout. `grid` draws the lib's grid table (48px rows, the ticket column pinned, the open action
+   * pinned right, the gear menu), at the tab's natural height: the page scrolls. Default `cards`.
+   */
+  tableLayout?: TableLayout;
 }
 
-export function TicketsTab({ device }: TicketsTabProps) {
+export function TicketsTab({ device, tableLayout = 'cards' }: TicketsTabProps) {
   // The device has not answered (the page's loading scope), or the first page has not.
   const scoped = useLoadingScope();
   const [search, setSearch] = useState('');
@@ -67,8 +92,13 @@ export function TicketsTab({ device }: TicketsTabProps) {
     const widthById = new Map(DEVICE_TICKET_COLUMNS.map(column => [column.id, column.width]));
     const base = getTicketTableColumns({ isArchived: false, isUserDeleted })
       .filter(column => (column as { accessorKey?: string }).accessorKey !== 'source')
-      .map(column => {
-        const key = (column as { accessorKey?: string }).accessorKey;
+      .map(source => {
+        const key = (source as { accessorKey?: string }).accessorKey;
+        // What the grid reads beside the card widths: the column's size and its name in the settings menu.
+        const grid = key ? GRID_COLUMN_SIZE[key] : undefined;
+        const column: ColumnDef<Dialog> = grid
+          ? { ...source, size: grid.size, minSize: grid.minSize, meta: { ...source.meta, label: grid.label } }
+          : source;
         const width = key ? widthById.get(key) : undefined;
         if (key === 'status' && column.meta?.filter) {
           // STATUS is the last data column here: anchor its filter dropdown to
@@ -84,7 +114,13 @@ export function TicketsTab({ device }: TicketsTabProps) {
         }
         return width ? { ...column, meta: { ...column.meta, width } } : column;
       });
-    return [...base, getTicketOpenColumn()];
+    // The open column is the grid's action column kept by hand (pinned right, never hidden), so that the card rows
+    // keep it as it is.
+    const open = getTicketOpenColumn();
+    return [
+      ...base,
+      { ...open, size: GRID_ACTION_COLUMN_SIZE, enableHiding: false, meta: { ...open.meta, gridKind: 'action' } },
+    ];
   }, [isUserDeleted]);
 
   const loading = scoped || isLoading;
@@ -158,6 +194,9 @@ export function TicketsTab({ device }: TicketsTabProps) {
           rowHref={ticketRowHref}
           footer={{ hasNextPage, isFetchingNextPage, onLoadMore: handleLoadMore }}
           loadingCells={loading}
+          // The grid table keeps the tab's natural height (the page scrolls); the card rows take neither option.
+          layout={tableLayout}
+          settings={DEVICE_TICKETS_TABLE_SETTINGS}
         />
       </LoadingWhen>
     </div>

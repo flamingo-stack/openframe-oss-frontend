@@ -13,6 +13,7 @@ import {
 import {
   type ColumnDef,
   type ColumnFiltersState,
+  type DataTableSettings,
   type OnChangeFn,
   LoadingWhen,
   type PageActionButton,
@@ -46,7 +47,7 @@ import { routes } from '@/lib/routes';
 import { ContentErrorBoundary } from '../content-error-boundary';
 import { EMBEDDED_PAGE_OFFSET } from '../embedded-page';
 import { NO_ITEMS } from '../no-next-page';
-import { DEVICES_TABLE_SETTINGS } from './devices-table-settings';
+import { devicesTableGridProps } from './devices-table-settings';
 import { devicesViewMode } from './devices-view-mode';
 import { DevicesPanelV1 } from './v1/devices-panel-v1';
 
@@ -143,9 +144,15 @@ export interface DevicesPanelProps {
   readOnlyRows?: boolean;
   /**
    * The table's layout. `grid` draws the lib's grid table (48px one-line rows, pinned device and action columns) at
-   * every width; the standalone Devices page passes it. Default: card rows.
+   * every width: the page's scroll area where the panel is the page, at its natural height when `embedded`. Default:
+   * card rows.
    */
   tableLayout?: TableLayout;
+  /**
+   * The grid table's settings (the key its column layout is kept under). Default: the Devices page's. A host whose
+   * table draws other columns passes its own, so the saved layouts do not mix.
+   */
+  tableSettings?: DataTableSettings;
 }
 
 function DevicesPanelContent(body: DevicesPanelBodyProps) {
@@ -393,9 +400,8 @@ function DevicesPanelLoaded({
       actionsColumn={actionsColumn}
       hideColumns={hideColumns}
       tableLayout={tableLayout}
-      // The grid table is the page's scroll area: it fills the height under the toolbar.
-      tableMaxHeight={tableLayout === 'grid' ? 'fill' : undefined}
-      tableSettings={tableLayout === 'grid' ? DEVICES_TABLE_SETTINGS : undefined}
+      // The grid table's height and settings key, the same in the loading form (`devicesTableGridProps`).
+      {...devicesTableGridProps(panel)}
       hideFilters={hideFilters}
       directoryColumns={directoryColumns}
       emptyMessage={emptyMessage}
@@ -545,8 +551,7 @@ function DevicesPanelPending({ panel: props, chrome, viewMode, directory }: Devi
       actionsColumn={PENDING_ACTIONS_COLUMN}
       hideColumns={props.hideColumns}
       tableLayout={props.tableLayout}
-      tableMaxHeight={props.tableLayout === 'grid' ? 'fill' : undefined}
-      tableSettings={props.tableLayout === 'grid' ? DEVICES_TABLE_SETTINGS : undefined}
+      {...devicesTableGridProps(props)}
       hideFilters={props.hideFilters}
       directoryColumns={directoryColumns}
     />

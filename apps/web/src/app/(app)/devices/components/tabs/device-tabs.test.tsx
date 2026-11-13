@@ -11,21 +11,51 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FeatureFlagGate } from '@/lib/feature-flags';
 
-const flags = vi.hoisted(() => ({ phase2: 'on' as FeatureFlagGate }));
+const flags = vi.hoisted(() => ({ phase2: 'on' as FeatureFlagGate, tableGrid: 'off' as FeatureFlagGate }));
+// The app's one table flag (`data-table-grid`), as the real hook answers it: its gate, and the layout for a gate.
+vi.mock('@/app/hooks/use-table-layout', () => ({
+  useTableGridGate: () => flags.tableGrid,
+  tableLayoutFor: (gate: FeatureFlagGate) => (gate === 'on' ? 'grid' : 'cards'),
+}));
 vi.mock('@/app/(app)/cloud-tenant-management/components/shared/use-tenant-management-gate', () => ({
   useTenantManagementV2Gate: () => flags.phase2,
 }));
 vi.mock('../../hooks/use-session-recordings-gate', () => ({ useSessionRecordingsGate: () => 'on' }));
 vi.mock('@/app/(app)/incidents/hooks/use-incidents-gate', () => ({ useIncidentsGate: () => 'on' }));
 
-// The tabs are stand-ins: what is under test is which one each gate value picks, and the real ones need Relay.
+// The tabs are stand-ins: what is under test is which one each gate value picks, and the real ones need Relay. A tab
+// with a table also shows the layout it was handed and whether it sits in a loading scope (`data-table`).
 vi.mock('./users-tab', async () => {
   const { useLoadingScope } = await import('@flamingo-stack/openframe-frontend-core/components/ui');
-  return { UsersTab: () => <div>{useLoadingScope() ? 'local accounts, loading' : 'local accounts'}</div> };
+  return {
+    UsersTab: ({ tableLayout }: { tableLayout?: string }) => {
+      const loading = useLoadingScope();
+      return (
+        <div data-table={`${tableLayout}${loading ? ', loading' : ''}`}>
+          {loading ? 'local accounts, loading' : 'local accounts'}
+        </div>
+      );
+    },
+  };
 });
 vi.mock('./directory-users-tab', async () => {
   const { useLoadingScope } = await import('@flamingo-stack/openframe-frontend-core/components/ui');
-  return { DirectoryUsersTab: () => <div>{useLoadingScope() ? 'directory users, loading' : 'directory users'}</div> };
+  return {
+    DirectoryUsersTab: ({ tableLayout }: { tableLayout?: string }) => {
+      const loading = useLoadingScope();
+      return (
+        <div data-table={`${tableLayout}${loading ? ', loading' : ''}`}>
+          {loading ? 'directory users, loading' : 'directory users'}
+        </div>
+      );
+    },
+  };
+});
+const tableTab = vi.hoisted(() => async () => {
+  const { useLoadingScope } = await import('@flamingo-stack/openframe-frontend-core/components/ui');
+  return function TableTab({ tableLayout }: { tableLayout?: string }) {
+    return <div data-table={`${tableLayout}${useLoadingScope() ? ', loading' : ''}`} />;
+  };
 });
 vi.mock('./directory-tab', async () => {
   const { useLoadingScope } = await import('@flamingo-stack/openframe-frontend-core/components/ui');
@@ -39,11 +69,11 @@ vi.mock('./network-tab', () => ({ NetworkTab: () => null }));
 vi.mock('./os-tab', () => ({ OsTab: () => null }));
 vi.mock('./overview-tab', () => ({ OverviewTab: () => null }));
 vi.mock('./policies-tab', () => ({ PoliciesTab: () => null }));
-vi.mock('./remote-sessions-tab', () => ({ RemoteSessionsTab: () => null }));
+vi.mock('./remote-sessions-tab', async () => ({ RemoteSessionsTab: await tableTab() }));
 vi.mock('./security-tab', () => ({ SecurityTab: () => null }));
-vi.mock('./software-tab', () => ({ SoftwareTab: () => null }));
-vi.mock('./tickets-tab', () => ({ TicketsTab: () => null }));
-vi.mock('./vulnerabilities-tab', () => ({ VulnerabilitiesTab: () => null }));
+vi.mock('./software-tab', async () => ({ SoftwareTab: await tableTab() }));
+vi.mock('./tickets-tab', async () => ({ TicketsTab: await tableTab() }));
+vi.mock('./vulnerabilities-tab', async () => ({ VulnerabilitiesTab: await tableTab() }));
 vi.mock('@/app/(app)/knowledge-base/components/assigned-articles/assigned-articles-tab', () => ({
   AssignedArticlesTab: () => null,
 }));
@@ -82,6 +112,7 @@ function tabIds(gate: FeatureFlagGate) {
 describe('device tabs and the directory gate', () => {
   beforeEach(() => {
     flags.phase2 = 'on';
+    flags.tableGrid = 'off';
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -120,5 +151,52 @@ describe('device tabs and the directory gate', () => {
     flags.phase2 = 'off';
     expect(tabIds('off')).not.toContain('directory');
     expect(renderTab('users', 'off')).toBe('local accounts');
+  });
+});
+
+/**
+ * The tabs with a table take the app's one table flag (`data-table-grid`): the grid table when it is on, card rows when
+ * it is off, and a loading form while it is read, so that a table never draws one layout and swaps to the other.
+ */
+describe('device tabs and the table flag', () => {
+  /** Every tab whose table moves with the flag; `users` is the directory users where the tenant has a directory. */
+  const TABLE_TABS = ['users', 'software', 'vulnerabilities', 'tickets', 'remote-sessions'] as const;
+
+  beforeEach(() => {
+    flags.phase2 = 'on';
+    flags.tableGrid = 'off';
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  const tableOf = (id: string, directory: FeatureFlagGate = 'on') => {
+    renderTab(id, directory);
+    return container.querySelector('[data-table]')?.getAttribute('data-table');
+  };
+
+  it('hands every table tab the grid layout while the flag is on', () => {
+    flags.tableGrid = 'on';
+    for (const id of TABLE_TABS) expect(tableOf(id), id).toBe('grid');
+    // The machine's local accounts, where the tenant has no directory.
+    expect(tableOf('users', 'off')).toBe('grid');
+    expect(container.textContent).toBe('local accounts');
+  });
+
+  it('keeps every table tab on card rows while the flag is off', () => {
+    flags.tableGrid = 'off';
+    for (const id of TABLE_TABS) expect(tableOf(id), id).toBe('cards');
+    expect(tableOf('users', 'off')).toBe('cards');
+  });
+
+  it('draws every table tab in its loading form, on card rows, while the flag is read', () => {
+    flags.tableGrid = 'loading';
+    for (const id of TABLE_TABS) expect(tableOf(id), id).toBe('cards, loading');
+    expect(tableOf('users', 'off')).toBe('cards, loading');
   });
 });

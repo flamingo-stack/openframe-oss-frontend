@@ -5,6 +5,7 @@ import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/compone
 import { SoftwareListFrame } from '@/app/(app)/software/components/shared/software-list-frame';
 import { ContentErrorBoundary } from '@/app/components/shared';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
+import type { TableLayout } from '@/app/hooks/use-table-layout';
 import type { Device } from '../../types/device.types';
 import { getVulnerabilitiesEmptyReason, isVulnerabilityScanPending } from '../../utils/vulnerabilities-empty-state';
 import { DataSyncBanner } from '../data-sync-banner';
@@ -14,6 +15,11 @@ import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
 
 interface VulnerabilitiesTabProps {
   device: Device | null;
+  /**
+   * The table's layout (the app's table flag, read by the tabs' host). The Fleet list takes it; the module's table is
+   * the Software module's own and moves to the grid with that module.
+   */
+  tableLayout?: TableLayout;
 }
 
 const SEARCH_PLACEHOLDER = 'Search for Vulnerability';
@@ -131,8 +137,8 @@ function ModuleVulnerabilitiesTab({ device, loading }: VulnerabilitiesTabProps &
  * page and its rows lead to the CVE's page there. Until the flag answers, the
  * module's frame in its loading state — see `SoftwareTab`.
  */
-export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
+export function VulnerabilitiesTab({ device, tableLayout = 'cards' }: VulnerabilitiesTabProps) {
   const gate = useFeatureFlagGate('software-management');
-  if (gate === 'off') return <FleetVulnerabilitiesTab device={device} />;
+  if (gate === 'off') return <FleetVulnerabilitiesTab device={device} tableLayout={tableLayout} />;
   return <ModuleVulnerabilitiesTab device={device} loading={gate === 'loading'} />;
 }

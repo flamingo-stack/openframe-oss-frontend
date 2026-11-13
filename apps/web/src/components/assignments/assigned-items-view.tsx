@@ -4,6 +4,7 @@ import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/component
 import { type TabItem, TabNavigation, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMemo, useState } from 'react';
 import { NO_ITEMS, SectionLoadError } from '@/app/components/shared';
+import { tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { loadErrorProps } from '@/lib/query-state';
 import { CustomersAssignedTable } from './tables/customers-assigned-table';
 import { DevicesAssignedTable } from './tables/devices-assigned-table';
@@ -46,6 +47,9 @@ export function AssignedItemsView({ itemId, itemType, ...props }: AssignedItemsV
 
 export function AssignedItemsContent({ assigned, itemType, className, showTitle = true }: AssignedItemsContentProps) {
   const inScope = useLoadingScope();
+  // The new grid table, behind the app's one table flag; card rows while it is off. Read once here for the tables of
+  // the panel that take it; while it is read such a table draws its loading rows, so it never swaps layouts.
+  const tableGate = useTableGridGate();
   const { value, customers, devices, articles, tickets, loadingTypes } = assigned;
   const isLoading = inScope || assigned.isLoading;
 
@@ -74,7 +78,13 @@ export function AssignedItemsContent({ assigned, itemType, className, showTitle 
       case 'ORGANIZATION':
         return <CustomersAssignedTable customers={customers ?? NO_ITEMS} isLoading={kindLoading(type)} />;
       case 'DEVICE':
-        return <DevicesAssignedTable devices={devices ?? NO_ITEMS} isLoading={kindLoading(type)} />;
+        return (
+          <DevicesAssignedTable
+            devices={devices ?? NO_ITEMS}
+            isLoading={kindLoading(type) || tableGate === 'loading'}
+            tableLayout={tableLayoutFor(tableGate)}
+          />
+        );
       case 'KNOWLEDGE_ARTICLE':
         return <KnowledgeBaseAssignedTable articles={articles ?? NO_ITEMS} isLoading={kindLoading(type)} />;
       case 'TICKET':

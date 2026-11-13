@@ -25,6 +25,7 @@ import { useTenantManagementV2Gate } from '@/app/(app)/cloud-tenant-management/c
 import { useIncidentsGate } from '@/app/(app)/incidents/hooks/use-incidents-gate';
 import { AssignedArticlesTab } from '@/app/(app)/knowledge-base/components/assigned-articles/assigned-articles-tab';
 import { deviceArticlesTarget } from '@/app/(app)/knowledge-base/components/assigned-articles/assigned-articles-target';
+import { type TableLayout, tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import type { FeatureFlagGate } from '@/lib/feature-flags';
 import type { DeviceDetailTab } from '@/lib/routes';
 import { useSessionRecordingsGate } from '../../hooks/use-session-recordings-gate';
@@ -56,6 +57,44 @@ function ArticlesTab({ device }: { device: Device | null }) {
   );
 }
 
+/**
+ * The layout a device tab's table draws, behind the app's one table flag (`data-table-grid`): the grid table when it
+ * is on, card rows when it is off. While the flag is read the tab draws its loading form (`tableLoading`), so a table
+ * never draws one layout and swaps to the other.
+ */
+function useDeviceTableLayout(): { tableLayout: TableLayout; tableLoading: boolean } {
+  const gate = useTableGridGate();
+  return { tableLayout: tableLayoutFor(gate), tableLoading: gate === 'loading' };
+}
+
+// The tabs whose table takes the flag's layout, module-level for a stable identity (as the gated tabs below).
+function TableVulnerabilitiesTab({ device }: { device: Device | null }) {
+  const { tableLayout, tableLoading } = useDeviceTableLayout();
+  return (
+    <LoadingWhen loading={tableLoading}>
+      <VulnerabilitiesTab device={device} tableLayout={tableLayout} />
+    </LoadingWhen>
+  );
+}
+
+function TableSoftwareTab({ device }: { device: Device | null }) {
+  const { tableLayout, tableLoading } = useDeviceTableLayout();
+  return (
+    <LoadingWhen loading={tableLoading}>
+      <SoftwareTab device={device} tableLayout={tableLayout} />
+    </LoadingWhen>
+  );
+}
+
+function TableTicketsTab({ device }: { device: Device | null }) {
+  const { tableLayout, tableLoading } = useDeviceTableLayout();
+  return (
+    <LoadingWhen loading={tableLoading}>
+      <TicketsTab device={device} tableLayout={tableLayout} />
+    </LoadingWhen>
+  );
+}
+
 // The gated tabs, module-level for a stable identity: while the gate is read the tab is shown and its panel draws its
 // loading form (always mounted, so nothing remounts when the gate answers); 'off' removes the tab in `useDeviceTabs`.
 function GatedIncidentsTab({ device }: { device: Device | null }) {
@@ -67,9 +106,11 @@ function GatedIncidentsTab({ device }: { device: Device | null }) {
 }
 
 function GatedRemoteSessionsTab({ device }: { device: Device | null }) {
+  const recordingsGate = useSessionRecordingsGate();
+  const { tableLayout, tableLoading } = useDeviceTableLayout();
   return (
-    <LoadingWhen loading={useSessionRecordingsGate() === 'loading'}>
-      <RemoteSessionsTab device={device} />
+    <LoadingWhen loading={recordingsGate === 'loading' || tableLoading}>
+      <RemoteSessionsTab device={device} tableLayout={tableLayout} />
     </LoadingWhen>
   );
 }
@@ -90,16 +131,17 @@ export const DeviceDirectoryGateContext = createContext<FeatureFlagGate>('off');
 function GatedUsersTab({ device }: { device: Device | null }) {
   const gate = useContext(DeviceDirectoryGateContext);
   const phase2 = useTenantManagementV2Gate();
+  const { tableLayout, tableLoading } = useDeviceTableLayout();
   if (phase2 === 'on' && gate !== 'off') {
     return (
-      <LoadingWhen loading={gate === 'loading'}>
-        <DirectoryUsersTab device={device} />
+      <LoadingWhen loading={gate === 'loading' || tableLoading}>
+        <DirectoryUsersTab device={device} tableLayout={tableLayout} />
       </LoadingWhen>
     );
   }
   return (
-    <LoadingWhen loading={gate === 'loading'}>
-      <UsersTab device={device} />
+    <LoadingWhen loading={gate === 'loading' || tableLoading}>
+      <UsersTab device={device} tableLayout={tableLayout} />
     </LoadingWhen>
   );
 }
@@ -131,7 +173,7 @@ export const ALL_DEVICE_TABS: TabItem[] = [
     id: 'vulnerabilities',
     label: 'Vulnerabilities',
     icon: BracketSquareCheckIcon,
-    component: VulnerabilitiesTab,
+    component: TableVulnerabilitiesTab,
   },
   {
     id: INCIDENTS_TAB_ID,
@@ -168,7 +210,7 @@ export const ALL_DEVICE_TABS: TabItem[] = [
     id: 'tickets',
     label: 'Tickets',
     icon: TagIcon,
-    component: TicketsTab,
+    component: TableTicketsTab,
   },
   {
     id: 'hardware',
@@ -204,7 +246,7 @@ export const ALL_DEVICE_TABS: TabItem[] = [
     id: 'software',
     label: 'Software',
     icon: WebDesignIcon,
-    component: SoftwareTab,
+    component: TableSoftwareTab,
   },
   {
     id: DEVICE_LOGS_TAB_ID,

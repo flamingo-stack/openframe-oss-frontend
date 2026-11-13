@@ -4,8 +4,11 @@ import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/compon
 import { RemoteSessionStatusTag } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { ArrowRightUpIcon, LockIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  actionColumn,
   Button,
   type ColumnDef,
+  DataTable,
+  GRID_MIN_WIDTH,
   type Row,
   SquareAvatar,
   TruncateText,
@@ -13,8 +16,12 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
+import { GridRowActionButton } from '@/app/components/shared/grid-row-action-button';
+import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
+import { ValueGridCell } from '@/app/components/shared/value-grid-cell';
 import { ValueText } from '@/app/components/shared/value-text';
+import type { TableLayout } from '@/app/hooks/use-table-layout';
 import { formatDate, formatTime } from '@/lib/format-date';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import type { RecordingSummary } from '../../types/session-recording';
@@ -49,6 +56,19 @@ export interface RemoteSessionColumnsOptions<T extends RecordingSummary = Record
   liveRows: LiveRows | null;
   onOpen: (row: T) => void;
   onDelete: (row: T) => void;
+  /**
+   * The table's layout. `grid`: Delete and Open are a column each (the grid's action columns, pinned right); `cards`
+   * (the default) keeps the one actions column of the card rows.
+   */
+  layout?: TableLayout;
+}
+
+/** The grid's two action columns, in the order they are drawn. */
+export const REMOTE_SESSION_GRID_ACTIONS = { delete: 'delete', open: 'open' } as const;
+
+/** A row whose recording is gone reads muted, in a card row and in the grid alike. */
+function rowTone(row: RecordingSummary): 'primary' | 'secondary' {
+  return isRecordingGone(row) ? 'secondary' : 'primary';
 }
 
 function employeeInitials(name: string): string {
@@ -238,6 +258,72 @@ function SessionActions<T extends RecordingSummary>({
   );
 }
 
+/** The grid's one line: the start date, its LIVE / PROCESSING / FAILED tag, then the time. */
+function SessionGridCell({ row, liveRows }: { row: RecordingSummary; liveRows: LiveRows | null }) {
+  if (useLoadingScope()) return <DataTable.Cell text="" />;
+  const tag = sessionTag(row, liveRows);
+  return (
+    <DataTable.Cell
+      text={formatDate(row.startedAt)}
+      tone={rowTone(row)}
+      tag={tag ? <RemoteSessionStatusTag status={tag} /> : undefined}
+      secondary={formatTime(row.startedAt)}
+    />
+  );
+}
+
+/** The grid's one line: the employee's avatar and name, the role after it. */
+function EmployeeGridCell({ row }: { row: RecordingSummary }) {
+  const loading = useLoadingScope();
+  const { name = '', role, avatarUrl } = row.employee ?? {};
+  if (!loading && !name) return <ValueGridCell value={null} />;
+  return (
+    <DataTable.Cell
+      leading={{ type: 'avatar', src: avatarUrl, name }}
+      text={name}
+      tone={rowTone(row)}
+      secondary={role || undefined}
+    />
+  );
+}
+
+/** The grid's one line: the length, the file size after it. */
+function DurationGridCell({ row }: { row: RecordingSummary }) {
+  if (useLoadingScope()) return <DataTable.Cell text="" />;
+  if (row.durationMs == null) return <ValueGridCell value={null} />;
+  return (
+    <DataTable.Cell
+      text={formatDurationMs(row.durationMs)}
+      tone={rowTone(row)}
+      secondary={row.sizeBytes != null ? formatBytes(row.sizeBytes) : undefined}
+    />
+  );
+}
+
+/**
+ * The grid's one line of `ExpiresCell`: kept (the lock, then by whom and why), the expiry date (its countdown after it
+ * on the last day), or expired / deleted. A LIVE row has none yet.
+ */
+function ExpiresGridCell({ row, now, liveRows }: { row: RecordingSummary; now: number; liveRows: LiveRows | null }) {
+  if (useLoadingScope()) return <DataTable.Cell text="" />;
+  if (isLiveRow(row, liveRows)) return <ValueGridCell value={null} />;
+  if (row.kept) {
+    return (
+      <DataTable.Cell
+        leading={{ type: 'icon', icon: <LockIcon className="size-5 text-ods-text-primary" /> }}
+        text="Kept"
+        secondary={row.keep ? `by ${row.keep.keptBy} · ${keepReasonText(row.keep)}` : undefined}
+      />
+    );
+  }
+  if (row.recordingState === 'expired') return <DataTable.Cell text="Expired" tone="secondary" />;
+  if (row.recordingState === 'deleted') return <DataTable.Cell text="Deleted" tone="secondary" />;
+  if (row.recordingState !== 'ready' || !row.expiresAt) return <ValueGridCell value={null} />;
+  return (
+    <DataTable.Cell text={formatDate(row.expiresAt)} secondary={expiresSoonLabel(row.expiresAt, now) ?? undefined} />
+  );
+}
+
 /**
  * The Remote Sessions table's columns (Figma 1644-6911): SESSION with the
  * LIVE / PROCESSING / FAILED tag, EMPLOYEE, DURATION with the size, EXPIRES, and
@@ -252,7 +338,52 @@ export function remoteSessionColumns<T extends RecordingSummary = RecordingSumma
   liveRows,
   onOpen,
   onDelete,
+  layout = 'cards',
 }: RemoteSessionColumnsOptions<T>): ColumnDef<T>[] {
+  // The card rows hold both buttons in one cell; the grid gives each action a column of its own.
+  const actionColumns: ColumnDef<T>[] =
+    layout === 'grid'
+      ? [
+          actionColumn<T>({
+            id: REMOTE_SESSION_GRID_ACTIONS.delete,
+            cell: ({ row }) => {
+              const deletable = canDeleteSession(row.original);
+              return (
+                <GridRowActionButton
+                  label="Delete session"
+                  // The glyph carries its own colour: the disabled one dims to the design's dark red itself.
+                  icon={
+                    <TrashIcon className={cn('h-6 w-6', deletable ? 'text-ods-error' : 'text-ods-error-secondary')} />
+                  }
+                  disabled={!deletable}
+                  onClick={() => onDelete(row.original)}
+                />
+              );
+            },
+          }),
+          actionColumn<T>({
+            id: REMOTE_SESSION_GRID_ACTIONS.open,
+            cell: ({ row }) => (
+              <OpenRowButton
+                grid
+                label={isLiveRow(row.original, liveRows) ? 'Watch live' : 'Open session recording'}
+                disabled={sessionHref(row.original, liveRows) === null}
+                onClick={() => onOpen(row.original)}
+              />
+            ),
+          }),
+        ]
+      : [
+          {
+            id: REMOTE_SESSION_COLUMNS.actions.id,
+            cell: ({ row }: { row: Row<T> }) => (
+              <SessionActions row={row.original} liveRows={liveRows} onOpen={onOpen} onDelete={onDelete} />
+            ),
+            enableSorting: false,
+            meta: liveColumnMeta(REMOTE_SESSION_COLUMNS.actions),
+          },
+        ];
+
   return [
     {
       id: REMOTE_SESSION_COLUMNS.session.id,
@@ -261,7 +392,11 @@ export function remoteSessionColumns<T extends RecordingSummary = RecordingSumma
       accessorFn: (row: T) => row.startedAt,
       cell: ({ row }: { row: Row<T> }) => <SessionCell row={row.original} liveRows={liveRows} />,
       enableSorting: true,
-      meta: liveColumnMeta(REMOTE_SESSION_COLUMNS.session),
+      size: 260,
+      meta: liveColumnMeta(REMOTE_SESSION_COLUMNS.session, {
+        label: 'Session',
+        gridCell: ({ row }: { row: Row<T> }) => <SessionGridCell row={row.original} liveRows={liveRows} />,
+      }),
     },
     {
       id: REMOTE_SESSION_COLUMNS.employee.id,
@@ -270,7 +405,13 @@ export function remoteSessionColumns<T extends RecordingSummary = RecordingSumma
       cell: ({ row }: { row: Row<T> }) => <EmployeeCell row={row.original} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(REMOTE_SESSION_COLUMNS.employee, { filter: { options: employeeOptions } }),
+      size: 260,
+      minSize: GRID_MIN_WIDTH.media,
+      meta: liveColumnMeta(REMOTE_SESSION_COLUMNS.employee, {
+        label: 'Employee',
+        filter: { options: employeeOptions },
+        gridCell: ({ row }: { row: Row<T> }) => <EmployeeGridCell row={row.original} />,
+      }),
     },
     {
       id: REMOTE_SESSION_COLUMNS.duration.id,
@@ -279,7 +420,11 @@ export function remoteSessionColumns<T extends RecordingSummary = RecordingSumma
       accessorFn: (row: T) => row.durationMs ?? -1,
       cell: ({ row }: { row: Row<T> }) => <DurationCell row={row.original} />,
       enableSorting: true,
-      meta: liveColumnMeta(REMOTE_SESSION_COLUMNS.duration),
+      size: 180,
+      meta: liveColumnMeta(REMOTE_SESSION_COLUMNS.duration, {
+        label: 'Duration',
+        gridCell: ({ row }: { row: Row<T> }) => <DurationGridCell row={row.original} />,
+      }),
     },
     {
       id: REMOTE_SESSION_COLUMNS.expires.id,
@@ -288,15 +433,14 @@ export function remoteSessionColumns<T extends RecordingSummary = RecordingSumma
       cell: ({ row }: { row: Row<T> }) => <ExpiresCell row={row.original} now={now} liveRows={liveRows} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(REMOTE_SESSION_COLUMNS.expires, { filter: { options: EXPIRES_FILTER_OPTIONS } }),
+      size: 300,
+      minSize: GRID_MIN_WIDTH.icon,
+      meta: liveColumnMeta(REMOTE_SESSION_COLUMNS.expires, {
+        label: 'Recording expires',
+        filter: { options: EXPIRES_FILTER_OPTIONS },
+        gridCell: ({ row }: { row: Row<T> }) => <ExpiresGridCell row={row.original} now={now} liveRows={liveRows} />,
+      }),
     },
-    {
-      id: REMOTE_SESSION_COLUMNS.actions.id,
-      cell: ({ row }: { row: Row<T> }) => (
-        <SessionActions row={row.original} liveRows={liveRows} onOpen={onOpen} onDelete={onDelete} />
-      ),
-      enableSorting: false,
-      meta: liveColumnMeta(REMOTE_SESSION_COLUMNS.actions),
-    },
+    ...actionColumns,
   ];
 }
