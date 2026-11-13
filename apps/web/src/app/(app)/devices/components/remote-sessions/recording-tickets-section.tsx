@@ -2,10 +2,14 @@
 
 import { Chevron02RightIcon, TicketIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  actionColumn,
   Button,
   type ColumnDef,
   type ColumnFiltersState,
   DataTable,
+  type DataTableSettings,
+  FloatingTooltip,
+  GRID_MIN_WIDTH,
   type Row,
   resolveStatusTagProps,
   SearchInput,
@@ -19,9 +23,12 @@ import { formatTicketFullTimestamp } from '@flamingo-stack/openframe-frontend-co
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { formatTicketRowMeta } from '@/app/(app)/tickets/utils/ticket-row-meta';
+import { GridRowActionButton } from '@/app/components/shared/grid-row-action-button';
 import { LIVE_ROW_GAP_CLASS } from '@/app/components/shared/live-table';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
+import { ValueGridCell } from '@/app/components/shared/value-grid-cell';
 import { ValueText } from '@/app/components/shared/value-text';
+import type { TableLayout } from '@/app/hooks/use-table-layout';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { matchesTicketSearch, type RecordingTicket } from './recording-tickets';
@@ -33,6 +40,12 @@ const RECORDING_TICKET_COLUMNS = {
   status: { id: 'status', header: 'STATUS', width: 'w-[200px] shrink-0', hideAt: 'lg' },
   actions: { id: 'actions', width: 'w-[112px] shrink-0 flex-none', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;
+
+/**
+ * The grid table's settings: the gear's menu of columns, with the viewer's layout (hidden columns, their order, resized
+ * widths) kept in the browser under this table's own key.
+ */
+const RECORDING_TICKETS_TABLE_SETTINGS: DataTableSettings = { storageKey: 'recording-tickets' };
 
 /** The ASSIGNED funnel's value for a ticket nobody holds. */
 const UNASSIGNED = 'Unassigned';
@@ -51,15 +64,85 @@ function filterOptions(values: string[]) {
   return [...new Set(values)].sort().map(value => ({ id: value, value, label: value }));
 }
 
+/** The grid's one line: the title, then "3891 • 5 min ago" (the full creation time on hover, as in a card row). */
+function TicketGridCell({ ticket }: { ticket: RecordingTicket }) {
+  const meta = formatTicketRowMeta(ticket);
+  const cell = <DataTable.Cell text={ticket.title} secondary={meta || undefined} />;
+  if (!ticket.createdAt) return cell;
+  return (
+    <FloatingTooltip content={formatTicketFullTimestamp(ticket.createdAt)} triggerClassName="flex min-w-0 flex-1">
+      {cell}
+    </FloatingTooltip>
+  );
+}
+
 function recordingTicketColumns({
   tickets,
   onOpen,
   onUnassign,
+  layout,
 }: {
   tickets: RecordingTicket[];
   onOpen: (ticket: RecordingTicket) => void;
   onUnassign: (ticket: RecordingTicket) => void;
+  /** `grid`: Unassign and Open are a column each (the grid's action columns); `cards`: the one actions column. */
+  layout: TableLayout;
 }): ColumnDef<RecordingTicket>[] {
+  const actionColumns: ColumnDef<RecordingTicket>[] =
+    layout === 'grid'
+      ? [
+          actionColumn<RecordingTicket>({
+            id: 'unassign',
+            cell: ({ row }) => (
+              <GridRowActionButton
+                label="Unassign ticket"
+                icon={<TrashIcon className="h-6 w-6 text-ods-error" />}
+                onClick={() => onUnassign(row.original)}
+              />
+            ),
+          }),
+          actionColumn<RecordingTicket>({
+            id: 'open',
+            cell: ({ row }) => (
+              <GridRowActionButton
+                label="Open ticket"
+                icon={<Chevron02RightIcon className="h-6 w-6" />}
+                onClick={() => onOpen(row.original)}
+              />
+            ),
+          }),
+        ]
+      : [
+          {
+            id: RECORDING_TICKET_COLUMNS.actions.id,
+            cell: ({ row }: { row: Row<RecordingTicket> }) => (
+              <div
+                data-no-row-click
+                className="pointer-events-auto flex items-center justify-end gap-[var(--spacing-system-m)]"
+              >
+                <Button
+                  variant="outline"
+                  size="icon"
+                  leftIcon={<TrashIcon className="h-6 w-6 text-ods-error" />}
+                  aria-label="Unassign ticket"
+                  onClick={() => onUnassign(row.original)}
+                />
+                {/* onClick, not `href`: the row itself is a link (rowHref), and an
+                    anchor nested in an anchor is invalid HTML. */}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  leftIcon={<Chevron02RightIcon className="h-6 w-6" />}
+                  aria-label="Open ticket"
+                  onClick={() => onOpen(row.original)}
+                />
+              </div>
+            ),
+            enableSorting: false,
+            meta: liveColumnMeta(RECORDING_TICKET_COLUMNS.actions),
+          },
+        ];
+
   return [
     {
       id: RECORDING_TICKET_COLUMNS.ticket.id,
@@ -83,7 +166,11 @@ function recordingTicketColumns({
         );
       },
       enableSorting: true,
-      meta: liveColumnMeta(RECORDING_TICKET_COLUMNS.ticket),
+      size: 420,
+      meta: liveColumnMeta(RECORDING_TICKET_COLUMNS.ticket, {
+        label: 'Ticket',
+        gridCell: ({ row }: { row: Row<RecordingTicket> }) => <TicketGridCell ticket={row.original} />,
+      }),
     },
     {
       id: RECORDING_TICKET_COLUMNS.assigned.id,
@@ -111,8 +198,16 @@ function recordingTicketColumns({
       },
       enableSorting: false,
       filterFn: multiSelectFilterFn,
+      size: 280,
+      minSize: GRID_MIN_WIDTH.media,
       meta: liveColumnMeta(RECORDING_TICKET_COLUMNS.assigned, {
+        label: 'Assigned',
         filter: { options: filterOptions(tickets.map(ticket => ticket.assignedName ?? UNASSIGNED)) },
+        gridCell: ({ row }: { row: Row<RecordingTicket> }) => {
+          const name = row.original.assignedName;
+          if (!name) return <ValueGridCell value={null} />;
+          return <DataTable.Cell leading={{ type: 'avatar', src: row.original.assignedAvatarUrl, name }} text={name} />;
+        },
       }),
     },
     {
@@ -122,44 +217,26 @@ function recordingTicketColumns({
       cell: ({ row }: { row: Row<RecordingTicket> }) => <TicketStatusTag {...resolveStatusTagProps(row.original)} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,
+      size: 200,
+      // One line already (a tag): the grid draws the same cell.
       meta: liveColumnMeta(RECORDING_TICKET_COLUMNS.status, {
+        label: 'Status',
         filter: { options: filterOptions(tickets.flatMap(ticket => (ticket.statusName ? [ticket.statusName] : []))) },
       }),
     },
-    {
-      id: RECORDING_TICKET_COLUMNS.actions.id,
-      cell: ({ row }: { row: Row<RecordingTicket> }) => (
-        <div
-          data-no-row-click
-          className="pointer-events-auto flex items-center justify-end gap-[var(--spacing-system-m)]"
-        >
-          <Button
-            variant="outline"
-            size="icon"
-            leftIcon={<TrashIcon className="h-6 w-6 text-ods-error" />}
-            aria-label="Unassign ticket"
-            onClick={() => onUnassign(row.original)}
-          />
-          {/* onClick, not `href`: the row itself is a link (rowHref), and an
-              anchor nested in an anchor is invalid HTML. */}
-          <Button
-            variant="outline"
-            size="icon"
-            leftIcon={<Chevron02RightIcon className="h-6 w-6" />}
-            aria-label="Open ticket"
-            onClick={() => onOpen(row.original)}
-          />
-        </div>
-      ),
-      enableSorting: false,
-      meta: liveColumnMeta(RECORDING_TICKET_COLUMNS.actions),
-    },
+    ...actionColumns,
   ];
 }
 
 interface RecordingTicketsSectionProps {
   tickets: RecordingTicket[];
   onUnassign: (ticket: RecordingTicket) => void;
+  /**
+   * The table's layout. `grid` draws the lib's grid table (48px one-line rows, the ticket column pinned, Unassign and
+   * Open as action columns, the gear menu), at its natural height: the section is part of the recording's page.
+   * Default `cards`.
+   */
+  tableLayout?: TableLayout;
 }
 
 /**
@@ -167,7 +244,7 @@ interface RecordingTicketsSectionProps {
  * linked to the session, searchable by title or number, filterable by
  * assignee and status. The caller leaves it out when there are none.
  */
-export function RecordingTicketsSection({ tickets, onUnassign }: RecordingTicketsSectionProps) {
+export function RecordingTicketsSection({ tickets, onUnassign, tableLayout = 'cards' }: RecordingTicketsSectionProps) {
   const router = useRouter();
   const [search, setSearch] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -178,6 +255,7 @@ export function RecordingTicketsSection({ tickets, onUnassign }: RecordingTicket
     tickets,
     onOpen: ticket => router.push(routes.tickets.dialog(ticket.id)),
     onUnassign,
+    layout: tableLayout,
   });
   const table = useDataTable<RecordingTicket>({
     data: rows,
@@ -196,7 +274,18 @@ export function RecordingTicketsSection({ tickets, onUnassign }: RecordingTicket
     <section className="flex flex-col gap-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]">
       <h2 className="truncate text-ods-text-primary text-h2">Assigned Tickets</h2>
       <SearchInput value={search} onChange={setSearch} placeholder="Search for Tickets" showDropdown={false} />
-      <DataTable table={table}>
+      {/* The settings belong to the grid; the table keeps its natural height in both layouts. */}
+      <DataTable
+        table={table}
+        layout={tableLayout}
+        settings={tableLayout === 'grid' ? RECORDING_TICKETS_TABLE_SETTINGS : undefined}
+      >
+        {/* The grid's results count sits above the table; the card header carries its own (`rightSlot`). */}
+        {tableLayout === 'grid' && (
+          <DataTable.Meta>
+            <DataTable.RowCount itemName="result" />
+          </DataTable.Meta>
+        )}
         <DataTable.Header
           sort={sortState}
           onSortChange={(id: string) =>

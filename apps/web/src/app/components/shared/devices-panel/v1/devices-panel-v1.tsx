@@ -14,6 +14,7 @@ import {
 import {
   type ColumnDef,
   type ColumnFiltersState,
+  type DataTableSettings,
   type OnChangeFn,
   type PageActionButton,
   PageError,
@@ -40,7 +41,7 @@ import { routes } from '@/lib/routes';
 import { ContentErrorBoundary } from '../../content-error-boundary';
 import { EMBEDDED_PAGE_OFFSET } from '../../embedded-page';
 import { NO_ITEMS } from '../../no-next-page';
-import { DEVICES_TABLE_SETTINGS } from '../devices-table-settings';
+import { devicesTableGridProps } from '../devices-table-settings';
 import { devicesViewMode } from '../devices-view-mode';
 
 /** The loaded table's actions column, minus the actions: the loading panel's columns take the same widths. */
@@ -118,6 +119,8 @@ export interface DevicesPanelPropsV1 {
   readOnlyRows?: boolean;
   /** The table's layout (`DevicesPanelProps.tableLayout`): the Devices page is the grid table under both panels. */
   tableLayout?: TableLayout;
+  /** The grid table's settings (`DevicesPanelProps.tableSettings`). */
+  tableSettings?: DataTableSettings;
 }
 
 function DevicesPanelContent(props: DevicesPanelPropsV1) {
@@ -341,8 +344,7 @@ function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters
       actionsColumn={actionsColumn}
       hideColumns={hideColumns}
       tableLayout={tableLayout}
-      tableMaxHeight={tableLayout === 'grid' ? 'fill' : undefined}
-      tableSettings={tableLayout === 'grid' ? DEVICES_TABLE_SETTINGS : undefined}
+      {...devicesTableGridProps(panel)}
       hideFilters={hideFilters}
       emptyMessage={emptyMessage}
       hasNextPage={hasNextPage}
@@ -468,8 +470,7 @@ function DevicesPanelPending({ panel: props, chrome, viewMode }: DevicesPanelBod
       actionsColumn={PENDING_ACTIONS_COLUMN}
       hideColumns={props.hideColumns}
       tableLayout={props.tableLayout}
-      tableMaxHeight={props.tableLayout === 'grid' ? 'fill' : undefined}
-      tableSettings={props.tableLayout === 'grid' ? DEVICES_TABLE_SETTINGS : undefined}
+      {...devicesTableGridProps(props)}
       hideFilters={props.hideFilters}
     />
   );

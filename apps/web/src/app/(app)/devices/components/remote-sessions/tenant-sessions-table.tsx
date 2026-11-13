@@ -9,6 +9,7 @@ import {
 import {
   Button,
   type ColumnDef,
+  type DataTableSettings,
   type DateFilterResult,
   type DateRange,
   FilterModal,
@@ -30,6 +31,7 @@ import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useNow } from '@/app/hooks/use-now';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
+import type { TableLayout } from '@/app/hooks/use-table-layout';
 import {
   tenantRemoteSessionsRelayFragment,
   tenantRemoteSessionsRelayQuery,
@@ -79,7 +81,15 @@ interface TenantSessionsTableProps {
   onFilterChange: (filters: Record<string, string[]>) => void;
   dateFilter: TableDateFilter;
   onDeleted: () => void;
+  /** The table's layout (`TenantSessionsShell`'s `tableLayout`). */
+  tableLayout: TableLayout;
 }
+
+/**
+ * The grid table's settings: the gear's menu of columns, with the viewer's layout (hidden columns, their order, resized
+ * widths) kept in the browser under this table's own key.
+ */
+const TENANT_SESSIONS_TABLE_SETTINGS: DataTableSettings = { storageKey: 'remote-sessions' };
 
 /** The mobile filters button, the page's full width: the header funnels go with the header cells below `md`. */
 function MobileFiltersButton({ onClick }: { onClick?: () => void }) {
@@ -113,6 +123,7 @@ function TenantSessionsTable({
   onFilterChange,
   dateFilter,
   onDeleted,
+  tableLayout,
 }: TenantSessionsTableProps) {
   const loading = useLoadingScope();
   const router = useRouter();
@@ -144,8 +155,9 @@ function TenantSessionsTable({
           if (href) router.push(href);
         },
         onDelete: setDeleteTarget,
+        layout: tableLayout,
       }),
-    [dateFilter, deviceOptions, customerOptions, optionsPending, now, liveRows, router],
+    [dateFilter, deviceOptions, customerOptions, optionsPending, now, liveRows, router, tableLayout],
   );
 
   // The funnels' selection lives in the URL: every column's picks in, all of
@@ -206,6 +218,11 @@ function TenantSessionsTable({
         rowClassName={row => liveSessionRowClass(row, liveRows)}
         footer={rows.length > 0 ? infiniteScroll : null}
         loadingCells={loading}
+        // The grid table is the page's scroll area: it fills the height under the page title, and the page does not
+        // scroll. The card rows take neither option.
+        layout={tableLayout}
+        maxHeight="fill"
+        settings={TENANT_SESSIONS_TABLE_SETTINGS}
       />
 
       <FilterModal
@@ -282,6 +299,7 @@ function TenantSessionsContentReader(props: TenantSessionsContentProps) {
         onFilterChange={props.onFilterChange}
         dateFilter={props.dateFilter}
         onDeleted={props.onDeleted}
+        tableLayout={props.tableLayout}
       />
     );
   }
@@ -337,8 +355,11 @@ function TenantSessionsContentQuery({ variables, refreshKey, onRefresh, ...table
  * DEVICE and CUSTOMER columns, filtered, sorted and paged on the server. The
  * funnels and the SESSION calendar live in the URL, so a filtered view is a
  * shareable link.
+ *
+ * `tableLayout="grid"` draws the lib's grid table (48px one-line rows, the session column pinned, Delete and Open as
+ * action columns, the gear menu) as the page's scroll area. Default `cards`.
  */
-export function TenantSessionsShell() {
+export function TenantSessionsShell({ tableLayout = 'cards' }: { tableLayout?: TableLayout }) {
   const { params, setParams } = useApiParams({
     device: { type: 'array', default: [] },
     customer: { type: 'array', default: [] },
@@ -425,6 +446,7 @@ export function TenantSessionsShell() {
         dateFilter={dateFilter}
         onDeleted={refresh}
         onRefresh={refresh}
+        tableLayout={tableLayout}
       />
     </div>
   );

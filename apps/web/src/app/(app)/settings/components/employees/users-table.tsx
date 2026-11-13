@@ -1,7 +1,10 @@
 'use client';
 
 import {
+  actionColumn,
   type ColumnDef,
+  type DataTableSettings,
+  GRID_MIN_WIDTH,
   type Row,
   useDataTable,
   useLoadingScope,
@@ -19,8 +22,8 @@ import { openInNewTab } from '@/lib/open-in-new-tab';
 import { rawIdOf } from '@/lib/relay-id';
 import type { EmployeeFilterOptions, EmployeeSelections } from './employee-filters';
 import { EmployeeRolesCell } from './employee-roles-cell';
-import { EmployeeStatusCell } from './employee-status-cell';
-import { EmployeeUserCell } from './employee-user-cell';
+import { EmployeeStatusCell, EmployeeStatusGridCell } from './employee-status-cell';
+import { EmployeeUserCell, EmployeeUserGridCell } from './employee-user-cell';
 import { EMPLOYEES_COLUMNS, USERS_PAGE_SIZE } from './employees-columns';
 
 /**
@@ -42,33 +45,55 @@ type UserRow = usersTable_user$data[number];
 // The employee page takes the raw id; the node id is the Relay global one.
 const detailHref = (row: UserRow) => employeeDetailHref(rawIdOf(row.id));
 
+/**
+ * The grid table's settings: the gear's menu of columns, with the viewer's layout (hidden columns, their order,
+ * resized widths) kept in the browser under this table's own key.
+ */
+const USERS_TABLE_SETTINGS: DataTableSettings = { storageKey: 'employees-users' };
+
+/**
+ * The columns. Each data column states what the grid layout reads beside the card layout's `meta.width`: a `size`
+ * (its designed width), a `minSize` where the cell holds more than text, a one-line `gridCell` and a `label` for the
+ * settings menu. The table is the grid at every width; `cell` is what a column without a `gridCell` draws.
+ */
 function buildColumns(filterOptions: EmployeeFilterOptions): ColumnDef<UserRow>[] {
   return [
     {
       id: EMPLOYEES_COLUMNS.user.id,
       header: EMPLOYEES_COLUMNS.user.header,
       cell: ({ row }: { row: Row<UserRow> }) => <EmployeeUserCell user={row.original} />,
-      meta: liveColumnMeta(EMPLOYEES_COLUMNS.user),
+      size: 360,
+      minSize: GRID_MIN_WIDTH.media,
+      meta: liveColumnMeta(EMPLOYEES_COLUMNS.user, {
+        label: 'User',
+        gridCell: ({ row }: { row: Row<UserRow> }) => <EmployeeUserGridCell user={row.original} />,
+      }),
     },
     {
       id: EMPLOYEES_COLUMNS.roles.id,
       header: EMPLOYEES_COLUMNS.roles.header,
+      // One line of the cell's type already: the grid draws the same cell.
       cell: ({ row }: { row: Row<UserRow> }) => <EmployeeRolesCell user={row.original} />,
-      meta: liveColumnMeta(EMPLOYEES_COLUMNS.roles, { filter: { options: filterOptions.roles } }),
+      size: 240,
+      meta: liveColumnMeta(EMPLOYEES_COLUMNS.roles, { label: 'Role', filter: { options: filterOptions.roles } }),
     },
     {
       id: EMPLOYEES_COLUMNS.status.id,
       header: EMPLOYEES_COLUMNS.status.header,
       cell: ({ row }: { row: Row<UserRow> }) => <EmployeeStatusCell user={row.original} />,
-      meta: liveColumnMeta(EMPLOYEES_COLUMNS.status, { filter: { options: filterOptions.status } }),
+      size: 200,
+      meta: liveColumnMeta(EMPLOYEES_COLUMNS.status, {
+        label: 'Status',
+        filter: { options: filterOptions.status },
+        gridCell: ({ row }: { row: Row<UserRow> }) => <EmployeeStatusGridCell user={row.original} />,
+      }),
     },
-    {
+    actionColumn<UserRow>({
       id: EMPLOYEES_COLUMNS.open.id,
-      cell: ({ row }: { row: Row<UserRow> }) => (
-        <OpenRowButton label="Open in new tab" onClick={openInNewTab(detailHref(row.original))} />
+      cell: ({ row }) => (
+        <OpenRowButton grid label="Open in new tab" onClick={openInNewTab(detailHref(row.original))} />
       ),
-      meta: liveColumnMeta(EMPLOYEES_COLUMNS.open),
-    },
+    }),
   ];
 }
 
@@ -135,6 +160,10 @@ export function UsersTable({
       pageSize={USERS_PAGE_SIZE}
       loadingCells={loading}
       stickyHeaderOffset={stickyHeaderOffset}
+      // The grid table, as the page's scroll area: it fills the height under the toolbar, and the page does not scroll.
+      layout="grid"
+      maxHeight="fill"
+      settings={USERS_TABLE_SETTINGS}
       itemName="result"
       totalCount={totalCount}
       isPending={isPending}

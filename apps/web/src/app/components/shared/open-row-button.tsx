@@ -10,6 +10,11 @@ interface OpenRowButtonProps {
   onClick: (event: MouseEvent<HTMLButtonElement>) => void;
   /** Nothing to open (the row has no address): drawn for real and inert, like a loading row. */
   disabled?: boolean;
+  /**
+   * The button's form in a grid table's action column: the 40px button with no border or fill of its own (the column
+   * is the box). Default: the outlined button of a card row.
+   */
+  grid?: boolean;
 }
 
 /**
@@ -17,7 +22,7 @@ interface OpenRowButtonProps {
  * from firing underneath it. It is static chrome: while the row is read (a loading scope) it is drawn for real and
  * inert, since there is nothing to open yet.
  */
-export function OpenRowButton({ label, onClick, disabled = false }: OpenRowButtonProps) {
+export function OpenRowButton({ label, onClick, disabled = false, grid = false }: OpenRowButtonProps) {
   const loading = useLoadingScope();
   const inert = loading || disabled;
   return (
@@ -25,11 +30,11 @@ export function OpenRowButton({ label, onClick, disabled = false }: OpenRowButto
       <Button
         onClick={inert ? undefined : onClick}
         disabled={inert}
-        variant="outline"
+        variant={grid ? 'transparent' : 'outline'}
         size="icon"
         leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
         aria-label={loading ? 'Open in new tab' : label}
-        className="bg-ods-card"
+        className={grid ? 'size-10 border-0 md:size-10' : 'bg-ods-card'}
       />
     </div>
   );
