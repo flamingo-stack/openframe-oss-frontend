@@ -36,8 +36,8 @@ export interface ManhattanCentreSlots {
   dockFloats: (floats: boolean) => boolean;
 }
 
-/** `localStorage` key of the chat / page divider. */
-export const MANHATTAN_WORK_AREA_STORAGE_KEY = 'of.manhattan.workArea';
+/** `localStorage` key of the chat / page divider (declared beside the root layout's seeds). */
+export { MANHATTAN_WORK_AREA_STORAGE_KEY } from '@/lib/navigation-sidebar-state';
 
 /**
  * How far the divider squeezes the chat or the page past its min width: to 30% of it.

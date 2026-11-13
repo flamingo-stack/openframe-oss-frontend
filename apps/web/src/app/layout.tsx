@@ -1,10 +1,11 @@
 import { RouteStyles } from '@flamingo-stack/openframe-frontend-core/route-styles';
+import { workAreaShareSeedScript } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { PublicEnvScript } from 'next-runtime-env';
 import { DevTicketObserver } from '@/app/(auth)/auth/components/dev-ticket-observer';
 import { NatsAppProvider } from '@/lib/nats/nats-app-provider';
-import { sidebarWidthFoucScript } from '@/lib/navigation-sidebar-state';
+import { MANHATTAN_WORK_AREA_STORAGE_KEY, sidebarWidthFoucScript } from '@/lib/navigation-sidebar-state';
 import { Toaster } from '@/lib/openframe-core-ui';
 import { PostHogAnalyticsBridge } from '@/lib/posthog/posthog-analytics-bridge';
 import { runtimeEnv } from '@/lib/runtime-config';
@@ -121,7 +122,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             preference reaches the first frame — and the only thing that keeps the
             width out of the markup, where it was a hydration mismatch. */}
         {/* React's dangerouslySetInnerHTML requires the __html key */}
-        <script dangerouslySetInnerHTML={{ __html: sidebarWidthFoucScript(isSaasTenantMode()) }} />
+        <script
+          dangerouslySetInnerHTML={{
+            // The Manhattan v2 divider's place too, so the first paint draws the split where the user left it.
+            __html:
+              sidebarWidthFoucScript(isSaasTenantMode()) +
+              (isSaasTenantMode() ? workAreaShareSeedScript(MANHATTAN_WORK_AREA_STORAGE_KEY) : ''),
+          }}
+        />
       </head>
       <body suppressHydrationWarning className="min-h-screen font-body antialiased" data-app-type="openframe">
         {/* Each page's own Tailwind rules, written into its HTML by `next-styles build`; the complete sheet
