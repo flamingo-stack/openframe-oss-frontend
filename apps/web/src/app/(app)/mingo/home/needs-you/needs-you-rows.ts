@@ -1,9 +1,4 @@
 import { getApprovalMeta, type Notification } from '@flamingo-stack/openframe-frontend-core';
-import {
-  packageManagerLabel,
-  providerMark,
-  softwareActionCopy,
-} from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { IncidentRow } from '@/app/(app)/incidents/utils/incident-transform';
 import type { Dialog } from '@/app/(app)/tickets/types/dialog.types';
 import { getTicketDeviceName } from '@/app/(app)/tickets/utils/ticket-device-name';
@@ -12,24 +7,22 @@ import { untitledRequestName } from '@/app/components/approvals/approval-inbox';
 import { resolveNotificationRoute } from '@/app/components/notifications/notification-navigation';
 import { isApprovalResolved } from '@/graphql/notifications/notification-attributes';
 import type { FeatureFlagGate } from '@/lib/feature-flags';
-import { formatCount } from '@/lib/format-number';
-import { pluralize } from '@/lib/pluralize';
 import { routes } from '@/lib/routes';
 
 /**
  * "Needs you" on Mingo's home and the dashboard: a queue of what waits for a person, composed
- * on the client from six existing contracts (FE_PROMPT §3.2, §12.2) — there is no combined
- * feed — over one quick action per category. This module is the block's logic as plain data:
+ * on the client from three existing contracts — pending approvals, NEW critical incidents and
+ * tickets the end user escalated; there is no combined feed — over one quick action per category. This module is the block's logic as plain data:
  * what each row says and when it started needing someone, the queue's order, the counts, and
  * when the block loads, hides or reports a failure.
  */
 
 /** The sources, one read each. */
-export const NEEDS_YOU_SOURCES = ['approvals', 'incidents', 'tickets', 'tenants', 'software', 'disk'] as const;
+export const NEEDS_YOU_SOURCES = ['approvals', 'incidents', 'tickets'] as const;
 export type NeedsYouSource = (typeof NEEDS_YOU_SOURCES)[number];
 
 /** The quick actions under the queue, in the order they are drawn. */
-export const NEEDS_YOU_CATEGORIES = ['incidents', 'approvals', 'tickets', 'tenants', 'software', 'devices'] as const;
+export const NEEDS_YOU_CATEGORIES = ['incidents', 'approvals', 'tickets'] as const;
 export type NeedsYouCategory = (typeof NEEDS_YOU_CATEGORIES)[number];
 
 /** The category a source's rows and count belong to. */
@@ -37,9 +30,6 @@ export const NEEDS_YOU_SOURCE_CATEGORY = {
   approvals: 'approvals',
   incidents: 'incidents',
   tickets: 'tickets',
-  tenants: 'tenants',
-  software: 'software',
-  disk: 'devices',
 } as const satisfies Record<NeedsYouSource, NeedsYouCategory>;
 
 /** The rows the queue shows, loading or loaded: the block is this many rows high, whatever it holds. */
@@ -52,17 +42,15 @@ export const NEEDS_YOU_ROWS = 3;
 export const NEEDS_YOU_CANDIDATES = 5;
 
 /** What a row is about — it picks the row's icon. */
-export type NeedsYouEntity = 'approval' | 'incident' | 'ticket' | 'tenant' | 'software' | 'device';
+export type NeedsYouEntity = 'approval' | 'incident' | 'ticket';
 
-/** The status tag's look: `critical` red filled, `warning` the attention tint, `neutral` grey. */
-export type NeedsYouTone = 'critical' | 'warning' | 'neutral';
+/** The status tag's look: `critical` red filled, `warning` the attention tint. */
+export type NeedsYouTone = 'critical' | 'warning';
 
 export interface NeedsYouRow {
   /** Unique on the card. */
   key: string;
   entity: NeedsYouEntity;
-  /** The device's type, for a `device` row's icon. */
-  deviceType?: string | null;
   name: string;
   /** What else the row knows about the item (customer, device…): told to Mingo, not drawn. */
   detail: string;
@@ -205,7 +193,6 @@ function sameRow(a: NeedsYouRow, b: NeedsYouRow): boolean {
   return (
     a.key === b.key &&
     a.entity === b.entity &&
-    a.deviceType === b.deviceType &&
     a.name === b.name &&
     a.detail === b.detail &&
     a.reason === b.reason &&
@@ -237,23 +224,20 @@ export function sameReport(previous: SourceReport | undefined, next: SourceRepor
 
 /**
  * Where a quick action leads: its category's page, narrowed to what its count counts where the
- * page reads such a filter from its URL. The cloud tenants and devices lists have none for a
- * failed sync or a low disk, so they open whole.
+ * page reads such a filter from its URL. The tickets list has no escalation filter, so Tickets
+ * opens the Tech Required lanes, where the escalated tickets are.
  */
 export function categoryHref(
   category: NeedsYouCategory,
   { techRequiredStatusIds }: { techRequiredStatusIds: readonly string[] },
 ): string {
   const href: Record<NeedsYouCategory, string> = {
-    incidents: routes.incidents.filtered({ status: ['NEW'] }),
+    incidents: routes.incidents.filtered({ severity: ['CRITICAL'], status: ['NEW'] }),
     approvals: routes.approvals,
     tickets:
       techRequiredStatusIds.length > 0
         ? routes.tickets.filtered({ status: techRequiredStatusIds })
         : routes.tickets.list,
-    tenants: routes.cloudTenantManagement.list,
-    software: routes.software.actionsFiltered({ status: ['FAILED'] }),
-    devices: routes.devices.list,
   };
   return href[category];
 }
@@ -315,26 +299,6 @@ export function criticalIncidentRow(incident: IncidentRow): NeedsYouRow {
   };
 }
 
-/**
- * A device whose disk is running out (the `DISK_SPACE_LOW` detector). The row is the
- * device, so it opens the device; a machine that no longer resolves has no page, and
- * the finding itself opens instead.
- */
-export function diskWarningRow(incident: IncidentRow): NeedsYouRow {
-  return {
-    key: `disk:${incident.id}`,
-    entity: 'device',
-    deviceType: incident.deviceType,
-    name: incident.deviceName,
-    detail: joinDetail(incident.title, incident.organizationName),
-    reason: 'Low disk',
-    tone: 'neutral',
-    href: incident.hasDevice ? routes.devices.details(incident.machineId) : routes.incidents.details(incident.id),
-    at: epochOf(incident.detectedAt),
-    subjects: [`insight:${incident.id}`],
-  };
-}
-
 /** A Tech Required ticket the end user escalated to a person. */
 export function escalatedTicketRow(ticket: Dialog): NeedsYouRow {
   return {
@@ -352,62 +316,10 @@ export function escalatedTicketRow(ticket: Dialog): NeedsYouRow {
   };
 }
 
-/** A cloud tenant (directory connection) whose last sync failed. */
-export function failedSyncTenantRow(tenant: {
-  id: string;
-  name: string;
-  provider: string;
-  customerName: string;
-  lastSyncAt: string | null | undefined;
-}): NeedsYouRow {
-  return {
-    key: `tenant:${tenant.id}`,
-    entity: 'tenant',
-    name: tenant.name,
-    detail: joinDetail(providerMark(tenant.provider).label, tenant.customerName),
-    reason: 'Sync failed',
-    tone: 'neutral',
-    href: routes.cloudTenantManagement.details(tenant.id),
-    at: epochOf(tenant.lastSyncAt),
-    subjects: [`tenant:${tenant.id}`],
-  };
-}
-
-/** A software install / update run that FAILED. */
-export function failedSoftwareActionRow(action: {
-  id: string;
-  software: string;
-  action: string;
-  engine: string;
-  respondedMachineCount: number;
-  totalMachineCount: number;
-  finishedAt: string | null | undefined;
-  dispatchedAt: string | null | undefined;
-}): NeedsYouRow {
-  const verb = softwareActionCopy(action.action)?.verb;
-  return {
-    key: `software:${action.id}`,
-    entity: 'software',
-    name: verb ? `${verb} ${action.software}` : action.software,
-    detail: joinDetail(
-      packageManagerLabel(action.engine),
-      `${formatCount(action.respondedMachineCount)} / ${pluralize(action.totalMachineCount, 'device')}`,
-    ),
-    reason: 'Action failed',
-    tone: 'neutral',
-    href: routes.software.action(action.id),
-    at: epochOf(action.finishedAt ?? action.dispatchedAt),
-    subjects: [`software:${action.id}`],
-  };
-}
-
 const ENTITY_NOUN: Record<NeedsYouEntity, string> = {
   approval: 'Approval request',
   incident: 'Incident',
   ticket: 'Ticket',
-  tenant: 'Cloud tenant',
-  software: 'Software action',
-  device: 'Device',
 };
 
 /** What the Mingo button sends: the item, why it needs the user, what else is known, and where it is. */

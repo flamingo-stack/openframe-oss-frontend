@@ -1,14 +1,10 @@
 'use client';
 
 import { AgentMark, MediaSkeleton, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
-import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   AlertTriangleIcon,
   ArrowRightUpIcon,
   CheckCircleIcon,
-  CloudIcon,
-  MonitorIcon,
-  Parcel02Icon,
   ShieldCheckIcon,
   TicketIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
@@ -21,7 +17,6 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ComponentType, type ReactNode, useCallback, useState } from 'react';
-import { useTicketsOverview } from '@/app/(app)/dashboard/hooks/use-dashboard-stats';
 import { usePendingApprovalCountState } from '@/app/components/mingo-shell/use-pending-approval-count';
 import { useRevealHeld, useRevealPart } from '@/app/components/shared/reveal-together';
 import { loadErrorProps } from '@/lib/query-state';
@@ -48,9 +43,7 @@ import {
   sameReport,
   type SourceReport,
 } from './needs-you-rows';
-import { NeedsYouSoftwareSource } from './needs-you-software-source';
 import { NeedsYouSourceBoundary } from './needs-you-source-boundary';
-import { NeedsYouTenantsSource } from './needs-you-tenants-source';
 import { useEscalatedTicketsReport, useTechRequiredStatusIds } from './use-escalated-tickets-report';
 import { useNeedsYouDismissed } from './use-needs-you-dismissed';
 import { useNeedsYouGates } from './use-needs-you-gates';
@@ -59,9 +52,7 @@ const CAPTION = 'Needs your attention:';
 
 // Module constants: each boundary reports a failure for these, from an effect keyed on them.
 const APPROVALS: readonly NeedsYouSource[] = ['approvals'];
-const INSIGHTS: readonly NeedsYouSource[] = ['incidents', 'disk'];
-const TENANTS: readonly NeedsYouSource[] = ['tenants'];
-const SOFTWARE: readonly NeedsYouSource[] = ['software'];
+const INSIGHTS: readonly NeedsYouSource[] = ['incidents'];
 
 interface NeedsYouState {
   view: NeedsYouView;
@@ -75,10 +66,9 @@ interface NeedsYouState {
 }
 
 /**
- * What "Needs you" holds: every row of the six sources (pending approvals, NEW critical
- * incidents, escalated Tech Required tickets, cloud tenants whose sync failed, failed software
- * actions, devices low on disk), newest first, without the ones the user dismissed; and one
- * count per category (`needs-you-rows.ts`). Every source is gated like its sidebar entry
+ * What "Needs you" holds: every row of its three sources (pending approvals, NEW critical
+ * incidents, Tech Required tickets the end user escalated), newest first, without the ones the
+ * user dismissed; and one count per category (`needs-you-rows.ts`). Every source is gated like its sidebar entry
  * (`useNeedsYouGates`). Loading until every open source answered; hidden only when no source
  * is open.
  *
@@ -98,11 +88,6 @@ export function useNeedsYou(): NeedsYouState {
 
   const escalated = useEscalatedTicketsReport(gates.tickets);
   const techRequiredStatusIds = useTechRequiredStatusIds(gates.tickets);
-  // The Tickets quick action counts every Tech Required ticket: the Tickets section's count (same query, same cache).
-  const ticketStats = useTicketsOverview();
-  const ticketsOn = gates.tickets === 'on';
-  const tickets: SourceReport =
-    escalated.status === 'ready' ? { ...escalated, count: ticketStats.techRequired ?? undefined } : escalated;
   // The Approval requests quick action counts every request waiting for a decision, as the server
   // counts them for the sidebar's "Needs approval" badge (same queries, same cache); the source's
   // rows are only the notifications' first page. Where the server does not count (an OSS tenant)
@@ -116,11 +101,8 @@ export function useNeedsYou(): NeedsYouState {
 
   const view = resolveNeedsYou(
     gates,
-    { ...reports, approvals, tickets },
-    {
-      pending: (ticketsOn && ticketStats.isLoading) || (gates.approvals === 'on' && approvalsCount.loading),
-      dismissed,
-    },
+    { ...reports, approvals, tickets: escalated },
+    { pending: gates.approvals === 'on' && approvalsCount.loading, dismissed },
   );
   const openCategories = NEEDS_YOU_CATEGORIES.filter(category =>
     NEEDS_YOU_SOURCES.some(source => NEEDS_YOU_SOURCE_CATEGORY[source] === category && gates[source] !== 'off'),
@@ -136,16 +118,6 @@ export function useNeedsYou(): NeedsYouState {
       {gates.incidents === 'on' && (
         <NeedsYouSourceBoundary sources={INSIGHTS} onReport={report}>
           <NeedsYouInsightsSource onReport={report} />
-        </NeedsYouSourceBoundary>
-      )}
-      {gates.tenants === 'on' && (
-        <NeedsYouSourceBoundary sources={TENANTS} onReport={report}>
-          <NeedsYouTenantsSource onReport={report} />
-        </NeedsYouSourceBoundary>
-      )}
-      {gates.software === 'on' && (
-        <NeedsYouSourceBoundary sources={SOFTWARE} onReport={report}>
-          <NeedsYouSoftwareSource onReport={report} />
         </NeedsYouSourceBoundary>
       )}
     </>
@@ -186,18 +158,15 @@ export function NeedsYouCard() {
 
 type IconComponent = ComponentType<{ className?: string; size?: number }>;
 
-const ENTITY_ICON: Record<Exclude<NeedsYouEntity, 'device'>, IconComponent> = {
+const ENTITY_ICON: Record<NeedsYouEntity, IconComponent> = {
   approval: ShieldCheckIcon,
   incident: AlertTriangleIcon,
   ticket: TicketIcon,
-  tenant: CloudIcon,
-  software: Parcel02Icon,
 };
 
 const ROW_ICON_CLASS = 'size-6 shrink-0 text-ods-text-secondary';
 
 function EntityIcon({ row }: { row: NeedsYouRow }) {
-  if (row.entity === 'device') return renderDeviceTypeIcon(row.deviceType ?? undefined, ROW_ICON_CLASS);
   const Icon = ENTITY_ICON[row.entity];
   return <Icon className={ROW_ICON_CLASS} />;
 }
@@ -206,11 +175,10 @@ function EntityIcon({ row }: { row: NeedsYouRow }) {
 const WARNING_TINT_CLASS =
   'border border-ods-warning-tint-border bg-ods-warning-tint text-ods-warning-tint-text hover:bg-ods-warning-tint active:bg-ods-warning-tint';
 
-/** The status tag per tone: critical is the filled red, warning the attention tint, neutral the plain tag. */
-const TONE_TAG: Record<NeedsYouTone, { variant: 'critical' | 'warning' | 'outline'; className?: string }> = {
+/** The status tag per tone: critical is the filled red, warning the attention tint. */
+const TONE_TAG: Record<NeedsYouTone, { variant: 'critical' | 'warning'; className?: string }> = {
   critical: { variant: 'critical' },
   warning: { variant: 'warning', className: WARNING_TINT_CLASS },
-  neutral: { variant: 'outline' },
 };
 
 /** A queue row: 48px, its four cells (the item, its status, Mingo, open) in the design's proportions. */
@@ -312,26 +280,20 @@ const CATEGORY_LABEL: Record<NeedsYouCategory, string> = {
   incidents: 'Incidents',
   approvals: 'Approval requests',
   tickets: 'Tickets',
-  tenants: 'Cloud tenants',
-  software: 'Software',
-  devices: 'Devices',
 };
 
 const CATEGORY_ICON: Record<NeedsYouCategory, IconComponent> = {
   incidents: AlertTriangleIcon,
   approvals: ShieldCheckIcon,
   tickets: TicketIcon,
-  tenants: CloudIcon,
-  software: Parcel02Icon,
-  devices: MonitorIcon,
 };
 
 /**
  * A quick action's colour while its category holds something: incidents red, approvals and tickets the attention
- * tint; the rest, and any category at 0, the plain tag. A count of 0 (or none, when it failed) is grey. ODS has no red twin of the warning tint yet (Figma's red chip
- * fill), so the red chip is the error-secondary tag with a border.
+ * tint; at 0 the plain tag, its "(0)" grey (and "(—)" when its count failed). ODS has no red twin of the warning tint
+ * yet (Figma's red chip fill), so the red chip is the error-secondary tag with a border.
  */
-const CATEGORY_ACTIVE_TAG: Partial<Record<NeedsYouCategory, { variant: 'error' | 'warning'; className: string }>> = {
+const CATEGORY_ACTIVE_TAG: Record<NeedsYouCategory, { variant: 'error' | 'warning'; className: string }> = {
   incidents: { variant: 'error', className: 'border border-ods-error-secondary-active' },
   approvals: { variant: 'warning', className: WARNING_TINT_CLASS },
   tickets: { variant: 'warning', className: WARNING_TINT_CLASS },

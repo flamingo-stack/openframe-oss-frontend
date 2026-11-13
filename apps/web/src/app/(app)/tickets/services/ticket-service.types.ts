@@ -162,8 +162,8 @@ export interface TicketService {
   fetchBoardColumnByStatusId(params: FetchBoardColumnByStatusIdParams): Promise<TicketsPage>;
   fetchPendingApprovalTickets(params: FetchPendingApprovalTicketsParams): Promise<TicketsPage>;
   countPendingApprovalTickets(statusId: string): Promise<number>;
-  /** The first `limit` tickets of the given lanes that the end user escalated. */
-  fetchEscalatedTickets(params: FetchEscalatedTicketsParams): Promise<Dialog[]>;
+  /** The first `limit` tickets of the given lanes that the end user escalated, newest first, and how many there are. */
+  fetchEscalatedTickets(params: FetchEscalatedTicketsParams): Promise<{ tickets: Dialog[]; count: number }>;
   fetchDialog(id: string): Promise<Dialog | null>;
   fetchMessages(params: FetchMessagesParams): Promise<DialogMessagesPage>;
   transitionTicket(ticketId: string, toStatusId: string): Promise<void>;

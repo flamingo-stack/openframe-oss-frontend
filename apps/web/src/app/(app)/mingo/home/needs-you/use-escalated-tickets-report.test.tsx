@@ -72,12 +72,12 @@ describe('useEscalatedTicketsReport', () => {
       { id: 'st-ai', kind: 'AI_ASSISTANCE' },
       { id: 'st-tech', kind: 'TECH_REQUIRED' },
     ];
-    env.fetchEscalatedTickets.mockResolvedValue([]);
+    env.fetchEscalatedTickets.mockResolvedValue({ tickets: [], count: 7 });
 
     await render();
 
     expect(env.fetchEscalatedTickets).toHaveBeenCalledWith({ statusIds: ['st-tech'], limit: 5 });
-    expect(report).toEqual({ status: 'ready', rows: [] });
+    expect(report).toEqual({ status: 'ready', rows: [], count: 7 });
   });
 
   it('asks nothing without a Tech Required lane', async () => {
@@ -86,6 +86,6 @@ describe('useEscalatedTicketsReport', () => {
     await render();
 
     expect(env.fetchEscalatedTickets).not.toHaveBeenCalled();
-    expect(report).toEqual({ status: 'ready', rows: [] });
+    expect(report).toEqual({ status: 'ready', rows: [], count: 0 });
   });
 });

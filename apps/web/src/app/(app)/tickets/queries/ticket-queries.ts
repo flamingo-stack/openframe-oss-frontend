@@ -475,6 +475,7 @@ export const GET_ESCALATED_TICKETS_QUERY = `
           ...BoardCardTicket
         }
       }
+      filteredCount
     }
   }
   ${BOARD_CARD_TICKET_FRAGMENT}

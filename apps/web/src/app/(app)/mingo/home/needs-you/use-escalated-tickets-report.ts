@@ -26,7 +26,8 @@ export function useTechRequiredStatusIds(gate: FeatureFlagGate): readonly string
 
 /**
  * The "Needs you" tickets source: Tech Required tickets the end user escalated, filtered
- * by the ai-agent (`escalatedByUser`), so one far down a long lane is seen too.
+ * by the ai-agent (`escalatedByUser`), so one far down a long lane is seen too, newest first,
+ * with how many there are (the Tickets quick action's count).
  *
  * Keyed under `dialogs`, so every ticket mutation that refreshes the board refreshes this.
  * Not the board's own key: that one caches an infinite query of a different shape.
@@ -41,7 +42,7 @@ export function useEscalatedTicketsReport(gate: FeatureFlagGate): SourceReport {
     // No Tech Required lane, nothing to read: an empty `statusIds` would not narrow at all.
     queryFn: () =>
       statusIds.length === 0
-        ? Promise.resolve([])
+        ? Promise.resolve({ tickets: [], count: 0 })
         : ticketService.fetchEscalatedTickets({ statusIds, limit: NEEDS_YOU_CANDIDATES }),
     enabled: enabled && statuses.data !== undefined,
     staleTime: 60_000,
@@ -64,5 +65,5 @@ export function useEscalatedTicketsReport(gate: FeatureFlagGate): SourceReport {
     };
   }
   if (!tickets.data) return { status: 'loading' };
-  return { status: 'ready', rows: tickets.data.map(escalatedTicketRow) };
+  return { status: 'ready', rows: tickets.data.tickets.map(escalatedTicketRow), count: tickets.data.count };
 }
