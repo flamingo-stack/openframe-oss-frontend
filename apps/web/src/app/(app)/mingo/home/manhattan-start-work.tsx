@@ -6,7 +6,7 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { CSSProperties } from 'react';
 import { RevealTogether } from '@/app/components/shared/reveal-together';
 import { routes } from '@/lib/routes';
-import { useGreeting } from './mingo-home-greeting';
+import { GreetingText, useGreeting } from './mingo-home-greeting';
 import { NeedsYouCard, NeedsYouPanel } from './needs-you/needs-you-card';
 
 /**
@@ -67,7 +67,9 @@ export function ManhattanStartWork({
         <div className="flex flex-col items-start">
           <div className="flex items-center gap-[var(--spacing-system-m)]">
             <AgentMark agent="mingo" className="size-8 shrink-0 content-md:size-10" />
-            <Heading className="min-w-0 break-words text-ods-text-primary text-h2">{greeting}</Heading>
+            <Heading className="min-w-0 break-words text-ods-text-primary text-h2">
+              <GreetingText greeting={greeting} />
+            </Heading>
           </div>
           <p className="mt-[var(--spacing-system-xs)] text-ods-text-secondary text-h6">
             What needs doing across your fleet today?
