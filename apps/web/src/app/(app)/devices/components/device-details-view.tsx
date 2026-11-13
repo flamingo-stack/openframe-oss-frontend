@@ -27,6 +27,7 @@ import { useDeviceActionsMenu } from '../hooks/use-device-actions-menu';
 import { useDeviceDetails } from '../hooks/use-device-details';
 import { useDirectoryGate } from '../hooks/use-directory-gate';
 import { isDeviceStillConnecting } from '../utils/tool-connection-status';
+import { OutdatedClientBanner } from './outdated-client-banner';
 import { RecordingStorageBanner } from './remote-sessions/recording-storage-banner';
 import { RunScriptModal } from './run-script/run-script-modal';
 import { DeviceDirectoryGateContext, useDeviceTabs } from './tabs/device-tabs';
@@ -234,6 +235,8 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
             />
           </div>
         )}
+
+        {normalizedDevice && <OutdatedClientBanner device={normalizedDevice} />}
 
         {/* Tenant-wide, so it shows whichever tab is open; nothing while storage has room. The page's own gap spaces
           both banners from the tabs. */}
