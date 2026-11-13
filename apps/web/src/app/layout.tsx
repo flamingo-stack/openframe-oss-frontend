@@ -125,13 +125,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* React's dangerouslySetInnerHTML requires the __html key */}
         <script
           dangerouslySetInnerHTML={{
-            // The Manhattan v2 divider's place too, so the first paint draws the split where the user left it,
-            // and the super user strip's room (`super-user-seed.ts`).
+            // The Manhattan v2 divider's place too, so the first paint draws the split where the user left it.
+            // The super user strip's room (`super-user-seed.ts`) in every mode, as the strip mounts in every
+            // shell; it marks nothing unless the stored session was a super user's.
             __html:
               sidebarWidthFoucScript(isSaasTenantMode()) +
-              (isSaasTenantMode()
-                ? workAreaShareSeedScript(MANHATTAN_WORK_AREA_STORAGE_KEY) + superUserSeedScript()
-                : ''),
+              (isSaasTenantMode() ? workAreaShareSeedScript(MANHATTAN_WORK_AREA_STORAGE_KEY) : '') +
+              superUserSeedScript(),
           }}
         />
       </head>
