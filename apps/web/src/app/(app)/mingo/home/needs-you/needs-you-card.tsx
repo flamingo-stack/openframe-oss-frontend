@@ -37,7 +37,6 @@ import {
   type NeedsYouCategory,
   type NeedsYouCategoryCount,
   type NeedsYouEntity,
-  type NeedsYouGates,
   needsYouMingoPrompt,
   type NeedsYouReports,
   type NeedsYouRow,
@@ -63,15 +62,6 @@ const APPROVALS: readonly NeedsYouSource[] = ['approvals'];
 const INSIGHTS: readonly NeedsYouSource[] = ['incidents', 'disk'];
 const TENANTS: readonly NeedsYouSource[] = ['tenants'];
 const SOFTWARE: readonly NeedsYouSource[] = ['software'];
-/** No source runs: what `useNeedsYou(false)` resolves against. */
-const NEEDS_YOU_GATES_LOADING: NeedsYouGates = {
-  approvals: 'loading',
-  incidents: 'loading',
-  tickets: 'loading',
-  tenants: 'loading',
-  software: 'loading',
-  disk: 'loading',
-};
 
 interface NeedsYouState {
   view: NeedsYouView;
@@ -95,15 +85,10 @@ interface NeedsYouState {
  * `sources` must be rendered for the view to fill: the Relay sources render nothing and
  * report what they found (the board's column subscribers do the same). Each fetches under
  * its own boundary, so they run side by side and a failing backend costs only its rows.
- * The tickets source is react-query and is read in place. The Relay sources read
- * `store-or-network` and the tickets query is shared, so a second reader (the v2 sidebar's
- * count) costs no request of its own.
- *
- * `enabled` off: no source runs and the view stays loading.
+ * The tickets source is react-query and is read in place.
  */
-export function useNeedsYou(enabled = true): NeedsYouState {
-  const allGates = useNeedsYouGates();
-  const gates: NeedsYouGates = enabled ? allGates : NEEDS_YOU_GATES_LOADING;
+export function useNeedsYou(): NeedsYouState {
+  const gates = useNeedsYouGates();
   const [reports, setReports] = useState<NeedsYouReports>({});
   // Stable: the sources report from effects keyed on it.
   const report = useCallback<ReportSource>((source, next) => {
@@ -166,12 +151,6 @@ export function useNeedsYou(enabled = true): NeedsYouState {
     </>
   );
   return { view, openCategories, techRequiredStatusIds, dismiss, sources };
-}
-
-/** How many rows wait in the queue (0 while it loads or is hidden), and the sources that feed it. */
-export function useNeedsYouCount(enabled = true): { count: number; sources: ReactNode } {
-  const { view, sources } = useNeedsYou(enabled);
-  return { count: view.status === 'ready' ? view.queue.length : 0, sources };
 }
 
 /**
