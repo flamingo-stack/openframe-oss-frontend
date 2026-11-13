@@ -5,8 +5,8 @@
  * Mingo-first shell (`AppLayout`'s `composerDock` slot), and the session's ONE
  * `EmbeddableChat`. It is mounted for the whole session, so the draft, the staged
  * context and the uploads survive navigation; on the chat page (`/mingo/chat`) the
- * chat's header and thread portal into the page's node (`useChatPageNodeStore`),
- * everywhere else the composer stands alone.
+ * chat's header and thread portal into the page's node (`useChatPageNodeStore`; Manhattan
+ * v2 on a desktop: see `threadContainer`), everywhere else the composer stands alone.
  *
  * - The chat it draws: the session's one engine (`useMingoChatSurface`), handed to the
  *   panel through the lib's `ChatEngineProvider`, so the panel runs no engine of its own.
@@ -261,7 +261,11 @@ function DockChat({ route, chat }: DockChatProps) {
   // the "What to ask Mingo?" answer; none, and the column is Start Work.
   const hasConversation =
     (chat.state.activeDialogId ?? null) !== null || whatToAskInColumn || chat.state.messages.length > 0;
-  const columnMode = effectiveModeOf(workAreaModeOf(route, hasConversation, chatView, compact, mdDown), shownMode);
+  const chatPageThread = useChatPageNodeStore(s => s.threadReady);
+  const columnMode = effectiveModeOf(
+    workAreaModeOf(route, hasConversation, chatView, { compact, phone: mdDown, chatPageThread }),
+    shownMode,
+  );
   // Start Work in the chat column beside a page: the chat draws no header or thread there, the
   // composer under it starts a new chat, with Mingo's quick actions over it as on Mingo's home.
   const startWorkColumn = manhattan && columnMode !== 'page' && isSheetRoute(route) && !hasConversation;
@@ -272,7 +276,6 @@ function DockChat({ route, chat }: DockChatProps) {
   const sheetUp = useMingoSheetStore(s => isSheetUp(s, pathname)) && canShowSheet(route);
   const sheetOpen = manhattan ? columnMode !== 'page' : sheetUp;
   const v1SheetNode = useMingoSheetStore(s => s.node);
-  const sheetNode = manhattan ? columnNode : v1SheetNode;
   const v1ShowSheet = useMingoSheetStore(s => s.show);
   const showSheet = manhattan ? showColumn : v1ShowSheet;
   const v1HideSheet = useMingoSheetStore(s => s.hide);
@@ -301,6 +304,27 @@ function DockChat({ route, chat }: DockChatProps) {
   // Only once the page lets the thread in: it holds its skeleton until the conversation has loaded.
   const chatPageNode = useChatPageNodeStore(s => (s.threadReady ? s.node : null));
 
+  // Where the header and thread portal (`threadContainer`). A new container is a new portal:
+  // the whole thread remounts and opens on its latest message, its fade-in replaying. v2 on
+  // a desktop keeps it in the chat column on the chat's own page too (the column takes the
+  // centre there, `workAreaModeOf`), so the chat page and a page beside the chat share one
+  // thread (CU-17tkuw66n0m). The chat page's own node: a phone, and the Mingo-first shell.
+  const columnOnChatPage = manhattan && !mdDown;
+  // The thread was in the column on the last render. Arriving on the chat page from a page
+  // beside the chat, the page lets it in one commit later (its layout effect, before paint):
+  // it waits there instead of leaving the column and coming back.
+  const [threadWasInColumn, setThreadWasInColumn] = useState(false);
+  let threadContainer: HTMLElement | null;
+  if (route === 'chat') {
+    threadContainer = columnOnChatPage ? (chatPageThread || threadWasInColumn ? columnNode : null) : chatPageNode;
+  } else if (manhattan) {
+    threadContainer = route === 'home' || startWorkColumn ? null : columnNode;
+  } else {
+    threadContainer = sheetOpen ? v1SheetNode : null;
+  }
+  const inColumn = manhattan && threadContainer !== null && threadContainer === columnNode;
+  if (inColumn !== threadWasInColumn) setThreadWasInColumn(inColumn);
+
   // A reload of this tab keeps the chat behind the pages (and their "Continue" chip).
   useChatBehindPage({ route, state: chat.state });
 
@@ -326,8 +350,9 @@ function DockChat({ route, chat }: DockChatProps) {
     // chat"), or on a phone to the last page outside Mingo (the top bar's ×). Behind
     // a page there is nothing to close: the block goes, the "Continue" chip stays.
     onClose: () => {
-      if (sheetOpen) hideSheet();
-      else if (route === 'chat') navigate(phone ? (outsidePage ?? routes.dashboard) : (lastPage ?? routes.mingo.home));
+      // The chat page first: on a desktop v2 its chat is the column too (`sheetOpen`).
+      if (route === 'chat') navigate(phone ? (outsidePage ?? routes.dashboard) : (lastPage ?? routes.mingo.home));
+      else if (sheetOpen) hideSheet();
     },
   });
   const target = useComposerTarget({
@@ -534,23 +559,9 @@ function DockChat({ route, chat }: DockChatProps) {
           aboveComposer={tour.aboveComposer}
           chatMenuExtraItems={chatMenuExtraItems}
           contextMemory={view.showContextMemory ? chatProps.contextMemory : undefined}
-          // An element on the chat page, `null` everywhere else — never `undefined`,
-          // which switches the chat back to its in-place layout and remounts the
-          // composer (draft and all).
-          // The chat page's node on the chat page, the sheet's while it is up over a page.
-          // v2: the chat column on every page but home (the thread stays mounted there while
-          // the column hides behind the page, plan D9), the chat page's node on the chat page.
-          threadContainer={
-            route === 'chat'
-              ? chatPageNode
-              : manhattan
-                ? route === 'home' || startWorkColumn
-                  ? null
-                  : sheetNode
-                : sheetOpen
-                  ? sheetNode
-                  : null
-          }
+          // An element or `null` — never `undefined`, which switches the chat back to its
+          // in-place layout and remounts the composer (draft and all). See `threadContainer` above.
+          threadContainer={threadContainer}
           threadHeaderActions={threadHeaderActions}
           threadHeaderLook={manhattan ? 'column' : undefined}
           // v2: the thread fades out into the composer under it, as a page under the dock; and

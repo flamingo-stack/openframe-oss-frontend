@@ -11,6 +11,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ManhattanStartWork } from '@/app/(app)/mingo/home/manhattan-start-work';
 import { useMingoChat, useMingoChatThreadOnScreen } from '@/app/(app)/mingo/providers/mingo-chat-provider';
+import { useChatPageNodeStore } from '@/app/components/mingo-shell/chat-page-node-store';
 import { type ComposerRoute, composerRouteOf, isSheetRoute } from '@/app/components/mingo-shell/mingo-dock-route';
 import { useMingoSheetStore } from '@/app/components/mingo-shell/mingo-sheet-store';
 import { navModuleOf, navModuleSectionedLabel } from '@/lib/navigation-config';
@@ -80,11 +81,20 @@ export function ManhattanCentre({
   const setWhatToAskInColumn = useManhattanCentreStore(s => s.setWhatToAskInColumn);
   const oneColumn = enabled && compact;
   // A phone: the page alone (its chats are their pages, its list the top bar's Mingo button).
-  const phone = useMdUp() === false;
+  // `undefined` until the media query answers (a layout effect after the first render): until
+  // then a phone reads as a desktop.
+  const mdUp = useMdUp();
+  const phone = mdUp === false;
   // Something in the chat column to show: the open chat, its first send on the way (no id yet),
   // or the "What to ask Mingo?" answer. Without one the column is Start Work.
   const hasConversation = openDialogId !== null || whatToAskInColumn || (chat?.state.messages.length ?? 0) > 0;
-  const mode = workAreaModeOf(route, hasConversation, chatView, oneColumn, phone, chatEnabled);
+  const chatPageThread = useChatPageNodeStore(s => s.threadReady);
+  const mode = workAreaModeOf(route, hasConversation, chatView, {
+    compact: oneColumn,
+    phone,
+    chatEnabled,
+    chatPageThread,
+  });
   // What is on screen: the page alone where the row had no room for the split asked for.
   const shown = effectiveModeOf(mode, shownMode);
 
@@ -206,8 +216,10 @@ export function ManhattanCentre({
         chatColumn: (
           <ManhattanChatColumn
             shown={shown !== 'page'}
+            viewportKnown={mdUp !== undefined}
             onScreen={shown !== 'page' && openDialogId !== null}
-            startWork={!hasConversation}
+            // A chat's own page is the chat, a new one included ("What to ask Mingo?").
+            startWork={!hasConversation && route !== 'chat'}
             startWorkLive={startWorkLive}
             onCloseStartWork={() => setChatView('hidden')}
             onWhatToAsk={() => setWhatToAskInColumn(true)}
@@ -247,6 +259,8 @@ export function ManhattanCentre({
 
 interface ManhattanChatColumnProps {
   shown: boolean;
+  /** The media query has answered: `shown` is not the first render's guess. */
+  viewportKnown: boolean;
   onScreen: boolean;
   /** No conversation to show: Start Work takes the column, over the composer. */
   startWork: boolean;
@@ -258,11 +272,13 @@ interface ManhattanChatColumnProps {
 /**
  * The chat column: the node the session's chat portals its header and thread into, and
  * under it the composer's place while the column is on screen. With no conversation it is
- * Start Work (CU-17tkuw65znp), kept mounted while the column is on screen so its blocks are
- * not read again each time a chat opens or closes.
+ * Start Work (CU-17tkuw65znp). Once shown, Start Work stays mounted for the session, behind
+ * an open chat and in a hidden column alike (CU-17tkuw66n0m): it keeps its scroll, and its
+ * blocks are not read again each time the column or a chat comes and goes.
  */
 function ManhattanChatColumn({
   shown,
+  viewportKnown,
   onScreen,
   startWork,
   startWorkLive,
@@ -273,11 +289,18 @@ function ManhattanChatColumn({
   // Over Start Work the composer lies over the column's end, as the dock does over Start Work
   // on Mingo's home: Start Work runs on under it and fades out over its height.
   const [dock, setDock] = useState<HTMLDivElement | null>(null);
-  const dockHeight = useElementHeight(startWork ? dock : null);
+  // Measured while the column is on screen only: hidden, it lends the composer to the dock under
+  // the page, and a padding gone to 0 would clamp Start Work's scroll in the hidden column.
+  const dockHeight = useElementHeight(shown && startWork ? dock : null);
+  // Mounted the first time it is on screen, not before: a session that never shows it (a chat
+  // page, a phone) does not read its blocks. Not on the first render's guess either
+  // (`viewportKnown`): the latch never lets go.
+  const [startWorkMounted, setStartWorkMounted] = useState(false);
+  if (shown && startWork && viewportKnown && !startWorkMounted) setStartWorkMounted(true);
   return (
     <div className="relative flex h-full min-h-0 flex-1 flex-col bg-ods-bg">
       {onScreen && <ThreadOnScreen />}
-      {shown && (
+      {startWorkMounted && (
         <div
           data-testid="manhattan-start-work-column"
           className={cn('flex min-h-0 flex-1 flex-col', !startWork && 'hidden')}
@@ -316,7 +339,10 @@ function ManhattanChatColumn({
   );
 }
 
-/** An element's height, live (`ResizeObserver`, which reports it once on observe); 0 without one. */
+/**
+ * An element's height, live (`ResizeObserver`, which reports it once on observe); without one,
+ * the last height measured (0 before any).
+ */
 function useElementHeight(element: HTMLElement | null): number {
   const [height, setHeight] = useState(0);
   useLayoutEffect(() => {
@@ -325,7 +351,7 @@ function useElementHeight(element: HTMLElement | null): number {
     observer.observe(element);
     return () => observer.disconnect();
   }, [element]);
-  return element ? height : 0;
+  return height;
 }
 
 /** The open chat's thread is on screen (its notifications skip the popup and are read on arrival). */
@@ -368,7 +394,7 @@ interface ManhattanPageHeaderProps {
  * "Close page" (the chat alone, on its page), alone (the user's full screen or closed chat)
  * "Show the chat beside the page" — the chat, or Start Work with none open — and "Close page"
  * (that chat on its page; Start Work when no chat is open). A chat's own page draws none: the
- * chat's header is its header.
+ * chat's header is its header. Closing a page ends it, a remote session with it (CU-17tkuw66n0m).
  */
 function ManhattanPageHeader({
   route,

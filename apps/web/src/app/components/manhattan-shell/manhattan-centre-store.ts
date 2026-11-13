@@ -61,11 +61,27 @@ export const useManhattanCentreStore = create<ManhattanCentreStore>()(set => ({
   requestLinkedPage: () => set(state => ({ linkedPageRequests: state.linkedPageRequests + 1 })),
 }));
 
+/** What else `workAreaModeOf` reads. */
+interface WorkAreaModeOptions {
+  /** No room for two columns (`ManhattanSqueeze.compact`). */
+  compact?: boolean;
+  /** Below md. */
+  phone?: boolean;
+  /** The session has a chat (off behind the paywall); on by default. */
+  chatEnabled?: boolean;
+  /** The chat page has let the thread in (`useChatPageNodeStore` `threadReady`). */
+  chatPageThread?: boolean;
+}
+
 /**
  * Which work-area columns show (plan D5, as changed by CU-17tkuw65znp: the chat is always
  * beside a page):
- * - Mingo's home (Start Work) and a chat's own page are pages: the page column alone, the
- *   composer docked under it (the chat page holds the thread);
+ * - Mingo's home (Start Work) is a page: the page column alone, the composer docked under it;
+ * - a chat's own page is the chat column alone (`chat`): the same column the chat has beside
+ *   a page, so the thread never moves between the two (CU-17tkuw66n0m). That once the page
+ *   lets the thread in (`chatPageThread`, the chat page's `threadReady`); until then (the chat
+ *   module or the conversation loading, or a state the page draws itself: not found, failed)
+ *   the page column alone;
  * - any other page, the full-height ones (remote desktop / shell, file manager) included:
  *   the chat column beside it (`split`) — the open chat, or Start Work when none is open —
  *   unless the user put the page full screen or closed the chat (`hidden` → the page alone,
@@ -74,17 +90,16 @@ export const useManhattanCentreStore = create<ManhattanCentreStore>()(set => ({
  * - no chat for this session (the paywall): the page alone;
  * - `compact` (no room for two columns, plan D19, unchanged): the page alone with no open
  *   chat, else the chat over the page unless `hidden` (over a full-height page only `full`);
- * - `phone` (below md): the page alone, always — a chat there is its own page.
+ * - `phone` (below md): the page alone, always — a chat there is its own page, which holds the thread.
  */
 export function workAreaModeOf(
   route: ComposerRoute,
   hasConversation: boolean,
   chatView: ManhattanChatView,
-  compact = false,
-  phone = false,
-  chatEnabled = true,
+  { compact = false, phone = false, chatEnabled = true, chatPageThread = false }: WorkAreaModeOptions = {},
 ): AppLayoutWorkAreaMode {
-  if (phone || route === 'home' || route === 'chat' || !chatEnabled) return 'page';
+  if (phone || route === 'home' || !chatEnabled) return 'page';
+  if (route === 'chat') return chatPageThread ? 'chat' : 'page';
   if (chatView === 'hidden') return 'page';
   if (compact) {
     // One column: the chat over the page, never over a full-height page unasked (as before).
