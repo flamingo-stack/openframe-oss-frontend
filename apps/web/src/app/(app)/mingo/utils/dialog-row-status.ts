@@ -48,9 +48,12 @@ export function liveRowState(phase: string, messages: readonly ChatMessage[]): D
   return { streaming: phase !== 'idle', awaitingApproval: approval.awaiting, approvalRequestId: approval.id };
 }
 
-/** Working wins: a chat Mingo answers in is not waiting. No status leaves the lib to show unread replies. */
-export function dialogRowStatus(state: DialogRowState): MingoDialogStatus | undefined {
+/**
+ * Working wins: a chat Mingo answers in is not waiting. An unread reply comes last: the dots and the shield say what
+ * the chat is doing now, the glyph what it did while nobody looked.
+ */
+export function dialogRowStatus(state: DialogRowState, unread = false): MingoDialogStatus | undefined {
   if (state.streaming) return 'working';
   if (state.awaitingApproval) return 'approval';
-  return undefined;
+  return unread ? 'unread' : undefined;
 }

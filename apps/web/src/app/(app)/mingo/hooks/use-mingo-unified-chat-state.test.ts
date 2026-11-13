@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { useMingoSheetStore } from '@/app/components/mingo-shell/mingo-sheet-store';
 import { useMingoContextStore } from '../stores/mingo-context-store';
-import { snapshotSendContext } from './use-mingo-unified-chat-state';
+import type { MingoDialogRow } from '../stores/mingo-dialog-rows-store';
+import { awaitsOwnReply, snapshotSendContext } from './use-mingo-unified-chat-state';
 
 /**
  * The rail's scope is a filter over the LIST, but a dialog can arrive without going
@@ -57,5 +58,31 @@ describe('snapshotSendContext', () => {
       openView: { type: 'DEVICE', id: 'm-1' },
       contextItems: [{ type: 'SCRIPT', id: 's-1', label: 'Cleanup' }],
     });
+  });
+});
+
+describe('awaitsOwnReply', () => {
+  const row = (fields: Partial<MingoDialogRow>): MingoDialogRow => ({
+    streaming: false,
+    awaitingApproval: false,
+    createdAt: '2026-11-13T10:00:00Z',
+    nodeId: 'global',
+    unread: 0,
+    ...fields,
+  });
+
+  it("is true while one of the viewer's own chats is being answered", () => {
+    const rows = new Map([
+      ['d-1', row({ ownerUserId: 'u-1' })],
+      ['d-2', row({ ownerUserId: 'u-1', streaming: true })],
+    ]);
+    expect(awaitsOwnReply(rows, 'u-1')).toBe(true);
+  });
+
+  it("is false for another admin's chat, an idle list, and before the viewer is known", () => {
+    const others = new Map([['d-1', row({ ownerUserId: 'u-2', streaming: true })]]);
+    expect(awaitsOwnReply(others, 'u-1')).toBe(false);
+    expect(awaitsOwnReply(new Map([['d-1', row({ ownerUserId: 'u-1' })]]), 'u-1')).toBe(false);
+    expect(awaitsOwnReply(new Map([['d-1', row({ streaming: true })]]), undefined)).toBe(false);
   });
 });
