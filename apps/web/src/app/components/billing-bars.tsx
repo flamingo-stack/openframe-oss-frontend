@@ -11,8 +11,8 @@ import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { billingBarsQuery as BillingBarsQueryType } from '@/__generated__/billingBarsQuery.graphql';
 import { AutoTopUpDisabledReason, BillingNoticeType, SubscriptionStatus } from '@/generated/schema-enums';
 import { type AiBalanceTone, aiBalanceTone } from '@/lib/ai-balance-tone';
-import { parseInstant } from '@/lib/graphql-scalars';
-import { pluralize } from '@/lib/pluralize';
+import { formatDate } from '@/lib/format-date';
+import type { Instant } from '@/lib/graphql-scalars';
 import { findNotice, useBillingNotices } from './billing-notices/use-billing-notices';
 
 /**
@@ -38,8 +38,6 @@ const billingBarsQuery = graphql`
     }
   }
 `;
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 interface AiBalanceBarProps {
   /** `warning` = running low, `error` = empty. Never `default` here. */
@@ -92,8 +90,8 @@ export function AiBalanceBar({ tone, onManage }: AiBalanceBarProps) {
 }
 
 interface TrialEndingBarProps {
-  /** Whole days left, rounded up — 0 means it lapses today. */
-  daysLeft: number;
+  /** When the trial ends: the notice's `trialEndDate`, the date the trial email states. */
+  trialEndDate: Instant;
   onActivate: () => void;
   onDismiss: () => void;
 }
@@ -109,14 +107,14 @@ interface TrialEndingBarProps {
  * opposite reason — the agents are already stopping, and hiding that would only
  * make the silence unexplained.
  */
-export function TrialEndingBar({ daysLeft, onActivate, onDismiss }: TrialEndingBarProps) {
+export function TrialEndingBar({ trialEndDate, onActivate, onDismiss }: TrialEndingBarProps) {
   return (
     <AnnouncementBarView
       className="app-top-bar shrink-0 bg-ods-warning text-ods-text-on-accent md:min-h-12"
       contentClassName="cursor-pointer md:cursor-default"
       onContentClick={onActivate}
       startAdornment={<CalendarDaysIcon className="size-[var(--icon-size-icon-size)] shrink-0" />}
-      title={`${pluralize(daysLeft, 'day')} left on your free trial. Activate your subscription to keep your agents working.`}
+      title={`Your free trial ends on ${formatDate(trialEndDate)}. Activate your subscription to keep your agents working.`}
       actionBlock={
         <Button variant="outline" size="small" onClick={onActivate}>
           Activate Subscription
@@ -229,21 +227,13 @@ export function BillingBarsHydrator({ onResolved }: { onResolved: (state: Billin
 
 /** The bars the backend's billing notices raise, with the event each one dismisses. */
 export interface NoticeBarsState {
-  /** TRIAL_ENDING: whole days left, rounded up, never under one. */
-  trial: { daysLeft: number; eventKey: string } | null;
+  /** TRIAL_ENDING. */
+  trial: { trialEndDate: Instant; eventKey: string } | null;
   /** AUTO_TOP_UP_DISABLED. */
   autoTopUpDisabled: { reason: AutoTopUpDisabledReason | null; eventKey: string } | null;
 }
 
 const NO_NOTICE_BARS: NoticeBarsState = { trial: null, autoTopUpDisabled: null };
-
-/** Days to a trial end, or `null` once it has gone by: the workspace is locked then and the paywall is the screen. */
-function daysUntil(instant: string | null | undefined): number | null {
-  const end = instant ? parseInstant(instant) : null;
-  if (!end) return null;
-  const left = end.getTime() - Date.now();
-  return left > 0 ? Math.max(1, Math.ceil(left / DAY_MS)) : null;
-}
 
 /**
  * Reads the billing notices and reports the bars they raise. Its own query and
@@ -257,17 +247,16 @@ export function BillingNoticesHydrator({ onResolved }: { onResolved: (state: Not
   const autoTopUpNotice = findNotice(notices, BillingNoticeType.AUTO_TOP_UP_DISABLED);
 
   // Primitives in the deps, as above.
-  const trialDaysLeft = daysUntil(trialNotice?.trialEndDate);
+  const trialEndDate = trialNotice?.trialEndDate ?? null;
   const trialEventKey = trialNotice?.eventKey ?? null;
   const autoTopUpEventKey = autoTopUpNotice?.eventKey ?? null;
   const autoTopUpReason = autoTopUpNotice?.reason ?? null;
   useEffect(() => {
     onResolved({
-      trial:
-        trialDaysLeft != null && trialEventKey != null ? { daysLeft: trialDaysLeft, eventKey: trialEventKey } : null,
+      trial: trialEndDate != null && trialEventKey != null ? { trialEndDate, eventKey: trialEventKey } : null,
       autoTopUpDisabled: autoTopUpEventKey != null ? { reason: autoTopUpReason, eventKey: autoTopUpEventKey } : null,
     });
-  }, [trialDaysLeft, trialEventKey, autoTopUpEventKey, autoTopUpReason, onResolved]);
+  }, [trialEndDate, trialEventKey, autoTopUpEventKey, autoTopUpReason, onResolved]);
 
   return null;
 }

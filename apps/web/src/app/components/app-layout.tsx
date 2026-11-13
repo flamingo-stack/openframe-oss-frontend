@@ -722,10 +722,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   } else if (showBillingBars && noticeBars.trial) {
     // A trial ending is a deadline, not a failure. A trial has no auto top-up,
     // so the two never compete.
-    const { daysLeft, eventKey } = noticeBars.trial;
+    const { trialEndDate, eventKey } = noticeBars.trial;
     topBar = (
       <TrialEndingBar
-        daysLeft={daysLeft}
+        trialEndDate={trialEndDate}
         onActivate={() => router.push(routes.settings.billingUsage())}
         onDismiss={() => dismissBillingNotice(BillingNoticeType.TRIAL_ENDING, eventKey)}
       />

@@ -7,8 +7,9 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AutoTopUpDisabledReason, BillingNoticeSeverity, BillingNoticeType } from '@/generated/schema-enums';
+import { formatDate } from '@/lib/format-date';
 import { asInstant } from '@/lib/graphql-scalars';
-import { AutoTopUpDisabledBar, BillingNoticesHydrator, type NoticeBarsState } from './billing-bars';
+import { AutoTopUpDisabledBar, BillingNoticesHydrator, type NoticeBarsState, TrialEndingBar } from './billing-bars';
 import type { BillingNotice } from './billing-notices/use-billing-notices';
 
 // The `graphql` tag needs the Relay transform, which vitest has no equivalent of.
@@ -19,8 +20,6 @@ vi.mock('./billing-notices/use-billing-notices', () => ({
   useBillingNotices: () => notices.current,
   findNotice: (list: readonly BillingNotice[], type: string) => list.find(notice => notice.type === type) ?? null,
 }));
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 const notice = (overrides: Partial<BillingNotice>): BillingNotice => ({
   type: BillingNoticeType.TRIAL_ENDING,
@@ -66,17 +65,12 @@ describe('BillingNoticesHydrator', () => {
     expect(hydrate([])).toEqual({ trial: null, autoTopUpDisabled: null });
   });
 
-  it('counts the trial bar from the notice, rounded up, with its event', () => {
-    const trialEndDate = asInstant(new Date(Date.now() + 2.5 * DAY_MS).toISOString());
+  it("raises the trial bar with the notice's end date and event", () => {
+    const trialEndDate = asInstant('2026-11-27T14:45:11.687Z');
     expect(hydrate([notice({ eventKey: 'trial-1', trialEndDate })]).trial).toEqual({
-      daysLeft: 3,
+      trialEndDate,
       eventKey: 'trial-1',
     });
-  });
-
-  it('raises no trial bar once the trial end has gone by', () => {
-    const trialEndDate = asInstant(new Date(Date.now() - DAY_MS).toISOString());
-    expect(hydrate([notice({ trialEndDate })]).trial).toBeNull();
   });
 
   it('raises the auto top-up bar with its reason and event', () => {
@@ -110,5 +104,13 @@ describe('AutoTopUpDisabledBar', () => {
     expect(container.textContent).toContain('the last automatic charge was declined');
     act(() => container.querySelector<HTMLButtonElement>('[aria-label="Dismiss auto top-up notice"]')?.click());
     expect(onDismiss).toHaveBeenCalledOnce();
+  });
+});
+
+describe('TrialEndingBar', () => {
+  it('states the date the trial ends, as the trial email does', () => {
+    const trialEndDate = asInstant('2026-11-27T14:45:11.687Z');
+    act(() => root.render(<TrialEndingBar trialEndDate={trialEndDate} onActivate={vi.fn()} onDismiss={vi.fn()} />));
+    expect(container.textContent).toContain(`Your free trial ends on ${formatDate(trialEndDate)}.`);
   });
 });
