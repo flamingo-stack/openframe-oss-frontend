@@ -301,3 +301,21 @@ html[data-shell='mobile'] .fixed.bottom-0.left-0.right-0.z-50 {
     opacity: 0.9;
   }
 }
+
+/* Manhattan v2's centre (the lib's `AppLayoutWorkArea` row: the chat column, the page column and
+   the chat page in it) has one ground, Figma `backgrounds/openframe-background` (CU-17tkuw66n0u;
+   openframe---mingo 1388:119220, 1408:294255): the chat looks the same beside a page, over it and
+   on its own page. Set as `--color-bg`, so everything inside that paints `bg-ods-bg` (the column
+   grounds, the composer dock's ground and fade, the context strip, the squeeze shadows) follows;
+   the composer's input row keeps `bg-ods-card` (Figma chat/dock 1445:46644). TODO: a semantic
+   token in the lib once its ODS v2 backgrounds are synced. */
+[data-work-area] {
+  --color-bg: var(--ods-backgrounds-openframe-background);
+  background-color: var(--color-bg);
+}
+/* The v2 `EmbeddableChat` marks its panel Mingo's surface (`data-surface="mingo"`, lib
+   embeddable-chat): with the thread portalled out, the panel is the composer, whose context
+   strip would keep Mingo's tint. Its ground is the centre's too; the edge light keeps its cyan. */
+[data-work-area] [data-surface='mingo'] {
+  --color-bg: var(--ods-backgrounds-openframe-background);
+}

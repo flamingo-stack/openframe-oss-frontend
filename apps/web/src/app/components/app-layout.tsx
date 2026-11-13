@@ -1046,14 +1046,8 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
                     // content scrolled sideways, so the column being widened keeps growing.
                     workAreaSqueezeFloor={centre ? MANHATTAN_WORK_AREA_SQUEEZE_FLOOR : undefined}
                     pageHeader={mingoShell ? (centre?.pageHeader ?? null) : undefined}
-                    // A chat page on a phone: Mingo's background and glow from the top of the
-                    // thread to the bottom of the window, under the docked composer too. On a
-                    // desktop the chat page is the chat column, drawn as beside any page.
-                    pageSurface={
-                      mingoShell && chatEnabled && isMdUp === false && composerRouteOf(pathname) === 'chat'
-                        ? 'mingo'
-                        : undefined
-                    }
+                    // No `pageSurface` on a chat page: the chat has the centre's one ground
+                    // (`[data-work-area]` in globals.css), beside a page or on its own page.
                   >
                     {/* The page segment's boundary. Core used to own it (`loadingFallback`,
               dropped in 0.0.502 — `<main>` now renders `children` bare), so it

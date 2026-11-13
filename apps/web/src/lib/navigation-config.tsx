@@ -1,5 +1,6 @@
 import {
   ActivityIcon,
+  AddressBookIcon,
   AlertTriangleIcon,
   BookBookmarkIcon,
   BracketCurlyEllipsisVrIcon,
@@ -7,16 +8,19 @@ import {
   ChartDonutIcon,
   ClipboardListIcon,
   ClockHistoryIcon,
+  CloudIcon,
   CodingForkIcon,
   CompassIcon,
   FolderShieldIcon,
   HeadsetIcon,
   IdCardIcon,
   LaptopMobileIcon,
+  LayersIcon,
   MonitorIcon,
   Parcel02Icon,
   QuestionCircleIcon,
   RadarIcon,
+  RouteIcon,
   Settings02Icon,
   TagIcon,
   TimerIcon,
@@ -89,6 +93,8 @@ interface NavModule {
   /** The label in the sectioned (Manhattan v2) navigation, where the Figma names differ. */
   sectionedLabel?: string;
   icon: ComponentType<{ size?: number }>;
+  /** The icon in the sectioned (Manhattan v2) navigation, where the Figma icon differs. */
+  sectionedIcon?: ComponentType<{ size?: number }>;
   /** Where the entry leads. */
   path: string;
   /**
@@ -226,6 +232,7 @@ const NAV_MODULES = {
     groupedLabel: 'Cloud tenants',
     sectionedLabel: 'Cloud Tenants',
     icon: CodingForkIcon,
+    sectionedIcon: CloudIcon,
     path: routes.cloudTenantManagement.list,
     prefixes: ['/cloud-tenant-management'],
     gates: ['tenantManagement'],
@@ -501,12 +508,17 @@ const SECTIONED_LAYOUT: { groups: readonly NavGroup[]; secondary: readonly NavMo
   groups: [
     { id: 'service-desk', label: 'Service Desk', icon: HeadsetIcon, children: ['tickets', 'worktime'] },
     { id: 'monitoring', label: 'Monitoring', icon: ActivityIcon, children: ['incidents', 'logs'] },
-    { id: 'assets', label: 'Assets', icon: LaptopMobileIcon, children: ['devices', 'software'] },
-    { id: 'directory', label: 'Directory', icon: IdCardIcon, children: ['organizations', 'users', 'integrations'] },
+    { id: 'assets', label: 'Assets', icon: LayersIcon, children: ['devices', 'software'] },
+    {
+      id: 'directory',
+      label: 'Directory',
+      icon: AddressBookIcon,
+      children: ['organizations', 'users', 'integrations'],
+    },
     {
       id: 'automation',
       label: 'Automation',
-      icon: BracketCurlyIcon,
+      icon: RouteIcon,
       children: ['scripts', 'schedules', 'policies', 'queries'],
     },
   ],
@@ -534,7 +546,7 @@ function sectionedEntry(
   section?: 'secondary',
 ): NavigationSidebarItem {
   const entry: NavModule = NAV_MODULES[id];
-  const Icon = entry.icon;
+  const Icon = entry.sectionedIcon ?? entry.icon;
   const unreadCount = unreadOf(entry, unreadCounts, 'grouped');
   return {
     id,
