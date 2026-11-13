@@ -40,7 +40,7 @@ import {
   getSectionedNavigationItems,
   NAVIGATION_LOADING_ROWS,
   type NavigationFlags,
-  SECTIONED_NAVIGATION_LOADING_ROWS,
+  sectionedNavigationLoadingRows,
 } from '../../lib/navigation-config';
 import {
   GROUPED_SIDEBAR_EXPANDED_WIDTH,
@@ -649,7 +649,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             items: sectionedItems,
             currentPath,
             loading: chromeLoading,
-            loadingRows: SECTIONED_NAVIGATION_LOADING_ROWS,
+            loadingRows: sectionedNavigationLoadingRows(),
             onNavigate: handleNavigate,
             groupsStorageKey: MANHATTAN_NAVIGATION_FOLDS_KEY,
             collapsed: navCollapsed,
