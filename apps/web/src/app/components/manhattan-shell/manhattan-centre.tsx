@@ -396,6 +396,16 @@ interface ManhattanPageHeaderProps {
  * (that chat on its page; Start Work when no chat is open). A chat's own page draws none: the
  * chat's header is its header. Closing a page ends it, a remote session with it (CU-17tkuw66n0m).
  */
+/**
+ * The page header is only for a window wide enough for two rails and the centre
+ * (`MANHATTAN_COMPACT_BELOW`, 912px): below it the phone or the compact top bar is the
+ * page's chrome. The centre drops it there in JS too (`phone`, `oneColumn`), but those read
+ * the window only once the page has hydrated: the server's markup, and the first paint with
+ * it, would show "Start Work" over a phone's page and then take it away. Hidden in CSS, the
+ * first paint is right.
+ */
+const PAGE_HEADER_WINDOW_CLASS = 'max-[912px]:hidden';
+
 function ManhattanPageHeader({
   route,
   pathname,
@@ -408,7 +418,7 @@ function ManhattanPageHeader({
 }: ManhattanPageHeaderProps) {
   const router = useRouter();
   if (route === 'chat') return null;
-  if (route === 'home') return <AppColumnHeader title="Start Work" />;
+  if (route === 'home') return <AppColumnHeader title="Start Work" className={PAGE_HEADER_WINDOW_CLASS} />;
   const moduleId = pathname ? navModuleOf(pathname) : null;
   const title = moduleId ? navModuleSectionedLabel(moduleId) : pageTitleOutsideNav(pathname);
   // The open chat alone, on its page, whether it sits beside the page or waits behind it
@@ -426,6 +436,7 @@ function ManhattanPageHeader({
     return (
       <AppColumnHeader
         title={title}
+        className={PAGE_HEADER_WINDOW_CLASS}
         layoutAction="fullscreen"
         layoutActionLabel="Full screen page"
         onLayoutAction={onFullScreen}
@@ -437,6 +448,7 @@ function ManhattanPageHeader({
   return (
     <AppColumnHeader
       title={title}
+      className={PAGE_HEADER_WINDOW_CLASS}
       // The chat (or Start Work) comes back beside the page, with or without an open chat.
       layoutAction={canShowChat ? 'restore-split' : undefined}
       layoutActionLabel="Show the chat beside the page"
