@@ -75,7 +75,7 @@ bakes no host.
 make lint     # rustfmt --check + clippy -D warnings
 make test     # cargo test
 make build OPENFRAME_SHARED_HOST_URL=https://auth.example.com
-make build-staged …   # the same over a www/ staged already (what CI runs)
+make build-staged …   # the same over a real export already in www/ (what CI runs)
 ```
 
 | Variable | Purpose |

@@ -63,8 +63,6 @@ ifneq ($(BUNDLES),)
   BUNDLES_FLAG := --bundles $(BUNDLES)
 endif
 
-TAURI_BUILD := npx tauri build $(TARGET_FLAG) $(BUNDLES_FLAG) $(VERSION_FLAG)
-
 .PHONY: deps web web-placeholder fmt fmt-check clippy lint build build-staged test clean
 
 deps:
@@ -90,13 +88,11 @@ clippy: web-placeholder
 
 lint: fmt-check clippy
 
-build: deps web
-	$(TAURI_BUILD)
+build: web build-staged
 
-# `build` over a www/ staged already: release.yml builds the export once per run
-# and every leg downloads it.
+# `build` over a www/ staged already: release.yml builds the export once per run.
 build-staged: deps
-	$(TAURI_BUILD)
+	npx tauri build $(TARGET_FLAG) $(BUNDLES_FLAG) $(VERSION_FLAG)
 
 test: web-placeholder
 	cd src-tauri && $(CARGO) test
