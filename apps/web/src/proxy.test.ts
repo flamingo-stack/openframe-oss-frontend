@@ -52,3 +52,20 @@ describe('the mode rules in the Edge proxy', () => {
     expect(response.headers.get('location')).toContain('utm_source=qr');
   });
 });
+
+describe("Manhattan v2's dashboard", () => {
+  it("sends a SaaS tenant's /dashboard to Start Work on the server, with its query", () => {
+    // The path keeps the request's trailing-slash form (NextURL); either lands on Start Work.
+    expect(redirectedTo('/dashboard', 'saas-tenant')).toMatch(/^https:\/\/openframe\.ai\/mingo\/?$/);
+    expect(redirectedTo('/dashboard/', 'saas-tenant')).toMatch(/^https:\/\/openframe\.ai\/mingo\/?$/);
+    process.env.NEXT_PUBLIC_APP_MODE = 'saas-tenant';
+    const response = proxy(new NextRequest(new URL('https://openframe.ai/dashboard/?utm_source=mail')));
+    expect(response.headers.get('location')).toMatch(/^https:\/\/openframe\.ai\/mingo\/?\?utm_source=mail$/);
+  });
+
+  it("keeps an OSS tenant's dashboard, and the SaaS tenant's other pages", () => {
+    expect(redirectedTo('/dashboard', 'oss-tenant')).toBeNull();
+    expect(redirectedTo('/dashboard/settings', 'saas-tenant')).toBeNull();
+    expect(redirectedTo('/devices', 'saas-tenant')).toBeNull();
+  });
+});

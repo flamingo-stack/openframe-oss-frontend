@@ -299,6 +299,16 @@ describe('ManhattanCentre', () => {
     expect(container.querySelector('button')).toBeNull();
   });
 
+  it('hides the page header in CSS below two rails and the centre, so the first paint on a phone has none', () => {
+    nav.pathname = '/mingo/';
+    renderCentre();
+    expect(container.querySelector('[data-column-header]')?.className).toContain('max-[911px]:hidden');
+    nav.pathname = '/devices/';
+    chatState.activeDialogId = 'd-1';
+    renderCentre();
+    expect(container.querySelector('[data-column-header]')?.className).toContain('max-[911px]:hidden');
+  });
+
   it('draws no page header on a chat page (the chat header is its header), the chat column alone once the thread is in', () => {
     nav.pathname = '/mingo/chat/';
     chatState.activeDialogId = 'd-1';

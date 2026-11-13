@@ -288,13 +288,14 @@ describe('MingoSidebarHistory', () => {
     expect(seen.archive?.isOpen).toBe(true);
   });
 
-  it('shows the loading section until the session state runs, and nothing while chat is off', () => {
+  it('shows the loading section until the session state runs, also before the session is in place', () => {
     render({ ...session(), chat: null });
     expect(rail()).toMatchObject({ dialogs: [], isLoadingHistory: true, loadError: false });
 
+    // The provider waits for the session (`enabled`): the list's loading form, not an empty section.
     seen.rail = null;
     render({ ...session(), chat: null, enabled: false });
-    expect(seen.rail).toBeNull();
+    expect(rail()).toMatchObject({ dialogs: [], isLoadingHistory: true, loadError: false });
   });
 });
 

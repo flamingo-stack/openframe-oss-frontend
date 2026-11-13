@@ -6,7 +6,7 @@ import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMingoSheetStore } from '@/app/components/mingo-shell/mingo-sheet-store';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
-import { useGreeting } from './mingo-home-greeting';
+import { GreetingText, useGreeting } from './mingo-home-greeting';
 
 /**
  * Mingo's home (`/mingo`), what "New chat" opens: the greeting in the middle of the page
@@ -42,7 +42,9 @@ export function MingoNewChat() {
       )}
       <div className="flex items-center justify-center gap-[var(--spacing-system-m)]">
         <AgentMark agent="mingo" className="size-8 shrink-0 content-md:size-10" />
-        <h1 className="min-w-0 break-words text-ods-text-primary text-h2">{greeting}</h1>
+        <h1 className="min-w-0 break-words text-ods-text-primary text-h2">
+          <GreetingText greeting={greeting} />
+        </h1>
       </div>
       <p className="mt-[var(--spacing-system-m)] text-ods-text-primary text-h4">
         What needs doing across your fleet today?

@@ -1,7 +1,9 @@
 /** The pre-paint width seed: the persisted collapse, the width the user chose, and the Mingo-first default on a SaaS tenant. */
 
+import { WORK_AREA_SHARE_CSS_VAR, workAreaShareSeedScript } from '@flamingo-stack/openframe-frontend-core/utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  MANHATTAN_WORK_AREA_STORAGE_KEY,
   readManhattanNavCollapsed,
   sidebarWidthFoucScript,
   writeManhattanNavCollapsed,
@@ -143,5 +145,24 @@ describe('writeManhattanNavCollapsed', () => {
     writeManhattanNavCollapsed(false);
     windowWidth(1000);
     expect(readManhattanNavCollapsed()).toBe(false);
+  });
+});
+
+describe('the Manhattan divider seed (root layout)', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    document.documentElement.style.removeProperty(WORK_AREA_SHARE_CSS_VAR);
+  });
+
+  it('seeds the chat column share the work area stored under the Manhattan key, before paint', () => {
+    window.localStorage.setItem(MANHATTAN_WORK_AREA_STORAGE_KEY, JSON.stringify({ share: 0.3 }));
+    // The script is the lib's, built from constants: what runs in `<head>` runs here.
+    new Function(workAreaShareSeedScript(MANHATTAN_WORK_AREA_STORAGE_KEY))();
+    expect(document.documentElement.style.getPropertyValue(WORK_AREA_SHARE_CSS_VAR)).toBe('0.3');
+  });
+
+  it('seeds nothing before the divider was ever moved: the split starts in the middle', () => {
+    new Function(workAreaShareSeedScript(MANHATTAN_WORK_AREA_STORAGE_KEY))();
+    expect(document.documentElement.style.getPropertyValue(WORK_AREA_SHARE_CSS_VAR)).toBe('');
   });
 });
