@@ -48,11 +48,12 @@ interface AiBalanceBarProps {
 /**
  * App-wide bar for a subscription running out of AI tokens.
  *
- * Takes the layout's single `topBar` slot ahead of every other bar (see
- * `AppLayout`): agents that are about to stop answering outrank a trial that
- * still has days on it and a setup tour that can wait, and the state is
- * invisible from every page except Billing & Usage — which is where the bar
- * sends you, with the top-up dialog already open.
+ * Takes the layout's single `topBar` slot ahead of every bar but the auto
+ * top-up one (see `AppLayout`), which states why this balance stopped refilling
+ * and leads to the same dialog: agents that are about to stop answering outrank
+ * a trial that still has days on it and a setup tour that can wait, and the
+ * state is invisible from every page except Billing & Usage — which is where
+ * the bar sends you, with the top-up dialog already open.
  *
  * Not dismissible, by product decision: the agents are stopping (or have
  * stopped), and hiding that would only make the silence unexplained. It goes

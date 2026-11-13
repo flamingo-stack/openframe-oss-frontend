@@ -699,24 +699,27 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     // workspace cannot act on it: the AI and trial bars send you to Billing &
     // Usage. Answered first, so no later branch has to remember the lock.
     topBar = undefined;
-  } else if (showBillingBars && billingBars.ai.tone !== 'default') {
-    // First in line: agents about to stop answering cannot wait, and this
-    // state is invisible from every page but Billing & Usage. The CTA lands
-    // with the top-up dialog already open.
-    topBar = (
-      <AiBalanceBar
-        tone={billingBars.ai.tone}
-        onManage={() => router.push(routes.settings.billingUsage({ action: MANAGE_AI_BALANCE_ACTION }))}
-      />
-    );
   } else if (showBillingBars && noticeBars.autoTopUpDisabled) {
-    // Below the AI bars: the balance still works, it only stopped refilling itself.
+    // Ahead of the balance bar: a top-up is tried when the balance runs low, so
+    // when it fails the balance is low too, and below that bar this one would
+    // never show. It names the cause and leads to the same dialog; dismissed,
+    // the balance bar takes the slot.
     const { reason, eventKey } = noticeBars.autoTopUpDisabled;
     topBar = (
       <AutoTopUpDisabledBar
         reason={reason}
         onManage={() => router.push(routes.settings.billingUsage({ action: MANAGE_AI_BALANCE_ACTION }))}
         onDismiss={() => dismissBillingNotice(BillingNoticeType.AUTO_TOP_UP_DISABLED, eventKey)}
+      />
+    );
+  } else if (showBillingBars && billingBars.ai.tone !== 'default') {
+    // Agents about to stop answering cannot wait, and this state is invisible
+    // from every page but Billing & Usage. The CTA lands with the top-up dialog
+    // already open.
+    topBar = (
+      <AiBalanceBar
+        tone={billingBars.ai.tone}
+        onManage={() => router.push(routes.settings.billingUsage({ action: MANAGE_AI_BALANCE_ACTION }))}
       />
     );
   } else if (showBillingBars && noticeBars.trial) {
