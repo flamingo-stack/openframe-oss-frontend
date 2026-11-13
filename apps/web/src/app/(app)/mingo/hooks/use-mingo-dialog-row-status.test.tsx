@@ -63,10 +63,11 @@ function mount(options: {
   phase?: StreamingPhase;
   messages?: ChatMessage[];
   activeThreadLoaded: boolean;
+  onScreen?: boolean;
 }): { statusOf: () => StatusOf } {
   let latest: StatusOf | null = null;
   function Probe() {
-    latest = useMingoDialogRowStatus({ phase: 'idle', messages: [], ...options });
+    latest = useMingoDialogRowStatus({ phase: 'idle', messages: [], onScreen: true, ...options });
     return null;
   }
   const container = document.createElement('div');
@@ -128,5 +129,54 @@ describe('useMingoDialogRowStatus', () => {
     const written = useMingoDialogRowsStore.getState().rows.get('d-1');
     expect(written?.awaitingApproval).toBe(false);
     expect(written?.createdAt).toBe('2026-10-09T09:00:00Z');
+  });
+});
+
+describe('useMingoDialogRowStatus: a reply nobody has read', () => {
+  it('marks the rows of other chats that hold one', () => {
+    listed(node('d-1', { unreadMessageCount: 2 }), node('d-2', { unreadMessageCount: 0 }), node('d-3'));
+    const { statusOf } = mount({ activeDialogId: null, activeThreadLoaded: false });
+    expect(statusOf()(row('d-1'))).toBe('unread');
+    expect(statusOf()(row('d-2'))).toBeUndefined();
+    expect(statusOf()(row('d-3'))).toBeUndefined();
+  });
+
+  it('puts the dots and the shield before it', () => {
+    listed(
+      node('d-1', { unreadMessageCount: 1, streamState: 'STREAMING' }),
+      node('d-2', { unreadMessageCount: 1, pendingApproval: { id: 'ar-1', approvalType: 'ADMIN' } }),
+    );
+    const { statusOf } = mount({ activeDialogId: null, activeThreadLoaded: false });
+    expect(statusOf()(row('d-1'))).toBe('working');
+    expect(statusOf()(row('d-2'))).toBe('approval');
+  });
+
+  it('never marks the chat on screen, from the moment it is selected and before its thread has loaded', () => {
+    listed(node('d-1', { unreadMessageCount: 3 }));
+    const loading = mount({ activeDialogId: 'd-1', activeThreadLoaded: false });
+    expect(loading.statusOf()(row('d-1'))).toBeUndefined();
+  });
+
+  it('nor once its thread has loaded', () => {
+    listed(node('d-1', { unreadMessageCount: 3 }));
+    const { statusOf } = mount({ activeDialogId: 'd-1', activeThreadLoaded: true });
+    expect(statusOf()(row('d-1'))).toBeUndefined();
+  });
+
+  it('marks the open chat while its thread is behind a page', () => {
+    listed(node('d-1', { unreadMessageCount: 1 }));
+    const { statusOf } = mount({ activeDialogId: 'd-1', activeThreadLoaded: true, onScreen: false });
+    expect(statusOf()(row('d-1'))).toBe('unread');
+  });
+
+  it('keeps the dots on the open chat behind a page while Mingo still answers there', () => {
+    listed(node('d-1', { unreadMessageCount: 1 }));
+    const { statusOf } = mount({
+      activeDialogId: 'd-1',
+      phase: 'streaming',
+      activeThreadLoaded: true,
+      onScreen: false,
+    });
+    expect(statusOf()(row('d-1'))).toBe('working');
   });
 });
