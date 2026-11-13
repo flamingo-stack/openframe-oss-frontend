@@ -5,9 +5,8 @@
  * Mingo-first shell (`AppLayout`'s `composerDock` slot), and the session's ONE
  * `EmbeddableChat`. It is mounted for the whole session, so the draft, the staged
  * context and the uploads survive navigation; on the chat page (`/mingo/chat`) the
- * chat's header and thread portal into the page's node (`useChatPageNodeStore`) — in
- * the Manhattan v2 shell on a desktop into its chat column, there as beside every page
- * (`threadContainer`) — everywhere else the composer stands alone.
+ * chat's header and thread portal into the page's node (`useChatPageNodeStore`; Manhattan
+ * v2 on a desktop: see `threadContainer`), everywhere else the composer stands alone.
  *
  * - What the chat can do: `useOpenframeChatProps` (context picker, `@` / slash,
  *   context memory, quick actions, identity, the dialog actions, Compact among them
@@ -264,10 +263,9 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   // the "What to ask Mingo?" answer; none, and the column is Start Work.
   const hasConversation =
     (chat.state.activeDialogId ?? null) !== null || whatToAskInColumn || chat.state.messages.length > 0;
-  // The chat page has let the thread in (`threadReady`): on a desktop the chat column shows it there.
   const chatPageThread = useChatPageNodeStore(s => s.threadReady);
   const columnMode = effectiveModeOf(
-    workAreaModeOf(route, hasConversation, chatView, compact, mdDown, true, chatPageThread),
+    workAreaModeOf(route, hasConversation, chatView, { compact, phone: mdDown, chatPageThread }),
     shownMode,
   );
   // Start Work in the chat column beside a page: the chat draws no header or thread there, the
@@ -280,7 +278,6 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   const sheetUp = useMingoSheetStore(s => isSheetUp(s, pathname)) && canShowSheet(route);
   const sheetOpen = manhattan ? columnMode !== 'page' : sheetUp;
   const v1SheetNode = useMingoSheetStore(s => s.node);
-  const sheetNode = manhattan ? columnNode : v1SheetNode;
   const v1ShowSheet = useMingoSheetStore(s => s.show);
   const showSheet = manhattan ? showColumn : v1ShowSheet;
   const v1HideSheet = useMingoSheetStore(s => s.hide);
@@ -318,17 +315,17 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   // The thread was in the column on the last render. Arriving on the chat page from a page
   // beside the chat, the page lets it in one commit later (its layout effect, before paint):
   // it waits there instead of leaving the column and coming back.
-  const [threadInColumn, setThreadInColumn] = useState(false);
+  const [threadWasInColumn, setThreadWasInColumn] = useState(false);
   let threadContainer: HTMLElement | null;
   if (route === 'chat') {
-    threadContainer = columnOnChatPage ? (chatPageThread || threadInColumn ? sheetNode : null) : chatPageNode;
+    threadContainer = columnOnChatPage ? (chatPageThread || threadWasInColumn ? columnNode : null) : chatPageNode;
   } else if (manhattan) {
-    threadContainer = route === 'home' || startWorkColumn ? null : sheetNode;
+    threadContainer = route === 'home' || startWorkColumn ? null : columnNode;
   } else {
-    threadContainer = sheetOpen ? sheetNode : null;
+    threadContainer = sheetOpen ? v1SheetNode : null;
   }
   const inColumn = manhattan && threadContainer !== null && threadContainer === columnNode;
-  if (inColumn !== threadInColumn) setThreadInColumn(inColumn);
+  if (inColumn !== threadWasInColumn) setThreadWasInColumn(inColumn);
 
   // A reload of this tab keeps the chat behind the pages (and their "Continue" chip).
   useChatBehindPage({ route, state: chat.state });

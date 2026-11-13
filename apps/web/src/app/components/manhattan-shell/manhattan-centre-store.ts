@@ -61,6 +61,18 @@ export const useManhattanCentreStore = create<ManhattanCentreStore>()(set => ({
   requestLinkedPage: () => set(state => ({ linkedPageRequests: state.linkedPageRequests + 1 })),
 }));
 
+/** What else `workAreaModeOf` reads. */
+interface WorkAreaModeOptions {
+  /** No room for two columns (`ManhattanSqueeze.compact`). */
+  compact?: boolean;
+  /** Below md. */
+  phone?: boolean;
+  /** The session has a chat (off behind the paywall); on by default. */
+  chatEnabled?: boolean;
+  /** The chat page has let the thread in (`useChatPageNodeStore` `threadReady`). */
+  chatPageThread?: boolean;
+}
+
 /**
  * Which work-area columns show (plan D5, as changed by CU-17tkuw65znp: the chat is always
  * beside a page):
@@ -84,10 +96,7 @@ export function workAreaModeOf(
   route: ComposerRoute,
   hasConversation: boolean,
   chatView: ManhattanChatView,
-  compact = false,
-  phone = false,
-  chatEnabled = true,
-  chatPageThread = false,
+  { compact = false, phone = false, chatEnabled = true, chatPageThread = false }: WorkAreaModeOptions = {},
 ): AppLayoutWorkAreaMode {
   if (phone || route === 'home' || !chatEnabled) return 'page';
   if (route === 'chat') return chatPageThread ? 'chat' : 'page';

@@ -14,10 +14,8 @@ import { create } from 'zustand';
  *   cold open shows one skeleton and then the chat — not the page's skeleton, the chat's own,
  *   then the messages under a placeholder title.
  *
- * The Manhattan v2 shell on a desktop does not portal into `node`: the thread stays in its chat
- * column, which takes the centre once `threadReady` (`workAreaModeOf`), so it never changes
- * container between the chat page and a page beside the chat (CU-17tkuw66n0m). Only a phone's
- * chat page holds the thread.
+ * Manhattan v2 on a desktop: the dock portals into the chat column instead (`threadContainer`),
+ * which takes the centre once `threadReady` (`workAreaModeOf`).
  */
 interface ChatPageNodeStore {
   node: HTMLElement | null;

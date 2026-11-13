@@ -19,8 +19,8 @@ function isFullWidthPage(pathname: string): boolean {
 /**
  * Where the Mingo-first composer dock is, as far as the dock is concerned:
  *  - `home` — `/mingo`: always a new chat.
- *  - `chat` — `/mingo/chat?id=`: the thread is the page (portalled into its node; in the
- *    Manhattan v2 shell on a desktop, the chat column taking the centre).
+ *  - `chat` — `/mingo/chat?id=`: the thread is the page (portalled into its node; Manhattan
+ *    v2 on a desktop: the chat column, see the dock's `threadContainer`).
  *  - `full-width` — a remote screen, terminal or file manager: no memory strip,
  *    which takes height.
  *  - `page` — every other page: the composer under it, continuing the selected chat.
