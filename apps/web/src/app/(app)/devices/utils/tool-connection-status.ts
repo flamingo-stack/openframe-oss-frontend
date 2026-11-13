@@ -42,7 +42,8 @@ export function getToolConnectionDisplayStatus(
  */
 const NON_CONNECTING_DEVICE_STATUSES = new Set(['ARCHIVED', 'DELETED', 'PENDING_DELETION', 'DECOMMISSIONED']);
 
-function isArchiveLifecycle(device: Device): boolean {
+/** The record is an archive, or about to become one: nothing on it asks for an agent to be (re)installed. */
+export function isArchiveLifecycle(device: Pick<Device, 'status'>): boolean {
   return NON_CONNECTING_DEVICE_STATUSES.has(device.status?.toUpperCase() ?? '');
 }
 

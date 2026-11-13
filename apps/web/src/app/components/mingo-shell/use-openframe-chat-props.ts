@@ -7,20 +7,20 @@ import type {
 import { useMemo } from 'react';
 import { useMingoContextEntityTypes } from '@/app/(app)/mingo/context/context-sources';
 import { CONTEXT_ITEMS_MAX } from '@/app/(app)/mingo/context/context-types';
-import { renderMingoContextItem, renderMingoMention } from '@/app/(app)/mingo/context/mention-chips/render-mention';
+import { renderMingoContextItem, renderMingoRecordChip } from '@/app/(app)/mingo/context/mention-chips/render-mention';
 import { renderMingoContextItems } from '@/app/(app)/mingo/context/render-context-items';
 import { useMingoContextMemory } from '@/app/(app)/mingo/context/use-context-memory';
-import { MINGO_DIALOGS_PAGE_SIZE } from '@/app/(app)/mingo/hooks/use-mingo-dialogs';
+import { MINGO_DIALOGS_PAGE_SIZE, type MingoUnifiedChat } from '@/app/(app)/mingo/hooks/use-mingo-unified-chat-state';
 import { useMingoWhatToAsk } from '@/app/(app)/mingo/hooks/use-mingo-what-to-ask';
-import type { MingoChat, MingoChatState } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { getFullImageUrl } from '@/lib/image-url';
 import { OPENFRAME_QUICK_ACTION_ACCENT, useMingoQuickActionChips } from './use-mingo-quick-action-chips';
 
 /**
  * What OpenFrame's chat can do, as `EmbeddableChat` props: the context picker, `@`,
- * the memory strip, quick actions, identity, the dialog actions. The composer dock
- * adds its own layout props on top.
+ * the memory strip, quick actions, identity, the row status. The dialog actions are
+ * the engine's (its config), and the engine reaches the panel through
+ * `ChatEngineProvider`. The composer dock adds its own layout props on top.
  */
 export type OpenframeChatProps = Pick<
   EmbeddableChatProps,
@@ -28,43 +28,20 @@ export type OpenframeChatProps = Pick<
   | 'contextPicker'
   | 'dialogStatusOf'
   | 'historyPageSize'
-  | 'mingoDialogCapabilities'
-  | 'mingoState'
   | 'mingoWelcome'
   | 'modes'
-  | 'pendingApprovals'
   | 'quickActionAccent'
   | 'renderContextItem'
-  | 'renderMention'
-  | 'sourceSkeletonCount'
+  | 'renderRecordChip'
   | 'userAvatarUrl'
   | 'userDisplayName'
   | 'whatToAsk'
 >;
 
-interface OpenframeChatPropsOptions {
-  chat: MingoChatState;
-  copyDialogLink: MingoChat['copyDialogLink'];
-  /** "Compact Chat Memory" in the chat's ⋯; undefined while its flag is off. */
-  compactDialog?: MingoChat['compactDialog'];
-}
-
 /** Builds {@link OpenframeChatProps} from the session's chat state. */
 export function useOpenframeChatProps({
-  chat,
-  copyDialogLink,
-  compactDialog,
-}: OpenframeChatPropsOptions): OpenframeChatProps {
-  const {
-    state,
-    pendingApprovals,
-    dialogStatusOf,
-    searchQuery,
-    setSearchQuery,
-    fetchArchivedDialogs,
-    unarchiveDialog,
-  } = chat;
-
+  dialogStatusOf,
+}: Pick<MingoUnifiedChat, 'dialogStatusOf'>): OpenframeChatProps {
   const loadWhatToAsk = useMingoWhatToAsk();
   // Signed-in user's display name for the chat header sub-line. The lib prefers
   // its server-resolved chat identity; this is the reliable host fallback (the
@@ -107,9 +84,6 @@ export function useOpenframeChatProps({
     dialogStatusOf,
     // One page of the dialog list: the conversation lists' loading state draws this many rows.
     historyPageSize: MINGO_DIALOGS_PAGE_SIZE,
-    // No loading source strip under an answer being written: Mingo's answers rarely cite sources, so a strip
-    // drawn while it writes would appear and then go away.
-    sourceSkeletonCount: 0,
     // "What to ask Mingo?" answers in a new chat with prompts that go into the
     // composer, naming online devices.
     whatToAsk: loadWhatToAsk,
@@ -118,39 +92,12 @@ export function useOpenframeChatProps({
     // returns no name — sourced from the host auth store.
     userDisplayName,
     userAvatarUrl,
-    // Mingo mode is host-owned via `mingoState`, so we do NOT pass
-    // `modes.mingo` — that keeps the lib's built-in NATS adapter idle.
-    // The EXPLICIT empty object matters: omitting `modes` entirely makes
-    // the lib fall back to its legacy guide-only default, resurrecting the
-    // Guide (SSE hub) mode. With no `modes.guide`, the panel is
-    // Mingo-only: no mode toggle, no "Start Guide Chat" entry point, and
-    // the uncontrolled active mode defaults to 'mingo'.
+    // Mingo runs on the lib's chat engine in the session's provider (one engine for
+    // every surface: the dock, the sidebar's history, the approvals), which the dock
+    // hands to the panel (`ChatEngineProvider`), so `modes.mingo` is not passed. The
+    // EXPLICIT empty object matters: omitting `modes` entirely makes the lib fall back
+    // to its guide-only default. With no `modes.guide`, the panel is Mingo-only.
     modes: {},
-    mingoState: state,
-    // PENDING approval cards are FILTERED OUT of their bubble by
-    // `useMingoDialogChat` (dedupe for interrupted retries), so a card that the
-    // reducer built renders nowhere unless it is handed back here — including the
-    // Product Guide's "create a support ticket" card whose own preamble tells the
-    // user to click Approve.
-    pendingApprovals,
-    // Dialog management for the host-injected Mingo state:
-    //  - search: the chat-history search bar emits the debounced term into
-    //    `setSearchQuery`, which rides the `useMingoDialogs` query key.
-    //  - rename/archive: enable the row + header ⋯ menu (mutations live on
-    //    `mingoState` via `useMingoDialogActions`).
-    //  - compact: the chat's ⋯, before Archive, while its flag is on.
-    //  - archive page: `fetchArchivedDialogs` gates the clock-history button;
-    //    `unarchiveDialog` enables restore.
-    mingoDialogCapabilities: {
-      searchQuery,
-      onSearchChange: setSearchQuery,
-      canRename: true,
-      canArchive: true,
-      fetchArchivedDialogs,
-      unarchiveDialog,
-      onCopyLink: copyDialogLink,
-      compactDialog: compactDialog && (dialog => compactDialog(dialog.id)),
-    },
     // Admin-configured Mingo quick actions rendered as the lib's quick-action set in the
     // Mingo empty state. While they are read the set holds its slots (its chips' loading
     // form), so the empty state keeps its height when they land. Omitted when none are
@@ -166,10 +113,10 @@ export function useOpenframeChatProps({
     // The quick actions the chat reads itself (Guide mode) are drawn as the dock's are.
     quickActionAccent: OPENFRAME_QUICK_ACTION_ACCENT,
     contextPicker,
-    // Renders inline AI mentions (`@device:<machineId>` in Mingo's replies)
-    // as self-fetching chips — the `@marker:id` analogue of `renderEntityCard`
-    // for `[card://]`. Stable module-level fn so the message memo holds.
-    renderMention: renderMingoMention,
+    // Renders the chip of a record link (`[MacBook](record://device/<id>)`) in
+    // a message as a self-fetching chip. Stable module-level fn so the message
+    // memo holds.
+    renderRecordChip: renderMingoRecordChip,
     // Renders a user's ATTACHED context chips (`contextItems`) as the SAME
     // self-fetching chips as inline mentions — so manually attached context
     // resolves its live name + link instead of the lib's label-only pill.

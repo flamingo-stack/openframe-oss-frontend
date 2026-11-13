@@ -25,7 +25,7 @@ const BASE = {
   title: 'A title',
   description: 'A description',
   createdAt: '2026-08-24T10:00:00Z',
-  read: false,
+  status: 'UNREAD',
   category: 'TICKETS',
 } as const;
 

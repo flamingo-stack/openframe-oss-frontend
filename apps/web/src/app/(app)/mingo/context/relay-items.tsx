@@ -1,5 +1,6 @@
 'use client';
 
+import { OPENFRAME_RECORD_KIND } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { ContextItemsList } from '@flamingo-stack/openframe-frontend-core/components/chat';
 /**
  * Relay-backed context items for the GraphQL sources on OUR endpoint
@@ -54,7 +55,6 @@ import { ROOT_FOLDER } from '@/app/(app)/knowledge-base/components/shared/folder
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
 import { toUserSummary } from '@/graphql/users/user-summary-fields';
 import { decodeGlobalId, rawIdOf } from '@/lib/relay-id';
-import { CONTEXT_ENTITY_KIND } from './context-types';
 import { type ContextItemsProps, MINGO_CONTEXT_PAGE_SIZE } from './items-shared';
 
 // ───────────────────────────── Device ───────────────────────────────────────
@@ -118,10 +118,10 @@ export function DeviceItems({ query, selectedKeys, onToggle, atLimit }: ContextI
         e?.node
           ? [
               {
-                type: CONTEXT_ENTITY_KIND.DEVICE,
+                type: OPENFRAME_RECORD_KIND.DEVICE,
                 // Store the RAW db id, decoded from the Relay global `id`
                 // (`base64("Machine:<rawId>")`) — that's what the backend's
-                // DEVICE context resolver + `@device:<id>` mention marker expect.
+                // DEVICE context resolver + the `record://device/<id>` link expect.
                 // The chip re-encodes it to a global id for its `node(id:)` fetch
                 // (see relay-mention-chips). Falls back to `machineId` if decode
                 // ever fails.
@@ -198,7 +198,7 @@ export function OrganizationItems({ query, selectedKeys, onToggle, atLimit }: Co
         e?.node
           ? [
               {
-                type: CONTEXT_ENTITY_KIND.ORGANIZATION,
+                type: OPENFRAME_RECORD_KIND.ORGANIZATION,
                 // Raw db id (organizationId), decoded from the global `id`
                 // (`base64("Organization:<rawId>")`); the chip re-encodes it.
                 id: rawIdOf(e.node.id),
@@ -259,12 +259,12 @@ export function UserItems({ query, selectedKeys, onToggle, atLimit }: ContextIte
     relayItemsUsersPaginationQuery,
     relayItemsUsers_query$key
   >(USERS_FRAGMENT, root as relayItemsUsers_query$key);
-  // Raw db id: the USER context resolver, the `@user:<id>` marker and the
+  // Raw db id: the USER context resolver, the `record://user/<id>` link and the
   // mention chip all take it.
   const items = data.users.edges.map(({ node }) => {
     const { rawId, name, email } = toUserSummary(node);
     return {
-      type: CONTEXT_ENTITY_KIND.USER,
+      type: OPENFRAME_RECORD_KIND.USER,
       id: rawId,
       label: name,
       description: email && email !== name ? email : undefined,
@@ -334,7 +334,7 @@ export function KnowledgeBaseItems({ query, selectedKeys, onToggle, atLimit }: C
         e?.node
           ? [
               {
-                type: CONTEXT_ENTITY_KIND.KB_ARTICLE,
+                type: OPENFRAME_RECORD_KIND.KB_ARTICLE,
                 // Raw db id, decoded from the global `id`
                 // (`base64("KnowledgeBaseItem:<rawId>")`); the chip re-encodes it.
                 id: rawIdOf(e.node.id),
@@ -411,8 +411,8 @@ export function KnowledgeBaseFolderItems({ query, selectedKeys, onToggle, atLimi
         e?.node
           ? [
               {
-                type: CONTEXT_ENTITY_KIND.KB_FOLDER,
-                // Raw db id, as for an article: the `@kbFolder:<id>` marker and the
+                type: OPENFRAME_RECORD_KIND.KB_FOLDER,
+                // Raw db id, as for an article: the `record://kbFolder/<id>` link and the
                 // folder resolver take it, and the chip re-encodes it.
                 id: rawIdOf(e.node.id),
                 label: e.node.name || e.node.id,
@@ -484,7 +484,7 @@ export function ScriptItems({ query, selectedKeys, onToggle, atLimit }: ContextI
     () =>
       (data.scripts?.edges ?? []).flatMap(e => {
         // Raw db id, decoded from the global `id` (`base64("Script:<rawId>")`);
-        // that's what the backend's SCRIPT context resolver + `@script:<id>` marker
+        // that's what the backend's SCRIPT context resolver + `record://script/<id>` marker
         // expect. The chip re-encodes it to a global id for its `script(id:)` fetch
         // (see relay-mention-chips). Drop any edge we can't decode to a raw id — a
         // global id stored here would misroute the chip to the legacy Tactical
@@ -493,7 +493,7 @@ export function ScriptItems({ query, selectedKeys, onToggle, atLimit }: ContextI
         if (!e?.node || !rawId) return [];
         return [
           {
-            type: CONTEXT_ENTITY_KIND.SCRIPT,
+            type: OPENFRAME_RECORD_KIND.SCRIPT,
             id: rawId,
             label: e.node.name || rawId,
             description: e.node.description ?? undefined,
@@ -562,7 +562,7 @@ export function ScheduleItems({ query, selectedKeys, onToggle, atLimit }: Contex
       (data.scriptSchedules?.edges ?? []).flatMap(e => {
         // Raw db id, decoded from the global `id` (`base64("ScriptSchedule:<rawId>")`)
         // — that's what the backend's SCHEDULED_SCRIPT resolver
-        // (`ScriptScheduleService.findById`) + the `@scheduledScript:<id>` marker
+        // (`ScriptScheduleService.findById`) + the `record://scheduledScript/<id>` marker
         // expect. The chip re-encodes it to a global id for its `scriptSchedule(id:)`
         // fetch. Drop any edge we can't decode: a global id stored here would be
         // double-encoded on the way back and resolve to nothing.
@@ -570,7 +570,7 @@ export function ScheduleItems({ query, selectedKeys, onToggle, atLimit }: Contex
         if (!e?.node || !rawId) return [];
         return [
           {
-            type: CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT,
+            type: OPENFRAME_RECORD_KIND.SCHEDULED_SCRIPT,
             id: rawId,
             label: e.node.name || rawId,
             description: e.node.description ?? undefined,
@@ -598,7 +598,7 @@ export function ScheduleItems({ query, selectedKeys, onToggle, atLimit }: Contex
 // Mingo incident context lists the WORKING SET only — everything but ARCHIVED,
 // which is filed away and nothing to act on (the device Incidents tab's
 // default). `Insight.id` is already the opaque id the `insight(id:)` query and
-// the `@insight:<id>` marker take, so no decode/re-encode here.
+// the `record://insight/<id>` link take, so no decode/re-encode here.
 const INCIDENT_CONTEXT_FILTER = { statuses: [...WORKING_SET_STATUSES] };
 
 const INCIDENTS_FRAGMENT = graphql`
@@ -651,7 +651,7 @@ export function IncidentItems({ query, selectedKeys, onToggle, atLimit }: Contex
         const device = getDeviceName(e.node.machine);
         return [
           {
-            type: CONTEXT_ENTITY_KIND.INSIGHT,
+            type: OPENFRAME_RECORD_KIND.INSIGHT,
             id: rawIdOf(e.node.id),
             label: e.node.title,
             description: [labelOf(INCIDENT_SEVERITY_LABELS, e.node.severity), device].filter(Boolean).join(' · '),
@@ -722,7 +722,7 @@ export function SoftwareItems({ query, selectedKeys, onToggle, atLimit }: Contex
         e?.node
           ? [
               {
-                type: CONTEXT_ENTITY_KIND.SOFTWARE,
+                type: OPENFRAME_RECORD_KIND.SOFTWARE,
                 id: e.node.id,
                 label: e.node.name || e.node.id,
                 // The publisher and the version in use, as the Software list
@@ -795,7 +795,7 @@ export function VulnerabilityItems({ query, selectedKeys, onToggle, atLimit }: C
         e?.node
           ? [
               {
-                type: CONTEXT_ENTITY_KIND.VULNERABILITY,
+                type: OPENFRAME_RECORD_KIND.VULNERABILITY,
                 id: e.node.cveId,
                 label: e.node.cveId,
               },

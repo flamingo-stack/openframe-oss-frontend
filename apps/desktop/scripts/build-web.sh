@@ -24,7 +24,8 @@ if [ ! -d "$WEB_DIR/node_modules" ]; then
 fi
 
 echo "▸ Building static export ($WEB_DIR)…"
-( cd "$WEB_DIR" && OPENFRAME_BUILD_TARGET="export" npm run build )
+# The mode the shell injects at runtime (env_init_script); the root layout prerenders by it.
+( cd "$WEB_DIR" && OPENFRAME_BUILD_TARGET="export" NEXT_PUBLIC_APP_MODE=saas-tenant npm run build )
 
 if [ ! -d "$WEB_DIR/dist" ]; then
   echo "✗ export produced no dist/ in $WEB_DIR" >&2
