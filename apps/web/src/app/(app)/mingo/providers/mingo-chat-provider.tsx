@@ -36,7 +36,6 @@
  * `useChatIdentity()` with its deferred (anon) identity instead of letting it fetch.
  */
 
-import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import {
   createContext,
   type ReactNode,
@@ -48,20 +47,9 @@ import {
   useSyncExternalStore,
 } from 'react';
 import { MingoCompactionWatchers } from '@/app/components/mingo-compaction-watchers';
-import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
-import { mingoDialogLink } from '@/lib/routes';
-import { runtimeEnv } from '@/lib/runtime-config';
-import { useMingoCompactionStore } from '../stores/mingo-compaction-store';
+import type { MingoUnifiedChat } from '../hooks/use-mingo-unified-chat-state';
 import { MingoChatRunner, MingoChatRunnerBoundary } from './mingo-chat-runner';
-import {
-  createMingoChatStore,
-  IDLE_MINGO_CHAT,
-  type MingoChatSnapshot,
-  type MingoChatState,
-  type MingoChatStore,
-} from './mingo-chat-store';
-
-export type { MingoChatState } from './mingo-chat-store';
+import { createMingoChatStore, IDLE_MINGO_CHAT, type MingoChatSnapshot, type MingoChatStore } from './mingo-chat-store';
 
 /** What `useMingoChat()` hands a surface. */
 export interface MingoChat {
@@ -71,21 +59,13 @@ export interface MingoChat {
    * the state failed. A surface renders nothing for null: the state lands before
    * the browser paints.
    */
-  chat: MingoChatState | null;
+  chat: MingoUnifiedChat | null;
   /** The state crashed. A surface rethrows it into its own error boundary. */
   error: Error | null;
   /** Signed-in session and unlocked workspace. False: nothing runs. */
   enabled: boolean;
   /** Whether a surface's `<ChatIdentityProvider>` may resolve the identity. */
   identityEnabled: boolean;
-  /**
-   * "Compact chat memory" for a dialog; undefined while the `mingo-compact-memory`
-   * flag is off. The result is reported by the compaction watchers (toasts), not
-   * by the caller.
-   */
-  compactDialog: ((dialogId: string) => void) | undefined;
-  /** Puts the dialog's canonical link on the clipboard, with toast feedback. */
-  copyDialogLink: (dialog: { id: string }) => Promise<void>;
   /** Starts the state again after it crashed (`error`): a surface's "Try again". */
   retry: () => void;
 }
@@ -98,8 +78,6 @@ interface MingoChatSession {
   registerThreadView: () => () => void;
   enabled: boolean;
   identityEnabled: boolean;
-  compactDialog: MingoChat['compactDialog'];
-  copyDialogLink: MingoChat['copyDialogLink'];
   retry: MingoChat['retry'];
 }
 
@@ -140,64 +118,12 @@ export function MingoChatProvider({ enabled, identityEnabled, children }: MingoC
   const [runKey, setRunKey] = useState(0);
   const retry = useCallback(() => setRunKey(key => key + 1), []);
 
-  const { toast } = useToast();
-
-  const compactMemoryEnabled = useFeatureFlag('mingo-compact-memory');
-  const startCompaction = useMingoCompactionStore(s => s.startCompaction);
-  const compactDialog = compactMemoryEnabled
-    ? (dialogId: string) => {
-        // The result is reported by `MingoCompactionWatchers` when the compaction ends.
-        if (!startCompaction(dialogId)) toast({ title: 'Already compacting this chat' });
-      }
-    : undefined;
-
-  // "Copy chat link" — the header ⋯ menu and every dialog row menu.
-  //
-  // Emits `mingoDialogLink`, NOT the URL in the address bar: the live URL is
-  // `?mingoDialog=` riding whatever page the sharer happens to be on, so copying that
-  // would hand the recipient the sharer's current screen. Absolute, because a link
-  // gets pasted somewhere this app isn't.
-  //
-  // The origin is the TENANT HOST, not `window.location.origin`: inside the native
-  // shells the latter is `capacitor://localhost` (mobile) or a `tauri://` origin —
-  // a scheme nothing outside that install can resolve, so the link would be dead the
-  // moment it left the device, including for the person who copied it. The tenant
-  // host is the workspace's public address (build-time value, backed by the host the
-  // shell learns from the OAuth callback at login) and on the web it resolves to the
-  // same place anyway. Same precedence the Relay environment uses.
-  const copyDialogLink = async (dialog: { id: string }) => {
-    const origin = (runtimeEnv.tenantHostUrl() || window.location.origin).replace(/\/+$/, '');
-    // Catches BOTH "no tenant host configured" and a shell origin that slipped
-    // through — a link that isn't http(s) cannot travel, so say so rather than put
-    // something unusable on the clipboard.
-    if (!/^https?:\/\//.test(origin)) {
-      toast({
-        title: "Couldn't copy the link",
-        description: 'This app does not know its workspace address yet.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    const url = `${origin}${mingoDialogLink(dialog.id)}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      toast({ title: 'Link copied', description: 'Anyone with access to this workspace can open it.' });
-    } catch {
-      // Clipboard access is refused outside a secure context and under some
-      // permission policies. Showing the URL is a worse-but-real fallback — the
-      // reader can still select it by hand.
-      toast({ title: "Couldn't copy the link", description: url, variant: 'destructive' });
-    }
-  };
-
   const session: MingoChatSession = {
     store,
     register,
     registerThreadView,
     enabled,
     identityEnabled,
-    compactDialog,
-    copyDialogLink,
     retry,
   };
   const running = enabled && surfaceCount > 0;
@@ -247,8 +173,6 @@ export function useMingoChat(): MingoChat {
     error,
     enabled: session.enabled,
     identityEnabled: session.identityEnabled,
-    compactDialog: session.compactDialog,
-    copyDialogLink: session.copyDialogLink,
     retry: session.retry,
   };
 }

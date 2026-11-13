@@ -1,5 +1,6 @@
 import {
   ActivityIcon,
+  AddressBookIcon,
   AlertTriangleIcon,
   BookBookmarkIcon,
   BracketCurlyEllipsisVrIcon,
@@ -7,17 +8,19 @@ import {
   ChartDonutIcon,
   ClipboardListIcon,
   ClockHistoryIcon,
+  CloudIcon,
   CodingForkIcon,
   CompassIcon,
   FolderShieldIcon,
   HeadsetIcon,
   IdCardIcon,
   LaptopMobileIcon,
-  LightningIcon,
+  LayersIcon,
   MonitorIcon,
   Parcel02Icon,
   QuestionCircleIcon,
   RadarIcon,
+  RouteIcon,
   Settings02Icon,
   TagIcon,
   TimerIcon,
@@ -90,6 +93,8 @@ interface NavModule {
   /** The label in the sectioned (Manhattan v2) navigation, where the Figma names differ. */
   sectionedLabel?: string;
   icon: ComponentType<{ size?: number }>;
+  /** The icon in the sectioned (Manhattan v2) navigation, where the Figma icon differs. */
+  sectionedIcon?: ComponentType<{ size?: number }>;
   /** Where the entry leads. */
   path: string;
   /**
@@ -227,6 +232,7 @@ const NAV_MODULES = {
     groupedLabel: 'Cloud tenants',
     sectionedLabel: 'Cloud Tenants',
     icon: CodingForkIcon,
+    sectionedIcon: CloudIcon,
     path: routes.cloudTenantManagement.list,
     prefixes: ['/cloud-tenant-management'],
     gates: ['tenantManagement'],
@@ -492,27 +498,34 @@ export const getGroupedNavigationItems = (
 // --------------------------------------------------------------------------
 
 /**
- * The right navigation of the three-column shell (Figma "mingo (Manhattan)", frame
- * 1408:293075): four sections — Service Desk, Fleet, Monitor, Skills — then Knowledge
- * Base, Help Center and Settings at the bottom. No Dashboard (Start Work replaces it)
+ * The right navigation of the three-column shell: five sections — Service Desk (Tickets,
+ * Worktime), Monitoring (Incidents, Logs), Assets (Devices, Software), Directory (Customers,
+ * Users, Cloud Tenants), Automation (Scripts, Scheduled Scripts, Policies, Queries) — then
+ * Knowledge Base, Help Center and Settings at the bottom. No Dashboard (Start Work replaces it)
  * and no Beta stamps (the design has none). Gates and badges as everywhere else.
  */
 const SECTIONED_LAYOUT: { groups: readonly NavGroup[]; secondary: readonly NavModuleId[] } = {
   groups: [
     { id: 'service-desk', label: 'Service Desk', icon: HeadsetIcon, children: ['tickets', 'worktime'] },
+    { id: 'monitoring', label: 'Monitoring', icon: ActivityIcon, children: ['incidents', 'logs'] },
+    { id: 'assets', label: 'Assets', icon: LayersIcon, children: ['devices', 'software'] },
     {
-      id: 'fleet',
-      label: 'Fleet',
-      icon: LaptopMobileIcon,
-      children: ['organizations', 'devices', 'software', 'users', 'integrations'],
+      id: 'directory',
+      label: 'Directory',
+      icon: AddressBookIcon,
+      children: ['organizations', 'users', 'integrations'],
     },
-    { id: 'monitor', label: 'Monitor', icon: ActivityIcon, children: ['incidents', 'logs'] },
-    { id: 'skills', label: 'Skills', icon: LightningIcon, children: ['scripts', 'schedules', 'policies', 'queries'] },
+    {
+      id: 'automation',
+      label: 'Automation',
+      icon: RouteIcon,
+      children: ['scripts', 'schedules', 'policies', 'queries'],
+    },
   ],
   secondary: ['knowledge-base', 'help-center', 'settings'],
 };
 
-/** The sectioned navigation's placeholder rows: the four sections and the bottom three. */
+/** The sectioned navigation's placeholder rows: the five sections and the bottom three. */
 export const SECTIONED_NAVIGATION_LOADING_ROWS = {
   primary: SECTIONED_LAYOUT.groups.length,
   secondary: SECTIONED_LAYOUT.secondary.length,
@@ -533,7 +546,7 @@ function sectionedEntry(
   section?: 'secondary',
 ): NavigationSidebarItem {
   const entry: NavModule = NAV_MODULES[id];
-  const Icon = entry.icon;
+  const Icon = entry.sectionedIcon ?? entry.icon;
   const unreadCount = unreadOf(entry, unreadCounts, 'grouped');
   return {
     id,

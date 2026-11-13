@@ -14,7 +14,6 @@ import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-muta
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { canOpenFaeApp, openFaeApp } from '@/lib/fae-app';
 import { useOnboardingStore } from '@/stores/onboarding-store';
-import { MINGO_DIALOG_NOT_FOUND } from '../hooks/use-mingo-dialog-selection';
 import { GettingStartedBlock } from './getting-started-block';
 import { clearGettingStartedView, useGettingStartedAside } from './getting-started-view';
 import { doneTourStepIds } from './tour-progress';
@@ -27,8 +26,8 @@ export interface MingoTourInput {
   state: UnifiedChatState;
   /** Create an empty conversation with this title and open it. */
   createNamedDialog: (title: string) => Promise<string | null>;
-  /** Why the open conversation could not be fetched, or null. */
-  dialogError: string | null;
+  /** The open conversation's record answered that it does not exist for this viewer. */
+  dialogNotFound: boolean;
   /** When the open conversation was created (the server's record), or null until it has loaded. */
   dialogCreatedAt?: string | null;
   /** A chip opened its section (`href`) and its prompt is on its way: where the host shows the answer. */
@@ -73,7 +72,7 @@ export interface MingoTour {
 export function useMingoTour({
   state,
   createNamedDialog,
-  dialogError,
+  dialogNotFound,
   dialogCreatedAt = null,
   onStepOpened,
   onScreen = false,
@@ -121,8 +120,7 @@ export function useMingoTour({
   // The remembered conversation is gone (deleted, or another workspace's
   // record): treat it as none, so the pass below creates a new one and records
   // that in its place.
-  const gone =
-    candidateDialogId !== null && activeDialogId === candidateDialogId && dialogError === MINGO_DIALOG_NOT_FOUND;
+  const gone = candidateDialogId !== null && activeDialogId === candidateDialogId && dialogNotFound;
   const dialogId = gone || !active ? null : candidateDialogId;
 
   // The tour's conversation, created once and recorded on success; a failed
@@ -227,8 +225,8 @@ export function useMingoTour({
     return {
       id: `tour-greeting-${greetedDialogId}`,
       role: 'assistant',
-      content: tourGreeting(firstName),
-      timestamp: startedAt,
+      metadata: { createdAt: startedAt },
+      parts: [{ type: 'text', text: tourGreeting(firstName) }],
     };
   }, [greeted, hasMoreMessages, startedAt, greetedDialogId, firstName]);
 

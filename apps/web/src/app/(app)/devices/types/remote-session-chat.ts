@@ -17,8 +17,6 @@ export interface RemoteSessionChatMessage {
   /** ISO timestamp. */
   sentAt: string;
   body: string;
-  /** JetStream sequence of the row (live chunks, and history rows the backend stamped); absent on the mock. */
-  seq?: number;
 }
 
 /** A message as the lib's `RemoteDesktopChatPanel` takes it. */

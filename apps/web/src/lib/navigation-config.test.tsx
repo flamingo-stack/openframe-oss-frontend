@@ -354,14 +354,15 @@ describe('grouped navigation (Mingo-first shell)', () => {
 });
 
 describe('sectioned navigation (Manhattan v2 shell)', () => {
-  it('lists the Figma sections and the bottom three, with the Figma names', () => {
+  it('lists the five sections and the bottom three, with their names', () => {
     setAppMode('saas-tenant');
     const items = getSectionedNavigationItems(ALL_ON);
     expect(items.map(item => [item.id, item.label, (item.children ?? []).map(child => child.label)])).toEqual([
       ['service-desk', 'Service Desk', ['Tickets', 'Worktime']],
-      ['fleet', 'Fleet', ['Customers', 'Devices', 'Software', 'Users', 'Cloud Tenants']],
-      ['monitor', 'Monitor', ['Incidents', 'Logs']],
-      ['skills', 'Skills', ['Scripts', 'Scheduled Scripts', 'Policies', 'Queries']],
+      ['monitoring', 'Monitoring', ['Incidents', 'Logs']],
+      ['assets', 'Assets', ['Devices', 'Software']],
+      ['directory', 'Directory', ['Customers', 'Users', 'Cloud Tenants']],
+      ['automation', 'Automation', ['Scripts', 'Scheduled Scripts', 'Policies', 'Queries']],
       ['knowledge-base', 'Knowledge Base', []],
       ['help-center', 'Help Center', []],
       ['settings', 'Settings', []],
@@ -371,6 +372,39 @@ describe('sectioned navigation (Manhattan v2 shell)', () => {
       'help-center',
       'settings',
     ]);
+  });
+
+  it('draws the Figma icons (nav/dashboard-sidebar, node 4668:14767)', () => {
+    setAppMode('saas-tenant');
+    const iconOf = (item: NavigationSidebarItem) => {
+      const icon = item.icon as ReactElement<{ size?: number }>;
+      return `${(icon.type as { name?: string }).name}@${icon.props.size}`;
+    };
+    const items = getSectionedNavigationItems(ALL_ON);
+    expect(items.map(item => [item.id, iconOf(item), (item.children ?? []).map(iconOf)])).toEqual([
+      ['service-desk', 'HeadsetIcon@20', ['TagIcon@20', 'ClockHistoryIcon@20']],
+      ['monitoring', 'ActivityIcon@20', ['AlertTriangleIcon@20', 'ClipboardListIcon@20']],
+      ['assets', 'LayersIcon@20', ['MonitorIcon@20', 'Parcel02Icon@20']],
+      ['directory', 'AddressBookIcon@20', ['IdCardIcon@20', 'UsersIcon@20', 'CloudIcon@20']],
+      [
+        'automation',
+        'RouteIcon@20',
+        ['BracketCurlyIcon@20', 'TimerIcon@20', 'FolderShieldIcon@20', 'BracketCurlyEllipsisVrIcon@20'],
+      ],
+      ['knowledge-base', 'BookBookmarkIcon@20', []],
+      ['help-center', 'QuestionCircleIcon@20', []],
+      ['settings', 'Settings02Icon@20', []],
+    ]);
+  });
+
+  it("keeps Cloud Tenants' cloud icon to itself: the other shells still draw the coding fork", () => {
+    setAppMode('saas-tenant');
+    const grouped = getGroupedNavigationItems(ALL_ON).flatMap(item => [item, ...(item.children ?? [])]);
+    const integrations = grouped.find(item => item.id === 'integrations');
+    expect((integrations?.icon as ReactElement).type).toBe(
+      (getNavigationItems('/', ALL_ON).find(item => item.id === 'integrations')?.icon as ReactElement).type,
+    );
+    expect(((integrations?.icon as ReactElement).type as { name?: string }).name).toBe('CodingForkIcon');
   });
 
   it('has no Dashboard, no Needs approval and no Beta stamps', () => {
@@ -396,7 +430,7 @@ describe('sectioned navigation (Manhattan v2 shell)', () => {
     expect(ids).toContain('devices');
   });
 
-  it("Fleet's Users is the directory users page; Settings → Employees lights Settings", () => {
+  it("Directory's Users is the directory users page; Settings → Employees lights Settings", () => {
     setAppMode('saas-tenant');
     const items = getSectionedNavigationItems(ALL_ON);
     expect(resolveNavigationActive(items, { currentPath: '/users', includeChildren: true }).activeId).toBe('users');

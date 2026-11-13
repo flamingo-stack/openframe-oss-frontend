@@ -1,3 +1,4 @@
+import type { OpenFrameRecordKind } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 /**
  * The page a Mingo message is sent from, as the ai-agent's `currentPage` (what kind of
  * page and its name) and, on a list, `currentList` (which list and its filters). Read
@@ -12,7 +13,7 @@ import { type NavModuleId, navModuleLabel, navModuleOf } from '@/lib/navigation-
 import { routes } from '@/lib/routes';
 import type { ListModule, MessageListRef, MessagePageRef } from '../../tickets/services/ticket-service.types';
 import { MINGO_CONTEXT_ENTITY_TYPES } from './context-sources';
-import type { ContextEntityKind, ContextRefWithLabel } from './context-types';
+import type { ContextRefWithLabel } from './context-types';
 
 /** The ai-agent's limits on these inputs: past one, the whole message is rejected. */
 export const PAGE_CONTEXT_LIMITS = {
@@ -62,7 +63,7 @@ const LIST_PAGES: Record<string, ListPage> = {
 };
 
 /** Entity pages: their detail page registers the entity as `openView` (`useTrackOpenView`). */
-const ENTITY_PAGES: Record<string, ContextEntityKind> = {
+const ENTITY_PAGES: Record<string, OpenFrameRecordKind> = {
   '/devices/details': 'DEVICE',
   '/devices/details/remote-shell': 'DEVICE',
   '/devices/details/remote-desktop': 'DEVICE',

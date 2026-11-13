@@ -28,6 +28,8 @@ const NO_DIALOGS: DialogItem[] = [];
 const subscribeToNothing = () => () => {};
 const onClient = () => true;
 const onServer = () => false;
+/** The engine's list always searches; its capability type is optional. */
+const searchNothing = () => {};
 
 /**
  * Chat history section of the Mingo-first sidebar (`sectionSlot`): the lib's
@@ -54,7 +56,7 @@ export function MingoSidebarHistory({
   /** `'compact'`: the Manhattan v2 shell's chat list (32px rows, "Current chats"). */
   density?: 'default' | 'compact';
 } = {}) {
-  const { chat, error, enabled, copyDialogLink } = useMingoChat();
+  const { chat, error, enabled } = useMingoChat();
   const currentUserId = useAuthStore(s => s.user?.id ?? null);
   const searchOpen = useHistorySearchStore(s => s.open);
   const setSearchOpen = useHistorySearchStore(s => s.setOpen);
@@ -135,7 +137,8 @@ export function MingoSidebarHistory({
         // A row whose `owner.id` is not the viewer's shows the owner's initials.
         currentUserId={currentUserId}
         onRequestRename={setRenameTarget}
-        onRequestCopyLink={dialog => void copyDialogLink(dialog)}
+        // The engine's "Copy Chat Link" (its config names the link), as the chat's own ⋯ has it.
+        onRequestCopyLink={state.dialogCapabilities?.onCopyLink}
         onRequestArchive={setArchiveTarget}
         onOpenArchive={() => open(routes.mingo.archive)}
         // The design's "What to ask Mingo?" in the history's ⋯: the suggestions, as the full chat.
@@ -154,8 +157,8 @@ export function MingoSidebarHistory({
         }
         scope={state.dialogScope}
         onScopeChange={state.setDialogScope}
-        searchQuery={chat.searchQuery}
-        onSearchChange={chat.setSearchQuery}
+        searchQuery={state.dialogCapabilities?.searchQuery}
+        onSearchChange={state.dialogCapabilities?.onSearchChange}
         searchOpen={searchOpen}
         onSearchOpenChange={setSearchOpen}
         hasMore={state.hasMoreDialogs}
@@ -166,7 +169,7 @@ export function MingoSidebarHistory({
         onLoadMore={() => void loadMoreDialogs()}
         // A page (20) at a time, on "Show more" at the end of the list.
         loadMore="button"
-        loadError={chat.dialogsLoadFailed && state.dialogs.length === 0}
+        loadError={state.dialogsError && state.dialogs.length === 0}
         onRetry={state.reloadDialogs}
       />
       {canPortal &&
@@ -285,8 +288,8 @@ export function MingoHistorySearch() {
       activeDialogId={state.activeDialogId ?? undefined}
       statusOf={chat.dialogStatusOf}
       currentUserId={currentUserId}
-      searchQuery={chat.searchQuery}
-      onSearchChange={chat.setSearchQuery}
+      searchQuery={state.dialogCapabilities?.searchQuery}
+      onSearchChange={state.dialogCapabilities?.onSearchChange ?? searchNothing}
       onSelectDialog={id => {
         closeMobileMenu();
         openMingoDialog(id, { navigate: href => router.push(href) });
@@ -295,7 +298,7 @@ export function MingoHistorySearch() {
       isLoadingMore={loading && state.dialogs.length > 0}
       isLoadingHistory={loading && state.dialogs.length === 0}
       onLoadMore={() => void loadMoreDialogs()}
-      loadError={chat.dialogsLoadFailed && state.dialogs.length === 0}
+      loadError={state.dialogsError && state.dialogs.length === 0}
       onRetry={state.reloadDialogs}
     />
   );

@@ -1,12 +1,13 @@
 /**
- * The Mingo-first composer dock: the session's one `EmbeddableChat`, laid out per
- * route — the thread portalled into the chat page's node (an element there, `null`
- * everywhere else, never `undefined`), Compact in the chat's ⋯, no memory
- * strip on full-width pages — plus the launcher drain, the locked composer that holds
- * its place while the chat loads, and its own crash fallback.
+ * The Mingo-first composer dock: the session's one `EmbeddableChat`, drawing the session's
+ * one engine (`ChatEngineProvider`), laid out per route: the thread portalled into the
+ * chat page's node (an element there, `null` everywhere else, never `undefined`), no
+ * memory strip on full-width pages; plus the launcher drain, the locked composer that
+ * holds its place while the chat loads, and its own crash fallback.
  */
 
 import { act, forwardRef, type ReactNode, useEffect, useImperativeHandle } from 'react';
+import { createPortal } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
@@ -30,14 +31,16 @@ const {
   viewport,
   tour,
   CONTEXT_MEMORY,
-  CAPABILITIES,
-  PENDING_APPROVALS,
   RENDER_MENTION,
   RENDER_CONTEXT_ITEM,
 } = vi.hoisted(() => ({
   panel: {
     props: null as Record<string, unknown> | null,
+    /** The engine the dock provided around the chat (`ChatEngineProvider`). */
+    engine: null as unknown,
     mounts: 0,
+    /** The thread portalled into `threadContainer` mounted: once per container it lands in. */
+    threadMounts: 0,
     /** The chat module has loaded: the handle exists. */
     loaded: true,
     /** The locked composer's props, while it draws. */
@@ -58,44 +61,57 @@ const {
   /** What the dock handed the tour: where its conversation is on screen, and the block's ×. */
   tour: { input: null as { onScreen?: boolean; onClose?: () => void } | null },
   CONTEXT_MEMORY: { items: [{ type: 'DEVICE', id: 'm-1', label: 'web-01' }], onRemove: () => {} },
-  CAPABILITIES: { canRename: true, canArchive: true, unarchiveDialog: () => Promise.resolve() },
-  PENDING_APPROVALS: [{ type: 'approval_request', data: { requestId: 'r-1', status: 'pending' } }],
   RENDER_MENTION: () => null,
   RENDER_CONTEXT_ITEM: () => null,
 }));
 
-vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({
-  EmbeddableChat: forwardRef<unknown, Record<string, unknown>>(function FakeEmbeddableChat(props, ref) {
-    const { loaded } = panel;
-    useImperativeHandle(
-      ref,
-      () =>
-        loaded
-          ? {
-              startNewChat: panel.startNewChat,
-              prefillDraft: panel.prefillDraft,
-              showWhatToAsk: panel.showWhatToAsk,
-              focusComposer: panel.focusComposer,
-            }
-          : null,
-      [loaded],
-    );
+vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => {
+  function FakeThread() {
     useEffect(() => {
-      panel.mounts += 1;
+      panel.threadMounts += 1;
     }, []);
-    panel.props = props;
     return null;
-  }),
-  ChatIdentityProvider: ({ children, enabled }: { children: ReactNode; enabled: boolean }) => {
-    identity.enabled = enabled;
-    return children;
-  },
-  ChatComposer: (props: Record<string, unknown>) => {
-    panel.loading = props;
-    return <p>locked composer</p>;
-  },
-  ModelDisplay: () => null,
-}));
+  }
+  return {
+    EmbeddableChat: forwardRef<unknown, Record<string, unknown>>(function FakeEmbeddableChat(props, ref) {
+      const { loaded } = panel;
+      useImperativeHandle(
+        ref,
+        () =>
+          loaded
+            ? {
+                startNewChat: panel.startNewChat,
+                prefillDraft: panel.prefillDraft,
+                showWhatToAsk: panel.showWhatToAsk,
+                focusComposer: panel.focusComposer,
+              }
+            : null,
+        [loaded],
+      );
+      useEffect(() => {
+        panel.mounts += 1;
+      }, []);
+      panel.props = props;
+      // As the real chat does: the thread portals into its container, so a new container is a
+      // new thread (React remounts a portal whose container changes).
+      const container = props.threadContainer;
+      return container instanceof HTMLElement ? createPortal(<FakeThread />, container) : null;
+    }),
+    ChatEngineProvider: ({ children, engine }: { children: ReactNode; engine: unknown }) => {
+      panel.engine = engine;
+      return children;
+    },
+    ChatIdentityProvider: ({ children, enabled }: { children: ReactNode; enabled: boolean }) => {
+      identity.enabled = enabled;
+      return children;
+    },
+    ChatComposer: (props: Record<string, unknown>) => {
+      panel.loading = props;
+      return <p>locked composer</p>;
+    },
+    ModelDisplay: () => null,
+  };
+});
 vi.mock('@flamingo-stack/openframe-frontend-core/components', () => ({
   LoadingRegion: ({ children }: { children: ReactNode }) => <div aria-busy="true">{children}</div>,
 }));
@@ -163,31 +179,33 @@ vi.mock('./use-openframe-chat-props', () => ({
   useOpenframeChatProps: (options: Record<string, unknown>) => {
     builder.lastOptions = options;
     return {
-      mingoState: { fromBuilder: true },
       contextMemory: CONTEXT_MEMORY,
       contextPicker: { fromBuilder: true },
-      mingoDialogCapabilities: CAPABILITIES,
-      pendingApprovals: PENDING_APPROVALS,
-      renderMention: RENDER_MENTION,
+      renderRecordChip: RENDER_MENTION,
       renderContextItem: RENDER_CONTEXT_ITEM,
     };
   },
 }));
 
-const compactDialog = vi.fn();
-const sendInNewDialog = vi.fn(async () => {});
-const createIntentDialog = vi.fn(async () => null);
+/** The engine's one way to start a chat: a prompt sent at once, or an intent. */
+const startNewDialog = vi.fn(async (_options?: { prompt?: string; intent?: string; title?: string }) => null);
 const selectDialog = vi.fn();
 /** The session's thread handlers: the dock must hand them to the chat untouched. */
 const loadMoreMessages = vi.fn();
-const approveRequest = vi.fn();
-const rejectRequest = vi.fn();
+const actions = {
+  approve: vi.fn(),
+  reject: vi.fn(),
+  approveEscalation: vi.fn(),
+  rejectEscalation: vi.fn(),
+  pickSuggestion: vi.fn(),
+  selectAsk: vi.fn(),
+};
+const displayApprovalTypes = ['CLIENT'];
 const stopMessage = vi.fn();
 
 function setSurface({
   activeDialogId = null as string | null,
   enabled = true,
-  compact = true,
   error = null as Error | null,
   identityEnabled = true,
 } = {}) {
@@ -203,18 +221,15 @@ function setSurface({
             sendMessage: vi.fn(),
             hasMoreMessages: true,
             loadMoreMessages,
-            approveRequest,
-            rejectRequest,
+            actions,
+            displayApprovalTypes,
             stopMessage,
+            startNewDialog,
           },
-          sendInNewDialog,
-          createIntentDialog,
         },
     error,
     enabled,
     identityEnabled,
-    compactDialog: compact ? compactDialog : undefined,
-    copyDialogLink: vi.fn(),
   };
 }
 
@@ -257,7 +272,9 @@ describe('MingoComposerDock', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     panel.props = null;
+    panel.engine = null;
     panel.mounts = 0;
+    panel.threadMounts = 0;
     panel.loaded = true;
     panel.loading = null;
     pageChip.node = null;
@@ -622,7 +639,7 @@ describe('MingoComposerDock', () => {
   it('sends a quick action at once, in a new chat', () => {
     render('/mingo/');
     act(() => chips.onSend?.('List every online machine'));
-    expect(sendInNewDialog).toHaveBeenCalledWith('List every online machine');
+    expect(startNewDialog).toHaveBeenCalledWith({ prompt: 'List every online machine' });
     expect(panel.prefillDraft).not.toHaveBeenCalled();
   });
 
@@ -632,17 +649,15 @@ describe('MingoComposerDock', () => {
     expect(panel.focusComposer).toHaveBeenCalledTimes(1);
   });
 
-  it('builds its chat with the props builder, through its own send', () => {
+  it("draws the session's engine as it is, and is told of the panel's sends", () => {
     render('/devices/');
-    // The state the chat sends through is the dock's wrapper around the session's.
-    expect(props().mingoState).toMatchObject({ activeDialogId: null, sendMessage: expect.any(Function) });
-    expect(props().mingoState).not.toHaveProperty('fromBuilder');
-  });
-
-  it("hands the chat page header the builder's dialog actions (Unarchive)", () => {
-    useChatPageNodeStore.setState({ node: document.createElement('div') });
-    render('/mingo/chat/');
-    expect(props().mingoDialogCapabilities).toBe(CAPABILITIES);
+    const { chat } = surface.value as { chat: { state: unknown } };
+    expect(panel.engine).toBe(chat.state);
+    expect(props()).not.toHaveProperty('mingoState');
+    expect(props()).not.toHaveProperty('mingoDialogCapabilities');
+    expect(props().onMessageSent).toEqual(expect.any(Function));
+    expect(props()).toMatchObject({ contextPicker: { fromBuilder: true } });
+    expect(builder.lastOptions).toHaveProperty('dialogStatusOf');
   });
 
   describe('per route', () => {
@@ -656,7 +671,7 @@ describe('MingoComposerDock', () => {
         composerPlaceholder: 'Ask Mingo or describe a task…',
         contextMemory: CONTEXT_MEMORY,
       });
-      expect(container.firstElementChild?.className).toContain('max-w-[880px]');
+      expect(container.querySelector('section')?.className).toContain('max-w-[880px]');
     });
 
     it('no other page carries the quick actions, a full-width one included', () => {
@@ -679,7 +694,7 @@ describe('MingoComposerDock', () => {
       render('/mingo/chat/');
       expect(props()).toMatchObject({ composerPlaceholder: 'Reply to Mingo…' });
       expect(props().showModel).toBeUndefined();
-      expect(container.firstElementChild?.className).toContain('max-w-[760px]');
+      expect(container.querySelector('section')?.className).toContain('max-w-[760px]');
     });
 
     it('any other page: about this page, the memory strip and the model row', () => {
@@ -689,7 +704,7 @@ describe('MingoComposerDock', () => {
         composerPlaceholder: 'Ask Mingo about this page…',
         contextMemory: CONTEXT_MEMORY,
       });
-      expect(container.firstElementChild?.className).toContain('max-w-[880px]');
+      expect(container.querySelector('section')?.className).toContain('max-w-[880px]');
     });
 
     it('full-width pages: no memory strip, the model row kept', () => {
@@ -763,41 +778,86 @@ describe('MingoComposerDock', () => {
       renderV2('/devices/');
       expect(panel.showWhatToAsk).toHaveBeenCalledOnce();
     });
+
+    describe("a chat's own page (CU-17tkuw66n0m)", () => {
+      const pageNode = document.createElement('div');
+
+      it('shows the thread beside a page and on the chat page in one column node: it never remounts', () => {
+        setSurface({ activeDialogId: 'd-1' });
+        useChatPageNodeStore.setState({ node: null, threadReady: false });
+        renderV2('/devices/');
+        expect(props().threadContainer).toBe(columnNode);
+        // "Close page" goes here: the chat page lets the thread in one commit after it arrives
+        // (its layout effect). The thread waits in the column meanwhile.
+        useChatPageNodeStore.setState({ node: pageNode });
+        renderV2('/mingo/chat/?id=d-1');
+        expect(props().threadContainer).toBe(columnNode);
+        act(() => useChatPageNodeStore.setState({ threadReady: true }));
+        expect(props().threadContainer).toBe(columnNode);
+        act(() => useChatPageNodeStore.setState({ node: null, threadReady: false }));
+        renderV2('/devices/');
+        expect(props().threadContainer).toBe(columnNode);
+        expect(panel.threadMounts).toBe(1);
+      });
+
+      it("from Mingo's home, lets the thread into the column once the page lets it in, never into the page", () => {
+        setSurface({ activeDialogId: 'd-1' });
+        useChatPageNodeStore.setState({ node: null, threadReady: false });
+        renderV2('/mingo/');
+        expect(props().threadContainer).toBeNull();
+        useChatPageNodeStore.setState({ node: pageNode });
+        renderV2('/mingo/chat/?id=d-1');
+        // The page's skeleton is up (the page column): no thread behind it yet.
+        expect(props().threadContainer).toBeNull();
+        act(() => useChatPageNodeStore.setState({ threadReady: true }));
+        expect(props().threadContainer).toBe(columnNode);
+        expect(panel.threadMounts).toBe(1);
+      });
+
+      it('on a phone keeps the thread on the chat page itself', () => {
+        viewport.mdUp = false;
+        setSurface({ activeDialogId: 'd-1' });
+        useChatPageNodeStore.setState({ node: pageNode, threadReady: true });
+        renderV2('/mingo/chat/?id=d-1');
+        expect(props().threadContainer).toBe(pageNode);
+      });
+
+      it("the tour block's × leaves the chat page, as the chat's own close does", () => {
+        setSurface({ activeDialogId: 'd-1' });
+        useMingoSheetStore.setState({ lastPage: '/devices/' });
+        useChatPageNodeStore.setState({ node: pageNode, threadReady: true });
+        renderV2('/mingo/chat/?id=d-1');
+        act(() => tour.input?.onClose?.());
+        expect(nav.push).toHaveBeenCalledWith('/devices/');
+        expect(useManhattanCentreStore.getState().chatView).toBe('split');
+      });
+    });
   });
 
-  describe("Compact: the chat's ⋯, not a button under the input", () => {
-    it("hands the session's Compact to the chat's dialog actions", () => {
-      setSurface({ activeDialogId: 'd-1' });
-      render('/mingo/chat/');
-      expect(builder.lastOptions).toMatchObject({ compactDialog });
-      expect(props().composerFooterActions).toBeUndefined();
-      expect(props().composerMenuItems).toBeUndefined();
-    });
-
-    it('hands none while the compact flag is off', () => {
-      setSurface({ activeDialogId: 'd-1', compact: false });
-      render('/mingo/chat/');
-      expect(builder.lastOptions?.compactDialog).toBeUndefined();
-    });
+  // Compact is the engine's dialog action (the chat's ⋯), never a button under the input.
+  it('puts no Compact under the input', () => {
+    setSurface({ activeDialogId: 'd-1' });
+    render('/mingo/chat/');
+    expect(props().composerFooterActions).toBeUndefined();
+    expect(props().composerMenuItems).toBeUndefined();
   });
 
   // MISSING 3.6-3.8: the thread on the chat page is the session's, with everything the
   // classic panel drew in it.
-  it("portals the session's thread: approvals, mention and context chips, paging, Stop", () => {
+  it("portals the session's thread: mention and context chips, paging, Stop", () => {
     useChatPageNodeStore.setState({ node: document.createElement('div') });
     setSurface({ activeDialogId: 'd-1' });
     render('/mingo/chat/');
     expect(props()).toMatchObject({
-      pendingApprovals: PENDING_APPROVALS,
-      renderMention: RENDER_MENTION,
+      renderRecordChip: RENDER_MENTION,
       renderContextItem: RENDER_CONTEXT_ITEM,
     });
-    expect(props().mingoState).toMatchObject({
+    expect(panel.engine).toMatchObject({
       activeDialogId: 'd-1',
       hasMoreMessages: true,
       loadMoreMessages,
-      approveRequest,
-      rejectRequest,
+      actions,
+      displayApprovalTypes,
       stopMessage,
     });
   });
@@ -812,8 +872,30 @@ describe('MingoComposerDock', () => {
     expect(identity.enabled).toBe(false);
   });
 
+  // Figma `chat/dock` (node 4368:14042): the page's background under the composer across the
+  // column, and a fade into it over the page above, on every page.
+  it.each(['/devices/', '/mingo/', '/scripts/new/'])('lays the composer on its ground on %s', pathname => {
+    render(pathname);
+    const ground = container.querySelector('[data-testid="mingo-composer-dock-ground"]');
+    const classes = ground?.className.split(' ') ?? [];
+    expect(classes).toEqual(
+      expect.arrayContaining([
+        'bg-ods-bg',
+        'pointer-events-auto',
+        'before:bottom-full',
+        'before:h-[var(--spacing-system-xlf)]',
+        'before:from-transparent',
+        'before:to-ods-bg',
+        'before:pointer-events-none',
+      ]),
+    );
+    // The ground spans the column; the composer is centred on it at the route's width.
+    expect(ground?.querySelector('section')?.className).toContain('mx-auto');
+  });
+
   describe('on a phone', () => {
-    const section = () => container.querySelector('section');
+    // The ground, which the phone rule hides with the composer on it.
+    const section = () => container.querySelector('[data-testid="mingo-composer-dock-ground"]');
 
     it('draws no composer under a page, below md only, still mounted', () => {
       viewport.mdUp = false;
@@ -838,7 +920,7 @@ describe('MingoComposerDock', () => {
       expect(section()?.className).not.toContain('max-md:hidden');
     });
 
-    it("steps out from under the chat list on Mingo's own pages in Manhattan v2, so the list fills the screen", () => {
+    it("stays under v2's chat list, a panel over the page and its scrim (the composer does not step out)", () => {
       nav.pathname = '/mingo/';
       nav.search = '';
       act(() =>
@@ -850,7 +932,7 @@ describe('MingoComposerDock', () => {
       );
       expect(section()?.className).not.toContain('max-md:hidden');
       act(() => useMingoSheetStore.getState().showList());
-      expect(section()?.className).toContain('max-md:hidden');
+      expect(section()?.className).not.toContain('max-md:hidden');
       act(() => useMingoSheetStore.getState().hideList());
       expect(section()?.className).not.toContain('max-md:hidden');
     });
@@ -1023,14 +1105,14 @@ describe('MingoComposerDock', () => {
     it('Meet Mingo: the prompt is sent in a new chat', () => {
       render('/onboarding/');
       act(() => useMingoLauncherStore.getState().sendToMingo('What can you do?'));
-      expect(sendInNewDialog).toHaveBeenCalledWith('What can you do?');
+      expect(startNewDialog).toHaveBeenCalledWith({ prompt: 'What can you do?' });
       expect(useMingoLauncherStore.getState().dockRequest).toBeNull();
     });
 
     it('Generate with AI: the intent chat is created at once, from the page it was raised on', () => {
       render('/scripts/');
       act(() => useMingoLauncherStore.getState().startIntentChat('CREATE_SCRIPT'));
-      expect(createIntentDialog).toHaveBeenCalledWith('CREATE_SCRIPT');
+      expect(startNewDialog).toHaveBeenCalledWith({ intent: 'CREATE_SCRIPT' });
       expect(nav.push).not.toHaveBeenCalledWith(routes.mingo.home);
       expect(useMingoLauncherStore.getState().dockRequest).toBeNull();
     });

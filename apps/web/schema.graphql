@@ -2669,8 +2669,6 @@ type Notification implements Node {
   title: String!
   description: String
   createdAt: Instant!
-  read: Boolean! @deprecated(reason: "Use status.")
-
   """
   The recipient's read state of this notification. DELETED rows are never listed.
   """
@@ -3010,11 +3008,6 @@ type OrganizationImage {
   sourceType: String!
 }
 
-""" Deprecated: Use OrganizationConnection instead"""
-type OrganizationList {
-  organizations: [Organization!]!
-}
-
 type OrganizationRemoteAccessPolicy {
   organizationId: String!
 
@@ -3290,8 +3283,7 @@ type Query {
   """
   The tenant's sessions, filtered and sorted server-side; no filter returns every device, newest first. first is clamped
   to 1..100, default 20. Cursors are valid only under the sort they were issued for: another sort or direction reads
-  INVALID_CURSOR, start again without after. deviceId, from and to are the device tab's old arguments: each one fills the
-  matching filter field when the filter leaves it empty, the filter wins otherwise.
+  INVALID_CURSOR, start again without after.
   A session that ended as never connected is not listed and not counted; remoteSession(sessionId) and the request
   audit still return it. A deleted session is not listed and not counted.
   ACTIVE sessions come first on the first page (no after), as a block of at most 100 ordered by startedAt desc then
@@ -3303,9 +3295,6 @@ type Query {
   requested sort, PROCESSING also matches it, and no other technician's ACTIVE session is listed.
   """
   remoteSessions(
-    deviceId: String @deprecated(reason: "use filter.deviceIds")
-    from: Instant @deprecated(reason: "use filter.from")
-    to: Instant @deprecated(reason: "use filter.to")
     filter: RemoteSessionFilter
     sort: RemoteSessionSort
     first: Int
@@ -3610,8 +3599,6 @@ type Query {
 
   " Agent logs, newest first, always scoped to the current tenant.\n Name devices with `machineIds`, or omit it to follow every device in the tenant.\n Paginate with first/after (older entries); re-query without `after` to pick up newer ones."
   deviceLogs(
-    machineId: String @deprecated(reason: "Use machineIds; a value given here is added to that list")
-
     """ 1-50 devices. Omit for every device in the tenant; an empty list is rejected"""
     machineIds: [String!]
 

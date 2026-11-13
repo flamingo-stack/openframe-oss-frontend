@@ -29,7 +29,7 @@ export interface IncidentRow {
   /**
    * The STORED id (`id` is the Relay global handle around it) — what the
    * ai-agent's insight resolver looks up, so it is what every Mingo context
-   * reference (`@insight:` chip, open view, dialog link) carries.
+   * reference (`record://insight/` link, open view, dialog link) carries.
    */
   insightId: string;
   title: string;

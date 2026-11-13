@@ -1,16 +1,8 @@
 import type { MingoUnifiedChat } from '../hooks/use-mingo-unified-chat-state';
 
-/**
- * The session's chat state as a surface reads it: everything
- * `useMingoUnifiedChatState()` returns except the live-tail bindings, which only
- * the provider renders (`<DialogSubscription>`, once per session). A second
- * subscription for the same dialog would apply every chunk twice.
- */
-export type MingoChatState = Omit<MingoUnifiedChat, 'subscription'>;
-
 export interface MingoChatSnapshot {
   /** Null while nothing runs: no surface registered, the provider disabled, or the state failed. */
-  chat: MingoChatState | null;
+  chat: MingoUnifiedChat | null;
   /**
    * Why the state stopped. Kept until every surface is gone, so a remounted surface
    * (the dock's retry) starts a fresh state.
@@ -32,14 +24,14 @@ export const IDLE_MINGO_CHAT: MingoChatSnapshot = Object.freeze({ chat: null, er
 export interface MingoChatStore {
   getSnapshot: () => MingoChatSnapshot;
   subscribe: (listener: () => void) => () => void;
-  publish: (chat: MingoChatState) => void;
+  publish: (chat: MingoUnifiedChat) => void;
   fail: (error: Error) => void;
   reset: () => void;
 }
 
 /** Field-by-field identity: the result object is rebuilt on every render, its fields are not. */
-function isSameChat(a: MingoChatState, b: MingoChatState): boolean {
-  const keys = Object.keys(a) as Array<keyof MingoChatState>;
+function isSameChat(a: MingoUnifiedChat, b: MingoUnifiedChat): boolean {
+  const keys = Object.keys(a) as Array<keyof MingoUnifiedChat>;
   return keys.length === Object.keys(b).length && keys.every(key => Object.is(a[key], b[key]));
 }
 

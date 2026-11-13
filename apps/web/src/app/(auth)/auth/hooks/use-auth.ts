@@ -37,8 +37,6 @@ export interface TenantDiscoveryResponse {
   has_existing_accounts: boolean;
   tenant_id?: string | null;
   tenant_name?: string | null;
-  /** The tenant's own providers plus the platform defaults and 'openframe', undistinguished. */
-  auth_providers?: string[] | null;
   /** Whether the tenant's built-in OpenFrame login is on; null when no tenant was found. */
   openframe_login_enabled?: boolean | null;
   /** Providers the tenant configured with its OWN app (no platform defaults); null when no tenant was found. */
@@ -113,7 +111,6 @@ export function useAuth() {
   const [email, setEmail] = useLocalStorage('auth:email', '');
   const [tenantInfo, setTenantInfo] = useLocalStorage<TenantInfo | null>('auth:tenantInfo', null);
   const [hasDiscoveredTenants, setHasDiscoveredTenants] = useLocalStorage('auth:hasDiscoveredTenants', false);
-  const [availableProviders, setAvailableProviders] = useLocalStorage<string[]>('auth:availableProviders', []);
 
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -135,7 +132,6 @@ export function useAuth() {
     if (userEmail !== email) {
       setHasDiscoveredTenants(false);
       setTenantInfo(null);
-      setAvailableProviders([]);
     }
 
     setEmail(userEmail);
@@ -158,17 +154,13 @@ export function useAuth() {
           tenantName: '',
           tenantDomain: data.domain || 'localhost',
         };
-        const providers = data.auth_providers || ['openframe'];
-
         setTenantInfo(discovered);
-        setAvailableProviders(providers);
         setHasDiscoveredTenants(true);
         setTenantId(data.tenant_id);
       } else {
         // No account for this address — drop any tenant a previous lookup left behind.
         setHasDiscoveredTenants(false);
         setTenantInfo(null);
-        setAvailableProviders([]);
       }
 
       return data;
@@ -413,7 +405,6 @@ export function useAuth() {
     setEmail('');
     setTenantInfo(null);
     setHasDiscoveredTenants(false);
-    setAvailableProviders([]);
     setIsLoading(false);
 
     if (isAppShell()) {
@@ -429,7 +420,7 @@ export function useAuth() {
       const sharedHostUrl = runtimeEnv.sharedHostUrl();
       window.location.replace(`${sharedHostUrl}${routes.auth.login}`);
     }
-  }, [clearTokens, setEmail, setTenantInfo, setHasDiscoveredTenants, setAvailableProviders, tenantInfo, queryClient]);
+  }, [clearTokens, setEmail, setTenantInfo, setHasDiscoveredTenants, tenantInfo, queryClient]);
 
   const reset = () => {
     setEmail('');
@@ -442,7 +433,6 @@ export function useAuth() {
     email,
     tenantInfo,
     hasDiscoveredTenants,
-    availableProviders,
     isLoading,
     isInitialized,
     discoverTenants,

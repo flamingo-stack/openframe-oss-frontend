@@ -7,14 +7,22 @@
 import { act, type ReactNode, useEffect, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { useChatPageNodeStore } from '@/app/components/mingo-shell/chat-page-node-store';
 import { useMingoSheetStore } from '@/app/components/mingo-shell/mingo-sheet-store';
 import { ManhattanCentre } from './manhattan-centre';
 import { useManhattanCentreStore, workAreaModeOf } from './manhattan-centre-store';
 import { ManhattanComposerPortal, ManhattanComposerSlot } from './manhattan-composer-host';
 
-const { nav, chatState } = vi.hoisted(() => ({
+const { nav, chatState, viewport } = vi.hoisted(() => ({
   nav: { pathname: '/devices', search: '', push: vi.fn() },
   chatState: { activeDialogId: null as string | null, messages: [] as unknown[] },
+  /** `useMdUp()`: `undefined` until the media query answers, false on a phone. */
+  viewport: { mdUp: true as boolean | undefined },
+}));
+
+vi.mock('@flamingo-stack/openframe-frontend-core/hooks', async importOriginal => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useMdUp: () => viewport.mdUp,
 }));
 
 vi.mock('next/navigation', () => ({
@@ -68,6 +76,8 @@ beforeEach(() => {
   chatState.activeDialogId = null;
   chatState.messages = [];
   useManhattanCentreStore.setState({ chatView: 'split', shownMode: null, whatToAskInColumn: false });
+  useChatPageNodeStore.setState({ node: null, chatMounted: false, threadReady: false });
+  viewport.mdUp = true;
 });
 
 afterEach(() => {
@@ -79,7 +89,6 @@ afterEach(() => {
 describe('workAreaModeOf', () => {
   it.each([
     ['home', true, 'split', 'page'],
-    ['chat', true, 'split', 'page'],
     // CU-17tkuw65znp: every page beside the chat column (Start Work when no chat is open).
     ['page', false, 'split', 'split'],
     ['page', true, 'split', 'split'],
@@ -95,22 +104,37 @@ describe('workAreaModeOf', () => {
   });
 
   it('no chat for the session (the paywall): the page alone', () => {
-    expect(workAreaModeOf('page', false, 'split', false, false, false)).toBe('page');
-    expect(workAreaModeOf('full-width', true, 'split', false, false, false)).toBe('page');
+    expect(workAreaModeOf('page', false, 'split', { chatEnabled: false })).toBe('page');
+    expect(workAreaModeOf('full-width', true, 'split', { chatEnabled: false })).toBe('page');
   });
 
   it('compact: the chat over the page instead of beside it, never over a full-height page unasked', () => {
-    expect(workAreaModeOf('page', true, 'split', true)).toBe('chat');
-    expect(workAreaModeOf('page', false, 'split', true)).toBe('page');
-    expect(workAreaModeOf('page', true, 'hidden', true)).toBe('page');
-    expect(workAreaModeOf('full-width', true, 'split', true)).toBe('page');
-    expect(workAreaModeOf('full-width', true, 'full', true)).toBe('chat');
-    expect(workAreaModeOf('home', true, 'split', true)).toBe('page');
+    const compact = { compact: true };
+    expect(workAreaModeOf('page', true, 'split', compact)).toBe('chat');
+    expect(workAreaModeOf('page', false, 'split', compact)).toBe('page');
+    expect(workAreaModeOf('page', true, 'hidden', compact)).toBe('page');
+    expect(workAreaModeOf('full-width', true, 'split', compact)).toBe('page');
+    expect(workAreaModeOf('full-width', true, 'full', compact)).toBe('chat');
+    expect(workAreaModeOf('home', true, 'split', compact)).toBe('page');
   });
 
   it('phone: the page alone, whatever the chat', () => {
-    expect(workAreaModeOf('page', true, 'split', false, true)).toBe('page');
-    expect(workAreaModeOf('page', true, 'full', false, true)).toBe('page');
+    expect(workAreaModeOf('page', true, 'split', { phone: true })).toBe('page');
+    expect(workAreaModeOf('page', true, 'full', { phone: true })).toBe('page');
+  });
+
+  it("a chat's own page: the chat column alone once the page lets the thread in (CU-17tkuw66n0m)", () => {
+    const threadIn = { chatPageThread: true };
+    expect(workAreaModeOf('chat', true, 'split', threadIn)).toBe('chat');
+    // Whatever the view the pages left behind, and for a chat not created yet ("What to ask Mingo?").
+    expect(workAreaModeOf('chat', true, 'hidden', threadIn)).toBe('chat');
+    expect(workAreaModeOf('chat', false, 'split', threadIn)).toBe('chat');
+    expect(workAreaModeOf('chat', true, 'split', { ...threadIn, compact: true })).toBe('chat');
+    // Its skeleton or its own states (not found, failed): the page.
+    expect(workAreaModeOf('chat', true, 'split')).toBe('page');
+    // A phone's chat page holds the thread itself; behind the paywall there is no chat.
+    expect(workAreaModeOf('chat', true, 'split', { ...threadIn, phone: true })).toBe('page');
+    expect(workAreaModeOf('chat', true, 'split', { ...threadIn, chatEnabled: false })).toBe('page');
   });
 });
 
@@ -275,11 +299,14 @@ describe('ManhattanCentre', () => {
     expect(container.querySelector('button')).toBeNull();
   });
 
-  it('draws no page header on a chat page (the chat header is its header)', () => {
+  it('draws no page header on a chat page (the chat header is its header), the chat column alone once the thread is in', () => {
     nav.pathname = '/mingo/chat/';
     chatState.activeDialogId = 'd-1';
     renderCentre();
     expect(currentMode()).toBe('page');
+    expect(container.querySelector('button')).toBeNull();
+    act(() => useChatPageNodeStore.setState({ threadReady: true }));
+    expect(currentMode()).toBe('chat');
     expect(container.querySelector('button')).toBeNull();
   });
 
@@ -297,7 +324,7 @@ describe('ManhattanCentre', () => {
     expect(currentMode()).toBe('page');
   });
 
-  it('alone with a chat waiting: brings it back beside the page; close leaves that chat on its page', () => {
+  it('alone with a chat waiting: brings it back beside the page', () => {
     chatState.activeDialogId = 'd-1';
     useManhattanCentreStore.setState({ chatView: 'hidden' });
     renderCentre();
@@ -319,18 +346,42 @@ describe('ManhattanCentre', () => {
     renderCentre();
     // On the chat's page the chat no longer waits: the next page shows it beside.
     expect(useManhattanCentreStore.getState().chatView).toBe('split');
+    // Its skeleton, then the chat column alone once the page lets the thread in.
     expect(currentMode()).toBe('page');
+    act(() => useChatPageNodeStore.setState({ threadReady: true }));
+    expect(currentMode()).toBe('chat');
   });
 
-  it.each(['hidden', 'full'] as const)('a new page comes beside the chat, whatever the last one had (%s)', view => {
+  it.each(['hidden', 'full'] as const)("the user's view holds on a new page (%s)", view => {
     chatState.activeDialogId = 'd-1';
     useManhattanCentreStore.setState({ chatView: view });
     renderCentre();
-    expect(currentMode()).not.toBe('split');
+    const mode = currentMode();
+    expect(mode).not.toBe('split');
     nav.pathname = '/devices/details/remote-shell/';
+    renderCentre();
+    expect(useManhattanCentreStore.getState().chatView).toBe(view);
+    expect(currentMode()).toBe(mode);
+  });
+
+  it('a chat closed beside the pages stays closed on the next one, until a chat opens', () => {
+    useManhattanCentreStore.setState({ chatView: 'hidden' });
+    renderCentre();
+    expect(currentMode()).toBe('page');
+    nav.pathname = '/software';
+    renderCentre();
+    expect(currentMode()).toBe('page');
+    // A chat picked in the history, a notification, a first send from the composer under the page.
+    chatState.activeDialogId = 'd-2';
     renderCentre();
     expect(useManhattanCentreStore.getState().chatView).toBe('split');
     expect(currentMode()).toBe('split');
+  });
+
+  it('starts beside the page after a reload: the view is not stored', () => {
+    useManhattanCentreStore.getState().setChatView('hidden');
+    expect(window.sessionStorage.length).toBe(0);
+    expect(window.localStorage.getItem('of.manhattan.chatView')).toBeNull();
   });
 
   it('a link from the chat full screen to another detail page (a query change) shows it beside the chat', () => {
@@ -402,6 +453,23 @@ describe('ManhattanCentre', () => {
     render(centre(false));
     expect(useManhattanCentreStore.getState().chatView).toBe('split');
     expect(currentMode()).toBe('split');
+  });
+
+  it('widened out of one column: a chat the user closed stays closed', () => {
+    chatState.activeDialogId = 'd-1';
+    useManhattanCentreStore.setState({ chatView: 'hidden' });
+    const centre = (compact: boolean) => (
+      <ManhattanCentre enabled compact={compact}>
+        {slots => <p data-testid="mode">{slots?.mode}</p>}
+      </ManhattanCentre>
+    );
+    render(centre(false));
+    render(centre(true));
+    nav.pathname = '/software';
+    render(centre(true));
+    render(centre(false));
+    expect(useManhattanCentreStore.getState().chatView).toBe('hidden');
+    expect(currentMode()).toBe('page');
   });
 
   it('with no chat: Start Work beside the page; full screen, then back with the layout button', () => {
@@ -481,7 +549,55 @@ describe('ManhattanCentre', () => {
     it('keeps the thread for a first send on its way (no chat id yet)', () => {
       chatState.messages = [{ id: 'm-1' }];
       renderColumn();
-      expect(startWork()?.classList.contains('hidden')).toBe(true);
+      expect(startWork()).toBeNull();
+      expect(thread()?.classList.contains('hidden')).toBe(false);
+    });
+
+    it('keeps Start Work mounted once shown: through a hidden column and a chat opening (CU-17tkuw66n0m)', () => {
+      renderColumn();
+      const shown = startWork();
+      expect(shown).not.toBeNull();
+      act(() => useManhattanCentreStore.setState({ chatView: 'hidden' }));
+      renderColumn();
+      expect(startWork()).toBe(shown);
+      act(() => useManhattanCentreStore.setState({ chatView: 'split' }));
+      chatState.activeDialogId = 'd-1';
+      renderColumn();
+      expect(startWork()).toBe(shown);
+      expect(shown?.classList.contains('hidden')).toBe(true);
+    });
+
+    it('mounts Start Work only once it is on screen', () => {
+      useManhattanCentreStore.setState({ chatView: 'hidden' });
+      renderColumn();
+      expect(startWork()).toBeNull();
+    });
+
+    it("mounts no Start Work on a phone, whose first render reads as a desktop's", () => {
+      viewport.mdUp = undefined;
+      renderColumn();
+      expect(startWork()).toBeNull();
+      viewport.mdUp = false;
+      renderColumn();
+      expect(startWork()).toBeNull();
+    });
+
+    it('mounts Start Work on a desktop once the media query answers', () => {
+      viewport.mdUp = undefined;
+      renderColumn();
+      expect(startWork()).toBeNull();
+      viewport.mdUp = true;
+      renderColumn();
+      expect(startWork()).not.toBeNull();
+    });
+
+    it("is the thread on a chat's own page, a chat not created yet included", () => {
+      nav.pathname = '/mingo/chat/';
+      nav.search = 'view=what-to-ask';
+      useChatPageNodeStore.setState({ threadReady: true });
+      renderColumn();
+      expect(startWork()).toBeNull();
+      expect(thread()?.classList.contains('hidden')).toBe(false);
     });
 
     it('"Close Start Work" leaves the page alone', () => {
