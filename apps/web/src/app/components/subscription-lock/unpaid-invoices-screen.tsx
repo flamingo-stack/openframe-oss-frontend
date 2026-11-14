@@ -14,6 +14,7 @@ import {
 } from '@/app/(app)/settings/billing-usage/components/shared/invoice-row';
 import { SubscriptionStatus } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
+import { BillingDeadlineNotice } from './billing-deadline-notice';
 import { ContactSupportButton, LockScreenActions } from './lock-screen-actions';
 import { byOldestFirst, OutstandingInvoiceRow } from './outstanding-invoice-row';
 import { WorkspaceInactiveScreen } from './workspace-inactive-screen';
@@ -216,6 +217,10 @@ function UnpaidInvoicesMain({ status, invoices, unavailable = false }: UnpaidInv
               : copy.description}
         </p>
       </div>
+
+      {/* The date this screen counts to, and the amount: shown once the invoices have answered, so the screen
+          settles in one step. */}
+      <BillingDeadlineNotice status={status} gated={loading} />
 
       {!unavailable && !nothingOutstanding && (
         <>

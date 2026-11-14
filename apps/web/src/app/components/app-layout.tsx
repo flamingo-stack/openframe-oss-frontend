@@ -25,13 +25,13 @@ import { HydratorBoundary } from '@/app/components/shared/hydrator-boundary';
 import { LogoutConfirmModal } from '@/app/components/shared/logout-confirm-modal';
 import { SidebarUpdateButton } from '@/app/components/sidebar-update-button';
 import { useFeatureFlag, useFeatureFlagGate, useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
+import { BillingNoticeType } from '@/generated/schema-enums';
 import { isBillingHidden, isBillingReadOnly } from '@/lib/billing-visibility';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useNativeBackDismissible } from '@/lib/native-back';
 import { isAppShell } from '@/lib/platform';
 import { MANAGE_AI_BALANCE_ACTION, routes } from '@/lib/routes';
 import { useSessionHealthStore } from '@/lib/session-health';
-import { dismissTrialBar, isTrialBarDismissed } from '@/lib/trial-bar-dismissal';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { isAuthOnlyMode, isOssTenantMode, isSaasTenantMode } from '../../lib/app-mode';
 import {
@@ -56,7 +56,18 @@ import {
   isBareChromeRoute,
   mingoHeaderLoadingCells,
 } from './app-shell-chrome';
-import { AiBalanceBar, BillingBarsHydrator, type BillingBarsState, NO_BARS, TrialEndingBar } from './billing-bars';
+import {
+  AiBalanceBar,
+  AutoTopUpDisabledBar,
+  BillingBarsHydrator,
+  type BillingBarsState,
+  BillingNoticesHydrator,
+  NO_BARS,
+  NO_NOTICE_BARS,
+  type NoticeBarsState,
+  TrialEndingBar,
+} from './billing-bars';
+import { useDismissBillingNotice } from './billing-notices/use-dismiss-billing-notice';
 import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
 import {
   MANHATTAN_WORK_AREA_SQUEEZE_FLOOR,
@@ -313,20 +324,14 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
    */
   const [billingBars, setBillingBars] = useState<BillingBarsState>(NO_BARS);
   /**
-   * The trial banner is the only dismissible one, and the dismissal is per
-   * TRIAL (see `trial-bar-dismissal.ts`). Read past hydration, never in the
-   * initializer: `localStorage` is empty on the server, so a state seeded from
-   * it makes the two renders disagree about whether the band exists — a
-   * mismatch that costs the whole shell subtree, exactly as the onboarding
-   * cache beside it documents.
+   * The bars the backend's billing notices raise (trial ending, auto top-up
+   * switched off). Both dismissible, for the workspace: dismissing removes the
+   * notice from the store, the hydrator reports it gone.
    */
-  const trialToken = billingBars.trial?.token ?? null;
-  const [trialDismissed, setTrialDismissed] = useState(false);
-  useEffect(() => {
-    setTrialDismissed(isTrialBarDismissed(trialToken));
-  }, [trialToken]);
+  const [noticeBars, setNoticeBars] = useState<NoticeBarsState>(NO_NOTICE_BARS);
+  const dismissBillingNotice = useDismissBillingNotice();
   /**
-   * Both bars exist for their action — top up the balance, activate the
+   * Every bar exists for its action — top up the balance, activate the
    * subscription — so they need a build that can do it: the mobile builds hide
    * every payment surface (App Store Guideline 3.1.1) and the desktop build
    * shows billing read-only — see `billing-visibility.ts`. Neither page these
@@ -704,28 +709,38 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     // workspace cannot act on it: the AI and trial bars send you to Billing &
     // Usage. Answered first, so no later branch has to remember the lock.
     topBar = undefined;
+  } else if (showBillingBars && noticeBars.autoTopUpDisabled) {
+    // Ahead of the balance bar: a top-up is tried when the balance runs low, so
+    // when it fails the balance is low too, and below that bar this one would
+    // never show. It names the cause and leads to the same dialog; dismissed,
+    // the balance bar takes the slot.
+    const { reason, eventKey } = noticeBars.autoTopUpDisabled;
+    topBar = (
+      <AutoTopUpDisabledBar
+        reason={reason}
+        onManage={() => router.push(routes.settings.billingUsage({ action: MANAGE_AI_BALANCE_ACTION }))}
+        onDismiss={() => dismissBillingNotice(BillingNoticeType.AUTO_TOP_UP_DISABLED, eventKey)}
+      />
+    );
   } else if (showBillingBars && billingBars.ai.tone !== 'default') {
-    // First in line: agents about to stop answering cannot wait, and this
-    // state is invisible from every page but Billing & Usage. The CTA lands
-    // with the top-up dialog already open.
+    // Agents about to stop answering cannot wait, and this state is invisible
+    // from every page but Billing & Usage. The CTA lands with the top-up dialog
+    // already open.
     topBar = (
       <AiBalanceBar
         tone={billingBars.ai.tone}
         onManage={() => router.push(routes.settings.billingUsage({ action: MANAGE_AI_BALANCE_ACTION }))}
       />
     );
-  } else if (showBillingBars && billingBars.trial && !trialDismissed) {
-    // Below the AI bars: a trial past its halfway point is a deadline, not a
-    // failure.
+  } else if (showBillingBars && noticeBars.trial) {
+    // A trial ending is a deadline, not a failure. A trial has no auto top-up,
+    // so the two never compete.
+    const { trialEndDate, eventKey } = noticeBars.trial;
     topBar = (
       <TrialEndingBar
-        daysLeft={billingBars.trial.daysLeft}
+        trialEndDate={trialEndDate}
         onActivate={() => router.push(routes.settings.billingUsage())}
-        onDismiss={() => {
-          if (!trialToken) return;
-          dismissTrialBar(trialToken);
-          setTrialDismissed(true);
-        }}
+        onDismiss={() => dismissBillingNotice(BillingNoticeType.TRIAL_ENDING, eventKey)}
       />
     );
   } else if (withOnboarding ? showOnboardingChrome : sessionReady && !isLocked) {
@@ -1108,6 +1123,14 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
         <HydratorBoundary>
           <BillingBarsHydrator onResolved={setBillingBars} />
         </HydratorBoundary>
+      )}
+      {/* The notices are read from another service: a failure costs their bars, nothing else. */}
+      {showBillingBars && (
+        <ErrorBoundary fallback={null}>
+          <HydratorBoundary>
+            <BillingNoticesHydrator onResolved={setNoticeBars} />
+          </HydratorBoundary>
+        </ErrorBoundary>
       )}
       {/* Desktop shell update offer. Also owns the mount-time availability
           check that the sidebar's update button reads. No-op elsewhere. */}

@@ -20,19 +20,27 @@ const capture = (topUp: AiTopUp) => {
   latest = topUp;
 };
 
-function Probe({ year, onRender }: { year: boolean; onRender: (topUp: AiTopUp) => void }) {
+interface ProbeProps {
+  year: boolean;
+  initial?: number | typeof NO_TOP_UP;
+  allowNone?: boolean;
+  onRender: (topUp: AiTopUp) => void;
+}
+
+function Probe({ year, initial = 50, allowNone = year, onRender }: ProbeProps) {
   onRender(
     useAiTopUp({
       tokenPrice: 0.00001,
-      initial: 50,
+      initial,
       presets: year ? YEAR_PRESETS : TOP_UP_PRESETS_USD,
-      allowNone: year,
+      allowNone,
     }),
   );
   return null;
 }
 
-const render = (year: boolean) => act(() => root.render(<Probe year={year} onRender={capture} />));
+const render = (year: boolean, props: Partial<ProbeProps> = {}) =>
+  act(() => root.render(<Probe year={year} onRender={capture} {...props} />));
 
 beforeEach(() => {
   container = document.createElement('div');
@@ -79,5 +87,34 @@ describe('useAiTopUp grid', () => {
     render(false);
     expect(latest.selection).toBe(CUSTOM_TOP_UP);
     expect(latest.amountUsd).toBe(150);
+  });
+});
+
+/**
+ * The paywall's opening choice when the backend waives the activation purchase
+ * (CU-17tkuw63m09): "Don't top up", read from data that may land after the form
+ * mounts, until the user picks.
+ */
+describe('useAiTopUp opening choice', () => {
+  it('opens on "Don\'t top up" when that is the initial choice', () => {
+    render(false, { initial: NO_TOP_UP, allowNone: true });
+    expect(latest.selection).toBe(NO_TOP_UP);
+    expect(latest.amountUsd).toBe(0);
+    expect(latest.validate()).toBeNull();
+  });
+
+  it('follows the initial choice until the user picks, then keeps the pick', () => {
+    render(false);
+    expect(latest.selection).toBe(50);
+
+    render(false, { initial: NO_TOP_UP, allowNone: true });
+    expect(latest.selection).toBe(NO_TOP_UP);
+
+    act(() => latest.selectPreset(20));
+    render(false, { initial: 50, allowNone: true });
+    expect(latest.selection).toBe(20);
+
+    act(() => latest.reset());
+    expect(latest.selection).toBe(50);
   });
 });

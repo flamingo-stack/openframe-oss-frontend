@@ -2591,6 +2591,12 @@ type Mutation {
   changing a subscription.
   """
   updateAutoTopUp(input: AutoTopUpSettingsInput!): AutoTopUpSettings!
+
+  """
+  Dismisses a billing notice for the whole tenant until its next event. PAYMENT_OVERDUE and
+  ACCOUNT_SUSPENDED cannot be dismissed.
+  """
+  dismissBillingNotice(type: BillingNoticeType!, eventKey: String!): Boolean!
   """
   Buy AI tokens for the given amount in USD. The amount must be a whole number of dollars and at
   least the configured minimum; the backend converts it to a quantity at the current tiered price
@@ -3819,6 +3825,11 @@ type Query {
   autoTopUpSettings: AutoTopUpSettings!
 
   """
+  The billing notices that hold now for this tenant, less the ones dismissed. Readable in every subscription state.
+  """
+  billingNotices: [BillingNotice!]!
+
+  """
   Users of the tenant, ordered by email.
   search: every whitespace-separated word must match the first name, last name or email
   (a self-deleted user's placeholder email is not matched). Up to 200 characters.
@@ -4607,6 +4618,70 @@ enum AutoTopUpDisabledReason {
   There is no card on file that can be charged with nobody present. The customer adds a card and turns automatic top-up back on.
   """
   NO_PAYMENT_METHOD
+}
+
+"""
+A billing notice that holds now. It disappears once its condition no longer does; the dates and amounts are
+the ones the email for the same event states. Fields not used by a type are null.
+"""
+type BillingNotice {
+  type: BillingNoticeType!
+
+  """
+  The event this notice is about; pass it back to dismiss the notice. A new event shows again.
+  """
+  eventKey: String!
+  severity: BillingNoticeSeverity!
+
+  """PAYMENT_OVERDUE: total overdue, in major currency units."""
+  amountDue: Float
+
+  """PAYMENT_OVERDUE: ISO 4217 code, lowercase as Stripe returns it."""
+  currency: String
+
+  """PAYMENT_OVERDUE: when the account is suspended unless paid."""
+  suspensionDate: Instant
+
+  """ACCOUNT_SUSPENDED: when the account is deleted."""
+  deletionDate: Instant
+
+  """TRIAL_ENDING: when the trial ends."""
+  trialEndDate: Instant
+
+  """AUTO_TOP_UP_DISABLED: PAYMENT_FAILED or AUTHENTICATION_ABANDONED."""
+  reason: AutoTopUpDisabledReason
+}
+
+"""How urgent a billing notice is."""
+enum BillingNoticeSeverity {
+  """Something to act on."""
+  WARNING
+
+  """The account is suspended or deleted within the next seven days."""
+  CRITICAL
+}
+
+"""
+An in-product billing notice the Payment Terms promise beside a billing email.
+"""
+enum BillingNoticeType {
+  """
+  An invoice is overdue; the account is suspended on suspensionDate unless it is paid. Cannot be dismissed.
+  """
+  PAYMENT_OVERDUE
+
+  """
+  The account is suspended for unpaid invoices and is deleted on deletionDate. Cannot be dismissed.
+  """
+  ACCOUNT_SUSPENDED
+
+  """The trial ends on trialEndDate, within the next seven days."""
+  TRIAL_ENDING
+
+  """
+  A card payment failed or 3-D Secure was not confirmed, so the system switched automatic top-up off; reason says which. Shown for seven days.
+  """
+  AUTO_TOP_UP_DISABLED
 }
 
 """Why automatic top-up is on but holding refills back for now."""
@@ -5814,6 +5889,15 @@ type SubscriptionDetail {
 
   """Aggregated usage for the current billing period."""
   usage: SubscriptionUsage!
+
+  """
+  Whether activating or renewing must include a token purchase. False while the tenant still holds
+  purchased tokens (usage.purchasedTokensRemaining > 0), when the requirement is switched off, or when the
+  prepaid token bank is off: the token top-up on the paywall is then optional. The answer is for a monthly
+  plan only and does not look at the period: for a yearly plan the paywall must treat the purchase as
+  optional, since the checkout never requires it there.
+  """
+  activationTokenPurchaseRequired: Boolean!
 
   """Forecast of the next invoice from Stripe."""
   currentInvoice: InvoiceSummary

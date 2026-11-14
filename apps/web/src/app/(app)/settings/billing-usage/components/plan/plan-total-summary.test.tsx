@@ -76,4 +76,14 @@ describe('PlanTotalSummary', () => {
     expect(text()).not.toContain('Total due today');
     expect(container.firstElementChild?.children).toHaveLength(2);
   });
+
+  it('owes nothing today on pay-as-you-go without a top-up, and names nothing it is for', () => {
+    act(() =>
+      root.render(
+        <PlanTotalSummary mode="PAYG" total={null} topUpUsd={null} showAiNote firstBillingDate={FIRST_BILLING_DATE} />,
+      ),
+    );
+    expect(text()).toContain(`Total due today: ${formatCurrency(0)}`);
+    expect(text()).not.toContain('AI balance only');
+  });
 });

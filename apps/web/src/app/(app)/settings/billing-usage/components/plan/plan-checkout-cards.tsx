@@ -84,6 +84,7 @@ export function PlanCheckoutCards({ query, form }: PlanCheckoutCardsProps) {
             loading={form.loading}
             deviceMode={form.deviceUpdates?.mode ?? null}
             topUp={form.topUp}
+            purchasedBalance={form.purchasedBalance}
             autoTopUp={form.autoTopUp}
             canAutoTopUp={form.canAutoTopUp}
             onAutoTopUpChange={form.setAutoTopUp}
