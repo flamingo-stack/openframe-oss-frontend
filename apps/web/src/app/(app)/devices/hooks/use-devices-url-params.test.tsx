@@ -17,11 +17,13 @@ const url = vi.hoisted(() => ({
     directorySources: ['MICROSOFT_365'],
     tags: [] as string[],
     viewMode: 'table',
+    sort: '',
   },
 }));
 
 vi.mock('@flamingo-stack/openframe-frontend-core/components/features', () => ({
   DEFAULT_DEVICES_LIST_STATUSES: ['ONLINE', 'OFFLINE'],
+  DEVICE_FILTER_OUTDATED: 'OUTDATED',
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', () => ({
   useApiParams: () => ({ params: url.params, setParam: vi.fn(), setParams: vi.fn() }),
@@ -79,5 +81,57 @@ describe('useDevicesUrlParams, directory filters in the address', () => {
     // The panel reads these for "is a filter active" and for its checked funnels.
     expect(params).toMatchObject({ userLinks: [], directorySources: [] });
     expect(tableFilters).toMatchObject({ user: [], sources: [] });
+  });
+});
+
+describe("useDevicesUrlParams, the Status funnel's OUTDATED option and the sort", () => {
+  beforeEach(() => {
+    latest = null;
+    url.params.userLinks = [];
+    url.params.directorySources = [];
+    url.params.sort = '';
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('sends OUTDATED alone as clientOutdated over the default statuses, and keeps it ticked', () => {
+    url.params.statuses = ['OUTDATED'];
+    const { filters, tableFilters } = render();
+    expect(filters).toMatchObject({ statuses: ['ONLINE', 'OFFLINE'], clientOutdated: true });
+    expect(tableFilters.status).toEqual(['OUTDATED']);
+  });
+
+  it('ANDs OUTDATED with the statuses ticked beside it', () => {
+    url.params.statuses = ['ONLINE', 'OUTDATED'];
+    const { filters, tableFilters } = render();
+    expect(filters).toMatchObject({ statuses: ['ONLINE'], clientOutdated: true });
+    expect(tableFilters.status).toEqual(['ONLINE', 'OUTDATED']);
+  });
+
+  it('keeps OUTDATED beside a selection that spells out the defaults', () => {
+    url.params.statuses = ['ONLINE', 'OFFLINE', 'OUTDATED'];
+    const { filters, tableFilters } = render();
+    expect(filters).toMatchObject({ statuses: ['ONLINE', 'OFFLINE'], clientOutdated: true });
+    expect(tableFilters.status).toEqual(['ONLINE', 'OFFLINE', 'OUTDATED']);
+  });
+
+  it('sends no clientOutdated when OUTDATED is not ticked', () => {
+    url.params.statuses = ['ONLINE'];
+    expect(render().filters).not.toHaveProperty('clientOutdated');
+  });
+
+  it('orders outdated first only for ?sort=clientOutdated', () => {
+    url.params.statuses = [];
+    expect(render().sort).toEqual({ field: 'status', direction: 'DESC' });
+    url.params.sort = 'clientOutdated';
+    expect(render().sort).toEqual({ field: 'clientOutdated', direction: 'DESC' });
+    url.params.sort = 'hostname';
+    expect(render().sort).toEqual({ field: 'status', direction: 'DESC' });
   });
 });

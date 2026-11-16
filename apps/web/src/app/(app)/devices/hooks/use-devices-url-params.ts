@@ -8,6 +8,7 @@ import type { TagSearchOption } from '@flamingo-stack/openframe-frontend-core/co
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo } from 'react';
 import { useSearchParam } from '@/app/hooks/use-search-param';
+import { type DeviceListSort, parseDeviceListSort, splitOutdatedStatus } from '../utils/outdated-client-list';
 
 interface UseDevicesUrlParamsOptions {
   /**
@@ -40,6 +41,7 @@ export function useDevicesUrlParams(options: UseDevicesUrlParamsOptions = {}) {
     directorySources: { type: 'array', default: [] },
     tags: { type: 'array', default: [] },
     viewMode: { type: 'string', default: 'table' },
+    sort: { type: 'string', default: '' },
   });
 
   // Local search keeps typing responsive; the shared hook debounces it to the
@@ -90,21 +92,33 @@ export function useDevicesUrlParams(options: UseDevicesUrlParamsOptions = {}) {
   // defaults (online/offline). This is query-only: the filter UI shows just the
   // explicit selection (`selectedStatuses`), so nothing looks checked in the
   // default state.
-  const effectiveStatuses = useMemo(
-    () => (selectedStatuses.length > 0 ? selectedStatuses : defaultStatuses),
-    [selectedStatuses, defaultStatuses],
+  //
+  // OUTDATED is the outdated-client flag, not a status: it leaves `statuses` and goes out as
+  // `clientOutdated: true`. With nothing else ticked the defaults still apply, so OUTDATED alone
+  // lists the outdated devices of the default view, never archived or deleted ones.
+  const { statuses: selectedDeviceStatuses, clientOutdated } = useMemo(
+    () => splitOutdatedStatus(selectedStatuses),
+    [selectedStatuses],
   );
+  const effectiveStatuses = useMemo(
+    () => (selectedDeviceStatuses.length > 0 ? selectedDeviceStatuses : defaultStatuses),
+    [selectedDeviceStatuses, defaultStatuses],
+  );
+
+  // Outdated first only when the address asks for it (the outdated-client bar's Manage Devices).
+  const sort: DeviceListSort = useMemo(() => parseDeviceListSort(params.sort), [params.sort]);
 
   const filters: DeviceFilterInput = useMemo(
     () => ({
       ...(effectiveStatuses.length > 0 && { statuses: effectiveStatuses }),
+      ...(clientOutdated && { clientOutdated: true }),
       osTypes: params.osTypes,
       organizationIds: params.organizationIds,
       ...(userLinks.length > 0 && { userLinks }),
       ...(directorySources.length > 0 && { directorySources }),
       ...(tagValues.length > 0 && { tagValues }),
     }),
-    [effectiveStatuses, params.osTypes, params.organizationIds, userLinks, directorySources, tagValues],
+    [effectiveStatuses, clientOutdated, params.osTypes, params.organizationIds, userLinks, directorySources, tagValues],
   );
 
   const tableFilters = useMemo(
@@ -160,6 +174,7 @@ export function useDevicesUrlParams(options: UseDevicesUrlParamsOptions = {}) {
     setLocalSearch,
     debouncedSearch,
     filters,
+    sort,
     tableFilters,
     tagOptions,
     handleFilterChange,

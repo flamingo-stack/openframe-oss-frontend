@@ -360,9 +360,14 @@ export const routes = {
      * `?statuses=`, what `useDevicesUrlParams` reads). `organizationIds` are the RAW
      * `Organization.organizationId` values. An empty list means the page default (every
      * customer; online + offline), so it is dropped like an absent option.
+     * `sort: 'clientOutdated'` lists devices with an outdated OpenFrame client first (`?sort=`, what
+     * `parseDeviceListSort` reads), without narrowing the list to them.
      */
-    filtered: (o: { organizationIds?: readonly string[]; statuses?: readonly DeviceStatus[] }) =>
-      withQuery(DEVICES_LIST_PATH, { organizationIds: o.organizationIds, statuses: o.statuses }),
+    filtered: (o: {
+      organizationIds?: readonly string[];
+      statuses?: readonly DeviceStatus[];
+      sort?: 'clientOutdated';
+    }) => withQuery(DEVICES_LIST_PATH, { organizationIds: o.organizationIds, statuses: o.statuses, sort: o.sort }),
     /** Deleted devices. `organizationId`: one customer's, opened from its Devices tab (the same id its list locks). */
     archive: (o?: { organizationId?: string | number }) =>
       withQuery('/devices/archive', { organizationId: o?.organizationId }),

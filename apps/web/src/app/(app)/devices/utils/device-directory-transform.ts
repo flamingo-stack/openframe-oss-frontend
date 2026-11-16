@@ -24,7 +24,7 @@ export function machineDirectoryToDevice(ref: deviceDirectoryFields_machine$key)
 }
 
 type DirectoryListedNode = deviceFields_machine$key &
-  deviceDirectoryFields_machine$key & { readonly unreadNotificationCount: number };
+  deviceDirectoryFields_machine$key & { readonly unreadNotificationCount: number; readonly clientOutdated: boolean };
 
 /** The scrolled list's edges with their USER and SOURCES cells: {@link readListedMachineEdges}'s rows, each merged. */
 export function readDirectoryListedMachineEdges(

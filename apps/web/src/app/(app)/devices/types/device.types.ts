@@ -212,6 +212,11 @@ export interface Device {
   orbit_version?: string;
   fleet_desktop_version?: string;
   scripts_enabled?: boolean;
+  /**
+   * The server's verdict that the OpenFrame client is below the supported version (`Machine.clientOutdated`). The
+   * threshold is a server setting: never compare `agentVersion` against a version here.
+   */
+  clientOutdated?: boolean;
   agentVersion?: string;
 
   // Unified Arrays (NO NESTING)
@@ -309,6 +314,8 @@ export type DeviceGraphQlNode = {
   ip?: string;
   macAddress?: string;
   osUuid?: string;
+  /** The server's outdated-client verdict (`Machine.clientOutdated`). */
+  clientOutdated?: boolean;
   agentVersion?: string;
   status: string;
   lastSeen?: string;
