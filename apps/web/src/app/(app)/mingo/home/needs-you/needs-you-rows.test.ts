@@ -197,6 +197,13 @@ describe('sameReport', () => {
     expect(sameReport(undefined, { status: 'loading' })).toBe(false);
     expect(sameReport({ status: 'loading' }, ready())).toBe(false);
   });
+
+  it('sees a change of the page the Mingo prompt names', () => {
+    const chat = { ...row('approvals', '1', 1), promptHref: mingoDialogLink('d-1') };
+    expect(sameReport(ready(chat), ready({ ...chat }))).toBe(true);
+    expect(sameReport(ready(chat), ready({ ...chat, promptHref: mingoDialogLink('d-2') }))).toBe(false);
+    expect(sameReport(ready(chat), ready(row('approvals', '1', 1)))).toBe(false);
+  });
 });
 
 describe('categoryHref', () => {
@@ -274,9 +281,35 @@ describe('row builders', () => {
     ).toBe(42);
   });
 
-  it('a Mingo approval opens its chat', () => {
+  it('a Mingo approval opens the Needs approval page, not its chat; the Mingo prompt names the chat', () => {
     const result = approvalRow(approval({ notificationType: 'MINGO_APPROVAL_REQUEST', dialogId: 'd-1' }));
-    expect(result?.href).toBe(mingoDialogLink('d-1'));
+    expect(result?.href).toBe(routes.approvals);
+    expect(result?.promptHref).toBe(mingoDialogLink('d-1'));
+    expect(result && needsYouMingoPrompt(result)).toContain(`Page: ${mingoDialogLink('d-1')}`);
+  });
+
+  it('a ticket approval names its ticket to Mingo as well', () => {
+    const result = approvalRow(
+      approval({ notificationType: 'TICKET_APPROVAL_REQUEST', ticketId: 't-1', dialogId: 'd-1' }),
+    );
+    expect(result?.href).toBe(routes.tickets.dialog('t-1'));
+    expect(result?.promptHref).toBeUndefined();
+    expect(result && needsYouMingoPrompt(result)).toContain(`Page: ${routes.tickets.dialog('t-1')}`);
+  });
+
+  it('an approval with neither a ticket nor a chat still opens the Needs approval page', () => {
+    const result = approvalRow(approval({ notificationType: 'MINGO_APPROVAL_REQUEST' }));
+    expect(result?.href).toBe(routes.approvals);
+    expect(result?.promptHref).toBeUndefined();
+  });
+
+  it("skips a CLIENT approval: it is the end user's to answer, and the Needs approval page leaves it out", () => {
+    expect(
+      approvalRow(approval({ notificationType: 'MINGO_APPROVAL_REQUEST', dialogId: 'd-1', approvalType: 'CLIENT' })),
+    ).toBeNull();
+    expect(
+      approvalRow(approval({ notificationType: 'MINGO_APPROVAL_REQUEST', dialogId: 'd-1', approvalType: 'ADMIN' })),
+    ).not.toBeNull();
   });
 
   it("names a Mingo request the backend left as 'Approval required': its chat, else its first action", () => {
