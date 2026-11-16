@@ -3,7 +3,7 @@ import type { IncidentRow } from '@/app/(app)/incidents/utils/incident-transform
 import type { Dialog } from '@/app/(app)/tickets/types/dialog.types';
 import { getTicketDeviceName } from '@/app/(app)/tickets/utils/ticket-device-name';
 import { formatTicketRef } from '@/app/(app)/tickets/utils/ticket-ref';
-import { untitledRequestName } from '@/app/components/approvals/approval-inbox';
+import { isTechnicianApproval, untitledRequestName } from '@/app/components/approvals/approval-inbox';
 import { resolveNotificationRoute } from '@/app/components/notifications/notification-navigation';
 import { isApprovalResolved } from '@/graphql/notifications/notification-attributes';
 import type { FeatureFlagGate } from '@/lib/feature-flags';
@@ -57,8 +57,10 @@ export interface NeedsYouRow {
   /** The status tag: why it needs a person. */
   reason: string;
   tone: NeedsYouTone;
-  /** The entity's page. */
+  /** Where the open button goes: the entity's page. */
   href: string;
+  /** The page the Mingo prompt names, when it is not `href` (an approval's Mingo chat). */
+  promptHref?: string;
   /**
    * When the item started needing a person, in epoch ms (0 when unknown): the queue is newest
    * first, and a dismissal hides the item only up to this time.
@@ -198,6 +200,7 @@ function sameRow(a: NeedsYouRow, b: NeedsYouRow): boolean {
     a.reason === b.reason &&
     a.tone === b.tone &&
     a.href === b.href &&
+    a.promptHref === b.promptHref &&
     a.at === b.at &&
     a.subjects.length === b.subjects.length &&
     a.subjects.every((subject, index) => subject === b.subjects[index])
@@ -256,17 +259,25 @@ const textOf = (value: unknown): string => (typeof value === 'string' ? value : 
 
 /**
  * A pending approval request — a `TICKET_` / `MINGO_APPROVAL_REQUEST` notification still
- * waiting for a decision, as the notifications drawer lists it. Opens where the request is
- * decided: its ticket, else its Mingo chat (the drawer's own route mapping).
+ * waiting for a technician's decision, the set the Needs approval page lists (a `CLIENT`
+ * approval is the end user's to answer, and the page leaves it out too).
+ *
+ * Opens where the request is decided without Mingo: its ticket, else the Needs approval page.
+ * Not its Mingo chat, which the drawer opens: on this row that would make the open button a
+ * second "Fix with Mingo". The chat is still where the request lives, so the Mingo prompt names it.
  */
 export function approvalRow(
   notification: Notification,
   chatTitles: Readonly<Record<string, string>> = {},
 ): NeedsYouRow | null {
   const approval = getApprovalMeta(notification);
-  if (!approval || isApprovalResolved(approval.resolution)) return null;
-  const href = resolveNotificationRoute(notification);
-  if (!href) return null;
+  if (!approval || isApprovalResolved(approval.resolution) || !isTechnicianApproval(approval.approvalType)) {
+    return null;
+  }
+  // The drawer's route: the ticket when there is one, else the Mingo chat (or none).
+  const route = resolveNotificationRoute(notification);
+  const ticketRoute = approval.ticketId ? route : null;
+  const chatRoute = approval.ticketId ? null : route;
 
   const tools = approval.toolCalls.map(call => call.toolTitle || call.toolName).filter(Boolean);
   return {
@@ -276,7 +287,8 @@ export function approvalRow(
     detail: textOf(notification.description) || tools.join(' · '),
     reason: 'Needs approval',
     tone: 'warning',
-    href,
+    href: ticketRoute ?? routes.approvals,
+    ...(chatRoute ? { promptHref: chatRoute } : {}),
     at: epochOf(notification.createdAt),
     subjects: approval.ticketId
       ? [`approval:${approval.approvalRequestId}`, `ticket:${approval.ticketId}`]
@@ -325,7 +337,7 @@ const ENTITY_NOUN: Record<NeedsYouEntity, string> = {
 /** What the Mingo button sends: the item, why it needs the user, what else is known, and where it is. */
 export function needsYouMingoPrompt(row: NeedsYouRow): string {
   const what = `${ENTITY_NOUN[row.entity]} "${row.name}" needs my attention (${row.reason.toLowerCase()}).`;
-  return [what, row.detail && `Details: ${row.detail}.`, `Page: ${row.href}`, 'Help me resolve it.']
+  return [what, row.detail && `Details: ${row.detail}.`, `Page: ${row.promptHref ?? row.href}`, 'Help me resolve it.']
     .filter(Boolean)
     .join('\n');
 }
