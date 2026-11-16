@@ -98,6 +98,7 @@ export function SoftwareAutoUpdateForm({ softwareId, title, os, loading = false 
   const { toast } = useToast();
   const detailsRoute = routes.software.details(softwareId);
   const handleBack = useSafeBack(detailsRoute);
+  // Picks only what the settings open on: the server's 7-day deadline where devices can notify, Force otherwise.
   const notificationsGate = useFeatureFlagGate('software-update-notifications');
   const userNotifications = notificationsGate === 'on';
 
@@ -194,12 +195,7 @@ export function SoftwareAutoUpdateForm({ softwareId, title, os, loading = false 
 
       {enabled && (
         <>
-          <SoftwareUpdatePolicyFields
-            name="autoUpdatePolicy"
-            policy={policy}
-            userNotifications={userNotifications}
-            onChange={setPolicy}
-          />
+          <SoftwareUpdatePolicyFields name="autoUpdatePolicy" policy={policy} onChange={setPolicy} />
 
           <h2 className="pt-[var(--spacing-system-l)] text-ods-text-primary text-h2">Device Selection</h2>
 

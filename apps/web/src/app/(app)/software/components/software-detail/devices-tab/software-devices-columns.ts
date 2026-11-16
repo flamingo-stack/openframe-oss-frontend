@@ -15,7 +15,7 @@ const SOFTWARE_DEVICE_COLUMNS = {
     width: 'flex-1 min-w-0',
     sortable: true,
   },
-  installedBy: { id: 'installedBy', header: 'Installed By', width: 'flex-1 min-w-0', hideAt: 'md' },
+  installedBy: { id: 'installedBy', header: 'Managed By', width: 'flex-1 min-w-0', hideAt: 'md' },
   autoUpdate: { id: 'autoUpdate', header: 'Auto-update', width: 'w-[120px]', hideAt: 'lg' },
   open: { id: 'open', width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;

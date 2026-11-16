@@ -11,6 +11,7 @@ import { SOFTWARE_DETAIL_SUMMARY_LABELS as LABELS } from './software-detail-summ
 
 const softwareDetailSummaryFragment = graphql`
   fragment softwareDetailSummary_software on Software {
+    publisher
     type
     os
     latestVersion
@@ -28,16 +29,18 @@ const SOFTWARE_TYPE_LABEL: Record<SoftwareType, string> = {
 const OS_ICON_SIZE = 'size-5';
 
 /**
- * The summary card: type, OS and latest version (design 1100:444, without its publisher: the API never fills it).
- * No OS is a kind several systems have (a browser extension, an npm package): the empty mark. Null before the record
- * answers (a loading scope: values are bars).
+ * The summary card: publisher, type, OS and latest version (design 1100:444). Fleet knows the publisher of few titles,
+ * so the card starts at the type when there is none, and while it loads. No OS is a kind several systems have (a
+ * browser extension, an npm package): the empty mark. Null before the record answers (a loading scope: values are bars).
  */
 export function SoftwareDetailSummary({ software }: { software: softwareDetailSummary_software$key | null }) {
   const data = useFragment(softwareDetailSummaryFragment, software);
+  const publisher = data?.publisher;
   return (
     <SummaryCard
-      columns={3}
+      columns={publisher ? 4 : 3}
       fields={[
+        ...(publisher ? [{ label: LABELS.publisher, value: publisher }] : []),
         {
           label: LABELS.type,
           value: data?.type ? (presentationFor(SOFTWARE_TYPE_LABEL, data.type) ?? data.type) : null,

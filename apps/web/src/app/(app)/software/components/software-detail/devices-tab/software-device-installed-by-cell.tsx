@@ -14,8 +14,9 @@ const softwareDeviceInstalledByCellFragment = graphql`
 `;
 
 /**
- * INSTALLED BY column: the package manager that installed the copy on this device; the empty mark when it is not
- * known. The design's "Manually" and adoption chips are not drawn: the API reports neither yet.
+ * MANAGED BY column (design 1100:444): the package manager that installed the copy on this device, Unmanaged for one
+ * installed by hand; the empty mark when it is not known. The design's "Manageable" (installed by hand, can be adopted)
+ * is not drawn: the API does not say which copies can be adopted yet.
  */
 export function SoftwareDeviceInstalledByCell({
   softwareOnDevice,

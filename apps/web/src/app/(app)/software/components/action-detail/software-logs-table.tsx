@@ -72,8 +72,6 @@ const LOGS_SKELETON_ROWS = 20;
 interface SoftwareLogsTableProps {
   /** The run (`SoftwareActionRun.id`), as `softwareActionExecutions` takes it. */
   actionId: string;
-  /** "Update" / "Install" — the first word of every STATUS cell. */
-  actionLabel: string;
   state: ExecutionsTabState;
 }
 
@@ -81,19 +79,18 @@ interface SoftwareLogsTableProps {
  * Software Update Details' logs (design 1051:15572): one row per device of the run, its output unfolding in place
  * under "Show Result". There is no page per device to open — the row IS the device's result.
  */
-export function SoftwareLogsTable({ actionId, actionLabel, state }: SoftwareLogsTableProps) {
+export function SoftwareLogsTable({ actionId, state }: SoftwareLogsTableProps) {
   const retryKey = useRetryKey();
   const data = useLazyLoadQuery<SoftwareLogsTableQueryType>(
     softwareLogsTableQuery,
     { actionId },
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
-  return <SoftwareLogsRows allRows={data.softwareActionExecutions} actionLabel={actionLabel} state={state} />;
+  return <SoftwareLogsRows allRows={data.softwareActionExecutions} state={state} />;
 }
 
 interface SoftwareLogsRowsProps {
   allRows: readonly LogRow[];
-  actionLabel: string;
   state: ExecutionsTabState;
 }
 
@@ -102,7 +99,7 @@ interface SoftwareLogsRowsProps {
  * header is real and the body is one page of placeholder rows with their real cells (`ActionDetailLogs` renders it
  * so before the run answers).
  */
-export function SoftwareLogsRows({ allRows, actionLabel, state }: SoftwareLogsRowsProps) {
+export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
   const {
     narrowSearch,
     isPending,
@@ -167,9 +164,7 @@ export function SoftwareLogsRows({ allRows, actionLabel, state }: SoftwareLogsRo
         id: SOFTWARE_LOG_COLUMNS.status.id,
         header: SOFTWARE_LOG_COLUMNS.status.header,
         accessorFn: (row: LogRow) => row.status,
-        cell: ({ row }: { row: Row<LogRow> }) => (
-          <SoftwareLogStatusCell device={row.original} actionLabel={actionLabel} />
-        ),
+        cell: ({ row }: { row: Row<LogRow> }) => <SoftwareLogStatusCell device={row.original} />,
         enableSorting: false,
         filterFn: multiSelectFilterFn,
         meta: liveColumnMeta(SOFTWARE_LOG_COLUMNS.status, { filter: { options: statusOptions } }),
@@ -181,7 +176,7 @@ export function SoftwareLogsRows({ allRows, actionLabel, state }: SoftwareLogsRo
         meta: liveColumnMeta(SOFTWARE_LOG_COLUMNS.result),
       },
     ],
-    [actionLabel, statusOptions],
+    [statusOptions],
   );
 
   const { columnFilters, onColumnFiltersChange } = singleColumnFilter(SOFTWARE_LOG_COLUMNS.status.id, ticked, status =>
