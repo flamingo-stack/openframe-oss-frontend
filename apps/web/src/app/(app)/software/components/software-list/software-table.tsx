@@ -17,10 +17,14 @@ import { LiveTable } from '@/app/components/shared/live-table';
 import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
+import { multiColumnFilter } from '../shared/column-filters';
+import type { ListSelections } from '../shared/software-list-frame';
 import { SoftwareAutoUpdateCell } from './software-auto-update-cell';
 import { SoftwareEngineCell } from './software-engine-cell';
 import { SOFTWARE_LIST_COLUMNS, SOFTWARE_LIST_PAGE_SIZE } from './software-list-columns';
+import { SOFTWARE_LIST_FILTER_OPTIONS } from './software-list-filters';
 import { SoftwareNameCell } from './software-name-cell';
+import { SoftwareOsCell } from './software-os-cell';
 import { SoftwareVersionCell } from './software-version-cell';
 import { SoftwareVulnerabilitiesCell } from './software-vulnerabilities-cell';
 
@@ -37,6 +41,7 @@ const softwareTableFragment = graphql`
     ...softwareNameCell_software
     ...softwareVersionCell_software
     ...softwareVulnerabilitiesCell_software
+    ...softwareOsCell_software
     ...softwareEngineCell_software
     ...softwareAutoUpdateCell_software
   }
@@ -71,9 +76,9 @@ const OPEN_COLUMN: ColumnDef<SoftwareRow> = {
 
 /**
  * Which list the table is: the fleet-wide inventory (All Software, design 1076:16413) or a device's own. The fleet's
- * says how each title is managed — its engine and auto-update; a device's keeps the CVE count of the copy it has. The
- * design's OS and Adoption columns are not drawn: the API has no platform for a title, and its adoption count is
- * never filled.
+ * says where each title runs and how it is managed — its OS, engine and auto-update, each with a funnel; a device's
+ * keeps the CVE count of the copy it has. The design's Adoption column is not drawn: there is no Adopt yet, and the
+ * count is never filled.
  */
 export type SoftwareTableSurface = 'fleet' | 'device';
 
@@ -82,18 +87,27 @@ const COLUMNS: Record<SoftwareTableSurface, ColumnDef<SoftwareRow>[]> = {
     NAME_COLUMN,
     VERSION_COLUMN,
     {
+      id: SOFTWARE_LIST_COLUMNS.os.id,
+      header: SOFTWARE_LIST_COLUMNS.os.header,
+      cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareOsCell software={row.original} />,
+      enableSorting: false,
+      meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.os, { filter: { options: SOFTWARE_LIST_FILTER_OPTIONS.os } }),
+    },
+    {
       id: SOFTWARE_LIST_COLUMNS.engine.id,
       header: SOFTWARE_LIST_COLUMNS.engine.header,
       cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareEngineCell software={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.engine),
+      meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.engine, { filter: { options: SOFTWARE_LIST_FILTER_OPTIONS.engine } }),
     },
     {
       id: SOFTWARE_LIST_COLUMNS.autoUpdate.id,
       header: SOFTWARE_LIST_COLUMNS.autoUpdate.header,
       cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareAutoUpdateCell software={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.autoUpdate),
+      meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.autoUpdate, {
+        filter: { options: SOFTWARE_LIST_FILTER_OPTIONS.autoUpdate },
+      }),
     },
     OPEN_COLUMN,
   ],
@@ -129,7 +143,13 @@ export interface SoftwareTableProps {
   onEmptyChange: (isEmpty: boolean) => void;
   stickyHeaderOffset: string;
   infiniteScroll: InfiniteScroll;
+  /** The fleet's funnels: what they draw as ticked, and their changes out. A surface without funnels leaves them out. */
+  selections?: ListSelections;
+  onSelectionsChange?: (next: Partial<Record<string, string[]>>) => void;
 }
+
+const NO_SELECTIONS: ListSelections = {};
+const IGNORE_SELECTIONS = () => {};
 
 function LoadedSoftwareTable({
   surface,
@@ -141,10 +161,14 @@ function LoadedSoftwareTable({
   onEmptyChange,
   stickyHeaderOffset,
   infiniteScroll,
+  selections = NO_SELECTIONS,
+  onSelectionsChange = IGNORE_SELECTIONS,
 }: SoftwareTableProps) {
   // The rows have not answered yet: the table draws its own loading state, never the empty one.
   const loading = useLoadingScope();
   const rows = useFragment(softwareTableFragment, rowRefs);
+  const { columnFilters, onColumnFiltersChange } = multiColumnFilter(selections, onSelectionsChange);
+  const filtered = Object.values(selections).some(values => values.length > 0);
 
   const table = useDataTable<SoftwareRow>({
     // The fragment reads back a readonly page; the table only ever reads it too.
@@ -152,11 +176,13 @@ function LoadedSoftwareTable({
     columns: COLUMNS[surface],
     getRowId,
     enableSorting: false,
+    state: { columnFilters },
+    onColumnFiltersChange,
   });
 
-  // A search that finds nothing keeps the table (its own "no match" row); a list
-  // with nothing in it at all gets the surface's empty state instead.
-  const showEmptyState = !loading && !debouncedSearch && !isPending && rows.length === 0;
+  // A search or a funnel that finds nothing keeps the table (its own "no match"
+  // row); a list with nothing in it at all gets the surface's empty state instead.
+  const showEmptyState = !loading && !debouncedSearch && !filtered && !isPending && rows.length === 0;
 
   useEffect(() => {
     onEmptyChange(showEmptyState);
@@ -177,7 +203,9 @@ function LoadedSoftwareTable({
       emptyState={oneLineEmptyState(
         debouncedSearch
           ? `No software found matching "${debouncedSearch}". Try adjusting your search.`
-          : 'No software found.',
+          : filtered
+            ? 'No software matches these filters.'
+            : 'No software found.',
       )}
       rowHref={rowHref}
       // Zero rows plus a next page: see vulnerability-table.tsx.

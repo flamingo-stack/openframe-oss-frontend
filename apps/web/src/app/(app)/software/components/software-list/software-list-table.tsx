@@ -8,7 +8,9 @@ import type { softwareListTable_query$key } from '@/__generated__/softwareListTa
 import type { softwareListTablePaginationQuery as SoftwareListTablePaginationQueryType } from '@/__generated__/softwareListTablePaginationQuery.graphql';
 import type { softwareListTableQuery as SoftwareListTableQueryType } from '@/__generated__/softwareListTableQuery.graphql';
 import { EmptyState, useRetryKey } from '@/app/components/shared';
+import type { SoftwareListFrameRenderProps } from '../shared/software-list-frame';
 import { SOFTWARE_LIST_PAGE_SIZE } from './software-list-columns';
+import { toSoftwareFilter } from './software-list-filters';
 import { SoftwareTable } from './software-table';
 
 /**
@@ -17,8 +19,8 @@ import { SoftwareTable } from './software-table';
  * are the shared `SoftwareTable`, the one a device's own inventory draws too.
  */
 const softwareListTableQuery = graphql`
-  query softwareListTableQuery($search: String, $first: Int!, $after: String) {
-    ...softwareListTable_query @arguments(search: $search, first: $first, after: $after)
+  query softwareListTableQuery($filter: SoftwareFilterInput, $search: String, $first: Int!, $after: String) {
+    ...softwareListTable_query @arguments(filter: $filter, search: $search, first: $first, after: $after)
   }
 `;
 
@@ -26,11 +28,13 @@ const softwareListTableFragment = graphql`
   fragment softwareListTable_query on Query
   @refetchable(queryName: "softwareListTablePaginationQuery")
   @argumentDefinitions(
+    filter: { type: "SoftwareFilterInput" }
     search: { type: "String" }
     first: { type: "Int", defaultValue: 20 }
     after: { type: "String" }
   ) {
-    softwares(search: $search, first: $first, after: $after) @connection(key: "softwareListTable_softwares") {
+    softwares(filter: $filter, search: $search, first: $first, after: $after)
+      @connection(key: "softwareListTable_softwares") {
       filteredCount
       edges {
         node {
@@ -45,7 +49,10 @@ const softwareListTableFragment = graphql`
   }
 `;
 
-interface SoftwareListTableProps {
+interface SoftwareListTableProps extends Pick<
+  SoftwareListFrameRenderProps,
+  'deferredSelections' | 'selections' | 'onSelectionsChange'
+> {
   debouncedSearch: string;
   /**
    * True while the deferred query variables lag the live search
@@ -78,6 +85,9 @@ function SoftwareListTableReader(props: SoftwareListTableProps) {
 }
 
 function SoftwareListTableQuery({
+  deferredSelections,
+  selections,
+  onSelectionsChange,
   debouncedSearch,
   isPending,
   onEmptyChange,
@@ -88,7 +98,12 @@ function SoftwareListTableQuery({
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<SoftwareListTableQueryType>(
     softwareListTableQuery,
-    { search: debouncedSearch || null, first: SOFTWARE_LIST_PAGE_SIZE, after: null },
+    {
+      filter: toSoftwareFilter(deferredSelections),
+      search: debouncedSearch || null,
+      first: SOFTWARE_LIST_PAGE_SIZE,
+      after: null,
+    },
     { fetchPolicy: 'store-or-network', fetchKey: retryKey },
   );
 
@@ -113,6 +128,8 @@ function SoftwareListTableQuery({
       emptyState={<EmptyState icon={<Parcel02Icon />} title={emptyTitle} description={emptyDescription} />}
       onEmptyChange={onEmptyChange}
       stickyHeaderOffset={stickyHeaderOffset}
+      selections={selections}
+      onSelectionsChange={onSelectionsChange}
       infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
     />
   );

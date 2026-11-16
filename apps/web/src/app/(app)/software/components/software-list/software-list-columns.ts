@@ -11,6 +11,7 @@ const SOFTWARE_LIST_COLUMNS = {
   currentVersion: { id: 'currentVersion', header: 'Current Version', width: 'flex-1 min-w-0', hideAt: 'md' },
   vulnerabilities: { id: 'cveCount', header: 'Vulns', width: 'w-[96px]' },
   // The fleet-wide list's own (design 1076:16413): a device's tab reads one copy, which these say nothing about.
+  os: { id: 'os', header: 'OS', width: 'w-[72px]', hideAt: 'md' },
   engine: { id: 'engine', header: 'Engine', width: 'flex-1 min-w-0', hideAt: 'lg' },
   autoUpdate: { id: 'autoUpdate', header: 'Auto-update', width: 'w-[120px]', hideAt: 'md' },
   open: { id: 'open', width: 'w-12 shrink-0 flex-none', align: 'right' },

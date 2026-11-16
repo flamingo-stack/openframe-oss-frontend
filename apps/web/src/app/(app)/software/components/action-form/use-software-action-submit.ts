@@ -20,6 +20,7 @@ import type { ScheduleTimeReference, SoftwareAction } from '@/generated/schema-e
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { pluralize } from '@/lib/pluralize';
 import { routes } from '@/lib/routes';
+import type { SoftwareActionTitle } from './software-action-title';
 import { type PackageInput, toPackageInputs } from './software-row';
 import { toUpdateSettingsInputs } from './update-settings-input';
 
@@ -59,6 +60,8 @@ const actionQuery = graphql`
 
 export interface SoftwareActionForm {
   rows: SoftwareRow[];
+  /** Update <software>: this title, the package the server's to pick, instead of `rows`. */
+  software?: Pick<SoftwareActionTitle, 'id' | 'name'>;
   /** The draft behind the page — null until the first device is assigned. */
   bundleId: string | null;
   /** How many devices the draft holds; the server refuses an empty one too. */
@@ -99,7 +102,7 @@ export function useSoftwareActionSubmit(
     toast({ title, description, variant: 'destructive' });
   };
 
-  const scheduleInput = (packages: PackageInput[], form: SoftwareActionForm) => {
+  const scheduleInput = (names: string[], form: SoftwareActionForm) => {
     const { date, time, timeReference } = form;
     if (!date || !time) {
       fail('No start time', 'Pick a date and time for the schedule.');
@@ -110,7 +113,7 @@ export function useSoftwareActionSubmit(
       return null;
     }
     return {
-      name: `${copy.verb} ${packages.map(pkg => pkg.packageName).join(', ')}`,
+      name: `${copy.verb} ${names.join(', ')}`,
       timeReference,
       startAt: toScheduleInstant(applyTimeSlot(date, time), timeReference),
     };
@@ -134,16 +137,22 @@ export function useSoftwareActionSubmit(
   };
 
   const submit = (form: SoftwareActionForm) => {
-    const packages = toPackageInputs(form.rows);
+    // One title: the server picks the package that manages it on each device (manager and name left out together).
+    const packages: Array<PackageInput | { softwareId: string }> | null = form.software
+      ? [{ softwareId: form.software.id }]
+      : toPackageInputs(form.rows);
     if (!packages) {
       fail('No software selected', 'Pick a package in every row, or remove the empty ones.');
       return;
     }
+    const names = form.software
+      ? [form.software.name]
+      : packages.flatMap(pkg => ('packageName' in pkg ? [pkg.packageName] : []));
     if (!form.bundleId || form.deviceCount === 0) {
       fail('No devices selected', 'Please select at least one device.');
       return;
     }
-    const schedule = form.mode === 'schedule' ? scheduleInput(packages, form) : null;
+    const schedule = form.mode === 'schedule' ? scheduleInput(names, form) : null;
     if (form.mode === 'schedule' && !schedule) return;
 
     const bundleId = form.bundleId;
@@ -168,7 +177,7 @@ export function useSoftwareActionSubmit(
         const runs = response.submitSoftwareBundle.executionIds ?? [];
         toast({
           title: copy.started,
-          description: `${packages.length === 1 ? packages[0].packageName : pluralize(packages.length, 'package')} on ${pluralize(deviceCount, 'device')}.`,
+          description: `${names.length === 1 ? names[0] : pluralize(names.length, 'package')} on ${pluralize(deviceCount, 'device')}.`,
           variant: 'success',
         });
         if (runs.length === 1 && packages.length === 1) leaveForRun(runs[0]);

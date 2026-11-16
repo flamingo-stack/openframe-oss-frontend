@@ -1,5 +1,6 @@
 'use client';
 
+import type { DataTableFilterOption } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { ValueText } from '@/app/components/shared/value-text';
 import { SoftwareAutoUpdateStatus } from '@/generated/schema-enums';
 import { presentationFor } from '@/lib/exhaustive-map';
@@ -22,3 +23,14 @@ const AUTO_UPDATE_LABEL: Record<SoftwareAutoUpdateStatus, string | null> = {
 export function AutoUpdateStatusValue({ status }: { status: string | null | undefined }) {
   return <ValueText value={status ? (presentationFor(AUTO_UPDATE_LABEL, status) ?? null) : null} />;
 }
+
+/**
+ * The AUTO-UPDATE funnel's options: every state that has a word. NEEDS_ADOPTION has none (it shows the empty mark
+ * until there is an Adopt), so it is not offered.
+ */
+export const AUTO_UPDATE_FILTER_OPTIONS: DataTableFilterOption[] = Object.values(SoftwareAutoUpdateStatus).flatMap(
+  status => {
+    const label = AUTO_UPDATE_LABEL[status];
+    return label ? [{ id: status, value: status, label }] : [];
+  },
+);

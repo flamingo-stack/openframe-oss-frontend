@@ -23,6 +23,7 @@ import { ScheduleTimeReference, type SoftwareAction } from '@/generated/schema-e
 import { routes } from '@/lib/routes';
 import { BundleDevicePicker } from './bundle-device-picker';
 import { PackageSearchField } from './package-search-field';
+import type { SoftwareActionTitle } from './software-action-title';
 import { useDraftBundle } from './use-draft-bundle';
 import { useSoftwareActionSubmit } from './use-software-action-submit';
 
@@ -80,7 +81,7 @@ function ScopedBundleDevicePicker({ osTypesKey, bundleId, createError, onRetryCr
 }
 
 /**
- * Install Software (design 591:8524) and Update Software (409:48080 / 409:48175):
+ * Install Software (design 591:8524), Update Software (1572:2004) and Update <software> (1577:3):
  * the container of the core library's `SoftwareActionForm`.
  *
  * The packages and the timing are the form's own state; the devices are not.
@@ -90,13 +91,16 @@ function ScopedBundleDevicePicker({ osTypesKey, bundleId, createError, onRetryCr
  */
 export function SoftwareActionView({
   action,
+  software,
   loading = false,
 }: {
   action: SoftwareAction;
-  /** The module's flag has not answered yet: the form draws, the picker does not fetch and nothing submits. */
+  /** Update this one title (from its page), the package picked by the server, instead of packages in rows. */
+  software?: SoftwareActionTitle;
+  /** The module's flag (or the title) has not answered yet: the form draws, the picker does not fetch and nothing submits. */
   loading?: boolean;
 }) {
-  const handleBack = useSafeBack(routes.software.actions);
+  const handleBack = useSafeBack(software ? routes.software.details(software.id) : routes.software.actions);
   // Unanswered, the block stays out and nothing submits: a submit then could leave without the settings it shows.
   const updateSettingsGate = useFeatureFlagGate('software-update-settings');
   // One flags answer for both: by the time the block shows, this one has answered too.
@@ -125,7 +129,7 @@ export function SoftwareActionView({
     <SoftwareActionForm<ScheduleTimeReference>
       action={action}
       onBack={handleBack}
-      onSubmit={values => submit({ ...values, bundleId, deviceCount })}
+      onSubmit={values => submit({ ...values, software, bundleId, deviceCount })}
       submitDisabled={loading || updateSettingsGate === 'loading' || deviceCount === 0}
       submitting={isSubmitting}
       timing={SCHEDULE_TIMING}
@@ -136,6 +140,10 @@ export function SoftwareActionView({
       // them undefined and the submit sends neither.
       showUpdateSettings={updateSettingsGate === 'on'}
       updateUserNotifications={updateNotificationsGate === 'on'}
+      // Auto-update is set per title on its own page (design 1569:1890) and the update form has none (1572:2004): an
+      // update from rows carries no softwareId, so an auto-update it turned on never showed on the title anyway.
+      showAutoUpdate={false}
+      software={software}
     />
   );
 }
