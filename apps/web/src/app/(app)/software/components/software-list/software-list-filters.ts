@@ -1,5 +1,5 @@
 import { SOFTWARE_SOURCE_LABEL } from '@flamingo-stack/openframe-frontend-core/components/features';
-import type { DataTableFilterOption } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import type { DataTableFilterOption, FilterGroup } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { getOSLabel } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { SoftwareFilterInput } from '@/__generated__/softwareListTableQuery.graphql';
 import { OsType, type SoftwareAutoUpdateStatus, type SoftwareSource } from '@/generated/schema-enums';
@@ -37,3 +37,16 @@ export function toSoftwareFilter(selections: ListSelections): SoftwareFilterInpu
     ...(autoUpdate.length > 0 && { autoUpdateStatuses: autoUpdate as SoftwareAutoUpdateStatus[] }),
   };
 }
+
+/** The same funnels for a narrow content area, where their columns are hidden (`SoftwareListFrame.filterGroups`). */
+export const SOFTWARE_LIST_FILTER_GROUPS: FilterGroup[] = (
+  [
+    [SOFTWARE_LIST_COLUMNS.os, SOFTWARE_LIST_FILTER_OPTIONS.os],
+    [SOFTWARE_LIST_COLUMNS.engine, SOFTWARE_LIST_FILTER_OPTIONS.engine],
+    [SOFTWARE_LIST_COLUMNS.autoUpdate, SOFTWARE_LIST_FILTER_OPTIONS.autoUpdate],
+  ] as const
+).map(([column, options]) => ({
+  id: column.id,
+  title: column.header,
+  options: options.map(option => ({ id: String(option.value), label: option.label })),
+}));

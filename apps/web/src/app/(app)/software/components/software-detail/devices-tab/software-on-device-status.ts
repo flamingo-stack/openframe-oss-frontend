@@ -17,7 +17,8 @@ interface SoftwareOnDeviceStatusPresentation {
 export const SOFTWARE_ON_DEVICE_STATUS: Record<SoftwareOnDeviceStatus, SoftwareOnDeviceStatusPresentation> = {
   [SoftwareOnDeviceStatus.UP_TO_DATE]: { label: 'Up to date', tag: null },
   [SoftwareOnDeviceStatus.OUTDATED]: { label: OUTDATED_TAG.label, tag: { variant: OUTDATED_TAG.variant } },
-  [SoftwareOnDeviceStatus.SCHEDULED_UPDATE]: { label: 'Scheduled update', tag: { variant: 'warning' } },
+  // "Scheduled" as the design's chip says it (1100:444); the row is already about an update.
+  [SoftwareOnDeviceStatus.SCHEDULED_UPDATE]: { label: 'Scheduled', tag: { variant: 'warning' } },
   // The one in-flight state: the loader glyph on the neutral outline, not a severity colour.
   [SoftwareOnDeviceStatus.UNINSTALLING]: { label: 'Uninstalling', tag: { variant: 'outline', inFlight: true } },
   [SoftwareOnDeviceStatus.SCHEDULED_UNINSTALL]: { label: 'Scheduled uninstall', tag: { variant: 'warning' } },

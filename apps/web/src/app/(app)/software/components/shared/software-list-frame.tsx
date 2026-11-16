@@ -1,6 +1,13 @@
 'use client';
 
-import { type DataTableSortState, LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  Button,
+  type DataTableSortState,
+  type FilterGroup,
+  FilterModal,
+  LoadingWhen,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useMemo, useState } from 'react';
@@ -55,6 +62,11 @@ interface SoftwareListFrameProps {
    * the list component draws its own loading state and does not fetch.
    */
   loading?: boolean;
+  /**
+   * The funnels again, for a narrow content area where the columns that carry them are hidden: a filter button beside
+   * the search opens them in a modal (as the logs do). One group per `filterKeys` entry, keyed by it.
+   */
+  filterGroups?: readonly FilterGroup[];
   /** Above the toolbar while the list has rows — a device tab's sync banner. */
   banner?: ReactNode;
   className?: string;
@@ -98,10 +110,12 @@ export function SoftwareListFrame({
   sortableIds = NO_ITEMS,
   filterKeys = NO_ITEMS,
   loading = false,
+  filterGroups,
   banner,
   className,
   children,
 }: SoftwareListFrameProps) {
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const searchKey = paramName(paramPrefix, 'search');
   const sortByKey = paramName(paramPrefix, 'sortBy');
   const sortDirKey = paramName(paramPrefix, 'sortDir');
@@ -181,6 +195,33 @@ export function SoftwareListFrame({
           value={searchInput}
           onChange={setSearchInput}
           disabled={loading}
+          actions={
+            filterGroups && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="content-md:hidden"
+                onClick={() => setFiltersOpen(true)}
+                disabled={loading}
+                aria-label="Open filters"
+                leftIcon={<Filter02Icon className="text-ods-text-primary" />}
+              />
+            )
+          }
+        />
+      )}
+
+      {filterGroups && (
+        <FilterModal
+          isOpen={filtersOpen}
+          onClose={() => setFiltersOpen(false)}
+          filterGroups={[...filterGroups]}
+          currentFilters={Object.fromEntries(Object.entries(selections).map(([key, values]) => [key, [...values]]))}
+          onFilterChange={filters =>
+            onSelectionsChange(
+              Object.fromEntries(filterKeys.map(key => [key, (filters[key] as string[] | undefined) ?? []])),
+            )
+          }
         />
       )}
 
