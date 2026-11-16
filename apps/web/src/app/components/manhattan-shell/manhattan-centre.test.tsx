@@ -4,6 +4,7 @@
  * chat column without remounting (plan C1: the draft survives).
  */
 
+import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { act, type ReactNode, useEffect, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -299,6 +300,16 @@ describe('ManhattanCentre', () => {
     expect(container.querySelector('button')).toBeNull();
   });
 
+  it('hides the page header in CSS below two rails and the centre, so the first paint on a phone has none', () => {
+    nav.pathname = '/mingo/';
+    renderCentre();
+    expect(container.querySelector('[data-column-header]')?.className).toContain('max-[911px]:hidden');
+    nav.pathname = '/devices/';
+    chatState.activeDialogId = 'd-1';
+    renderCentre();
+    expect(container.querySelector('[data-column-header]')?.className).toContain('max-[911px]:hidden');
+  });
+
   it('draws no page header on a chat page (the chat header is its header), the chat column alone once the thread is in', () => {
     nav.pathname = '/mingo/chat/';
     chatState.activeDialogId = 'd-1';
@@ -322,6 +333,83 @@ describe('ManhattanCentre', () => {
     click('Full screen page');
     expect(useManhattanCentreStore.getState().chatView).toBe('hidden');
     expect(currentMode()).toBe('page');
+  });
+
+  describe("the page's Back in the page header (CU-17tkuw670yr)", () => {
+    /** The header and, under it, a page drawn through the lib's `PageLayout`, as `AppLayout` lays them out. */
+    function renderPage(back?: { label?: string; onClick: () => void }, slots: { compact?: boolean } = {}) {
+      render(
+        <ManhattanCentre enabled compact={slots.compact}>
+          {centre => (
+            <>
+              {centre?.pageHeader}
+              <PageLayout title="Remote Session Recording" backButton={back}>
+                <p>page</p>
+              </PageLayout>
+            </>
+          )}
+        </ManhattanCentre>,
+      );
+    }
+
+    /** The page's own Back (the lib's `BackButton`, its label as text), outside the header. */
+    const pageOwnBacks = () =>
+      [...container.querySelectorAll('button')].filter(
+        b => b.textContent?.includes('Back') && !b.closest('[data-column-header]'),
+      );
+
+    const headerBack = () => button('Back')?.closest('[data-column-header]') ?? null;
+
+    it("a nested page: one Back, in the header, running the page's own handler", () => {
+      nav.pathname = '/devices/details/remote-session/';
+      chatState.activeDialogId = 'd-1';
+      const back = vi.fn();
+      renderPage({ label: 'Back', onClick: back });
+      expect(headerBack()).not.toBeNull();
+      expect(pageOwnBacks()).toHaveLength(0);
+      click('Back');
+      expect(back).toHaveBeenCalledOnce();
+      // The chat stays beside the page.
+      expect(useManhattanCentreStore.getState().chatView).toBe('split');
+    });
+
+    it('with the page full screen: still one Back, in the header', () => {
+      nav.pathname = '/devices/details/remote-session/';
+      chatState.activeDialogId = 'd-1';
+      act(() => useManhattanCentreStore.setState({ chatView: 'hidden' }));
+      renderPage({ label: 'Back', onClick: vi.fn() });
+      expect(headerBack()).not.toBeNull();
+      expect(pageOwnBacks()).toHaveLength(0);
+    });
+
+    it("a section's main page (no Back of its own): none in the header", () => {
+      nav.pathname = '/devices/';
+      renderPage(undefined);
+      expect(button('Back')).toBeNull();
+    });
+
+    it('one column (compact): no page header, the page keeps its own Back', () => {
+      nav.pathname = '/devices/details/remote-session/';
+      chatState.activeDialogId = 'd-1';
+      renderPage({ label: 'Back', onClick: vi.fn() }, { compact: true });
+      expect(container.querySelector('[data-column-header]')).toBeNull();
+      expect(pageOwnBacks()).toHaveLength(1);
+    });
+
+    it("Start Work and a chat's page draw no Back in the header: a title there keeps its own", () => {
+      nav.pathname = '/mingo/';
+      renderPage({ label: 'Back', onClick: vi.fn() });
+      expect(headerBack()).toBeNull();
+      expect(pageOwnBacks()).toHaveLength(1);
+    });
+
+    it('a phone: the page keeps its own Back', () => {
+      nav.pathname = '/devices/details/remote-session/';
+      viewport.mdUp = false;
+      renderPage({ label: 'Back', onClick: vi.fn() });
+      expect(container.querySelector('[data-column-header]')).toBeNull();
+      expect(pageOwnBacks()).toHaveLength(1);
+    });
   });
 
   it('alone with a chat waiting: brings it back beside the page', () => {

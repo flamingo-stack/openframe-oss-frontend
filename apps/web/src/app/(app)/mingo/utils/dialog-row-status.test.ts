@@ -40,8 +40,17 @@ describe('dialogRowStatus', () => {
     expect(dialogRowStatus({ streaming: false, awaitingApproval: true })).toBe('approval');
   });
 
-  it('leaves an idle chat to the lib (unread replies)', () => {
+  it('gives an idle chat no status', () => {
     expect(dialogRowStatus({ streaming: false, awaitingApproval: false })).toBeUndefined();
+  });
+
+  it('marks an idle chat that holds a reply nobody has read', () => {
+    expect(dialogRowStatus({ streaming: false, awaitingApproval: false }, true)).toBe('unread');
+  });
+
+  it('puts the dots and the shield before an unread reply', () => {
+    expect(dialogRowStatus({ streaming: true, awaitingApproval: false }, true)).toBe('working');
+    expect(dialogRowStatus({ streaming: false, awaitingApproval: true }, true)).toBe('approval');
   });
 });
 

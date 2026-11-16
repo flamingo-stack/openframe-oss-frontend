@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
+import { AUTH_STORAGE_KEY } from '@/lib/super-user-seed';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 
 /**
@@ -184,7 +185,7 @@ export const useAuthStore = create<AuthState>()(
         },
       })),
       {
-        name: 'auth-storage', // Storage key
+        name: AUTH_STORAGE_KEY, // Storage key (the super user seed reads it before paint)
         partialize: state => ({
           // Only persist these fields
           user: state.user,

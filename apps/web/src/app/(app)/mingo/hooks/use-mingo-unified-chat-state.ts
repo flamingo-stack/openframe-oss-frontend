@@ -66,12 +66,15 @@ import { useMingoCompactionStore } from '../stores/mingo-compaction-store';
 import { useMingoContextStore } from '../stores/mingo-context-store';
 import { noteMingoToolExecuted } from '../stores/mingo-created-entities-store';
 import {
+  type MingoDialogRow,
+  nextMingoRowsTick,
   noteMingoDialogMissing,
   noteMingoDialogResponse,
   useMingoDialogRowsStore,
 } from '../stores/mingo-dialog-rows-store';
 import { mingoThreadStore } from '../stores/mingo-thread-store';
 import { retryingRead } from '../utils/retrying-read';
+import { useMingoDialogAutoRead } from './use-mingo-dialog-read';
 import { useMingoDialogRowStatus } from './use-mingo-dialog-row-status';
 
 const ADMIN_CHAT_TYPE: MingoChatType = 'ADMIN_AI_CHAT';
@@ -89,22 +92,37 @@ export const MINGO_DIALOGS_PAGE_SIZE = 20;
 
 /**
  * What the engine asks again: generated titles, row statuses and dialogs started elsewhere arrive with no event, and a
- * turn's end can be lost with the tail that carried it. Sooner while a fresh dialog waits for its generated title, and
- * while the composer is locked. A signed-out or hidden session asks nothing.
+ * turn's end can be lost with the tail that carried it. Sooner while a fresh dialog waits for its generated title,
+ * while the composer is locked, and while another chat of the viewer's is being answered (`expecting`): only the next
+ * read shows that it ended and left a reply to read. A signed-out or hidden session asks nothing.
  */
 const MINGO_REFRESH: ChatEngineRefresh = {
   intervalMs: 60_000,
   awaitingTitleMs: 10_000,
+  expectingMs: 10_000,
   busyMs: 15_000,
   allowed: sessionPollsAllowed,
 };
+
+/**
+ * One of the viewer's own chats is being answered. Another admin's chat leaves this viewer nothing to read, so it is
+ * not worth the faster list.
+ */
+export function awaitsOwnReply(rows: ReadonlyMap<string, MingoDialogRow>, currentUserId: string | undefined): boolean {
+  if (!currentUserId) return false;
+  for (const row of rows.values()) {
+    if (row.streaming && row.ownerUserId === currentUserId) return true;
+  }
+  return false;
+}
 
 /** A history row's author face, stored relative, as a full address. */
 const avatarUrlOf = (stored: string) => getFullImageUrl(stored);
 
 /**
  * One request to the ai-agent's `/chat/graphql`, as the lib's GraphQL readers post it. Every dialog node the answer
- * carries is noted for the list's rows (`noteMingoDialogResponse`).
+ * carries is noted for the list's rows (`noteMingoDialogResponse`), with the moment it was asked: an answer asked before
+ * the viewer marked a chat read must not bring its unread replies back.
  *
  * An answer with data beside a failed sub-resolver is still the answer: only a field the server could not resolve at
  * all (null, with errors) rejects. Otherwise a flaky sub-resolver would read as "this dialog does not exist".
@@ -113,6 +131,7 @@ export const postMingoGraphql: MingoGraphqlPost = async <T>(
   query: string,
   variables: Record<string, unknown>,
 ): Promise<T> => {
+  const askedAt = nextMingoRowsTick();
   const response = await apiClient.post<GraphQlResponse<Record<string, unknown>>>('/chat/graphql', {
     query,
     variables,
@@ -122,7 +141,7 @@ export const postMingoGraphql: MingoGraphqlPost = async <T>(
   const unresolved = !data || Object.values(data).some(value => value == null);
   if (errors?.length && unresolved) throw new Error(errors[0].message || 'GraphQL error occurred');
   if (!data) throw new Error('No data received from server');
-  noteMingoDialogResponse(data);
+  noteMingoDialogResponse(data, askedAt);
   return data as T;
 };
 
@@ -132,6 +151,7 @@ export const mingoDialogs = createMingoGraphqlDialogs(postMingoGraphql, {
   statuses: ACTIVE_DIALOG_STATUSES,
   chatType: ADMIN_CHAT_TYPE,
   pendingApproval: true,
+  unread: true,
   imageUrlOf: image => getFullImageUrl(image.imageUrl, image.hash) ?? null,
 });
 
@@ -186,7 +206,7 @@ function insightIdOf(options: UnifiedSendMessageOptions | undefined, firstMessag
 export interface MingoUnifiedChat {
   /** The engine's state, as `useChatEngine` returned it. */
   state: UnifiedChatState;
-  /** The status at the end of a list row: working, waiting for approval, or none. */
+  /** The status at the end of a list row: working, waiting for approval, a reply nobody has read, or none. */
   dialogStatusOf: (dialog: DialogItem) => MingoDialogStatus | undefined;
   /** The open dialog's record answered that it does not exist for this viewer (deleted, someone else's, mistyped). */
   dialogNotFound: boolean;
@@ -331,10 +351,13 @@ function useCopyDialogLink(): (dialog: DialogItem) => void {
   );
 }
 
-export function useMingoUnifiedChatState(): MingoUnifiedChat {
+/** `onScreen`: the open chat's thread is in front of the user (the provider counts the surfaces that show it). */
+export function useMingoUnifiedChatState({ onScreen }: { onScreen: boolean }): MingoUnifiedChat {
   const { toast } = useToast();
   const { aiModel } = useAiModelStatus();
   const currentUserId = useAuthStore(s => s.user?.id);
+  const expecting = useMingoDialogRowsStore(s => awaitsOwnReply(s.rows, currentUserId));
+  const refresh = useMemo<ChatEngineRefresh>(() => ({ ...MINGO_REFRESH, expecting }), [expecting]);
   const transport = useMingoTransport();
   const history = useMingoHistory();
   const copyDialogLink = useCopyDialogLink();
@@ -363,7 +386,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     slashCommands,
     avatarUrlOf,
     copyDialogLink,
-    refresh: MINGO_REFRESH,
+    refresh,
     // An approval the server refused (no AI budget left, already answered elsewhere): the card goes back to pending, and
     // the user is told why instead of facing the same buttons again.
     onActionError: (action, error) =>
@@ -384,6 +407,15 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     phase: streamingPhase,
     messages,
     activeThreadLoaded: !isMessagesLoading,
+    onScreen,
+  });
+
+  useMingoDialogAutoRead({
+    dialogId: activeDialogId,
+    currentUserId,
+    onScreen,
+    replyRunning: streamingPhase !== 'idle',
+    readDialogAgain: mingoDialogs.fetchDialog,
   });
 
   return {

@@ -7,16 +7,27 @@ import { dialogsQueryKeys } from '@/app/(app)/tickets/utils/query-keys';
 import { TICKET_STATUS_KIND } from '@/app/(app)/tickets/utils/ticket-statistics';
 import type { FeatureFlagGate } from '@/lib/feature-flags';
 import { queryState } from '@/lib/query-state';
-import { escalatedTicketRow, type SourceReport } from './needs-you-rows';
+import { escalatedTicketRow, NEEDS_YOU_CANDIDATES, type SourceReport } from './needs-you-rows';
 
 const NO_IDS: readonly string[] = [];
 
-/** How many escalated tickets are read: the card's cap, plus room for rows it drops as duplicates. */
-const ESCALATED_CANDIDATES = 5;
+type TicketStatusesData = ReturnType<typeof useTicketStatusesQuery>['data'];
+
+function techRequiredStatusIds(data: TicketStatusesData): readonly string[] {
+  return data
+    ? data.snapshot.filter(status => status.kind === TICKET_STATUS_KIND.TECH_REQUIRED).map(status => status.id)
+    : NO_IDS;
+}
+
+/** The tenant's Tech Required statuses (empty until read, or with the gate off): what the Tickets quick action filters by. */
+export function useTechRequiredStatusIds(gate: FeatureFlagGate): readonly string[] {
+  return techRequiredStatusIds(useTicketStatusesQuery({ enabled: gate === 'on' }).data);
+}
 
 /**
  * The "Needs you" tickets source: Tech Required tickets the end user escalated, filtered
- * by the ai-agent (`escalatedByUser`), so one far down a long lane is seen too.
+ * by the ai-agent (`escalatedByUser`), so one far down a long lane is seen too, newest first,
+ * with how many there are (the Tickets quick action's count).
  *
  * Keyed under `dialogs`, so every ticket mutation that refreshes the board refreshes this.
  * Not the board's own key: that one caches an infinite query of a different shape.
@@ -24,17 +35,15 @@ const ESCALATED_CANDIDATES = 5;
 export function useEscalatedTicketsReport(gate: FeatureFlagGate): SourceReport {
   const enabled = gate === 'on';
   const statuses = useTicketStatusesQuery({ enabled });
-  const statusIds = statuses.data
-    ? statuses.data.snapshot.filter(status => status.kind === TICKET_STATUS_KIND.TECH_REQUIRED).map(status => status.id)
-    : NO_IDS;
+  const statusIds = techRequiredStatusIds(statuses.data);
 
   const tickets = useQuery({
     queryKey: [...dialogsQueryKeys.all, 'needsYouEscalated', statusIds] as const,
     // No Tech Required lane, nothing to read: an empty `statusIds` would not narrow at all.
     queryFn: () =>
       statusIds.length === 0
-        ? Promise.resolve([])
-        : ticketService.fetchEscalatedTickets({ statusIds, limit: ESCALATED_CANDIDATES }),
+        ? Promise.resolve({ tickets: [], count: 0 })
+        : ticketService.fetchEscalatedTickets({ statusIds, limit: NEEDS_YOU_CANDIDATES }),
     enabled: enabled && statuses.data !== undefined,
     staleTime: 60_000,
     // Read again on every return to the dashboard, drawn over the last answer: no skeleton.
@@ -56,5 +65,5 @@ export function useEscalatedTicketsReport(gate: FeatureFlagGate): SourceReport {
     };
   }
   if (!tickets.data) return { status: 'loading' };
-  return { status: 'ready', rows: tickets.data.map(escalatedTicketRow) };
+  return { status: 'ready', rows: tickets.data.tickets.map(escalatedTicketRow), count: tickets.data.count };
 }
