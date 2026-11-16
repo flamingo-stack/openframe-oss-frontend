@@ -110,6 +110,7 @@ jobs:
           META_TAGS: ${{ steps.meta.outputs.tags }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_SHA: ${{ github.event.pull_request.head.sha }}
+          SENTRY_AUTH_TOKEN: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && secrets.SENTRY_AUTH_TOKEN || '' }}
         with:
           max_attempts: 3
           retry_wait_seconds: 5
@@ -119,6 +120,8 @@ jobs:
             args=(--platform linux/amd64,linux/arm64
                   --build-arg GITHUB_ACTOR=${{ github.actor }}
                   --build-arg OPENFRAME_BUNDLE_VERSION="pr-${PR_NUMBER}-${PR_SHA::7}"
+                  --secret id=SENTRY_AUTH_TOKEN,env=SENTRY_AUTH_TOKEN
+                  --no-cache-filter sentry-upload
                   -f "./apps/web/Dockerfile")
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
             docker buildx build "${args[@]}" "./apps/web"
