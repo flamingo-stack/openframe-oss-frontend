@@ -22,8 +22,14 @@ import { graphql } from 'react-relay';
  * not pay for it.
  */
 export const devicesListRelayV1Query = graphql`
-  query devicesListRelayV1Query($filter: DeviceFilterInput, $search: String, $first: Int!, $after: String) {
-    ...devicesListRelayV1_query @arguments(filter: $filter, search: $search, first: $first, after: $after)
+  query devicesListRelayV1Query(
+    $filter: DeviceFilterInput
+    $search: String
+    $first: Int!
+    $after: String
+    $sort: SortInput!
+  ) {
+    ...devicesListRelayV1_query @arguments(filter: $filter, search: $search, first: $first, after: $after, sort: $sort)
   }
 `;
 
@@ -35,14 +41,16 @@ export const devicesListRelayV1Fragment = graphql`
     search: { type: "String" }
     first: { type: "Int", defaultValue: 20 }
     after: { type: "String" }
+    sort: { type: "SortInput!" }
   ) {
-    devices(filter: $filter, search: $search, first: $first, after: $after, sort: { field: "status", direction: DESC })
-      @connection(key: "devicesListRelayV1_devices", filters: ["filter", "search"]) {
+    devices(filter: $filter, search: $search, first: $first, after: $after, sort: $sort)
+      @connection(key: "devicesListRelayV1_devices", filters: ["filter", "search", "sort"]) {
       filteredCount
       edges {
         node {
           ...deviceFields_machine
           unreadNotificationCount
+          clientOutdated
         }
       }
       pageInfo {

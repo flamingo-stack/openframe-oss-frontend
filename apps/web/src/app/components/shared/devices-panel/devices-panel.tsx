@@ -35,6 +35,7 @@ import { useDevicesUrlParams } from '@/app/(app)/devices/hooks/use-devices-url-p
 import { useDirectoryFacets } from '@/app/(app)/devices/hooks/use-directory-facets';
 import { useDirectoryGate } from '@/app/(app)/devices/hooks/use-directory-gate';
 import { useGridInfiniteScroll } from '@/app/(app)/devices/hooks/use-grid-infinite-scroll';
+import { useOutdatedClientFacet } from '@/app/(app)/devices/hooks/use-outdated-client-facet';
 import { useRowRemoteAccessPolicies } from '@/app/(app)/devices/hooks/use-remote-access-policy';
 import { DEVICES_PAGE_SIZE } from '@/app/(app)/devices/queries/devices-api';
 import type { Device } from '@/app/(app)/devices/types/device.types';
@@ -165,7 +166,12 @@ function DevicesPanelContent(body: DevicesPanelBodyProps) {
   const { deferredFilters, deferredSearch, isPending: isNarrowing } = useDeferredQuery(filters, debouncedSearch);
 
   const directoryFacets = useDirectoryFacets(deferredFilters, directoryColumns);
-  const list = useDevices(deferredFilters, deferredSearch);
+  const outdatedFacet = useOutdatedClientFacet(
+    deferredFilters,
+    urlParams.tableFilters.status,
+    !props.hideFilters?.includes('status'),
+  );
+  const list = useDevices(deferredFilters, deferredSearch, urlParams.sort);
   const epoch = useDeviceEpoch();
 
   // Only a synced-connection count that is out when the list first answers holds the rows, so the USER and SOURCES
@@ -187,6 +193,7 @@ function DevicesPanelContent(body: DevicesPanelBodyProps) {
         directoryColumns={directoryColumns}
         fleetFacets={fleetFacets}
         directoryFacets={directoryFacets}
+        outdatedFacet={outdatedFacet}
       />
     );
 
@@ -213,6 +220,8 @@ interface DevicesPanelLoadedProps {
   /** `null` when the facet query failed: no options, so no funnels, no grid filter row, an empty filter modal. */
   fleetFacets: DeviceFilters | null;
   directoryFacets: Pick<DeviceFilters, 'directorySources' | 'userLinks'>;
+  /** The Status funnel's OUTDATED option count (`useOutdatedClientFacet`); absent: no OUTDATED option. */
+  outdatedFacet: Pick<DeviceFilters, 'clientOutdated'>;
 }
 
 function DevicesPanelLoaded({
@@ -223,6 +232,7 @@ function DevicesPanelLoaded({
   directoryColumns,
   fleetFacets,
   directoryFacets,
+  outdatedFacet,
 }: DevicesPanelLoadedProps) {
   const {
     title = 'Devices',
@@ -243,8 +253,8 @@ function DevicesPanelLoaded({
   } = panel;
   const router = useRouter();
   const deviceFilters = useMemo(
-    () => fleetFacets && { ...fleetFacets, ...directoryFacets },
-    [fleetFacets, directoryFacets],
+    () => fleetFacets && { ...fleetFacets, ...directoryFacets, ...outdatedFacet },
+    [fleetFacets, directoryFacets, outdatedFacet],
   );
 
   const {

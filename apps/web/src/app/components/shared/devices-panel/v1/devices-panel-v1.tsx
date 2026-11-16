@@ -27,6 +27,7 @@ import { type ReactNode, useCallback, useMemo } from 'react';
 import { DeviceActionsDropdown } from '@/app/(app)/devices/components/device-actions-dropdown';
 import { DeviceFacets } from '@/app/(app)/devices/components/device-facets';
 import { useGridInfiniteScroll } from '@/app/(app)/devices/hooks/use-grid-infinite-scroll';
+import { useOutdatedClientFacet } from '@/app/(app)/devices/hooks/use-outdated-client-facet';
 import { useRowRemoteAccessPolicies } from '@/app/(app)/devices/hooks/use-remote-access-policy';
 import { useDevicesUrlParamsV1 } from '@/app/(app)/devices/hooks/v1/use-devices-url-params-v1';
 import { type UseDevicesResultV1, useDevicesV1 } from '@/app/(app)/devices/hooks/v1/use-devices-v1';
@@ -134,7 +135,12 @@ function DevicesPanelContent(props: DevicesPanelPropsV1) {
   // themselves still read the live `params`, so a checkbox ticks immediately.
   const { deferredFilters, deferredSearch, isPending: isNarrowing } = useDeferredQuery(filters, debouncedSearch);
 
-  const list = useDevicesV1(deferredFilters, deferredSearch);
+  const outdatedFacet = useOutdatedClientFacet(
+    deferredFilters,
+    urlParams.tableFilters.status,
+    !props.hideFilters?.includes('status'),
+  );
+  const list = useDevicesV1(deferredFilters, deferredSearch, urlParams.sort);
   const epoch = useDeviceEpoch();
 
   const renderPanel = (deviceFilters: DeviceFilters | null) => (
@@ -143,7 +149,7 @@ function DevicesPanelContent(props: DevicesPanelPropsV1) {
       urlParams={urlParams}
       list={list}
       isNarrowing={isNarrowing}
-      deviceFilters={deviceFilters}
+      deviceFilters={deviceFilters && { ...deviceFilters, ...outdatedFacet }}
     />
   );
 

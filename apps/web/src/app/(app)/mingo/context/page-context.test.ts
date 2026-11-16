@@ -32,6 +32,19 @@ describe('resolvePageContext', () => {
     });
   });
 
+  it("tells Mingo the Devices list's OUTDATED tick as clientOutdated, not as a status", () => {
+    expect(resolvePageContext('/devices/?statuses=ONLINE&statuses=OUTDATED&sort=clientOutdated', null)).toEqual({
+      currentPage: { kind: 'LIST', title: 'Devices' },
+      currentList: {
+        module: 'DEVICES',
+        filters: [
+          { field: 'statuses', values: ['ONLINE'] },
+          { field: 'clientOutdated', values: ['true'] },
+        ],
+      },
+    });
+  });
+
   it('sends an unfiltered list with no filters', () => {
     expect(resolvePageContext('/scripts/schedules/', null)).toEqual({
       currentPage: { kind: 'LIST', title: 'Schedules' },

@@ -10,12 +10,13 @@ import { shellKind } from '@/lib/platform';
  * The lib bar self-fetches it through the `/content` proxy, animates in, and
  * remembers a dismissal per announcement id. `surface` is the shell this
  * bundle runs in, so an announcement the admin limited to other surfaces
- * stays collapsed here.
+ * stays collapsed here. `onExpandedChange` tells the layout whether it shows,
+ * so the outdated-client bar can take the slot while it does not.
  */
-export function AnnouncementTopBar() {
+export function AnnouncementTopBar({ onExpandedChange }: { onExpandedChange?: (expanded: boolean) => void }) {
   return (
     <EndpointsRuntimeContext.Provider value={CONTENT_ENDPOINTS}>
-      <AnnouncementBar surface={shellKind()} />
+      <AnnouncementBar surface={shellKind()} onExpandedChange={onExpandedChange} />
     </EndpointsRuntimeContext.Provider>
   );
 }
