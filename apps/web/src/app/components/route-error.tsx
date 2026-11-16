@@ -2,6 +2,7 @@
 
 import { Button, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useEffect, useRef } from 'react';
+import { reportBoundaryError } from '@/lib/error-reporting-client';
 
 /**
  * The body every Next route-segment boundary renders. One implementation shared
@@ -42,13 +43,14 @@ export function RouteError({
 }: {
   error: Error & { digest?: string };
   reset: () => void;
-  /** Console prefix identifying which boundary caught it. */
+  /** Console prefix identifying which boundary caught it; also the `error_boundary` tag of its report. */
   label: string;
 }) {
   const retryRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     console.error(`[${label}]`, error);
+    reportBoundaryError(error, label);
   }, [error, label]);
 
   // The heading lives inside PageLayout, so the primary action is the focus

@@ -52,6 +52,10 @@ const nextConfig = {
   // build uses the canonical `/dashboard/` form the webview can serve.
   ...(isStaticExport ? {} : { skipTrailingSlashRedirect: true }),
   distDir: 'dist',
+  // Browser source maps for the error reporter, standalone only. The Docker build takes every map out
+  // of the image and exports it beside its script (scripts/sentry-sourcemaps.mjs); the shells' static
+  // export ships none.
+  productionBrowserSourceMaps: !isStaticExport,
   env: {
     OPENFRAME_BUNDLE_VERSION: resolveBundleVersion(),
     // The hub's Supabase project host: every environment reaches the one hub, so it is one public
