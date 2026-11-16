@@ -76,7 +76,7 @@ const NO_CUSTOMER = 'No customer';
  * `CLIENT` approvals are the end user's to answer in their chat (the board shows them as
  * "Pending client approval"); everything else waits on a technician.
  */
-function isTechnicianApproval(approvalType: unknown): boolean {
+export function isTechnicianApproval(approvalType: unknown): boolean {
   return typeof approvalType !== 'string' || approvalType.toUpperCase() !== 'CLIENT';
 }
 

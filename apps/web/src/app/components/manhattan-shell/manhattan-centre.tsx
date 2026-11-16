@@ -1,8 +1,12 @@
 'use client';
 
+import { Chevron02LeftIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   AppColumnHeader,
   type AppLayoutWorkAreaMode,
+  ColumnBackSlot,
+  HeaderButton,
+  useColumnBack,
 } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { previewFadeMask } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -208,6 +212,8 @@ export function ManhattanCentre({
     if (isSheetRoute(route)) rememberOutsidePage(href);
   }, [enabled, pathname, search, route, rememberPage, rememberOutsidePage]);
 
+  // The page column draws a header (only beside a chat column: not in one column, not on a phone).
+  const pageHeaderShown = enabled && !oneColumn && !phone;
   const slots: ManhattanCentreSlots | null = enabled
     ? {
         mode,
@@ -227,21 +233,20 @@ export function ManhattanCentre({
         ),
         // Only beside a chat column: in one column (compact) and on a phone the top bar is the
         // page's chrome, and there is no other column to go full screen over or close back to.
-        pageHeader:
-          oneColumn || phone ? null : (
-            <ManhattanPageHeader
-              route={route}
-              pathname={pathname}
-              mode={shown}
-              openDialogId={openDialogId}
-              canShowChat={chatEnabled}
-              onFullScreen={() => setChatView('hidden')}
-              onRestoreSplit={() => setChatView('split')}
-              onShowChat={() => {
-                showChatOnArrivalRef.current = true;
-              }}
-            />
-          ),
+        pageHeader: !pageHeaderShown ? null : (
+          <ManhattanPageHeader
+            route={route}
+            pathname={pathname}
+            mode={shown}
+            openDialogId={openDialogId}
+            canShowChat={chatEnabled}
+            onFullScreen={() => setChatView('hidden')}
+            onRestoreSplit={() => setChatView('split')}
+            onShowChat={() => {
+              showChatOnArrivalRef.current = true;
+            }}
+          />
+        ),
         wrapDock: dock => (
           <>
             <ManhattanComposerPortal>{dock}</ManhattanComposerPortal>
@@ -254,7 +259,16 @@ export function ManhattanCentre({
       }
     : null;
 
-  return <ManhattanDockContext.Provider value={enabled}>{children(slots)}</ManhattanDockContext.Provider>;
+  // A page's Back goes into the page column's header (CU-17tkuw670yr): in the narrow column
+  // the page hides its own, and the header gives it at every width, once. Only where that
+  // header draws one (a page, not Start Work or a chat's page); elsewhere the page keeps its
+  // own. Always rendered: unwrapping it would remount the page.
+  const pageBackInHeader = pageHeaderShown && (route === 'page' || route === 'full-width');
+  return (
+    <ManhattanDockContext.Provider value={enabled}>
+      <ColumnBackSlot enabled={pageBackInHeader}>{children(slots)}</ColumnBackSlot>
+    </ManhattanDockContext.Provider>
+  );
 }
 
 interface ManhattanChatColumnProps {
@@ -418,6 +432,9 @@ function ManhattanPageHeader({
   onShowChat,
 }: ManhattanPageHeaderProps) {
   const router = useRouter();
+  // The page's own Back, handed over by its title (`ColumnBackSlot` above): where it goes and
+  // its fallback are the page's (CU-17tkuw670yr).
+  const pageBack = useColumnBack();
   if (route === 'chat') return null;
   if (route === 'home') return <AppColumnHeader title="Start Work" className={PAGE_HEADER_WINDOW_CLASS} />;
   const moduleId = pathname ? navModuleOf(pathname) : null;
@@ -433,11 +450,22 @@ function ManhattanPageHeader({
     if (mode !== 'split') onShowChat();
     router.push(routes.mingo.chat(openDialogId));
   };
+  const backLabel = pageBack?.label ?? 'Back';
+  const leading = pageBack ? (
+    <HeaderButton
+      icon={<Chevron02LeftIcon />}
+      onClick={pageBack.onClick}
+      aria-label={backLabel}
+      title={backLabel}
+      className="h-11 w-11"
+    />
+  ) : undefined;
   if (mode === 'split') {
     return (
       <AppColumnHeader
         title={title}
         className={PAGE_HEADER_WINDOW_CLASS}
+        leading={leading}
         layoutAction="fullscreen"
         layoutActionLabel="Full screen page"
         onLayoutAction={onFullScreen}
@@ -450,6 +478,7 @@ function ManhattanPageHeader({
     <AppColumnHeader
       title={title}
       className={PAGE_HEADER_WINDOW_CLASS}
+      leading={leading}
       // The chat (or Start Work) comes back beside the page, with or without an open chat.
       layoutAction={canShowChat ? 'restore-split' : undefined}
       layoutActionLabel="Show the chat beside the page"

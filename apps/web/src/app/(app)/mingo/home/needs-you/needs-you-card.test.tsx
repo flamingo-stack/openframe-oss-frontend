@@ -14,6 +14,7 @@ import { routes } from '@/lib/routes';
 import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 import { NeedsYouCard, NeedsYouPanel } from './needs-you-card';
 import {
+  approvalRow,
   NEEDS_YOU_ROWS,
   needsYouMingoPrompt,
   type NeedsYouRow,
@@ -272,6 +273,42 @@ describe('NeedsYouCard queue', () => {
     root = createRoot(container);
     await render();
     expect(rowNames()).toEqual(['approvals 2', 'tickets 1', 'tickets 2']);
+  });
+
+  // A click in jsdom lands on the element it is dispatched to, so this proves the open button has no
+  // way to Mingo of its own; it cannot show a click in the browser landing on the Mingo cell instead.
+  it('Open never goes to Mingo: a Mingo approval opens Needs approval, a ticket approval its ticket, an incident its page', async () => {
+    const approvalNotification = (title: string, meta: Record<string, unknown>, createdAt: number) => ({
+      id: `n-${title}`,
+      title,
+      description: '',
+      createdAt,
+      meta: { approvalRequestId: `a-${title}`, toolCalls: [], resolution: 'PENDING', ...meta },
+    });
+    const chatApproval = approvalRow(
+      approvalNotification('Disk cleanup', { notificationType: 'MINGO_APPROVAL_REQUEST', dialogId: 'd-1' }, 50),
+    );
+    const ticketApproval = approvalRow(
+      approvalNotification('Printer', { notificationType: 'TICKET_APPROVAL_REQUEST', ticketId: 't-1' }, 40),
+    );
+    env.reports.approvals = ready(...[chatApproval, ticketApproval].filter(approval => approval !== null));
+    env.reports.incidents = ready(row('incidents', '1', 30, routes.incidents.details('i-1')));
+    await render();
+    expect(rowNames()).toEqual(['Disk cleanup', 'Printer', 'incidents 1']);
+
+    const opens = [
+      ['Open Disk cleanup', routes.approvals],
+      ['Open Printer', routes.tickets.dialog('t-1')],
+      ['Open incidents 1', routes.incidents.details('i-1')],
+    ] as const;
+    expect(opens.map(([label]) => control(label)?.getAttribute('href'))).toEqual(opens.map(([, href]) => href));
+    for (const [label] of opens) {
+      await act(async () => {
+        control(label)?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      });
+    }
+    expect(useMingoLauncherStore.getState().dockRequest).toBeNull();
+    expect(rowNames()).toEqual([]);
   });
 
   it('Fix with Mingo sends the row to Mingo in a new chat and takes it out of the queue', async () => {
