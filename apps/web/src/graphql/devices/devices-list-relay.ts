@@ -7,8 +7,8 @@ import { graphql } from 'react-relay';
  * A `@refetchable` fragment with `@connection`, so Relay owns the cursors and
  * page merging that the previous `useInfiniteQuery` did by hand.
  *
- * `filters: ["filter", "search"]` on the connection is required, not cosmetic:
- * without it every filter/search combination would write into ONE connection
+ * `filters: ["filter", "search", "sort"]` on the connection is required, not cosmetic:
+ * without it every filter/search/sort combination would write into ONE connection
  * record and the pages of a filtered list would append to the unfiltered one.
  * With it, each combination gets its own connection, which is the behaviour the
  * react-query key `[filter, search]` used to provide.
