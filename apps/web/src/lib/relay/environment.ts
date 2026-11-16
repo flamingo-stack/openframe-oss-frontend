@@ -6,6 +6,7 @@ import { REQUEST_TIMEOUT_MS } from '../api-client';
 import { clientIdentityHeaders } from '../client-identity';
 import { isOnline, subscribeConnectivity } from '../connectivity';
 import { forceLogout } from '../force-logout';
+import { API_GRAPHQL_PATH, graphqlPath } from '../graphql-router';
 import { OfflineError } from '../query-state';
 import { runtimeEnv } from '../runtime-config';
 import { isSessionGone, markSessionPaused, noteGatewayResponse, SessionGoneError } from '../session-health';
@@ -30,7 +31,7 @@ function getAuthHeaders(): Record<string, string> {
 function getGraphqlUrl(): string {
   const tenantHost = runtimeEnv.tenantHostUrl();
   const baseUrl = tenantHost || (typeof window !== 'undefined' ? window.location.origin : '');
-  return `${baseUrl}/api/graphql`;
+  return `${baseUrl}${graphqlPath(API_GRAPHQL_PATH)}`;
 }
 
 /**
