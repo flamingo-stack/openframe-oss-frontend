@@ -32,20 +32,12 @@ RUN --mount=type=cache,target=/app/dist/cache \
       rm -rf dist/standalone/node_modules/@img dist/standalone/node_modules/sharp; \
     fi
 
-# Debug IDs into every script of this build, and every source map out of it: the maps, each beside
-# the exact script it maps, and a manifest go to /sourcemaps, which only the `sourcemaps` stage below
-# exports. The runner copies `dist/` with no map left in it (scripts/sentry-sourcemaps.mjs).
+# Inject Debug IDs and keep source maps out of the runtime image.
 RUN node scripts/sentry-sourcemaps.mjs prepare /sourcemaps
 
-# `--target sourcemaps --output type=local,dest=<dir>` exports them, never into the runtime image.
-# Before the runner: the last stage is the default target.
-FROM scratch AS sourcemaps
-COPY --from=builder /sourcemaps /
-
-# Uploads this build's maps to Sentry when given the SENTRY_AUTH_TOKEN secret. The runner copies from
-# this stage, so it runs in every build; it writes nothing, so the runner's files are the builder's.
+# Keep the upload cache separate from the application build.
 FROM builder AS sentry-upload
-ARG OPENFRAME_BUNDLE_VERSION
+
 RUN --mount=type=secret,id=SENTRY_AUTH_TOKEN \
     if [ -s /run/secrets/SENTRY_AUTH_TOKEN ]; then \
       SENTRY_AUTH_TOKEN="$(cat /run/secrets/SENTRY_AUTH_TOKEN)" node_modules/.bin/sentry-cli sourcemaps upload \

@@ -8,8 +8,8 @@
  *     Runs in the Docker builder right after `npm run build`. Injects a Debug ID into every
  *     browser and server script of the standalone output, moves each `.map` out of `dist/` into
  *     <out-dir> beside a copy of the exact script it maps, and writes <out-dir>/manifest.json:
- *     each script's path in the image, sha256 and Debug ID. The Dockerfile's `sourcemaps` stage
- *     exports <out-dir>; the runner stage copies `dist/` with no map left in it.
+ *     each script's path in the image, sha256 and Debug ID. The Dockerfile's `sentry-upload` stage
+ *     uploads <out-dir>; the runner stage copies `dist/` with no map left in it.
  *
  *   node scripts/sentry-sourcemaps.mjs verify <image-root> <export-dir>
  *     Checks an export against the image it claims to describe (<image-root> is the image's /app,
