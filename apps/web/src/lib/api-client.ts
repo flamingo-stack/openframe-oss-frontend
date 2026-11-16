@@ -243,7 +243,10 @@ class ApiClient {
     }
 
     try {
-      const response = await fetch(url, {
+      // Built again rather than reusing `url`: a GraphQL path follows the
+      // `graphql-router` flag (`graphqlPath`), which may answer while this
+      // request is parked on the gates above. Only the path can change.
+      const response = await fetch(this.buildUrl(path), {
         ...fetchOptions,
         headers: requestHeaders,
         credentials: 'include', // Always include cookies for cookie-based auth
