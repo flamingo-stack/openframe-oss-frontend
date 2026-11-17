@@ -20,9 +20,11 @@ export function SoftwareActionTypeCell({ action }: { action: softwareActionTypeC
     <div className="flex min-w-0 flex-col justify-center">
       <TruncateText>{data ? (softwareActionKindLabel(data.kind) ?? data.kind) : ''}</TruncateText>
       {data?.version && (
-        <TruncateText variant="h6" tone="secondary">
-          {data.version}
-        </TruncateText>
+        <div data-loading-optional className="min-w-0">
+          <TruncateText variant="h6" tone="secondary">
+            {data.version}
+          </TruncateText>
+        </div>
       )}
     </div>
   );

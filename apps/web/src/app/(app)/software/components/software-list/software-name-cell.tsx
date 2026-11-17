@@ -22,9 +22,11 @@ export function SoftwareNameCell({ software }: { software: softwareNameCell_soft
     <div className="flex min-w-0 flex-col justify-center">
       <TruncateText>{data?.name ?? ''}</TruncateText>
       {data?.publisher && (
-        <TruncateText variant="h6" tone="secondary">
-          {data.publisher}
-        </TruncateText>
+        <div data-loading-optional className="min-w-0">
+          <TruncateText variant="h6" tone="secondary">
+            {data.publisher}
+          </TruncateText>
+        </div>
       )}
     </div>
   );
