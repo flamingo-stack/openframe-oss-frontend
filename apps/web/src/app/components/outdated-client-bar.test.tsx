@@ -69,6 +69,8 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  // A test that stubs `matchMedia` gets it back here, failed or not.
+  vi.unstubAllGlobals();
 });
 
 describe('useOutdatedClientCount', () => {
@@ -147,6 +149,5 @@ describe('OutdatedClientBar', () => {
     );
     act(() => text?.click());
     expect(onManage).toHaveBeenCalledTimes(1);
-    vi.unstubAllGlobals();
   });
 });
