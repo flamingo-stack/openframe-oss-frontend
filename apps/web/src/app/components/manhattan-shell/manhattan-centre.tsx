@@ -371,7 +371,8 @@ function useElementHeight(element: HTMLElement | null): number {
       last = next;
       flushSync(() => setHeight(next));
     });
-    observer.observe(element);
+    // Its border box, what `offsetHeight` reads: a padding or border change is a new height too.
+    observer.observe(element, { box: 'border-box' });
     return () => observer.disconnect();
   }, [element]);
   return height;
