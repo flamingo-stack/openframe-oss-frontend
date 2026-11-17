@@ -1,7 +1,7 @@
 import { graphql, readInlineData } from 'react-relay';
 import type { aiBalanceState_subscription$key } from '@/__generated__/aiBalanceState_subscription.graphql';
 import { SubscriptionStatus } from '@/generated/schema-enums';
-import { aiBalanceTone, aiFreeTokensExhausted } from '@/lib/ai-balance-tone';
+import { aiBalanceTone, aiFreeTokensExhausted, aiPurchasedBalanceTone } from '@/lib/ai-balance-tone';
 import type { UsageStatTone } from './usage-stat-card';
 
 /**
@@ -43,8 +43,15 @@ export interface AiBalanceState {
   alert: AiAlert;
 }
 
-/** `lowTokens`: where "running low" starts for this workspace (`useAiBalanceLowTokens`); unset, the fixed 1M. */
-export function aiBalanceState(ref: aiBalanceState_subscription$key, lowTokens?: number): AiBalanceState {
+/**
+ * `lowTokens` is the workspace warning threshold, defaulting to 1M. The enabled Usage feature colours the paid
+ * card independently of the free grant; free-card and alert policy keep following the grant's availability.
+ */
+export function aiBalanceState(
+  ref: aiBalanceState_subscription$key,
+  lowTokens?: number,
+  independentPurchasedTone = false,
+): AiBalanceState {
   const { status, usage } = readInlineData(aiBalanceStateFragment, ref);
   const isTrial = status === SubscriptionStatus.TRIAL;
 
@@ -79,7 +86,7 @@ export function aiBalanceState(ref: aiBalanceState_subscription$key, lowTokens?:
     paid,
     paidUsd,
     freeTone: trialExhausted ? 'warning' : 'default',
-    paidTone: balanceTone,
+    paidTone: independentPurchasedTone ? aiPurchasedBalanceTone(paid, lowTokens) : balanceTone,
     alert,
   };
 }

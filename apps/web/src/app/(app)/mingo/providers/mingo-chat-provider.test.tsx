@@ -8,6 +8,7 @@ import { act, Component, type ReactNode, useLayoutEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MingoDockErrorBoundary } from '@/app/components/mingo-shell/mingo-dock-error-boundary';
+import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 import { fakeChatProbe, makeFakeChat, resetFakeChatProbe } from './__tests__/fake-mingo-chat';
 import {
   type MingoChat,
@@ -17,16 +18,37 @@ import {
   useMingoChatThreadOnScreen,
 } from './mingo-chat-provider';
 
-const { toast, watchers } = vi.hoisted(() => ({
+const { toast, watchers, usage, platform } = vi.hoisted(() => ({
   toast: vi.fn(),
   watchers: { mounted: 0 },
+  usage: { mounted: 0 },
+  platform: { kind: 'web' },
+}));
+
+vi.mock('@/lib/platform', async importOriginal => ({
+  ...(await importOriginal<object>()),
+  isMobileShell: () => platform.kind === 'mobile',
+  isDesktopShell: () => platform.kind === 'desktop',
 }));
 
 vi.mock('../hooks/use-mingo-unified-chat-state', async () => ({
   useMingoUnifiedChatState: (await import('./__tests__/fake-mingo-chat')).useFakeMingoUnifiedChatState,
 }));
 // The Usage panel's billing read is Relay; the provider tests are about the chat session.
-vi.mock('./mingo-usage-hydrator', () => ({ MingoUsageHydrator: () => null }));
+vi.mock('./mingo-usage-hydrator', async () => {
+  const { useEffect } = await import('react');
+  return {
+    MingoUsageHydrator: () => {
+      useEffect(() => {
+        usage.mounted += 1;
+        return () => {
+          usage.mounted -= 1;
+        };
+      }, []);
+      return null;
+    },
+  };
+});
 vi.mock('@/lib/active-dialog-views', async () => ({
   registerActiveDialogView: (await import('./__tests__/fake-mingo-chat')).fakeRegisterActiveDialogView,
 }));
@@ -115,6 +137,9 @@ describe('MingoChatProvider', () => {
     vi.clearAllMocks();
     seen.clear();
     watchers.mounted = 0;
+    usage.mounted = 0;
+    platform.kind = 'web';
+    useFeatureFlagsStore.getState().reset();
     resetFakeChatProbe(makeFakeChat({ activeDialogId: 'd-1' }));
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -240,6 +265,35 @@ describe('MingoChatProvider', () => {
     expect(toast).toHaveBeenCalledTimes(1);
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Conversation not available' }));
     expect(selectDialog).toHaveBeenCalledWith(null);
+  });
+
+  it('keeps company reads unmounted while the Usage flag is loading, absent, false or failed', () => {
+    render(shell(['page']));
+    expect(usage.mounted).toBe(0);
+    act(() => useFeatureFlagsStore.getState().setLoaded());
+    expect(usage.mounted).toBe(0);
+    act(() => useFeatureFlagsStore.getState().setFlags([]));
+    expect(usage.mounted).toBe(0);
+    act(() => useFeatureFlagsStore.getState().setFlags([{ name: 'mingo-chat-usage', enabled: false }]));
+    expect(usage.mounted).toBe(0);
+    expect(fakeChatProbe.mounted).toBe(1);
+  });
+
+  it('starts company reads only while Usage is enabled and removes them when disabled', () => {
+    render(shell(['page']));
+    act(() => useFeatureFlagsStore.getState().setFlags([{ name: 'mingo-chat-usage', enabled: true }]));
+    expect(usage.mounted).toBe(1);
+    act(() => useFeatureFlagsStore.getState().setFlags([{ name: 'mingo-chat-usage', enabled: false }]));
+    expect(usage.mounted).toBe(0);
+    expect(fakeChatProbe.mounted).toBe(1);
+  });
+
+  it.each(['mobile', 'desktop'])('gates company reads for the %s shell even with the flag on', kind => {
+    platform.kind = kind;
+    useFeatureFlagsStore.getState().setFlags([{ name: 'mingo-chat-usage', enabled: true }]);
+    render(shell(['page']));
+    expect(usage.mounted).toBe(kind === 'mobile' ? 0 : 1);
+    expect(fakeChatProbe.mounted).toBe(1);
   });
 
   describe('which dialog counts as on screen (popups, auto-read)', () => {

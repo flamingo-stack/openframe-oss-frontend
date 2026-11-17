@@ -49,7 +49,6 @@ export function MingoUsageHydrator({ onScreen }: { onScreen: boolean }) {
     if (!onScreen) return undefined;
     const timer = setInterval(() => {
       if (!sessionPollsAllowed()) return;
-      // Into the store; the read above follows it. A failed refresh keeps the last answer.
       fetchQuery<MingoUsageHydratorQueryType>(
         environment,
         mingoUsageHydratorQuery,

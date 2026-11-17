@@ -10,8 +10,10 @@ import { useEffect } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { billingBarsQuery as BillingBarsQueryType } from '@/__generated__/billingBarsQuery.graphql';
 import { useAiBalanceLowTokens } from '@/app/hooks/use-ai-balance-low-tokens';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { AutoTopUpDisabledReason, BillingNoticeType, SubscriptionStatus } from '@/generated/schema-enums';
-import { type AiBalanceTone, aiBalanceTone } from '@/lib/ai-balance-tone';
+import { type AiBalanceTone, aiBalanceTone, aiPurchasedBalanceTone } from '@/lib/ai-balance-tone';
+import { isBillingHidden } from '@/lib/billing-visibility';
 import { formatDate } from '@/lib/format-date';
 import type { Instant } from '@/lib/graphql-scalars';
 import { findNotice, useBillingNotices } from './billing-notices/use-billing-notices';
@@ -70,6 +72,14 @@ interface AiBalanceBarProps {
  */
 export function AiBalanceBar({ tone, onManage }: AiBalanceBarProps) {
   const empty = tone === 'error';
+  const independentPurchasedTone = useFeatureFlag('mingo-chat-usage') && !isBillingHidden();
+  const title = independentPurchasedTone
+    ? empty
+      ? 'Your purchased AI balance is empty. Manage it in Billing & Usage.'
+      : 'Your purchased AI balance is running low. Manage it in Billing & Usage.'
+    : empty
+      ? 'Your AI balance is empty. AI agents are paused. Top up in Billing & Usage to continue.'
+      : 'Your AI balance is running low. AI agents pause at zero. Top up in Billing & Usage to continue.';
 
   return (
     <AnnouncementBarView
@@ -77,11 +87,7 @@ export function AiBalanceBar({ tone, onManage }: AiBalanceBarProps) {
       contentClassName="cursor-pointer md:cursor-default"
       onContentClick={onManage}
       startAdornment={<AlertTriangleIcon className="size-[var(--icon-size-icon-size)] shrink-0" />}
-      title={
-        empty
-          ? 'Your AI balance is empty. AI agents are paused. Top up in Billing & Usage to continue.'
-          : 'Your AI balance is running low. AI agents pause at zero. Top up in Billing & Usage to continue.'
-      }
+      title={title}
       actionBlock={
         <Button variant="outline" size="small" onClick={onManage}>
           Manage AI Balance
@@ -203,6 +209,7 @@ const NO_BARS: BillingBarsState = { ai: { tone: 'default' } };
 export function BillingBarsHydrator({ onResolved }: { onResolved: (state: BillingBarsState) => void }) {
   const data = useLazyLoadQuery<BillingBarsQueryType>(billingBarsQuery, {}, { fetchPolicy: 'store-and-network' });
   const lowTokens = useAiBalanceLowTokens();
+  const independentPurchasedTone = useFeatureFlag('mingo-chat-usage') && !isBillingHidden();
 
   const subscription = data.subscription;
   const usage = subscription?.usage;
@@ -210,8 +217,9 @@ export function BillingBarsHydrator({ onResolved }: { onResolved: (state: Billin
   // balance bar has nothing to say about it: its own bar below is the one that
   // speaks for a trial, and the billing page states a spent grant on the card.
   // GraphQL `Long` arrives as a string or a number depending on its size.
-  const tone: AiBalanceTone =
-    subscription?.status === SubscriptionStatus.TRIAL
+  const tone: AiBalanceTone = independentPurchasedTone
+    ? aiPurchasedBalanceTone(Number(usage?.purchasedTokensRemaining ?? 0), lowTokens)
+    : subscription?.status === SubscriptionStatus.TRIAL
       ? 'default'
       : aiBalanceTone({
           freeTokens: Number(usage?.aiTokensFree ?? 0),

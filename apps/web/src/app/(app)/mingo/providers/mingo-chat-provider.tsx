@@ -47,6 +47,8 @@ import {
   useSyncExternalStore,
 } from 'react';
 import { MingoCompactionWatchers } from '@/app/components/mingo-compaction-watchers';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
+import { isBillingHidden } from '@/lib/billing-visibility';
 import type { MingoUnifiedChat } from '../hooks/use-mingo-unified-chat-state';
 import { MingoChatRunner, MingoChatRunnerBoundary } from './mingo-chat-runner';
 import { createMingoChatStore, IDLE_MINGO_CHAT, type MingoChatSnapshot, type MingoChatStore } from './mingo-chat-store';
@@ -99,6 +101,7 @@ interface MingoChatProviderProps {
  * mounts and unmounts beside them.
  */
 export function MingoChatProvider({ enabled, identityEnabled, children }: MingoChatProviderProps) {
+  const usageEnabled = useFeatureFlag('mingo-chat-usage') && !isBillingHidden();
   const [store] = useState(createMingoChatStore);
   const [surfaceCount, setSurfaceCount] = useState(0);
   // Stable on purpose, not for speed: it is the registration effect's dependency,
@@ -138,7 +141,7 @@ export function MingoChatProvider({ enabled, identityEnabled, children }: MingoC
           {/* loading-standard-ok(SUSPENSE_FALLBACK): the runner draws nothing; it only runs the chat state */}
           <Suspense fallback={null}>
             <MingoChatRunner store={store} onScreen={onScreen} />
-            <MingoUsageHydrator onScreen={onScreen} />
+            {usageEnabled ? <MingoUsageHydrator onScreen={onScreen} /> : null}
           </Suspense>
         </MingoChatRunnerBoundary>
       ) : null}

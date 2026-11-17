@@ -5,6 +5,8 @@ import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/compone
 import { graphql, useFragment } from 'react-relay';
 import type { paidAiTokensCard_subscription$key } from '@/__generated__/paidAiTokensCard_subscription.graphql';
 import { useAiBalanceLowTokens } from '@/app/hooks/use-ai-balance-low-tokens';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
+import { isBillingHidden } from '@/lib/billing-visibility';
 import { formatCurrency } from '@/lib/format-currency';
 import { formatCompactCount } from '@/lib/format-number';
 import type { AutoTopUpStatus } from '../ai-balance/auto-top-up-status';
@@ -33,9 +35,10 @@ interface PaidAiTokensCardProps {
 export function PaidAiTokensCard({ subscription, autoTopUp }: PaidAiTokensCardProps) {
   const data = useFragment(paidAiTokensCardFragment, subscription);
   const lowTokens = useAiBalanceLowTokens();
+  const independentPurchasedTone = useFeatureFlag('mingo-chat-usage') && !isBillingHidden();
   // One card, both forms: while the balance is on its way the figure and caption are bars; the rates trigger is a
   // static control, drawn for real.
-  const ai = useLoadingScope() || data == null ? null : aiBalanceState(data, lowTokens);
+  const ai = useLoadingScope() || data == null ? null : aiBalanceState(data, lowTokens, independentPurchasedTone);
 
   return (
     <UsageStatCard

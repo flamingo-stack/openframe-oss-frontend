@@ -82,6 +82,7 @@ export const FEATURE_FLAG_NAMES = [
   // context on demand. Off = the action is absent; auto-compaction is
   // unaffected either way.
   'mingo-compact-memory',
+  'mingo-chat-usage',
   // AI-first onboarding: the full-screen `/setup` wizard in place of the
   // dashboard's Initial Setup card, and the Getting Started tour in Mingo (the
   // block above the docked composer, in the tour's conversation) in place of
@@ -164,6 +165,11 @@ function isDebugChunkLogForced(): boolean {
  * Server-loaded via feFeatureFlags GraphQL query with env-var fallbacks
  */
 export const featureFlags = {
+  mingoChatUsage: {
+    enabled(): boolean {
+      return getFlagValue('mingo-chat-usage', () => false);
+    },
+  },
   subscription: {
     enabled(): boolean {
       return getFlagValue('billings', () => false);

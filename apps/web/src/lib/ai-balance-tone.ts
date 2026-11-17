@@ -55,6 +55,11 @@ export function aiFreeTokensExhausted({
 
 export function aiBalanceTone(input: AiBalanceInput): AiBalanceTone {
   if (!aiFreeTokensExhausted(input)) return 'default';
-  if (input.purchasedRemaining <= 0) return 'error';
-  return input.purchasedRemaining <= (input.lowTokens ?? AI_BALANCE_LOW_TOKENS) ? 'warning' : 'default';
+  return aiPurchasedBalanceTone(input.purchasedRemaining, input.lowTokens);
+}
+
+/** The purchased balance's colour, independently of the period's free grant. */
+export function aiPurchasedBalanceTone(tokens: number, lowTokens = AI_BALANCE_LOW_TOKENS): AiBalanceTone {
+  if (tokens <= 0) return 'error';
+  return tokens <= lowTokens ? 'warning' : 'default';
 }

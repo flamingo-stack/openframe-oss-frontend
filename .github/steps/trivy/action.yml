@@ -8,6 +8,10 @@ inputs:
   dockerfile:
     required: true
   context: { default: "." }
+  bundle-version:
+    description: "Optional exact bundle version for non-PR feature images"
+    required: false
+    default: ""
 
 runs:
   using: "composite"
@@ -60,13 +64,14 @@ runs:
         GITHUB_ACTOR: ${{ github.actor }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
         PR_SHA: ${{ github.event.pull_request.head.sha }}
+        BUNDLE_VERSION: ${{ inputs.bundle-version }}
         DOCKERFILE: ${{ inputs.dockerfile }}
         CONTEXT: ${{ inputs.context }}
       run: |
         set -euo pipefail
         # Same 12 min cap and build args as the image build steps, so every layer comes from the cache.
         timeout 12m docker buildx build --platform linux/amd64 --build-arg GITHUB_ACTOR="$GITHUB_ACTOR" \
-          --build-arg OPENFRAME_BUNDLE_VERSION="pr-${PR_NUMBER}-${PR_SHA::7}" \
+          --build-arg OPENFRAME_BUNDLE_VERSION="${BUNDLE_VERSION:-pr-${PR_NUMBER}-${PR_SHA::7}}" \
           -f "$DOCKERFILE" --output type=docker,dest=/tmp/image.tar "$CONTEXT"
         # apk upgrade fixes OS CVEs once Alpine publishes the package; npm package CVEs need a dependency bump.
         # Trivy's own default timeout is 5m, short for a large image on a slow runner.

@@ -19,6 +19,11 @@ on:
         required: false
         type: string
         default: ''
+      snapshot:
+        description: 'Build only an immutable feature-branch web image, without a release or latest tag.'
+        required: false
+        type: boolean
+        default: false
 
 env:
   REGISTRY: 'ghcr.io'
@@ -30,14 +35,103 @@ env:
 # =============================================================================
 
 jobs:
+  feature_image:
+    name: Build feature frontend image
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.snapshot }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Resolve immutable feature version
+        id: version
+        shell: bash
+        run: |
+          echo "image_tag=feature-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "bundle_version=feature-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Generate feature metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.ORGANISATION }}/${{ env.REPOSITORY }}/${{ env.REPOSITORY }}
+          flavor: latest=false
+          tags: type=raw,value=${{ steps.version.outputs.image_tag }}
+
+      - name: Build feature image
+        uses: nick-fields/retry@v4
+        env:
+          META_TAGS: ${{ steps.meta.outputs.tags }}
+          BUNDLE_VERSION: ${{ steps.version.outputs.bundle_version }}
+        with:
+          max_attempts: 3
+          retry_wait_seconds: 5
+          timeout_minutes: 30
+          shell: bash
+          command: |
+            args=(--platform linux/amd64,linux/arm64
+                  --build-arg GITHUB_ACTOR=${{ github.actor }}
+                  --build-arg OPENFRAME_BUNDLE_VERSION="$BUNDLE_VERSION"
+                  -f ./apps/web/Dockerfile)
+            while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
+            docker buildx build "${args[@]}" ./apps/web
+
+      - name: Scan feature image
+        uses: ./.github/steps/trivy
+        with:
+          name: ${{ env.REPOSITORY }}-feature
+          dockerfile: ./apps/web/Dockerfile
+          context: ./apps/web
+          bundle-version: ${{ steps.version.outputs.bundle_version }}
+
+      - name: Push scanned feature image
+        uses: nick-fields/retry@v4
+        env:
+          META_TAGS: ${{ steps.meta.outputs.tags }}
+          BUNDLE_VERSION: ${{ steps.version.outputs.bundle_version }}
+        with:
+          max_attempts: 3
+          retry_wait_seconds: 5
+          timeout_minutes: 30
+          shell: bash
+          command: |
+            args=(--platform linux/amd64,linux/arm64 --push --provenance=false --sbom=true
+                  --build-arg GITHUB_ACTOR=${{ github.actor }}
+                  --build-arg OPENFRAME_BUNDLE_VERSION="$BUNDLE_VERSION"
+                  -f ./apps/web/Dockerfile)
+            while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
+            docker buildx build "${args[@]}" ./apps/web
+
   version:
     name: Resolve Version
+    if: ${{ !inputs.snapshot }}
     uses: ./.github/workflows/version.yml
     with:
       version: ${{ inputs.version }}
 
   changes:
     name: Detect Changes
+    if: ${{ !inputs.snapshot }}
     runs-on: ubuntu-latest
     outputs:
       web: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.web == 'true' }}
@@ -61,7 +155,7 @@ jobs:
   build_image:
     name: 'Build Frontend'
     needs: [version, changes]
-    if: needs.changes.outputs.web == 'true'
+    if: ${{ !inputs.snapshot && needs.changes.outputs.web == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -119,7 +213,7 @@ jobs:
   build_web_export:
     name: 'Build Web Export'
     needs: [version, changes]
-    if: needs.changes.outputs.desktop == 'true'
+    if: ${{ !inputs.snapshot && needs.changes.outputs.desktop == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -161,7 +255,7 @@ jobs:
   build_desktop:
     name: "Build Desktop: ${{ matrix.leg }}"
     needs: [version, changes, build_web_export]
-    if: needs.changes.outputs.desktop == 'true'
+    if: ${{ !inputs.snapshot && needs.changes.outputs.desktop == 'true' }}
     runs-on: "${{ matrix.runner }}"
     timeout-minutes: 120
     env:
@@ -292,7 +386,7 @@ jobs:
   build_mobile_ota:
     name: 'Build Mobile OTA Bundle'
     needs: [version, build_web_export]
-    if: github.event_name == 'workflow_dispatch'
+    if: ${{ github.event_name == 'workflow_dispatch' && !inputs.snapshot }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -335,7 +429,7 @@ jobs:
   release:
     name: 'Create Release'
     needs: [version, build_image, build_desktop, build_mobile_ota]
-    if: github.event_name == 'workflow_dispatch'
+    if: ${{ github.event_name == 'workflow_dispatch' && !inputs.snapshot }}
     runs-on: ubuntu-latest
     permissions:
       contents: write

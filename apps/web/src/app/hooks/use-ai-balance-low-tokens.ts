@@ -3,6 +3,8 @@
 import { graphql } from 'react-relay';
 import type { useAiBalanceLowTokensQuery as UseAiBalanceLowTokensQueryType } from '@/__generated__/useAiBalanceLowTokensQuery.graphql';
 import { aiBalanceLowTokens } from '@/lib/ai-balance-tone';
+import { isBillingHidden } from '@/lib/billing-visibility';
+import { useFeatureFlag } from './use-feature-flag';
 import { useNonSuspendingQuery } from './use-non-suspending-query';
 
 /**
@@ -24,10 +26,12 @@ const useAiBalanceLowTokensQuery = graphql`
  * until the arrangement is read, and when it cannot be.
  */
 export function useAiBalanceLowTokens(enabled = true): number {
+  const usageEnabled = useFeatureFlag('mingo-chat-usage') && !isBillingHidden();
+  const readEnabled = enabled && usageEnabled;
   const { data } = useNonSuspendingQuery<UseAiBalanceLowTokensQueryType>(
     useAiBalanceLowTokensQuery,
     { list: true },
-    enabled,
+    readEnabled,
   );
-  return aiBalanceLowTokens(data.autoTopUpSettings);
+  return aiBalanceLowTokens(readEnabled ? data.autoTopUpSettings : null);
 }

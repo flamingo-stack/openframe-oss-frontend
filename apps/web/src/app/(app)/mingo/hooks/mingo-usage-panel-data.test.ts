@@ -18,9 +18,40 @@ describe('companyUsageOf', () => {
     });
   });
 
-  it('never colours a trial: it has no balance to top up', () => {
-    const trial = companyUsageOf({ id: 's', status: SubscriptionStatus.TRIAL, usage }, 1_000_000, false);
-    expect(trial.balance?.tone).toBe('default');
+  it('colours the purchased balance independently of the remaining free grant', () => {
+    const subscription = {
+      id: 's',
+      status: SubscriptionStatus.ACTIVE,
+      usage: { ...usage, aiTokensFreeUsed: 0, purchasedTokensRemaining: 0 },
+    };
+    expect(companyUsageOf(subscription, 1_000_000, false).balance?.tone).toBe('error');
+    expect(
+      companyUsageOf(
+        { ...subscription, usage: { ...subscription.usage, purchasedTokensRemaining: 800_000 } },
+        1_000_000,
+        false,
+      ).balance?.tone,
+    ).toBe('warning');
+    expect(
+      companyUsageOf(
+        { ...subscription, usage: { ...subscription.usage, purchasedTokensRemaining: 2_000_000 } },
+        1_000_000,
+        false,
+      ).balance?.tone,
+    ).toBe('default');
+  });
+
+  it('shows a trial balance independently of its remaining free grant', () => {
+    const trial = {
+      id: 's',
+      status: SubscriptionStatus.TRIAL,
+      usage: { ...usage, aiTokensFreeUsed: 0, purchasedTokensRemaining: 0 },
+    };
+    expect(companyUsageOf(trial, 1_000_000, false).balance?.tone).toBe('error');
+    expect(
+      companyUsageOf({ ...trial, usage: { ...trial.usage, purchasedTokensRemaining: 800_000 } }, 1_000_000, false)
+        .balance?.tone,
+    ).toBe('warning');
   });
 
   it('knows nothing until the usage is read', () => {
@@ -37,9 +68,10 @@ describe('breakdownOf', () => {
     ).toEqual({ input: 1_200, cacheRead: 10_100, cacheWrite: 560, output: 940 });
   });
 
-  it('has no breakdown without the split, rather than all of it as Input', () => {
-    expect(breakdownOf(reply)).toBeNull();
-    expect(breakdownOf({ ...reply, uncachedInputTokensSize: 1_200, cacheReadTokensSize: null })).toBeNull();
+  it('keeps known output when the input split is unknown or only partly reported', () => {
+    const legacy = { input: null, cacheRead: null, cacheWrite: null, output: 940 };
+    expect(breakdownOf(reply)).toEqual(legacy);
+    expect(breakdownOf({ ...reply, uncachedInputTokensSize: 1_200, cacheReadTokensSize: null })).toEqual(legacy);
     expect(breakdownOf(null)).toBeNull();
   });
 });

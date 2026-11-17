@@ -47,6 +47,7 @@ import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { isMobileViewportNow } from '@/app/hooks/use-is-mobile-viewport';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { apiClient } from '@/lib/api-client';
+import { isBillingHidden } from '@/lib/billing-visibility';
 import { DISPLAY_APPROVAL_TYPES } from '@/lib/chat-approval-tiers';
 import { featureFlags } from '@/lib/feature-flags';
 import { getFullImageUrl } from '@/lib/image-url';
@@ -155,8 +156,7 @@ export const mingoDialogs = createMingoGraphqlDialogs(postMingoGraphql, {
   pendingApproval: true,
   unread: true,
   imageUrlOf: image => getFullImageUrl(image.imageUrl, image.hash) ?? null,
-  // The Usage panel's breakdown and compaction zone; a backend without the fields still opens the dialog.
-  tokenUsageSplit: true,
+  tokenUsageSplit: () => featureFlags.mingoChatUsage.enabled() && !isBillingHidden(),
 });
 
 /** The open dialog's history, a page at a time; a failed read tries again (`retryingRead`). */
@@ -357,6 +357,7 @@ function useCopyDialogLink(): (dialog: DialogItem) => void {
 
 /** `onScreen`: the open chat's thread is in front of the user (the provider counts the surfaces that show it). */
 export function useMingoUnifiedChatState({ onScreen }: { onScreen: boolean }): MingoUnifiedChat {
+  const usageEnabled = useFeatureFlag('mingo-chat-usage') && !isBillingHidden();
   const { toast } = useToast();
   const { aiModel } = useAiModelStatus();
   const currentUserId = useAuthStore(s => s.user?.id);
@@ -381,6 +382,8 @@ export function useMingoUnifiedChatState({ onScreen }: { onScreen: boolean }): M
     newDialogGreeting: WELCOME_TEXT,
     modelProvider: aiModel?.provider ?? null,
     modelLabel: aiModel?.displayName ?? null,
+    recordReadKey: usageEnabled,
+    effectiveContextBudget: usageEnabled,
     // A create Mingo just ran adds a row to a list the page behind the chat may show.
     transformChunk: raw => {
       noteMingoToolExecuted(raw as Parameters<typeof noteMingoToolExecuted>[0]);
@@ -422,13 +425,11 @@ export function useMingoUnifiedChatState({ onScreen }: { onScreen: boolean }): M
     readDialogAgain: mingoDialogs.fetchDialog,
   });
 
-  // The composer's token counter opens the Usage panel (Mingo only): the company's tokens and this chat's context.
-  // The company rows come from `MingoUsageHydrator` (the provider mounts it beside this state).
   const company = useMingoUsageStore(s => s.company);
   const { dialogTokenUsage = null } = state;
   const stateWithUsage = useMemo<UnifiedChatState>(
-    () => ({ ...state, usagePanel: buildUsagePanel(company, dialogTokenUsage) }),
-    [state, company, dialogTokenUsage],
+    () => ({ ...state, usagePanel: usageEnabled ? buildUsagePanel(company, dialogTokenUsage) : null }),
+    [state, company, dialogTokenUsage, usageEnabled],
   );
 
   return {
