@@ -216,14 +216,15 @@ export function ManhattanCentre({
     if (previousOneColumnRef.current === oneColumn) return;
     previousOneColumnRef.current = oneColumn;
     if (oneColumn) return;
-    if (chatClosedPendingRef.current) {
+    // Two columns only when the shell is on: the centre switched off (`enabled`) is no widening.
+    if (chatClosedPendingRef.current && enabled) {
       chatClosedPendingRef.current = false;
       hiddenByOneColumnRef.current = false;
       setChatView('hidden');
       return;
     }
     if (chatView === 'hidden' && hiddenByOneColumnRef.current) setChatView('split');
-  }, [oneColumn, chatView, setChatView]);
+  }, [oneColumn, enabled, chatView, setChatView]);
 
   // "Close page" with the chat waiting behind the page: the chat stops waiting once its page
   // is on screen (where the view draws nothing), not before — set at the click, the page

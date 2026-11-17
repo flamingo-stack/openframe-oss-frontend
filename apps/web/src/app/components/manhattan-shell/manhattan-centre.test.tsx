@@ -549,6 +549,8 @@ describe('ManhattanCentre', () => {
       windowWide(false);
       window.localStorage.setItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY, 'true');
       renderAt(true);
+      // The window widens to two columns: the same mounted centre, `compact` off.
+      windowWide(true);
       renderAt(false);
       expect(useManhattanCentreStore.getState().chatView).toBe('hidden');
       expect(currentMode()).toBe('page');
@@ -563,6 +565,8 @@ describe('ManhattanCentre', () => {
       nav.pathname = '/software';
       renderAt(true);
       expect(useManhattanCentreStore.getState().chatView).toBe('hidden');
+      // The window widens to two columns: the same mounted centre, `compact` off.
+      windowWide(true);
       renderAt(false);
       expect(useManhattanCentreStore.getState().chatView).toBe('hidden');
       expect(currentMode()).toBe('page');
@@ -576,6 +580,8 @@ describe('ManhattanCentre', () => {
       chatState.activeDialogId = 'd-3';
       renderAt(true);
       expect(stored()).toBeNull();
+      // The window widens to two columns: the same mounted centre, `compact` off.
+      windowWide(true);
       renderAt(false);
       expect(useManhattanCentreStore.getState().chatView).toBe('split');
       expect(currentMode()).toBe('split');
