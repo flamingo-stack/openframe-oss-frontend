@@ -124,4 +124,29 @@ describe('OutdatedClientBar', () => {
     expect(onManage).toHaveBeenCalled();
     expect(OUTDATED_CLIENT_DEVICES_HREF).toBe('/devices?sort=clientOutdated');
   });
+
+  it('says the short message below sm, where the full one is cut off, and the full one from sm up (CU-17tkuw67m8q)', () => {
+    act(() => root.render(<OutdatedClientBar onManage={vi.fn()} />));
+    const spans = [...container.querySelectorAll('span')];
+    const short = spans.find(s => s.textContent === 'Some devices need the agent reinstalled.');
+    const full = spans.find(
+      s => s.textContent === 'Some devices run an outdated agent. Reinstall it to keep them connected.',
+    );
+    expect(short?.className.split(' ')).toContain('sm:hidden');
+    expect(full?.className.split(' ')).toEqual(expect.arrayContaining(['hidden', 'sm:inline']));
+    expect(short?.closest('p')?.className.split(' ')).toEqual(expect.arrayContaining(['truncate', 'text-h6']));
+  });
+
+  it('opens the Devices list when the bar itself is tapped below md', () => {
+    const onManage = vi.fn();
+    // A phone: the md query does not match, so the row is the tap target (jsdom has no matchMedia of its own).
+    vi.stubGlobal('matchMedia', () => ({ matches: false }));
+    act(() => root.render(<OutdatedClientBar onManage={onManage} />));
+    const text = [...container.querySelectorAll('span')].find(
+      s => s.textContent === 'Some devices need the agent reinstalled.',
+    );
+    act(() => text?.click());
+    expect(onManage).toHaveBeenCalledTimes(1);
+    vi.unstubAllGlobals();
+  });
 });
