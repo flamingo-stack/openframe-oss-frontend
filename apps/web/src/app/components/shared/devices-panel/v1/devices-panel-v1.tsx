@@ -218,6 +218,7 @@ function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters
 
   const hasActiveDeviceFilters =
     params.statuses.length > 0 ||
+    params.connectivity.length > 0 ||
     params.osTypes.length > 0 ||
     params.organizationIds.length > 0 ||
     params.tags.length > 0;
