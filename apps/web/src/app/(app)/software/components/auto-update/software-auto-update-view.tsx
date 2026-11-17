@@ -46,10 +46,8 @@ function SoftwareAutoUpdateQuery({ softwareId }: { softwareId: string }) {
   const { software, softwareAutoUpdatePolicy } = useLazyLoadQuery<SoftwareAutoUpdateViewQueryType>(
     softwareAutoUpdateViewQuery,
     { id: softwareId },
-    // Read from the server on every visit, never drawn from the store first: the form takes the saved settings once,
-    // when it mounts, so opening on a cached policy (the one read before the last Save) showed the old deadline and
-    // countdown, and the next Save wrote them back.
-    { fetchPolicy: 'network-only', fetchKey: retryKey },
+    // The saved policy refreshed on every visit (another tab may have changed it); a cached one draws meanwhile.
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
   if (!software) return <NotFoundError message="Software not found" />;
   const title: SoftwareAutoUpdateTitle = { name: software.name, policy: softwareAutoUpdatePolicy };

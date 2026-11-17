@@ -105,13 +105,30 @@ export function SoftwareAutoUpdateForm({ softwareId, title, os, loading = false 
   const saved = useFragment(softwareAutoUpdateFormPolicyFragment, title?.policy ?? null);
   // The page is where auto-update is turned on: it opens ticked, as the design does, and on the saved settings.
   const [enabled, setEnabled] = useState(true);
-  const [policy, setPolicy] = useState<SoftwareUpdatePolicy>(() => {
+  const savedPolicy = (): SoftwareUpdatePolicy => {
     const fallback = defaultSoftwareUpdateSettings(userNotifications).policy;
     const settings = saved?.settings;
     if (!settings) return fallback;
     const { mode, deadlineSeconds, countdownSeconds } = settings;
     return fromPolicySettings({ mode, deadlineSeconds, countdownSeconds }, fallback);
-  });
+  };
+  const [policy, setPolicy] = useState<SoftwareUpdatePolicy>(savedPolicy);
+  // The page draws the policy the store holds first and the server's answer after it (store-and-network): back from a
+  // Save, the store's is the one from before it. Until the user edits a field, the form follows the saved settings as
+  // they land; otherwise a Save made for another field wrote the stale deadline and countdown back.
+  const [edited, setEdited] = useState(false);
+  const settingsKey = saved?.settings
+    ? `${saved.settings.mode}:${saved.settings.deadlineSeconds}:${saved.settings.countdownSeconds}`
+    : '';
+  const [seededKey, setSeededKey] = useState(settingsKey);
+  if (seededKey !== settingsKey) {
+    setSeededKey(settingsKey);
+    if (!edited) setPolicy(savedPolicy());
+  }
+  const editPolicy = (next: SoftwareUpdatePolicy) => {
+    setEdited(true);
+    setPolicy(next);
+  };
 
   // The devices it can be on: live ones on the title's systems. One object per system, since the picker's queries and
   // facets are keyed by it.
@@ -195,7 +212,7 @@ export function SoftwareAutoUpdateForm({ softwareId, title, os, loading = false 
 
       {enabled && (
         <>
-          <SoftwareUpdatePolicyFields name="autoUpdatePolicy" policy={policy} onChange={setPolicy} />
+          <SoftwareUpdatePolicyFields name="autoUpdatePolicy" policy={policy} onChange={editPolicy} />
 
           <h2 className="pt-[var(--spacing-system-l)] text-ods-text-primary text-h2">Device Selection</h2>
 
