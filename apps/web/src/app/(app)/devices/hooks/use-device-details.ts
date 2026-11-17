@@ -231,6 +231,7 @@ export function createDevice(
     scripts_enabled: fleetData?.scripts_enabled,
     agentVersion: node.agentVersion,
     version: node.agentVersion,
+    clientOutdated: node.clientOutdated,
 
     // Unified Arrays (NO NESTING)
     software,

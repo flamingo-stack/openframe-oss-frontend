@@ -105,6 +105,7 @@ import { type UnreadCountsByCategory, UnreadCountsHydrator } from './notificatio
 import { OnboardingCoachMark } from './onboarding-coach-mark';
 import { OnboardingProgressHydrator } from './onboarding-progress-hydrator';
 import { OnboardingV2Redirect } from './onboarding-v2-redirect';
+import { OUTDATED_CLIENT_DEVICES_HREF, OutdatedClientBar, useOutdatedClientCount } from './outdated-client-bar';
 import { PresenceHeartbeat } from './presence-heartbeat';
 import { SessionHealthWatcher } from './session-health-watcher';
 import { SessionUnavailableScreen } from './session-unavailable-screen';
@@ -338,6 +339,12 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
    * bars would send you to has a top-up or a checkout on them.
    */
   const showBillingBars = billingsEnabled && !isBillingHidden() && !isBillingReadOnly() && sessionReady && !isLocked;
+  /**
+   * Devices on an OpenFrame client too old to update itself (the server's verdict). Their bar fills the `topBar`
+   * slot only after the hub announcement: it is reported here whether the announcement shows.
+   */
+  const outdatedClientCount = useOutdatedClientCount(sessionReady && !isLocked);
+  const [announcementShown, setAnnouncementShown] = useState(false);
 
   // Mingo — the composer dock, the chat history, the Mingo rows — is meaningful only
   // inside the full, unlocked app shell (it hits authed endpoints), so the
@@ -702,7 +709,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // Single `topBar` slot, one bar at a time: the billing bars first, since they
   // ask for an action; otherwise the hub announcement — informational and
   // dismissible, so it only ever fills an empty slot (never stacks, never bumps
-  // a bar out).
+  // a bar out); and only while it shows nothing (none published, dismissed, not
+  // for this path or shell), the outdated-client bar. That one cannot be
+  // dismissed, so above the announcement it would hide every announcement for
+  // a tenant with one abandoned old device.
   let topBar: React.ReactNode;
   if (showLockContent) {
     // No band of any kind over the lock screen — whatever it would say, this
@@ -747,7 +757,14 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     // Loaded progress doubles as "a live, unlocked session": the hydrator behind
     // it only runs with one, and the announcement fetches on mount. The
     // Mingo-first shell loads no progress and asks the session directly.
-    topBar = <AnnouncementTopBar />;
+    topBar = (
+      <>
+        <AnnouncementTopBar onExpandedChange={setAnnouncementShown} />
+        {!announcementShown && outdatedClientCount > 0 && (
+          <OutdatedClientBar onManage={() => router.push(OUTDATED_CLIENT_DEVICES_HREF)} />
+        )}
+      </>
+    );
   }
 
   const displayName = useMemo(

@@ -556,6 +556,9 @@ input DeviceFilterInput {
   directorySources: [DirectorySource!]
   """USER filter. NONE also matches a machine no external directory integration wrote (every machine in OSS)."""
   userLinks: [DirectoryUserLink!]
+
+  """true: only devices whose client is below the minimum supported version; false: only supported or unknown versions; null: no filter."""
+  clientOutdated: Boolean
 }
 
 type DeviceFilterOption {
@@ -576,6 +579,9 @@ type DeviceFilters {
   directorySources: [DeviceFilterOption!]!
   """USER filter options: PRIMARY, SHARED, NONE. A machine without a directory link counts as NONE."""
   userLinks: [DeviceFilterOption!]!
+
+  """Outdated client options: "true" (client below the minimum supported version) and "false" (supported or unknown version), both always listed, counted under the other filters. The outdated client banner reads the "true" count."""
+  clientOutdated: [DeviceFilterOption!]!
 }
 
 type DeviceLogConnection {
@@ -1926,6 +1932,8 @@ type Machine implements Node & AssignableTarget {
   ip: String
   macAddress: String
   osUuid: String
+  """The client runs a version below the minimum supported one (server setting, 1.6.0 by default). False when the version is unknown. The devices sort field "clientOutdated" (DESC = outdated first) uses the same value."""
+  clientOutdated: Boolean!
   agentVersion: String
   status: DeviceStatus
   lastSeen: Instant
