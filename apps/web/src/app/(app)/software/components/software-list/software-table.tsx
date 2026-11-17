@@ -126,7 +126,10 @@ function columnsFor(surface: SoftwareTableSurface, filterOptions: SoftwareListFi
       header: SOFTWARE_LIST_COLUMNS.autoUpdate.header,
       cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareAutoUpdateCell software={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.autoUpdate, { filter: { options: filterOptions.autoUpdate } }),
+      // The last funnel: its panel opens leftwards, or it runs past the page's column.
+      meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.autoUpdate, {
+        filter: { options: filterOptions.autoUpdate, placement: 'bottom-end' },
+      }),
     },
     OPEN_COLUMN,
   ];
