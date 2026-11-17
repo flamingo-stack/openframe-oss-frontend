@@ -116,7 +116,7 @@ export function SoftwareAutoUpdateForm({ softwareId, title, os, loading = false 
   // The devices it can be on: live ones on the title's systems. One object per system, since the picker's queries and
   // facets are keyed by it.
   const scope = useMemo<DeviceFilterInput>(
-    () => ({ statuses: [DEVICE_STATUS.ONLINE, DEVICE_STATUS.OFFLINE], osTypes: os ? [os] : PACKAGE_MANAGER_SYSTEMS }),
+    () => ({ statuses: [DEVICE_STATUS.MANAGED], osTypes: os ? [os] : PACKAGE_MANAGER_SYSTEMS }),
     [os],
   );
   const draft = useDraftBundle({ enabled: !loading });

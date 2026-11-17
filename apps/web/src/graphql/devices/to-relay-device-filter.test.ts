@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { setManagedStatusSupported } from '@/lib/device-status-support';
 import { toRelayDeviceFilter } from './to-relay-device-filter';
 
 describe('toRelayDeviceFilter', () => {
@@ -34,6 +35,32 @@ describe('toRelayDeviceFilter', () => {
   });
 
   it('drops OUTDATED if it ever reaches statuses: it is not a DeviceStatus', () => {
-    expect(toRelayDeviceFilter({ statuses: ['ONLINE', 'OUTDATED'] })?.statuses).toEqual(['ONLINE']);
+    expect(toRelayDeviceFilter({ statuses: ['PENDING', 'OUTDATED'] })?.statuses).toEqual(['PENDING']);
+  });
+});
+
+describe('toRelayDeviceFilter, the MANAGED status', () => {
+  afterEach(() => setManagedStatusSupported(null));
+
+  it('sends MANAGED with the legacy ONLINE / OFFLINE to a backend that has MANAGED', () => {
+    setManagedStatusSupported(true);
+    expect(toRelayDeviceFilter({ statuses: ['MANAGED', 'PENDING_DELETION'] })?.statuses).toEqual([
+      'MANAGED',
+      'ONLINE',
+      'OFFLINE',
+      'PENDING_DELETION',
+    ]);
+  });
+
+  it('never sends MANAGED to a backend without it, nor before the answer is known', () => {
+    for (const supported of [false, null]) {
+      setManagedStatusSupported(supported);
+      expect(toRelayDeviceFilter({ statuses: ['MANAGED'] })?.statuses).toEqual(['ONLINE', 'OFFLINE']);
+    }
+  });
+
+  it('passes connectivity, its unknown values dropped, and leaves it out when unset', () => {
+    expect(toRelayDeviceFilter({ connectivity: ['ONLINE', 'nope'] })?.connectivity).toEqual(['ONLINE']);
+    expect(toRelayDeviceFilter({ statuses: ['PENDING'] })).not.toHaveProperty('connectivity');
   });
 });

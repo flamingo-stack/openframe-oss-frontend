@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { setManagedStatusSupported } from '@/lib/device-status-support';
 import type { Device, ToolConnection } from '../types/device.types';
 import { fleetTimestampMs } from './fleet-timestamp';
 import {
@@ -84,6 +85,17 @@ describe('isDeviceStillConnecting', () => {
   it('is false for a disconnected (torn down) tool — that is offline, not connecting', () => {
     const deadMesh = conn({ toolType: 'MESHCENTRAL', status: 'DISCONNECTED' });
     expect(isDeviceStillConnecting(device({ toolConnections: [liveFleet, deadMesh] }))).toBe(false);
+  });
+
+  describe('on a backend with the MANAGED status', () => {
+    afterEach(() => setManagedStatusSupported(null));
+
+    it('is the PENDING status, whatever the tool connections say', () => {
+      setManagedStatusSupported(true);
+      expect(isDeviceStillConnecting(device({ status: 'PENDING', toolConnections: [liveFleet, liveMesh] }))).toBe(true);
+      expect(isDeviceStillConnecting(device({ status: 'MANAGED', toolConnections: [] }))).toBe(false);
+      expect(isDeviceStillConnecting(device({ status: 'PENDING_DELETION', toolConnections: [] }))).toBe(false);
+    });
   });
 
   it('is suppressed on archive-lifecycle records', () => {

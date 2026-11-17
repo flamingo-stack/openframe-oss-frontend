@@ -64,6 +64,8 @@ export interface DevicesQueryVariables {
 export interface DeviceStatusCounts {
   filteredCount: number;
   byStatus: ReadonlyMap<string, number>;
+  /** ONLINE / OFFLINE counts of the same devices. */
+  byConnectivity: ReadonlyMap<string, number>;
 }
 
 /** Organization id → device count. */
@@ -73,6 +75,7 @@ interface DeviceStatusCountsResponse {
   deviceFilters: {
     filteredCount: number;
     statuses?: Array<{ value: string; count: number }>;
+    connectivity?: Array<{ value: string; count: number }>;
   };
 }
 
@@ -181,6 +184,7 @@ export async function fetchDeviceStatusCounts(filter: DeviceFilterInput = {}): P
   return {
     filteredCount: data.deviceFilters.filteredCount ?? 0,
     byStatus: new Map((data.deviceFilters.statuses ?? []).map(entry => [entry.value, entry.count])),
+    byConnectivity: new Map((data.deviceFilters.connectivity ?? []).map(entry => [entry.value, entry.count])),
   };
 }
 
