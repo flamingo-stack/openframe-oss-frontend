@@ -10,6 +10,10 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useChatPageNodeStore } from '@/app/components/mingo-shell/chat-page-node-store';
 import { useMingoSheetStore } from '@/app/components/mingo-shell/mingo-sheet-store';
+import {
+  MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE,
+  MANHATTAN_CHAT_CLOSED_STORAGE_KEY,
+} from '@/lib/navigation-sidebar-state';
 import { ManhattanCentre } from './manhattan-centre';
 import { useManhattanCentreStore, workAreaModeOf } from './manhattan-centre-store';
 import { ManhattanComposerPortal, ManhattanComposerSlot } from './manhattan-composer-host';
@@ -76,7 +80,13 @@ beforeEach(() => {
   nav.push.mockReset();
   chatState.activeDialogId = null;
   chatState.messages = [];
-  useManhattanCentreStore.setState({ chatView: 'split', shownMode: null, whatToAskInColumn: false });
+  useManhattanCentreStore.setState({
+    chatView: 'split',
+    shownMode: null,
+    whatToAskInColumn: false,
+    compact: false,
+    restoredDialogId: null,
+  });
   useChatPageNodeStore.setState({ node: null, chatMounted: false, threadReady: false });
   viewport.mdUp = true;
 });
@@ -85,6 +95,9 @@ afterEach(() => {
   act(() => root.unmount());
   container.remove();
   window.sessionStorage.clear();
+  window.localStorage.clear();
+  document.documentElement.removeAttribute(MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE);
+  vi.unstubAllGlobals();
 });
 
 describe('workAreaModeOf', () => {
@@ -466,10 +479,80 @@ describe('ManhattanCentre', () => {
     expect(currentMode()).toBe('split');
   });
 
-  it('starts beside the page after a reload: the view is not stored', () => {
-    useManhattanCentreStore.getState().setChatView('hidden');
-    expect(window.sessionStorage.length).toBe(0);
-    expect(window.localStorage.getItem('of.manhattan.chatView')).toBeNull();
+  describe('a closed chat column across a reload (CU-17tkuw66xzn)', () => {
+    /** The window as `matchMedia` answers it: two columns from 912px. */
+    function windowWide(wide: boolean) {
+      vi.stubGlobal('matchMedia', (query: string) => ({ matches: wide, media: query }));
+    }
+    const stored = () => window.localStorage.getItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY);
+
+    it('stores a column closed on two columns, and forgets it on any other view', () => {
+      const { setChatView } = useManhattanCentreStore.getState();
+      setChatView('hidden');
+      expect(stored()).toBe('true');
+      // "Restore split", "Show chat", a chat opened: all land on `split`.
+      setChatView('split');
+      expect(stored()).toBeNull();
+      setChatView('hidden');
+      setChatView('full');
+      expect(stored()).toBeNull();
+      // Only this choice: nothing in the per-tab storage the view once used.
+      expect(window.sessionStorage.length).toBe(0);
+    });
+
+    it("one column's own hidden stores nothing, and leaves a stored choice alone", () => {
+      useManhattanCentreStore.setState({ compact: true });
+      useManhattanCentreStore.getState().setChatView('hidden');
+      expect(stored()).toBeNull();
+      window.localStorage.setItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY, 'true');
+      useManhattanCentreStore.getState().setChatView('split');
+      expect(stored()).toBe('true');
+    });
+
+    it('comes back closed after a reload on two columns, and lets the seed mark go', () => {
+      windowWide(true);
+      window.localStorage.setItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY, 'true');
+      document.documentElement.setAttribute(MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE, '');
+      renderCentre();
+      expect(useManhattanCentreStore.getState().chatView).toBe('hidden');
+      expect(currentMode()).toBe('page');
+      expect(document.documentElement.hasAttribute(MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE)).toBe(false);
+    });
+
+    it('nothing stored: the split after a reload', () => {
+      windowWide(true);
+      renderCentre();
+      expect(useManhattanCentreStore.getState().chatView).toBe('split');
+      expect(currentMode()).toBe('split');
+    });
+
+    it('a narrow window at the reload keeps its own layout and the stored choice', () => {
+      windowWide(false);
+      window.localStorage.setItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY, 'true');
+      document.documentElement.setAttribute(MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE, '');
+      renderCentre();
+      expect(useManhattanCentreStore.getState().chatView).toBe('split');
+      expect(stored()).toBe('true');
+      expect(document.documentElement.hasAttribute(MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE)).toBe(false);
+    });
+
+    it('the chat a reload brings back behind the page keeps the column closed; a chat opened after it opens it', () => {
+      windowWide(true);
+      window.localStorage.setItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY, 'true');
+      renderCentre();
+      // `useChatBehindPage` selects the tab's chat again once the list has loaded.
+      useManhattanCentreStore.getState().setRestoredDialogId('d-1');
+      chatState.activeDialogId = 'd-1';
+      renderCentre();
+      expect(currentMode()).toBe('page');
+      expect(stored()).toBe('true');
+      expect(useManhattanCentreStore.getState().restoredDialogId).toBeNull();
+      // A chat picked in the history afterwards.
+      chatState.activeDialogId = 'd-2';
+      renderCentre();
+      expect(currentMode()).toBe('split');
+      expect(stored()).toBeNull();
+    });
   });
 
   it('a link from the chat full screen to another detail page (a query change) shows it beside the chat', () => {

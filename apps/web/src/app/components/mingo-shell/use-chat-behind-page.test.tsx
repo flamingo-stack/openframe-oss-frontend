@@ -3,6 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { create } from 'zustand';
+import { useManhattanCentreStore } from '@/app/components/manhattan-shell/manhattan-centre-store';
 import type { ComposerRoute } from './mingo-dock-route';
 import { useChatBehindPage } from './use-chat-behind-page';
 
@@ -40,6 +41,7 @@ describe('useChatBehindPage', () => {
     vi.clearAllMocks();
     window.sessionStorage.clear();
     session.setState({ active: null, loading: true, ids: [] });
+    useManhattanCentreStore.setState({ restoredDialogId: null });
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -58,6 +60,8 @@ describe('useChatBehindPage', () => {
     act(() => session.setState({ loading: false, ids: ['a', 'b'] }));
     expect(selectDialog).toHaveBeenCalledWith('a');
     expect(window.sessionStorage.getItem(KEY)).toBe('a');
+    // Brought back, not opened: the v2 centre keeps a closed chat column closed (CU-17tkuw66xzn).
+    expect(useManhattanCentreStore.getState().restoredDialogId).toBe('a');
   });
 
   it('forgets a chat the list no longer has', () => {

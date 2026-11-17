@@ -296,3 +296,46 @@ export function subscribeManhattanNavCollapsed(listener: () => void): () => void
     query?.removeEventListener('change', listener);
   };
 }
+
+// --------------------------------------------------------------------------
+// The Manhattan v2 chat column the user closed
+// --------------------------------------------------------------------------
+
+/**
+ * `localStorage` key of the chat column the user closed or put behind the page (`chatView` `hidden`) on a window wide
+ * enough for two columns: a reload keeps it, as it keeps the divider's place (CU-17tkuw66xzn). `'true'` while closed,
+ * absent otherwise; "chat full screen" is not kept.
+ */
+export const MANHATTAN_CHAT_CLOSED_STORAGE_KEY = 'of.manhattan.chatClosed';
+
+/**
+ * Set on `<html>` before paint while a closed chat column is stored: the stylesheet keeps the split's chat column off
+ * the first frame (`globals.css`), and the centre removes it once its own view holds the choice.
+ */
+export const MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE = 'data-manhattan-chat-closed';
+
+/** For the root layout's `<head>`: marks `<html>` with {@link MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE} when stored. */
+export function manhattanChatClosedSeedScript(): string {
+  return `(function(){try{if(localStorage.getItem('${MANHATTAN_CHAT_CLOSED_STORAGE_KEY}')==='true'){document.documentElement.setAttribute('${MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE}','');}}catch(e){}})();`;
+}
+
+/** Whether a closed chat column is stored. Client only; `false` on the server and when storage refuses. */
+export function readManhattanChatClosed(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+/** Stores the closed chat column, or forgets it. Storage refused: the choice lasts for this page only. */
+export function writeManhattanChatClosed(closed: boolean): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (closed) window.localStorage.setItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY, 'true');
+    else window.localStorage.removeItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY);
+  } catch {
+    // Refused: the store keeps the view in memory.
+  }
+}

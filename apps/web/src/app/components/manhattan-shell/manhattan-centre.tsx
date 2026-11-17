@@ -17,10 +17,12 @@ import { useChatPageNodeStore } from '@/app/components/mingo-shell/chat-page-nod
 import { type ComposerRoute, composerRouteOf, isSheetRoute } from '@/app/components/mingo-shell/mingo-dock-route';
 import { useMingoSheetStore } from '@/app/components/mingo-shell/mingo-sheet-store';
 import { navModuleOf, navModuleSectionedLabel } from '@/lib/navigation-config';
+import { MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE, readManhattanChatClosed } from '@/lib/navigation-sidebar-state';
 import { routes, withMingoDialog } from '@/lib/routes';
 import { effectiveModeOf, useManhattanCentreStore, workAreaModeOf } from './manhattan-centre-store';
 import { ManhattanComposerPortal, ManhattanComposerSlot } from './manhattan-composer-host';
 import { ManhattanDockContext } from './manhattan-dock-context';
+import { MANHATTAN_COMPACT_BELOW } from './use-manhattan-squeeze';
 
 /** What the Manhattan v2 centre hands `AppLayout` (`chatColumn`, `workAreaMode`, `pageHeader`, the dock). */
 export interface ManhattanCentreSlots {
@@ -108,23 +110,46 @@ export function ManhattanCentre({
     }
   }, [whatToAskInColumn, openDialogId, route, setWhatToAskInColumn]);
 
+  // The chat column the user closed before a reload (CU-17tkuw66xzn): back to `hidden` before the first frame the
+  // client draws, on a window wide enough for two columns (below it one column has its own rules, unchanged). The
+  // view starts at `split` like the server's markup, so hydration matches; the `<head>` seed kept the split's chat
+  // column off the first paint until now, and its mark goes once the view holds the choice.
+  const chatClosedRestoredRef = useRef(false);
+  useLayoutEffect(() => {
+    if (!enabled || chatClosedRestoredRef.current) return;
+    chatClosedRestoredRef.current = true;
+    const twoColumns =
+      typeof window.matchMedia === 'function'
+        ? window.matchMedia(`(min-width: ${MANHATTAN_COMPACT_BELOW}px)`).matches
+        : window.innerWidth >= MANHATTAN_COMPACT_BELOW;
+    if (readManhattanChatClosed() && twoColumns) {
+      setChatView('hidden');
+    }
+    document.documentElement.removeAttribute(MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE);
+  }, [enabled, setChatView]);
+
   // The dock reads it from the store (it is rendered elsewhere).
   const setCompact = useManhattanCentreStore(s => s.setCompact);
   useEffect(() => setCompact(oneColumn), [oneColumn, setCompact]);
   // A chat opened (picked in the history or the chats drawer, a notification, a first send from the composer under a
   // page): the chats drawer has done its job, and a chat the user closed or put behind the page comes back beside it.
+  // The chat a reload brings back behind the pages (`restoredDialogId`) was not opened: a column closed stays closed.
   const dismissChats = useManhattanCentreStore(s => s.dismissChats);
+  const restoredDialogId = useManhattanCentreStore(s => s.restoredDialogId);
+  const setRestoredDialogId = useManhattanCentreStore(s => s.setRestoredDialogId);
   const previousDialogRef = useRef(openDialogId);
   useEffect(() => {
     if (previousDialogRef.current === openDialogId) return;
     previousDialogRef.current = openDialogId;
-    if (openDialogId === null) return;
+    // Seen once: the next selection is the user's, whichever chat it is.
+    if (restoredDialogId !== null) setRestoredDialogId(null);
+    if (openDialogId === null || openDialogId === restoredDialogId) return;
     if (oneColumn) dismissChats();
     else if (chatView === 'hidden') setChatView('split');
-  }, [oneColumn, openDialogId, dismissChats, chatView, setChatView]);
+  }, [oneColumn, openDialogId, restoredDialogId, setRestoredDialogId, dismissChats, chatView, setChatView]);
 
   // The user's choice of view (the chat closed, the page full screen, the chat full screen) holds on every page opened
-  // after it, until a reload or a chat opened. In one column (compact) a new page is shown and the chat waits behind it:
+  // after it, until a chat opened or a reload (which keeps only a closed column, above). In one column (compact) a new page is shown and the chat waits behind it:
   // that `hidden` is the layout's, not the user's, and is let go once two columns are back (below).
   const hiddenByOneColumnRef = useRef(false);
   const previousPathRef = useRef(pathname);
