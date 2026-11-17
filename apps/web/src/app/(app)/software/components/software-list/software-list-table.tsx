@@ -12,6 +12,7 @@ import type { SoftwareListFrameRenderProps } from '../shared/software-list-frame
 import { SOFTWARE_LIST_PAGE_SIZE } from './software-list-columns';
 import { toSoftwareFilter } from './software-list-filters';
 import { SoftwareTable } from './software-table';
+import { useSoftwareListFilters } from './use-software-list-filters';
 
 /**
  * The fleet-wide `softwares` connection — one row per software title,
@@ -51,7 +52,7 @@ const softwareListTableFragment = graphql`
 
 interface SoftwareListTableProps extends Pick<
   SoftwareListFrameRenderProps,
-  'deferredSelections' | 'selections' | 'onSelectionsChange'
+  'deferredSelections' | 'selections' | 'onSelectionsChange' | 'filtersOpen' | 'onFiltersClose'
 > {
   debouncedSearch: string;
   /**
@@ -94,6 +95,8 @@ function SoftwareListTableQuery({
   stickyHeaderOffset,
   emptyTitle,
   emptyDescription,
+  filtersOpen,
+  onFiltersClose,
 }: SoftwareListTableProps) {
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<SoftwareListTableQueryType>(
@@ -113,6 +116,8 @@ function SoftwareListTableQuery({
   >(softwareListTableFragment, queryData);
 
   const rows = data.softwares.edges.map(edge => edge.node);
+  // The funnels' options: what occurs across the tenant's titles, from the server.
+  const filterOptions = useSoftwareListFilters();
 
   const fetchNextPage = () => {
     if (hasNext && !isLoadingNext) loadNext(SOFTWARE_LIST_PAGE_SIZE);
@@ -130,6 +135,9 @@ function SoftwareListTableQuery({
       stickyHeaderOffset={stickyHeaderOffset}
       selections={selections}
       onSelectionsChange={onSelectionsChange}
+      filterOptions={filterOptions}
+      filtersOpen={filtersOpen}
+      onFiltersClose={onFiltersClose}
       infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
     />
   );

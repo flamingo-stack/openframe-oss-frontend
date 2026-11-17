@@ -2,7 +2,7 @@
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { SoftwareListFrame } from '../shared/software-list-frame';
-import { SOFTWARE_LIST_FILTER_GROUPS, SOFTWARE_LIST_FILTER_KEYS } from './software-list-filters';
+import { SOFTWARE_LIST_FILTER_KEYS } from './software-list-filters';
 import { SoftwareListTable } from './software-list-table';
 
 export interface SoftwareListViewProps {
@@ -27,7 +27,7 @@ export function SoftwareListView({ title, emptyTitle, emptyDescription, loading 
       <SoftwareListFrame
         placeholder="Search for Software"
         filterKeys={SOFTWARE_LIST_FILTER_KEYS}
-        filterGroups={SOFTWARE_LIST_FILTER_GROUPS}
+        filterModal
         loading={loading}
       >
         {list => <SoftwareListTable {...list} emptyTitle={emptyTitle} emptyDescription={emptyDescription} />}

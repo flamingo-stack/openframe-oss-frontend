@@ -2,8 +2,9 @@ import { SOFTWARE_SOURCE_LABEL } from '@flamingo-stack/openframe-frontend-core/c
 import type { DataTableFilterOption, FilterGroup } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { getOSLabel } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { SoftwareFilterInput } from '@/__generated__/softwareListTableQuery.graphql';
-import { OsType, type SoftwareAutoUpdateStatus, type SoftwareSource } from '@/generated/schema-enums';
-import { AUTO_UPDATE_FILTER_OPTIONS } from '../shared/auto-update-status';
+import { OsType, type SoftwareAutoUpdateStatus, SoftwareSource } from '@/generated/schema-enums';
+import { presentationFor } from '@/lib/exhaustive-map';
+import { autoUpdateFilterLabel } from '../shared/auto-update-status';
 import type { ListSelections } from '../shared/software-list-frame';
 import { SOFTWARE_LIST_COLUMNS } from './software-list-columns';
 
@@ -14,16 +15,54 @@ export const SOFTWARE_LIST_FILTER_KEYS = [
   SOFTWARE_LIST_COLUMNS.autoUpdate.id,
 ] as const;
 
+/** Each funnel's options (`useSoftwareListFilters`), keyed as `SOFTWARE_LIST_FILTER_KEYS`. */
+export type SoftwareListFilterOptions = Record<(typeof SOFTWARE_LIST_FILTER_KEYS)[number], DataTableFilterOption[]>;
+
+/** Before the facets answer: no options yet. */
+export const NO_SOFTWARE_LIST_FILTER_OPTIONS: SoftwareListFilterOptions = { os: [], engine: [], autoUpdate: [] };
+
+/** Every system: `softwareFilters` has no OS facet, so these are not counted. */
+const OS_FILTER_OPTIONS: DataTableFilterOption[] = Object.values(OsType).map(os => ({
+  id: os,
+  value: os,
+  label: getOSLabel(os),
+}));
+
+type Facet = ReadonlyArray<{ readonly value: string; readonly label: string; readonly count: number }>;
+
 /**
- * Fixed options, not the `softwareFilters` facets: those come back empty on Fleet paging (stage/prod), while the
- * funnels themselves are applied there by the read model. The price is no per-option counts.
+ * A value no title has is not offered, nor one the column draws as the empty mark (`labelFor` null: Unmanaged, Needs
+ * adoption). The label is the cell's word, the server's for a value this build does not know.
  */
-export const SOFTWARE_LIST_FILTER_OPTIONS: Record<(typeof SOFTWARE_LIST_FILTER_KEYS)[number], DataTableFilterOption[]> =
-  {
-    os: Object.values(OsType).map(os => ({ id: os, value: os, label: getOSLabel(os) })),
-    engine: Object.entries(SOFTWARE_SOURCE_LABEL).map(([source, label]) => ({ id: source, value: source, label })),
-    autoUpdate: AUTO_UPDATE_FILTER_OPTIONS,
+function toOptions(facet: Facet, labelFor: (value: string) => string | null | undefined): DataTableFilterOption[] {
+  return facet.flatMap(option => {
+    const label = labelFor(option.value);
+    if (option.count <= 0 || label === null) return [];
+    return [{ id: option.value, value: option.value, label: label ?? option.label, count: option.count }];
+  });
+}
+
+/** The ENGINE cell's word: none for a title installed by hand. */
+function engineLabel(source: string): string | null | undefined {
+  return source === SoftwareSource.UNMANAGED ? null : presentationFor(SOFTWARE_SOURCE_LABEL, source);
+}
+
+/**
+ * The funnels' options from `softwareFilters`. The backend answers them from the read model and leaves them empty on
+ * Fleet paging (stage/prod), where `softwares` applies none of these funnels, so a funnel is offered only where it
+ * narrows the list. OS has no facet of its own: it goes with the other two.
+ */
+export function softwareListFilterOptions(facets: {
+  sources: Facet;
+  autoUpdateStatuses: Facet;
+}): SoftwareListFilterOptions {
+  const answered = facets.sources.length > 0 || facets.autoUpdateStatuses.length > 0;
+  return {
+    os: answered ? OS_FILTER_OPTIONS : [],
+    engine: toOptions(facets.sources, engineLabel),
+    autoUpdate: toOptions(facets.autoUpdateStatuses, autoUpdateFilterLabel),
   };
+}
 
 /** The funnels' ticks as `softwares(filter:)` takes them — null when nothing is ticked. */
 export function toSoftwareFilter(selections: ListSelections): SoftwareFilterInput | null {
@@ -38,15 +77,17 @@ export function toSoftwareFilter(selections: ListSelections): SoftwareFilterInpu
   };
 }
 
-/** The same funnels for a narrow content area, where their columns are hidden (`SoftwareListFrame.filterGroups`). */
-export const SOFTWARE_LIST_FILTER_GROUPS: FilterGroup[] = (
-  [
-    [SOFTWARE_LIST_COLUMNS.os, SOFTWARE_LIST_FILTER_OPTIONS.os],
-    [SOFTWARE_LIST_COLUMNS.engine, SOFTWARE_LIST_FILTER_OPTIONS.engine],
-    [SOFTWARE_LIST_COLUMNS.autoUpdate, SOFTWARE_LIST_FILTER_OPTIONS.autoUpdate],
-  ] as const
-).map(([column, options]) => ({
-  id: column.id,
-  title: column.header,
-  options: options.map(option => ({ id: String(option.value), label: option.label })),
-}));
+/** The same funnels for a narrow content area, where their columns are hidden: the filter window's groups. */
+export function softwareListFilterGroups(options: SoftwareListFilterOptions): FilterGroup[] {
+  return (
+    [
+      [SOFTWARE_LIST_COLUMNS.os, options.os],
+      [SOFTWARE_LIST_COLUMNS.engine, options.engine],
+      [SOFTWARE_LIST_COLUMNS.autoUpdate, options.autoUpdate],
+    ] as const
+  ).map(([column, groupOptions]) => ({
+    id: column.id,
+    title: column.header,
+    options: groupOptions.map(option => ({ id: String(option.value), label: option.label, count: option.count })),
+  }));
+}

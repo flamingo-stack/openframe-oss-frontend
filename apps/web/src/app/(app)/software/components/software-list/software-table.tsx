@@ -2,6 +2,7 @@
 
 import {
   type ColumnDef,
+  FilterModal,
   type Row,
   useDataTable,
   useLoadingScope,
@@ -22,7 +23,12 @@ import type { ListSelections } from '../shared/software-list-frame';
 import { SoftwareAutoUpdateCell } from './software-auto-update-cell';
 import { SoftwareEngineCell } from './software-engine-cell';
 import { SOFTWARE_LIST_COLUMNS, SOFTWARE_LIST_PAGE_SIZE } from './software-list-columns';
-import { SOFTWARE_LIST_FILTER_OPTIONS } from './software-list-filters';
+import {
+  NO_SOFTWARE_LIST_FILTER_OPTIONS,
+  SOFTWARE_LIST_FILTER_KEYS,
+  type SoftwareListFilterOptions,
+  softwareListFilterGroups,
+} from './software-list-filters';
 import { SoftwareNameCell } from './software-name-cell';
 import { SoftwareOsCell } from './software-os-cell';
 import { SoftwareVersionCell } from './software-version-cell';
@@ -82,8 +88,23 @@ const OPEN_COLUMN: ColumnDef<SoftwareRow> = {
  */
 export type SoftwareTableSurface = 'fleet' | 'device';
 
-const COLUMNS: Record<SoftwareTableSurface, ColumnDef<SoftwareRow>[]> = {
-  fleet: [
+const DEVICE_COLUMNS: ColumnDef<SoftwareRow>[] = [
+  NAME_COLUMN,
+  VERSION_COLUMN,
+  {
+    id: SOFTWARE_LIST_COLUMNS.vulnerabilities.id,
+    header: SOFTWARE_LIST_COLUMNS.vulnerabilities.header,
+    cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareVulnerabilitiesCell software={row.original} />,
+    enableSorting: false,
+    meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.vulnerabilities),
+  },
+  OPEN_COLUMN,
+];
+
+/** The surface's columns; the fleet's funnels offer `filterOptions` (`useSoftwareListFilters`). */
+function columnsFor(surface: SoftwareTableSurface, filterOptions: SoftwareListFilterOptions): ColumnDef<SoftwareRow>[] {
+  if (surface === 'device') return DEVICE_COLUMNS;
+  return [
     NAME_COLUMN,
     VERSION_COLUMN,
     {
@@ -91,39 +112,25 @@ const COLUMNS: Record<SoftwareTableSurface, ColumnDef<SoftwareRow>[]> = {
       header: SOFTWARE_LIST_COLUMNS.os.header,
       cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareOsCell software={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.os, { filter: { options: SOFTWARE_LIST_FILTER_OPTIONS.os } }),
+      meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.os, { filter: { options: filterOptions.os } }),
     },
     {
       id: SOFTWARE_LIST_COLUMNS.engine.id,
       header: SOFTWARE_LIST_COLUMNS.engine.header,
       cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareEngineCell software={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.engine, { filter: { options: SOFTWARE_LIST_FILTER_OPTIONS.engine } }),
+      meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.engine, { filter: { options: filterOptions.engine } }),
     },
     {
       id: SOFTWARE_LIST_COLUMNS.autoUpdate.id,
       header: SOFTWARE_LIST_COLUMNS.autoUpdate.header,
       cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareAutoUpdateCell software={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.autoUpdate, {
-        filter: { options: SOFTWARE_LIST_FILTER_OPTIONS.autoUpdate },
-      }),
+      meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.autoUpdate, { filter: { options: filterOptions.autoUpdate } }),
     },
     OPEN_COLUMN,
-  ],
-  device: [
-    NAME_COLUMN,
-    VERSION_COLUMN,
-    {
-      id: SOFTWARE_LIST_COLUMNS.vulnerabilities.id,
-      header: SOFTWARE_LIST_COLUMNS.vulnerabilities.header,
-      cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareVulnerabilitiesCell software={row.original} />,
-      enableSorting: false,
-      meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.vulnerabilities),
-    },
-    OPEN_COLUMN,
-  ],
-};
+  ];
+}
 
 const getRowId = (row: SoftwareRow) => row.id;
 const rowHref = (row: SoftwareRow) => routes.software.details(row.id);
@@ -146,6 +153,11 @@ export interface SoftwareTableProps {
   /** The fleet's funnels: what they draw as ticked, and their changes out. A surface without funnels leaves them out. */
   selections?: ListSelections;
   onSelectionsChange?: (next: Partial<Record<string, string[]>>) => void;
+  /** The fleet's funnel options, from the backend's facets. */
+  filterOptions?: SoftwareListFilterOptions;
+  /** The fleet's filter window for a narrow content area (the frame's button opens it), with the same options. */
+  filtersOpen?: boolean;
+  onFiltersClose?: () => void;
 }
 
 const NO_SELECTIONS: ListSelections = {};
@@ -163,6 +175,9 @@ function LoadedSoftwareTable({
   infiniteScroll,
   selections = NO_SELECTIONS,
   onSelectionsChange = IGNORE_SELECTIONS,
+  filterOptions = NO_SOFTWARE_LIST_FILTER_OPTIONS,
+  filtersOpen = false,
+  onFiltersClose = IGNORE_SELECTIONS,
 }: SoftwareTableProps) {
   // The rows have not answered yet: the table draws its own loading state, never the empty one.
   const loading = useLoadingScope();
@@ -173,7 +188,7 @@ function LoadedSoftwareTable({
   const table = useDataTable<SoftwareRow>({
     // The fragment reads back a readonly page; the table only ever reads it too.
     data: rows as SoftwareRow[],
-    columns: COLUMNS[surface],
+    columns: columnsFor(surface, filterOptions),
     getRowId,
     enableSorting: false,
     state: { columnFilters },
@@ -193,24 +208,41 @@ function LoadedSoftwareTable({
   }
 
   return (
-    <LiveTable
-      table={table}
-      pageSize={SOFTWARE_LIST_PAGE_SIZE}
-      stickyHeaderOffset={stickyHeaderOffset}
-      itemName="result"
-      totalCount={totalCount}
-      isPending={isPending}
-      emptyState={oneLineEmptyState(
-        debouncedSearch
-          ? `No software found matching "${debouncedSearch}". Try adjusting your search.`
-          : filtered
-            ? 'No software matches these filters.'
-            : 'No software found.',
+    <>
+      <LiveTable
+        table={table}
+        pageSize={SOFTWARE_LIST_PAGE_SIZE}
+        stickyHeaderOffset={stickyHeaderOffset}
+        itemName="result"
+        totalCount={totalCount}
+        isPending={isPending}
+        emptyState={oneLineEmptyState(
+          debouncedSearch
+            ? `No software found matching "${debouncedSearch}". Try adjusting your search.`
+            : filtered
+              ? 'No software matches these filters.'
+              : 'No software found.',
+        )}
+        rowHref={rowHref}
+        // Zero rows plus a next page: see vulnerability-table.tsx.
+        footer={rows.length > 0 ? infiniteScroll : null}
+      />
+      {surface === 'fleet' && (
+        <FilterModal
+          isOpen={filtersOpen}
+          onClose={onFiltersClose}
+          filterGroups={softwareListFilterGroups(filterOptions)}
+          currentFilters={Object.fromEntries(Object.entries(selections).map(([key, values]) => [key, [...values]]))}
+          onFilterChange={filters =>
+            onSelectionsChange(
+              Object.fromEntries(
+                SOFTWARE_LIST_FILTER_KEYS.map(key => [key, (filters[key] as string[] | undefined) ?? []]),
+              ),
+            )
+          }
+        />
       )}
-      rowHref={rowHref}
-      // Zero rows plus a next page: see vulnerability-table.tsx.
-      footer={rows.length > 0 ? infiniteScroll : null}
-    />
+    </>
   );
 }
 
@@ -223,7 +255,7 @@ function SoftwareTableLoading({
 }) {
   return (
     <LiveTable
-      columns={COLUMNS[surface]}
+      columns={columnsFor(surface, NO_SOFTWARE_LIST_FILTER_OPTIONS)}
       pageSize={SOFTWARE_LIST_PAGE_SIZE}
       stickyHeaderOffset={stickyHeaderOffset}
       itemName="result"

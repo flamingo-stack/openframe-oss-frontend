@@ -1,13 +1,7 @@
 'use client';
 
 import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import {
-  Button,
-  type DataTableSortState,
-  type FilterGroup,
-  FilterModal,
-  LoadingWhen,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, type DataTableSortState, LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useMemo, useState } from 'react';
@@ -42,6 +36,9 @@ export interface SoftwareListFrameRenderProps {
   /** Nothing in the list at all (not a search or funnel miss) — the frame drops its toolbar. */
   onEmptyChange: (isEmpty: boolean) => void;
   stickyHeaderOffset: string;
+  /** The narrow content area's filter window is open (`filterModal`): the list draws it, with the options it read. */
+  filtersOpen: boolean;
+  onFiltersClose: () => void;
 }
 
 interface SoftwareListFrameProps {
@@ -64,9 +61,9 @@ interface SoftwareListFrameProps {
   loading?: boolean;
   /**
    * The funnels again, for a narrow content area where the columns that carry them are hidden: a filter button beside
-   * the search opens them in a modal (as the logs do). One group per `filterKeys` entry, keyed by it.
+   * the search opens the list's filter window (`filtersOpen`), which the list draws with the options it read.
    */
-  filterGroups?: readonly FilterGroup[];
+  filterModal?: boolean;
   /** Above the toolbar while the list has rows — a device tab's sync banner. */
   banner?: ReactNode;
   className?: string;
@@ -110,7 +107,7 @@ export function SoftwareListFrame({
   sortableIds = NO_ITEMS,
   filterKeys = NO_ITEMS,
   loading = false,
-  filterGroups,
+  filterModal = false,
   banner,
   className,
   children,
@@ -181,6 +178,8 @@ export function SoftwareListFrame({
     isPending,
     onEmptyChange: setIsEmpty,
     stickyHeaderOffset,
+    filtersOpen,
+    onFiltersClose: () => setFiltersOpen(false),
   };
 
   return (
@@ -196,7 +195,7 @@ export function SoftwareListFrame({
           onChange={setSearchInput}
           disabled={loading}
           actions={
-            filterGroups && (
+            filterModal && (
               <Button
                 variant="outline"
                 size="icon"
@@ -206,20 +205,6 @@ export function SoftwareListFrame({
                 aria-label="Open filters"
                 leftIcon={<Filter02Icon className="text-ods-text-primary" />}
               />
-            )
-          }
-        />
-      )}
-
-      {filterGroups && (
-        <FilterModal
-          isOpen={filtersOpen}
-          onClose={() => setFiltersOpen(false)}
-          filterGroups={[...filterGroups]}
-          currentFilters={Object.fromEntries(Object.entries(selections).map(([key, values]) => [key, [...values]]))}
-          onFilterChange={filters =>
-            onSelectionsChange(
-              Object.fromEntries(filterKeys.map(key => [key, (filters[key] as string[] | undefined) ?? []])),
             )
           }
         />
