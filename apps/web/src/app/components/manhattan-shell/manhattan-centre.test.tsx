@@ -573,6 +573,21 @@ describe('ManhattanCentre', () => {
       expect(stored()).toBe('true');
     });
 
+    it('the centre switched off on a narrow window is no widening: the stored choice stays and waits', () => {
+      windowWide(false);
+      window.localStorage.setItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY, 'true');
+      renderAt(true);
+      nav.pathname = '/software';
+      renderAt(true);
+      render(
+        <ManhattanCentre enabled={false} compact>
+          {() => null}
+        </ManhattanCentre>,
+      );
+      expect(useManhattanCentreStore.getState().chatView).toBe('hidden');
+      expect(stored()).toBe('true');
+    });
+
     it('a chat opened on a narrow window lets the stored closed column go', () => {
       windowWide(false);
       window.localStorage.setItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY, 'true');

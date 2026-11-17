@@ -215,9 +215,9 @@ export function ManhattanCentre({
   useEffect(() => {
     if (previousOneColumnRef.current === oneColumn) return;
     previousOneColumnRef.current = oneColumn;
-    if (oneColumn) return;
     // Two columns only when the shell is on: the centre switched off (`enabled`) is no widening.
-    if (chatClosedPendingRef.current && enabled) {
+    if (oneColumn || !enabled) return;
+    if (chatClosedPendingRef.current) {
       chatClosedPendingRef.current = false;
       hiddenByOneColumnRef.current = false;
       setChatView('hidden');
