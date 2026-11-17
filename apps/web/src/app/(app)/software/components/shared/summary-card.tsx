@@ -12,6 +12,10 @@ export type SummaryCardColumns = keyof typeof GRID_COLUMNS;
 export interface SummaryField {
   label: string;
   value: ReactNode;
+  /** Drawn before the value, as `InfoCell` draws it (the OS's logo). */
+  icon?: ReactNode;
+  /** The icon's box while loading; see `InfoCell`. */
+  iconSkeleton?: { className?: string };
 }
 
 interface SummaryCardProps {
@@ -40,7 +44,13 @@ export function SummaryCard({ fields, columns, lead }: SummaryCardProps) {
               idx < fields.length - 1 && 'border-b border-ods-border content-md:border-b-0',
             )}
           >
-            <InfoCell value={field.value} label={field.label} skeletonWidth="w-24" />
+            <InfoCell
+              value={field.value}
+              label={field.label}
+              icon={field.icon}
+              iconSkeleton={field.iconSkeleton}
+              skeletonWidth="w-24"
+            />
           </div>
         ))}
       </div>

@@ -420,6 +420,13 @@ export const routes = {
     install: '/software/install',
     update: '/software/update',
     /**
+     * Update <software> from the software's page: the same route as Update
+     * Software, on one title (`softwareId`), the package picked by the server.
+     */
+    updateSoftware: (softwareId: string | number) => withQuery('/software/update', { softwareId }),
+    /** One title's Auto-update settings, by `Software.id`. */
+    autoUpdate: (id: string | number) => withQuery('/software/auto-update', { id }),
+    /**
      * Software Update Details — one install or update run, by its Software
      * Action id (the opaque one the Software Actions table links by; the run's
      * executionId is accepted too).

@@ -11,17 +11,19 @@ const softwareNameCellFragment = graphql`
   }
 `;
 
-/** SOFTWARE column: the title, its publisher underneath. */
+/**
+ * SOFTWARE column: the title, its publisher underneath (design 1076:16413). Fleet knows the publisher of few titles, so
+ * most rows have the title alone, and a row still loading draws no bar for it.
+ */
 export function SoftwareNameCell({ software }: { software: softwareNameCell_software$key }) {
-  // A row still being read (a loading scope) has no fragment to read: the cell draws the title and its publisher as bars.
-  const loading = useLoadingScope();
-  const data = useFragment(softwareNameCellFragment, loading ? null : software);
+  // A row still being read (a loading scope) has no fragment to read: the cell draws the title as a bar.
+  const data = useFragment(softwareNameCellFragment, useLoadingScope() ? null : software);
   return (
     <div className="flex min-w-0 flex-col justify-center">
       <TruncateText>{data?.name ?? ''}</TruncateText>
-      {(loading || data?.publisher) && (
+      {data?.publisher && (
         <TruncateText variant="h6" tone="secondary">
-          {data?.publisher ?? ''}
+          {data.publisher}
         </TruncateText>
       )}
     </div>

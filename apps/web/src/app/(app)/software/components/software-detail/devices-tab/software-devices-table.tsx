@@ -36,7 +36,9 @@ import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { singleColumnFilter } from '../../shared/column-filters';
+import { SoftwareDeviceAutoUpdateCell } from './software-device-auto-update-cell';
 import { SoftwareDeviceCell } from './software-device-cell';
+import { SoftwareDeviceInstalledByCell } from './software-device-installed-by-cell';
 import { SoftwareDeviceVersionCell } from './software-device-version-cell';
 import { SOFTWARE_DEVICE_COLUMNS, SOFTWARE_DEVICES_PAGE_SIZE } from './software-devices-columns';
 import { SOFTWARE_ON_DEVICE_STATUS_OPTIONS } from './software-on-device-status';
@@ -92,6 +94,8 @@ const softwareDevicesTableFragment = graphql`
             ...softwareDeviceCell_machine
           }
           ...softwareDeviceVersionCell_softwareOnDevice
+          ...softwareDeviceInstalledByCell_softwareOnDevice
+          ...softwareDeviceAutoUpdateCell_softwareOnDevice
         }
       }
       pageInfo {
@@ -136,6 +140,24 @@ function buildColumns(): ColumnDef<SoftwareDeviceRow>[] {
         // hang off the far right, nowhere near the header it belongs to.
         filter: { options: SOFTWARE_ON_DEVICE_STATUS_OPTIONS },
       }),
+    },
+    {
+      id: SOFTWARE_DEVICE_COLUMNS.installedBy.id,
+      header: SOFTWARE_DEVICE_COLUMNS.installedBy.header,
+      cell: ({ row }: { row: Row<SoftwareDeviceRow> }) => (
+        <SoftwareDeviceInstalledByCell softwareOnDevice={row.original} />
+      ),
+      enableSorting: false,
+      meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.installedBy),
+    },
+    {
+      id: SOFTWARE_DEVICE_COLUMNS.autoUpdate.id,
+      header: SOFTWARE_DEVICE_COLUMNS.autoUpdate.header,
+      cell: ({ row }: { row: Row<SoftwareDeviceRow> }) => (
+        <SoftwareDeviceAutoUpdateCell softwareOnDevice={row.original} />
+      ),
+      enableSorting: false,
+      meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.autoUpdate),
     },
     {
       id: SOFTWARE_DEVICE_COLUMNS.open.id,

@@ -39,7 +39,9 @@ function toFilter(selections: SoftwareActionSelections): SoftwareActionFilterInp
     return null;
   }
   return {
-    ...(selections.action.length > 0 && { actions: selections.action as SoftwareActionFilterInput['actions'] }),
+    // The Action funnel ticks kinds (Install / Update / Auto-update / Adopt); INSTALL and UPDATE are kinds too, so a
+    // link from before the funnel moved to kinds still narrows the same way.
+    ...(selections.action.length > 0 && { kinds: selections.action as SoftwareActionFilterInput['kinds'] }),
     ...(selections.engine.length > 0 && { engines: selections.engine as SoftwareActionFilterInput['engines'] }),
     ...(selections.status.length > 0 && { statuses: selections.status as SoftwareActionFilterInput['statuses'] }),
   };
