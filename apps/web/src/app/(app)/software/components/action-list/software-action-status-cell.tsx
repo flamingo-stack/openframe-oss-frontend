@@ -24,8 +24,7 @@ export function SoftwareActionStatusCell({ action }: { action: softwareActionSta
   // A row still being read (a loading scope) has no fragment to read: the cell draws its loading form (an empty tag is the tag's skeleton).
   const data = useFragment(softwareActionStatusCellFragment, useLoadingScope() ? null : action);
   return (
-    // Below md the column is as wide as its content, beside the open button (mobile frame 1049:16193): the tag and the
-    // start whole, the device-local note on a line of its own rather than widening the column past the name.
+    // Below md the column is as wide as its content, beside the open button (mobile frame 1049:16193).
     <div className="flex min-w-0 flex-col items-end justify-center content-md:items-start">
       <SoftwareActionStatusTag status={data?.status ?? ''} />
       {data?.status === SoftwareActionStatus.SCHEDULED && data.scheduledAt && (
@@ -43,21 +42,14 @@ function ScheduledAt({
   timeReference: string | null | undefined;
 }) {
   const { date, time } = formatScheduleStartAt(scheduledAt, timeReference);
-  const local = isDeviceLocalTime(timeReference);
+  // The device-local note on a line of its own: in parentheses after the time it was cut off at every width.
   return (
     <>
-      <TruncateText variant="h6" tone="secondary" className={local ? 'hidden content-md:block' : undefined}>
-        {local ? `${date}, ${time} (${DEVICE_LOCAL_TIME_NOTE})` : `${date}, ${time}`}
-      </TruncateText>
-      {local && (
-        <>
-          <TruncateText variant="h6" tone="secondary" className="content-md:hidden">
-            {`${date}, ${time}`}
-          </TruncateText>
-          <TruncateText variant="h6" tone="secondary" className="content-md:hidden">
-            {DEVICE_LOCAL_TIME_NOTE}
-          </TruncateText>
-        </>
+      <TruncateText variant="h6" tone="secondary">{`${date}, ${time}`}</TruncateText>
+      {isDeviceLocalTime(timeReference) && (
+        <TruncateText variant="h6" tone="secondary">
+          {DEVICE_LOCAL_TIME_NOTE}
+        </TruncateText>
       )}
     </>
   );
