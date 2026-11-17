@@ -1,3 +1,4 @@
+import { isManagedStatusSupported } from '@/lib/device-status-support';
 import type { Device, ToolConnection } from '../types/device.types';
 
 export type ToolConnectionDisplayStatus = 'online' | 'offline' | 'pending';
@@ -66,12 +67,16 @@ export function getExpectedAgentTypes(device: Device, saasTenant: boolean): read
 }
 
 /**
- * True while the device is waiting for its first Fleet or MeshCentral
- * registration — drives the "Device is still connecting" banner. Shows only
- * until the first connect (a later reconnect keeps its row, so it never
- * re-triggers), and never on archive-lifecycle records.
+ * True while the device is not fully connected yet — drives the "Device is still connecting" banner.
+ *
+ * A backend with the MANAGED status decides it: the device is PENDING until the agent, Fleet and MeshCentral have
+ * all connected, then MANAGED for good, so the banner is `status === 'PENDING'` and the API, the filters and the
+ * banner read one value. An older backend (no MANAGED) has no such status, so the frontend works it out from the
+ * tool connections as before: waiting for the first Fleet or MeshCentral registration, never on archive-lifecycle
+ * records.
  */
 export function isDeviceStillConnecting(device: Device): boolean {
+  if (isManagedStatusSupported()) return device.status?.toUpperCase() === 'PENDING';
   if (isArchiveLifecycle(device)) return false;
   // The openframe-chat app has no tool connection to wait for, so it never holds the banner.
   const fleet = device.toolConnections?.find(tc => tc.toolType === 'FLEET_MDM');

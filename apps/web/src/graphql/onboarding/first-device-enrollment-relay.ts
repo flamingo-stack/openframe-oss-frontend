@@ -19,6 +19,8 @@ export const firstDeviceEnrollmentRelayQuery = graphql`
           hostname
           displayName
           status
+          # The checklist's LIVE tag: online right now.
+          connectivity
           enrollment {
             registeredAt
             connectedAt

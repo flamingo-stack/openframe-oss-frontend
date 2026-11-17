@@ -1,18 +1,20 @@
-import { getDeviceName, getDeviceStatusConfig } from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
+  type DeviceStatusDisplay,
+  getDeviceConnectivityConfig,
+  getDeviceLifecycleConfig,
+  getDeviceName,
+  getLegacyDeviceStatusConfig,
+  isDeviceConnected,
+  isManagedStatus,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { AutocompleteOption } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 
-function statusLabel(device: Device): string {
-  return getDeviceStatusConfig(device.status).label.toLowerCase();
-}
-
-/** Online first, then offline, then whatever is on its way out — the fleet's order reads by status name, which puts "pending deletion" on top. */
+/** Managed and online first, then managed and offline, then whatever is still enrolling or on its way out. */
 function livenessRank(device: Device): number {
-  const label = statusLabel(device);
-  if (label === 'online') return 0;
-  if (label === 'offline') return 1;
-  return 2;
+  if (!isManagedStatus(device.status)) return 2;
+  return isDeviceConnected(device.connectivity) ? 0 : 1;
 }
 
 /**
@@ -24,13 +26,25 @@ export function sortDevicesLiveFirst(devices: readonly Device[]): Device[] {
   return [...devices].sort((a, b) => livenessRank(a) - livenessRank(b));
 }
 
-/** `ONLINE` / `PENDING DELETION` as a word: the line is prose, not a tag. */
-function statusText(device: Device): string {
-  const label = statusLabel(device);
-  const text = label.charAt(0).toUpperCase() + label.slice(1);
+/** A tag's label as a word: `PENDING DELETION` → `Pending deletion`. */
+function asWord(label: string): string {
+  const lower = label.toLowerCase();
+  return `${lower.charAt(0).toUpperCase()}${lower.slice(1)}`;
+}
+
+/**
+ * `Managed · Online` / `Pending deletion · Offline · 2 days ago` as words: the line is prose, not a tag. The legacy
+ * display (`DeviceStatusDisplay`) says it the way it did before: `Online`, `Offline · 2 days ago`, `Pending`.
+ */
+function statusText(device: Device, display: DeviceStatusDisplay): string {
+  const { online } = getDeviceConnectivityConfig(device.connectivity);
+  const text =
+    display === 'legacy'
+      ? asWord(getLegacyDeviceStatusConfig(device.status, device.connectivity ?? null).label)
+      : `${asWord(getDeviceLifecycleConfig(device.status).label)} · ${getDeviceConnectivityConfig(device.connectivity).label}`;
   // When it was last heard from tells an old registration apart from the live one;
   // an online device is being heard from now.
-  return label === 'online' || !device.lastSeen ? text : `${text} · ${formatRelativeTime(device.lastSeen)}`;
+  return online || !device.lastSeen ? text : `${text} · ${formatRelativeTime(device.lastSeen)}`;
 }
 
 /**
@@ -42,11 +56,13 @@ function statusText(device: Device): string {
  * reader matches a pick against — then the customer, then the status with the
  * last-seen time, so the record the agent is writing to stands out.
  */
-export function toDeviceOption(device: Device): AutocompleteOption {
+export function toDeviceOption(device: Device, display: DeviceStatusDisplay = 'lifecycle'): AutocompleteOption {
   const label = getDeviceName(device) || device.machineId;
-  const details = [device.hostname !== label ? device.hostname : '', device.organization, statusText(device)].filter(
-    Boolean,
-  );
+  const details = [
+    device.hostname !== label ? device.hostname : '',
+    device.organization,
+    statusText(device, display),
+  ].filter(Boolean);
   return {
     label,
     value: device.machineId,

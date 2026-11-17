@@ -546,6 +546,8 @@ type DeviceEdge {
 
 input DeviceFilterInput {
   statuses: [DeviceStatus!]
+  """ONLINE / OFFLINE right now, apart from the lifecycle status."""
+  connectivity: [DeviceConnectivity!]
   deviceTypes: [DeviceType!]
   osTypes: [String!]
   organizationIds: [String!]
@@ -569,6 +571,8 @@ type DeviceFilterOption {
 
 type DeviceFilters {
   statuses: [DeviceFilterOption!]!
+  """ONLINE / OFFLINE counts; never a "null" option."""
+  connectivity: [DeviceFilterOption!]!
   deviceTypes: [DeviceFilterOption!]!
   osTypes: [DeviceFilterOption!]!
   organizationIds: [DeviceFilterOption!]!
@@ -650,6 +654,7 @@ type DeviceRemoteAccess {
 }
 
 enum DeviceStatus {
+  MANAGED
   PENDING
   ACTIVE
   INACTIVE
@@ -1935,7 +1940,10 @@ type Machine implements Node & AssignableTarget {
   """The client runs a version below the minimum supported one (server setting, 1.6.0 by default). False when the version is unknown. The devices sort field "clientOutdated" (DESC = outdated first) uses the same value."""
   clientOutdated: Boolean!
   agentVersion: String
+  """Lifecycle: PENDING, MANAGED, PENDING_DELETION, DELETED, ARCHIVED (legacy ONLINE / OFFLINE until migrated)."""
   status: DeviceStatus
+  """Whether the device is online right now; null only for a device that never reported since the migration."""
+  connectivity: DeviceConnectivity
   lastSeen: Instant
   organizationId: String
   organization: Organization

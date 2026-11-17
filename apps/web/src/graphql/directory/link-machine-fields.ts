@@ -14,6 +14,7 @@ export const linkMachineFieldsFragment = graphql`
     nickname
     type
     status
+    connectivity
     lastSeen
     osVersion
     serialNumber
@@ -29,6 +30,8 @@ export interface LinkMachine {
   hostname: string | null;
   type: string | null;
   status: string | null;
+  /** ONLINE / OFFLINE right now; null = never reported (offline). */
+  connectivity: string | null;
   lastSeen: Instant | null;
   summary: string;
   facts: string;
@@ -43,6 +46,7 @@ export function toLinkMachine(ref: linkMachineFields_machine$key): LinkMachine {
     hostname: machine.hostname ?? null,
     type: machine.type ?? null,
     status: machine.status ?? null,
+    connectivity: machine.connectivity ?? null,
     lastSeen: machine.lastSeen ?? null,
     summary: machineSummary(machine.type, machine.osVersion),
     facts: machineLinkFacts(machine.serialNumber, machine.directorySources),
