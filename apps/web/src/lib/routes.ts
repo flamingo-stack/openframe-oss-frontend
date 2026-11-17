@@ -19,7 +19,13 @@
  * existing bookmarks stay valid.
  */
 import type { LegalDocumentType } from '@flamingo-stack/openframe-frontend-core/utils';
-import type { DeviceStatus, InsightSeverity, InsightStatus, NotificationEntityType } from '@/generated/schema-enums';
+import type {
+  DeviceConnectivity,
+  DeviceStatus,
+  InsightSeverity,
+  InsightStatus,
+  NotificationEntityType,
+} from '@/generated/schema-enums';
 
 // --------------------------------------------------------------------------
 // Tab ids (single source of truth, shared with the tab-component arrays)
@@ -359,15 +365,23 @@ export const routes = {
      * The Devices list narrowed to some customers and statuses (`?organizationIds=`,
      * `?statuses=`, what `useDevicesUrlParams` reads). `organizationIds` are the RAW
      * `Organization.organizationId` values. An empty list means the page default (every
-     * customer; online + offline), so it is dropped like an absent option.
+     * customer; managed + pending deletion), so it is dropped like an absent option.
+     * `connectivity` narrows to devices online or offline right now (`?connectivity=`).
      * `sort: 'clientOutdated'` lists devices with an outdated OpenFrame client first (`?sort=`, what
      * `parseDeviceListSort` reads), without narrowing the list to them.
      */
     filtered: (o: {
       organizationIds?: readonly string[];
       statuses?: readonly DeviceStatus[];
+      connectivity?: readonly DeviceConnectivity[];
       sort?: 'clientOutdated';
-    }) => withQuery(DEVICES_LIST_PATH, { organizationIds: o.organizationIds, statuses: o.statuses, sort: o.sort }),
+    }) =>
+      withQuery(DEVICES_LIST_PATH, {
+        organizationIds: o.organizationIds,
+        statuses: o.statuses,
+        connectivity: o.connectivity,
+        sort: o.sort,
+      }),
     /** Deleted devices. `organizationId`: one customer's, opened from its Devices tab (the same id its list locks). */
     archive: (o?: { organizationId?: string | number }) =>
       withQuery('/devices/archive', { organizationId: o?.organizationId }),
