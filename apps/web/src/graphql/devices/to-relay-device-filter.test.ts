@@ -27,6 +27,16 @@ describe('toRelayDeviceFilter', () => {
     expect(filter?.deviceTypes).toEqual([]);
     expect(filter?.userLinks).toEqual([]);
   });
+
+  it('sends clientOutdated only when it is true, so a query that does not ask for it never carries the key', () => {
+    expect(toRelayDeviceFilter({ statuses: ['ONLINE'], clientOutdated: true })?.clientOutdated).toBe(true);
+    expect(toRelayDeviceFilter({ statuses: ['ONLINE'] })).not.toHaveProperty('clientOutdated');
+    expect(toRelayDeviceFilter({ statuses: ['ONLINE'], clientOutdated: false })).not.toHaveProperty('clientOutdated');
+  });
+
+  it('drops OUTDATED if it ever reaches statuses: it is not a DeviceStatus', () => {
+    expect(toRelayDeviceFilter({ statuses: ['PENDING', 'OUTDATED'] })?.statuses).toEqual(['PENDING']);
+  });
 });
 
 describe('toRelayDeviceFilter, the MANAGED status', () => {

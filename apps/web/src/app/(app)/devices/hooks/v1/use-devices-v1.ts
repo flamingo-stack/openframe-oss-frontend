@@ -12,6 +12,7 @@ import { devicesListRelayV1Fragment, devicesListRelayV1Query } from '@/graphql/d
 import { DEVICES_PAGE_SIZE } from '../../queries/devices-api';
 import type { Device } from '../../types/device.types';
 import { useDeviceEpoch } from '../../utils/device-refresh';
+import { DEFAULT_DEVICE_LIST_SORT, type DeviceListSort } from '../../utils/outdated-client-list';
 import { readListedMachineEdges } from '../../utils/read-machine';
 
 export interface UseDevicesResultV1 {
@@ -35,14 +36,18 @@ export interface UseDevicesResultV1 {
  * did by hand, and the rows are normalized `Machine` records shared with every
  * device picker and schedule table in the app.
  */
-export function useDevicesV1(filters?: DeviceFilterInput, search = ''): UseDevicesResultV1 {
+export function useDevicesV1(
+  filters?: DeviceFilterInput,
+  search = '',
+  sort: DeviceListSort = DEFAULT_DEVICE_LIST_SORT,
+): UseDevicesResultV1 {
   // Refetches this query when a device mutation bumps the epoch — the only way
   // to refresh a Relay query that is already mounted. See `device-refresh.ts`.
   const fetchKey = useDeviceEpoch();
 
   const root = useLazyLoadQuery<DevicesListRelayQueryType>(
     devicesListRelayV1Query,
-    { filter: toRelayDeviceFilter(filters), search: search || null, first: DEVICES_PAGE_SIZE },
+    { filter: toRelayDeviceFilter(filters), search: search || null, first: DEVICES_PAGE_SIZE, sort },
     { fetchPolicy: 'store-and-network', fetchKey },
   );
 

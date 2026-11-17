@@ -12,6 +12,7 @@ import { DEVICES_PAGE_SIZE } from '../queries/devices-api';
 import type { Device } from '../types/device.types';
 import { readDirectoryListedMachineEdges } from '../utils/device-directory-transform';
 import { useDeviceEpoch } from '../utils/device-refresh';
+import { DEFAULT_DEVICE_LIST_SORT, type DeviceListSort } from '../utils/outdated-client-list';
 
 export interface UseDevicesResult {
   devices: Device[];
@@ -35,14 +36,18 @@ export interface UseDevicesResult {
  * did by hand, and the rows are normalized `Machine` records shared with every
  * device picker and schedule table in the app.
  */
-export function useDevices(filters?: DeviceFilterInput, search = ''): UseDevicesResult {
+export function useDevices(
+  filters?: DeviceFilterInput,
+  search = '',
+  sort: DeviceListSort = DEFAULT_DEVICE_LIST_SORT,
+): UseDevicesResult {
   // Refetches this query when a device mutation bumps the epoch — the only way
   // to refresh a Relay query that is already mounted. See `device-refresh.ts`.
   const fetchKey = useDeviceEpoch();
 
   const root = useLazyLoadQuery<DevicesListRelayQueryType>(
     devicesListRelayQuery,
-    { filter: toRelayDeviceFilter(filters), search: search || null, first: DEVICES_PAGE_SIZE },
+    { filter: toRelayDeviceFilter(filters), search: search || null, first: DEVICES_PAGE_SIZE, sort },
     { fetchPolicy: 'store-and-network', fetchKey },
   );
 

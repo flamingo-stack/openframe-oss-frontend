@@ -17,21 +17,23 @@ interface SoftwareOnDeviceStatusPresentation {
 export const SOFTWARE_ON_DEVICE_STATUS: Record<SoftwareOnDeviceStatus, SoftwareOnDeviceStatusPresentation> = {
   [SoftwareOnDeviceStatus.UP_TO_DATE]: { label: 'Up to date', tag: null },
   [SoftwareOnDeviceStatus.OUTDATED]: { label: OUTDATED_TAG.label, tag: { variant: OUTDATED_TAG.variant } },
-  [SoftwareOnDeviceStatus.SCHEDULED_UPDATE]: { label: 'Scheduled update', tag: { variant: 'warning' } },
+  // "Scheduled" as the design's chip says it (1100:444); the row is already about an update.
+  [SoftwareOnDeviceStatus.SCHEDULED_UPDATE]: { label: 'Scheduled', tag: { variant: 'warning' } },
   // The one in-flight state: the loader glyph on the neutral outline, not a severity colour.
   [SoftwareOnDeviceStatus.UNINSTALLING]: { label: 'Uninstalling', tag: { variant: 'outline', inFlight: true } },
   [SoftwareOnDeviceStatus.SCHEDULED_UNINSTALL]: { label: 'Scheduled uninstall', tag: { variant: 'warning' } },
 };
 
 /**
- * The Status funnel's options — fixed, not a facet query. The backend only ever
- * derives two states (the device's version is the title's latest, or it is
- * not), and asking which of them occur cost a second full host scan per title,
- * as heavy as the rows themselves. The price: no per-option counts, and a state
- * no device is in is still offered. Extend this when the backend starts
- * reporting the scheduled / uninstalling states.
+ * The Status funnel's options — fixed, not a facet query. The backend derives
+ * three states (the device's version is the title's latest, it is not, or an
+ * active schedule will update it there), and asking which of them occur cost a
+ * second full host scan per title, as heavy as the rows themselves. The price:
+ * no per-option counts, and a state no device is in is still offered. Extend
+ * this when the backend starts reporting the uninstalling states.
  */
 export const SOFTWARE_ON_DEVICE_STATUS_OPTIONS: DataTableFilterOption[] = [
   SoftwareOnDeviceStatus.UP_TO_DATE,
   SoftwareOnDeviceStatus.OUTDATED,
+  SoftwareOnDeviceStatus.SCHEDULED_UPDATE,
 ].map(status => ({ id: status, value: status, label: SOFTWARE_ON_DEVICE_STATUS[status].label }));

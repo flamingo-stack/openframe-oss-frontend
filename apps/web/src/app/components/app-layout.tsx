@@ -25,13 +25,13 @@ import { HydratorBoundary } from '@/app/components/shared/hydrator-boundary';
 import { LogoutConfirmModal } from '@/app/components/shared/logout-confirm-modal';
 import { SidebarUpdateButton } from '@/app/components/sidebar-update-button';
 import { useFeatureFlag, useFeatureFlagGate, useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
+import { BillingNoticeType } from '@/generated/schema-enums';
 import { isBillingHidden, isBillingReadOnly } from '@/lib/billing-visibility';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useNativeBackDismissible } from '@/lib/native-back';
 import { isAppShell } from '@/lib/platform';
 import { MANAGE_AI_BALANCE_ACTION, routes } from '@/lib/routes';
 import { useSessionHealthStore } from '@/lib/session-health';
-import { dismissTrialBar, isTrialBarDismissed } from '@/lib/trial-bar-dismissal';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { isAuthOnlyMode, isOssTenantMode, isSaasTenantMode } from '../../lib/app-mode';
 import {
@@ -40,7 +40,7 @@ import {
   getSectionedNavigationItems,
   NAVIGATION_LOADING_ROWS,
   type NavigationFlags,
-  SECTIONED_NAVIGATION_LOADING_ROWS,
+  sectionedNavigationLoadingRows,
 } from '../../lib/navigation-config';
 import {
   GROUPED_SIDEBAR_EXPANDED_WIDTH,
@@ -56,7 +56,18 @@ import {
   isBareChromeRoute,
   mingoHeaderLoadingCells,
 } from './app-shell-chrome';
-import { AiBalanceBar, BillingBarsHydrator, type BillingBarsState, NO_BARS, TrialEndingBar } from './billing-bars';
+import {
+  AiBalanceBar,
+  AutoTopUpDisabledBar,
+  BillingBarsHydrator,
+  type BillingBarsState,
+  BillingNoticesHydrator,
+  NO_BARS,
+  NO_NOTICE_BARS,
+  type NoticeBarsState,
+  TrialEndingBar,
+} from './billing-bars';
+import { useDismissBillingNotice } from './billing-notices/use-dismiss-billing-notice';
 import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
 import {
   MANHATTAN_WORK_AREA_SQUEEZE_FLOOR,
@@ -75,7 +86,7 @@ import {
   MANHATTAN_NAVIGATION_FOLDS_KEY,
   useManhattanNavCollapsed,
 } from './manhattan-shell/use-manhattan-shell';
-import { useManhattanSqueeze } from './manhattan-shell/use-manhattan-squeeze';
+import { COMPACT_BAND_HIDDEN, useManhattanSqueeze } from './manhattan-shell/use-manhattan-squeeze';
 import { useHistorySearchStore } from './mingo-shell/history-search-store';
 import { MingoAccountPopover } from './mingo-shell/mingo-account-popover';
 import { MingoComposerDock } from './mingo-shell/mingo-composer-dock';
@@ -94,13 +105,14 @@ import { type UnreadCountsByCategory, UnreadCountsHydrator } from './notificatio
 import { OnboardingCoachMark } from './onboarding-coach-mark';
 import { OnboardingProgressHydrator } from './onboarding-progress-hydrator';
 import { OnboardingV2Redirect } from './onboarding-v2-redirect';
+import { OUTDATED_CLIENT_DEVICES_HREF, OutdatedClientBar, useOutdatedClientCount } from './outdated-client-bar';
 import { PresenceHeartbeat } from './presence-heartbeat';
 import { SessionHealthWatcher } from './session-health-watcher';
 import { SessionUnavailableScreen } from './session-unavailable-screen';
 import { SubscriptionGuard, useSubscriptionLock } from './subscription-lock/subscription-guard';
 import { SubscriptionLockContent } from './subscription-lock/subscription-lock-content';
 import { isRouteOpenWhileLocked } from './subscription-lock/subscription-status';
-import { SuperUserBanner } from './super-user-banner';
+import { SuperUserBanner, SuperUserBannerSeed } from './super-user-banner';
 import { TimeTrackerHostProvider } from './time-tracker-host-provider';
 import { UnauthorizedOverlay } from './unauthorized-overlay';
 import { WalkthroughVideo } from './walkthrough-video';
@@ -313,26 +325,26 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
    */
   const [billingBars, setBillingBars] = useState<BillingBarsState>(NO_BARS);
   /**
-   * The trial banner is the only dismissible one, and the dismissal is per
-   * TRIAL (see `trial-bar-dismissal.ts`). Read past hydration, never in the
-   * initializer: `localStorage` is empty on the server, so a state seeded from
-   * it makes the two renders disagree about whether the band exists — a
-   * mismatch that costs the whole shell subtree, exactly as the onboarding
-   * cache beside it documents.
+   * The bars the backend's billing notices raise (trial ending, auto top-up
+   * switched off). Both dismissible, for the workspace: dismissing removes the
+   * notice from the store, the hydrator reports it gone.
    */
-  const trialToken = billingBars.trial?.token ?? null;
-  const [trialDismissed, setTrialDismissed] = useState(false);
-  useEffect(() => {
-    setTrialDismissed(isTrialBarDismissed(trialToken));
-  }, [trialToken]);
+  const [noticeBars, setNoticeBars] = useState<NoticeBarsState>(NO_NOTICE_BARS);
+  const dismissBillingNotice = useDismissBillingNotice();
   /**
-   * Both bars exist for their action — top up the balance, activate the
+   * Every bar exists for its action — top up the balance, activate the
    * subscription — so they need a build that can do it: the mobile builds hide
    * every payment surface (App Store Guideline 3.1.1) and the desktop build
    * shows billing read-only — see `billing-visibility.ts`. Neither page these
    * bars would send you to has a top-up or a checkout on them.
    */
   const showBillingBars = billingsEnabled && !isBillingHidden() && !isBillingReadOnly() && sessionReady && !isLocked;
+  /**
+   * Devices on an OpenFrame client too old to update itself (the server's verdict). Their bar fills the `topBar`
+   * slot only after the hub announcement: it is reported here whether the announcement shows.
+   */
+  const outdatedClientCount = useOutdatedClientCount(sessionReady && !isLocked);
+  const [announcementShown, setAnnouncementShown] = useState(false);
 
   // Mingo — the composer dock, the chat history, the Mingo rows — is meaningful only
   // inside the full, unlocked app shell (it hits authed endpoints), so the
@@ -447,6 +459,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // Manhattan v2: the centre keeps 800px on a desktop — the sidebars that would take it
   // go to their rails and open over the centre instead (plan D19).
   const squeeze = useManhattanSqueeze(manhattan);
+  // Until the window is read (the server's markup, the first paint) the compact band is the
+  // stylesheet's: both sidebars hide there, then become the closed drawers below.
+  const sidebarClassName = squeeze.measured ? 'h-full' : `h-full ${COMPACT_BAND_HIDDEN}`;
   // Below two rails + 800px the v2 top bar opens the sidebars as drawers: its buttons' reveals,
   // and the chats drawer closes once a chat opens from it (`ManhattanCentre`).
   const [chatsReveal, setChatsReveal] = useState(0);
@@ -614,7 +629,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             desktopFromMd: true,
             revealSignal: revealSignal + chatsReveal,
             dismissSignal: chatsDismiss,
-            className: 'h-full',
+            className: sidebarClassName,
           }
         : undefined,
     [
@@ -629,6 +644,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       sidebarCollapsed,
       revealSignal,
       squeeze.compact,
+      sidebarClassName,
       chatsReveal,
       chatsDismiss,
     ],
@@ -649,7 +665,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             items: sectionedItems,
             currentPath,
             loading: chromeLoading,
-            loadingRows: SECTIONED_NAVIGATION_LOADING_ROWS,
+            loadingRows: sectionedNavigationLoadingRows(),
             onNavigate: handleNavigate,
             groupsStorageKey: MANHATTAN_NAVIGATION_FOLDS_KEY,
             collapsed: navCollapsed,
@@ -657,7 +673,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             overlay: squeeze.compact ? 'drawer' : undefined,
             desktopFromMd: true,
             revealSignal: navReveal,
-            className: 'h-full',
+            className: sidebarClassName,
           }
         : undefined,
     [
@@ -669,6 +685,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       navCollapsed,
       setNavCollapsed,
       squeeze.compact,
+      sidebarClassName,
       navReveal,
     ],
   );
@@ -692,42 +709,62 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // Single `topBar` slot, one bar at a time: the billing bars first, since they
   // ask for an action; otherwise the hub announcement — informational and
   // dismissible, so it only ever fills an empty slot (never stacks, never bumps
-  // a bar out).
+  // a bar out); and only while it shows nothing (none published, dismissed, not
+  // for this path or shell), the outdated-client bar. That one cannot be
+  // dismissed, so above the announcement it would hide every announcement for
+  // a tenant with one abandoned old device.
   let topBar: React.ReactNode;
   if (showLockContent) {
     // No band of any kind over the lock screen — whatever it would say, this
     // workspace cannot act on it: the AI and trial bars send you to Billing &
     // Usage. Answered first, so no later branch has to remember the lock.
     topBar = undefined;
+  } else if (showBillingBars && noticeBars.autoTopUpDisabled) {
+    // Ahead of the balance bar: a top-up is tried when the balance runs low, so
+    // when it fails the balance is low too, and below that bar this one would
+    // never show. It names the cause and leads to the same dialog; dismissed,
+    // the balance bar takes the slot.
+    const { reason, eventKey } = noticeBars.autoTopUpDisabled;
+    topBar = (
+      <AutoTopUpDisabledBar
+        reason={reason}
+        onManage={() => router.push(routes.settings.billingUsage({ action: MANAGE_AI_BALANCE_ACTION }))}
+        onDismiss={() => dismissBillingNotice(BillingNoticeType.AUTO_TOP_UP_DISABLED, eventKey)}
+      />
+    );
   } else if (showBillingBars && billingBars.ai.tone !== 'default') {
-    // First in line: agents about to stop answering cannot wait, and this
-    // state is invisible from every page but Billing & Usage. The CTA lands
-    // with the top-up dialog already open.
+    // Agents about to stop answering cannot wait, and this state is invisible
+    // from every page but Billing & Usage. The CTA lands with the top-up dialog
+    // already open.
     topBar = (
       <AiBalanceBar
         tone={billingBars.ai.tone}
         onManage={() => router.push(routes.settings.billingUsage({ action: MANAGE_AI_BALANCE_ACTION }))}
       />
     );
-  } else if (showBillingBars && billingBars.trial && !trialDismissed) {
-    // Below the AI bars: a trial past its halfway point is a deadline, not a
-    // failure.
+  } else if (showBillingBars && noticeBars.trial) {
+    // A trial ending is a deadline, not a failure. A trial has no auto top-up,
+    // so the two never compete.
+    const { trialEndDate, eventKey } = noticeBars.trial;
     topBar = (
       <TrialEndingBar
-        daysLeft={billingBars.trial.daysLeft}
+        trialEndDate={trialEndDate}
         onActivate={() => router.push(routes.settings.billingUsage())}
-        onDismiss={() => {
-          if (!trialToken) return;
-          dismissTrialBar(trialToken);
-          setTrialDismissed(true);
-        }}
+        onDismiss={() => dismissBillingNotice(BillingNoticeType.TRIAL_ENDING, eventKey)}
       />
     );
   } else if (withOnboarding ? showOnboardingChrome : sessionReady && !isLocked) {
     // Loaded progress doubles as "a live, unlocked session": the hydrator behind
     // it only runs with one, and the announcement fetches on mount. The
     // Mingo-first shell loads no progress and asks the session directly.
-    topBar = <AnnouncementTopBar />;
+    topBar = (
+      <>
+        <AnnouncementTopBar onExpandedChange={setAnnouncementShown} />
+        {!announcementShown && outdatedClientCount > 0 && (
+          <OutdatedClientBar onManage={() => router.push(OUTDATED_CLIENT_DEVICES_HREF)} />
+        )}
+      </>
+    );
   }
 
   const displayName = useMemo(
@@ -1005,13 +1042,16 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
                     // previous session cannot flash it ahead of `/me`.
                     topBar={
                       <>
-                        {sessionResolved && <SuperUserBanner />}
+                        {/* Until then, its room for a session that was a super user's (`super-user-seed.ts`). */}
+                        {sessionResolved ? <SuperUserBanner /> : <SuperUserBannerSeed />}
                         {topBar}
-                        {centre && squeeze.compact && (
+                        {/* Before the window is read, in the markup too: the stylesheet shows it in the compact band. */}
+                        {centre && (squeeze.compact || !squeeze.measured) && (
                           <ManhattanCompactBar
                             onOpenChats={() => setChatsReveal(n => n + 1)}
                             onOpenNavigation={() => setNavReveal(n => n + 1)}
                             chatsDisabled={showLockContent}
+                            bandOnly={!squeeze.measured}
                           />
                         )}
                       </>
@@ -1100,6 +1140,14 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
         <HydratorBoundary>
           <BillingBarsHydrator onResolved={setBillingBars} />
         </HydratorBoundary>
+      )}
+      {/* The notices are read from another service: a failure costs their bars, nothing else. */}
+      {showBillingBars && (
+        <ErrorBoundary fallback={null}>
+          <HydratorBoundary>
+            <BillingNoticesHydrator onResolved={setNoticeBars} />
+          </HydratorBoundary>
+        </ErrorBoundary>
       )}
       {/* Desktop shell update offer. Also owns the mount-time availability
           check that the sidebar's update button reads. No-op elsewhere. */}

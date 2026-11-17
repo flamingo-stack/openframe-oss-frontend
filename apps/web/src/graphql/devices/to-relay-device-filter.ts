@@ -23,6 +23,7 @@ export interface RelayDeviceFilter {
   tagValues?: string[] | null;
   directorySources?: DirectorySource[] | null;
   userLinks?: DirectoryUserLink[] | null;
+  clientOutdated?: boolean;
 }
 
 /** An unset filter stays null; a set one keeps its known values, and stays set (`[]`) when none of them is. */
@@ -63,5 +64,8 @@ export function toRelayDeviceFilter(filter: DeviceFilterInput | undefined | null
       directorySources: knownValues(DirectorySource, filter.directorySources),
     }),
     ...(filter.userLinks != null && { userLinks: knownValues(DirectoryUserLink, filter.userLinks) }),
+    // Only `true` is ever sent: the device list narrows to outdated clients or not at all, and an absent key keeps
+    // every query that does not ask for it valid on a backend without the field.
+    ...(filter.clientOutdated === true && { clientOutdated: true }),
   };
 }

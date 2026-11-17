@@ -83,6 +83,7 @@ export const GET_DEVICE_QUERY = `
       macAddress
       osUuid
       agentVersion
+      clientOutdated
       status
       connectivity
       lastSeen

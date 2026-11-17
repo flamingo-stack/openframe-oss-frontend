@@ -160,6 +160,13 @@ const runtimeJoin = (parts: TemplateStringsArray, ...values: Array<string | numb
  * `lg`, so a viewport check here would poison the DESKTOP value for anyone who
  * loaded at tablet width and then widened the window.
  */
+/**
+ * `localStorage` key of the Manhattan v2 chat / page divider (`AppLayoutWorkArea` `storageKey`):
+ * here, beside the other seeds, so the server root layout can seed the divider's place before
+ * paint (`workAreaShareSeedScript` from the core lib's server-safe `utils`).
+ */
+export const MANHATTAN_WORK_AREA_STORAGE_KEY = 'of.manhattan.workArea';
+
 export function sidebarWidthFoucScript(grouped: boolean): string {
   const expanded = grouped ? MANHATTAN_CHATS_EXPANDED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
   const endSeed = grouped

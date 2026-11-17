@@ -3,7 +3,7 @@
 import { skipToken, useInfiniteQuery } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import type { RecordingPlayerState } from '@/lib/meshcentral/recording';
-import type { SessionTimelineEvent } from '../components/remote-sessions/session-events';
+import { type SessionTimelineEvent, withViewersAtEnd } from '../components/remote-sessions/session-events';
 import { fetchSessionEventsPage, recordRecordingPlayed } from '../services/remote-session-events-api-service';
 import { deviceQueryKeys } from '../utils/query-keys';
 
@@ -13,7 +13,8 @@ const MAX_PAGES = 20;
 /**
  * The rows of the Session Events list, oldest first. The first page comes
  * with the page; the rest load one after another in the background, and the
- * list and the markers fill in as they arrive.
+ * list and the markers fill in as they arrive. Who was still watching at the
+ * end is gathered from every page, so "Session ended" names them all.
  */
 export function useSessionEvents(recordingId: string | null): SessionTimelineEvent[] {
   const query = useInfiniteQuery({
@@ -28,7 +29,11 @@ export function useSessionEvents(recordingId: string | null): SessionTimelineEve
     if (hasNextPage && !isFetchingNextPage && !isError) void fetchNextPage();
   }, [hasNextPage, isFetchingNextPage, isError, fetchNextPage]);
 
-  return query.data?.pages.flatMap(page => page.events) ?? [];
+  const pages = query.data?.pages ?? [];
+  return withViewersAtEnd(
+    pages.flatMap(page => page.events),
+    pages.flatMap(page => page.viewersAtEnd),
+  );
 }
 
 /**

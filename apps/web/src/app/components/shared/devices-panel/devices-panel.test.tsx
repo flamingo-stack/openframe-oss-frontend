@@ -48,12 +48,14 @@ vi.mock('next/navigation', () => ({
 vi.mock('react-relay', async importOriginal => {
   const gate = (await import('@/__generated__/useDirectoryGateQuery.graphql')).default;
   const facets = (await import('@/__generated__/useDirectoryFacetsQuery.graphql')).default;
+  const outdated = (await import('@/__generated__/outdatedClientCountRelayQuery.graphql')).default;
   const actual = await importOriginal<Record<string, unknown> & { default?: Record<string, unknown> }>();
   return {
     ...actual.default,
     ...actual,
     graphql: (strings: TemplateStringsArray) => {
       if (strings[0].includes('useDirectoryGateQuery')) return gate;
+      if (strings[0].includes('outdatedClientCountRelayQuery')) return outdated;
       return strings[0].includes('useDirectoryFacetsQuery') ? facets : {};
     },
   };
@@ -98,6 +100,16 @@ let environment: Environment;
 let fetchFn: ReturnType<typeof vi.fn>;
 let countAnswer: () => Promise<unknown>;
 let facetsAnswer: () => Promise<unknown>;
+const outdatedAnswer = async () => ({
+  data: {
+    deviceFilters: {
+      clientOutdated: [
+        { value: 'true', count: 2 },
+        { value: 'false', count: 5 },
+      ],
+    },
+  },
+});
 
 const settle = async () => {
   await act(async () => {
@@ -116,6 +128,8 @@ const gridTable = () => ({
 const GRID_TABLE = { drawn: true, settings: true, ownScroll: true };
 const CARD_ROWS = { drawn: false, settings: false, ownScroll: false };
 const countAsked = () => fetchFn.mock.calls.filter(call => call[0].name === 'useDirectoryGateQuery').length;
+/** What the panel asked of the directory: every request but the Status funnel's OUTDATED count, which is not about it. */
+const directoryCalls = () => fetchFn.mock.calls.filter(call => call[0].name !== 'outdatedClientCountRelayQuery');
 const flagsOn = () =>
   useFeatureFlagsStore.getState().setFlags([
     { name: 'tenant-management', enabled: true },
@@ -162,9 +176,10 @@ describe('DevicesPanel and the directory gate', () => {
     useFeatureFlagsStore.getState().reset();
     countAnswer = hasDirectory(1);
     facetsAnswer = async () => ({ data: { deviceFilters: DIRECTORY_FACETS } });
-    fetchFn = vi.fn((request: { name: string }) =>
-      request.name === 'useDirectoryGateQuery' ? countAnswer() : facetsAnswer(),
-    );
+    fetchFn = vi.fn((request: { name: string }) => {
+      if (request.name === 'outdatedClientCountRelayQuery') return outdatedAnswer();
+      return request.name === 'useDirectoryGateQuery' ? countAnswer() : facetsAnswer();
+    });
     environment = new Environment({ network: Network.create(fetchFn as never), store: new Store(new RecordSource()) });
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -241,7 +256,7 @@ describe('DevicesPanel and the directory gate', () => {
     expect(text()).toContain('host-1');
     expect(text()).not.toContain('USER');
     expect(text()).not.toContain('SOURCES');
-    expect(fetchFn.mock.calls.every(call => call[0].name === 'useDirectoryGateQuery')).toBe(true);
+    expect(directoryCalls().every(call => call[0].name === 'useDirectoryGateQuery')).toBe(true);
   });
 
   it('draws the rows with no directory columns when the count fails, and asks once', async () => {
@@ -412,7 +427,7 @@ describe('DevicesPanel and the directory gate', () => {
       expect(funnels()).toEqual(expect.arrayContaining(['Filter by STATUS', 'Filter by OS', 'Filter by CUSTOMER']));
       expect(funnels()).not.toContain('Filter by USER');
       expect(funnels()).not.toContain('Filter by SOURCES');
-      expect(fetchFn).not.toHaveBeenCalled();
+      expect(directoryCalls()).toEqual([]);
     });
 
     it('ignores USER and SOURCES filters in the address', async () => {
@@ -433,7 +448,7 @@ describe('DevicesPanel and the directory gate', () => {
       await settle();
       expect(text()).toContain('host-1');
       expect(env.listsAsked.every(list => list === 'main')).toBe(true);
-      expect(fetchFn).not.toHaveBeenCalled();
+      expect(directoryCalls()).toEqual([]);
     });
   });
 

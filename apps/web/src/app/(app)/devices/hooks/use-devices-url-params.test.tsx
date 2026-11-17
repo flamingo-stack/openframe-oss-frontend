@@ -18,6 +18,7 @@ const url = vi.hoisted(() => ({
     directorySources: ['MICROSOFT_365'],
     tags: [] as string[],
     viewMode: 'table',
+    sort: '',
   },
   statusDisplay: 'lifecycle' as 'lifecycle' | 'legacy',
 }));
@@ -34,6 +35,7 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/features', () => ({
     display === 'legacy'
       ? { status: [...statuses, ...connectivity.map(v => `connectivity:${v}`)] }
       : { status: statuses, connectivity },
+  DEVICE_FILTER_OUTDATED: 'OUTDATED',
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', () => ({
   useApiParams: () => ({ params: url.params, setParam: vi.fn(), setParams: vi.fn() }),
@@ -148,5 +150,65 @@ describe('translateLegacyDeviceStatuses', () => {
       statuses: expectedStatuses,
       connectivity: expectedConnectivity,
     });
+  });
+});
+
+describe("useDevicesUrlParams, the Status funnel's OUTDATED option and the sort", () => {
+  beforeEach(() => {
+    latest = null;
+    url.params.userLinks = [];
+    url.params.directorySources = [];
+    url.params.sort = '';
+    url.params.statuses = [];
+    url.params.connectivity = [];
+    url.statusDisplay = 'lifecycle';
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('sends OUTDATED alone as clientOutdated over the default statuses, and keeps it ticked', () => {
+    url.params.statuses = ['OUTDATED'];
+    const { filters, tableFilters } = render();
+    expect(filters).toMatchObject({ statuses: ['MANAGED', 'PENDING_DELETION'], clientOutdated: true });
+    expect(tableFilters.status).toEqual(['OUTDATED']);
+  });
+
+  it('ANDs OUTDATED with the statuses ticked beside it', () => {
+    url.params.statuses = ['PENDING', 'OUTDATED'];
+    const { filters, tableFilters } = render();
+    expect(filters).toMatchObject({ statuses: ['PENDING'], clientOutdated: true });
+    expect(tableFilters.status).toEqual(['PENDING', 'OUTDATED']);
+  });
+
+  it('keeps OUTDATED beside a selection that spells out the defaults', () => {
+    url.params.statuses = ['MANAGED', 'PENDING_DELETION', 'OUTDATED'];
+    const { filters, tableFilters } = render();
+    expect(filters).toMatchObject({ statuses: ['MANAGED', 'PENDING_DELETION'], clientOutdated: true });
+    expect(tableFilters.status).toEqual(['MANAGED', 'PENDING_DELETION', 'OUTDATED']);
+  });
+
+  it('sends OUTDATED and connectivity together', () => {
+    url.params.statuses = ['OUTDATED'];
+    url.params.connectivity = ['OFFLINE'];
+    expect(render().filters).toMatchObject({ connectivity: ['OFFLINE'], clientOutdated: true });
+  });
+
+  it('sends no clientOutdated when OUTDATED is not ticked', () => {
+    url.params.statuses = ['PENDING'];
+    expect(render().filters).not.toHaveProperty('clientOutdated');
+  });
+
+  it('orders online first by connectivity, and outdated first only for ?sort=clientOutdated', () => {
+    expect(render().sort).toEqual({ field: 'connectivity', direction: 'DESC' });
+    url.params.sort = 'clientOutdated';
+    expect(render().sort).toEqual({ field: 'clientOutdated', direction: 'DESC' });
+    url.params.sort = 'hostname';
+    expect(render().sort).toEqual({ field: 'connectivity', direction: 'DESC' });
   });
 });

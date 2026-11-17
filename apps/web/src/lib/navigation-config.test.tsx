@@ -11,6 +11,7 @@ import {
   NAVIGATION_LOADING_ROWS,
   type NavigationFlags,
   type OnboardingNavState,
+  sectionedNavigationLoadingRows,
 } from './navigation-config';
 
 type AppMode = 'oss-tenant' | 'saas-tenant' | 'saas-shared';
@@ -428,6 +429,17 @@ describe('sectioned navigation (Manhattan v2 shell)', () => {
     expect(ids).not.toContain('integrations');
     expect(ids).not.toContain('users');
     expect(ids).toContain('devices');
+  });
+
+  it('draws its placeholder in the loaded shape: each section with every flag on, and the bottom three', () => {
+    setAppMode('saas-tenant');
+    const loaded = getSectionedNavigationItems(ALL_ON);
+    const rows = sectionedNavigationLoadingRows();
+    expect(rows.sections).toEqual(
+      loaded.filter(item => item.children).map(item => ({ id: item.id, rows: item.children?.length ?? 0 })),
+    );
+    expect(rows.sections.map(section => section.rows)).toEqual([2, 2, 2, 3, 4]);
+    expect(rows.secondary).toBe(loaded.filter(item => item.section === 'secondary').length);
   });
 
   it("Directory's Users is the directory users page; Settings → Employees lights Settings", () => {

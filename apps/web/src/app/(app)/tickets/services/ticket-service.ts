@@ -345,12 +345,16 @@ export class TicketService implements TicketServiceInterface {
     return extractGraphQlData(response).tickets?.filteredCount ?? 0;
   }
 
-  async fetchEscalatedTickets(params: FetchEscalatedTicketsParams): Promise<Dialog[]> {
+  async fetchEscalatedTickets(params: FetchEscalatedTicketsParams): Promise<{ tickets: Dialog[]; count: number }> {
     const response = await apiClient.post<GraphQlResponse<TicketsResponse>>(API_ENDPOINTS.GRAPHQL, {
       query: GET_ESCALATED_TICKETS_QUERY,
       variables: { statusIds: params.statusIds, limit: params.limit },
     });
-    return (extractGraphQlData(response).tickets?.edges || []).map(edge => normalizeTicketToDialog(edge.node));
+    const connection = extractGraphQlData(response).tickets;
+    return {
+      tickets: (connection?.edges || []).map(edge => normalizeTicketToDialog(edge.node)),
+      count: connection?.filteredCount ?? 0,
+    };
   }
 
   async fetchDialog(id: string): Promise<Dialog | null> {

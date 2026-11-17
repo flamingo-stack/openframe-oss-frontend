@@ -19,8 +19,9 @@ import { approvalRow, type NeedsYouRow, type ReportSource } from './needs-you-ro
  * query and connection (the drawer's unread first page, kept live by its NATS bridge), so
  * this costs no request of its own once the drawer has loaded, and a decision made in the
  * drawer, the chat or the Needs approval page drops the row here too. An approval past the
- * drawer's first page is not seen (no `notifications(filter: { types })` yet). A request
- * the backend titled "Approval required" takes its chat's name from the session's history.
+ * drawer's first page is not in the queue (the newest are), and the Approval requests count is
+ * the server's (`usePendingApprovalCountState`), not these rows. A request the backend titled
+ * "Approval required" takes its chat's name from the session's history.
  */
 export function NeedsYouApprovalsSource({ onReport }: { onReport: ReportSource }) {
   const retryKey = useRetryKey();

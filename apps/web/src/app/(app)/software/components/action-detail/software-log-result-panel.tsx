@@ -2,11 +2,11 @@
 
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { graphql, useFragment } from 'react-relay';
-import type { softwareLogResultPanel_execution$key } from '@/__generated__/softwareLogResultPanel_execution.graphql';
+import type { softwareLogResultPanel_device$key } from '@/__generated__/softwareLogResultPanel_device.graphql';
 import { executionOutput } from '@/app/(app)/scripts/shared/utils/execution-helpers';
 
 const softwareLogResultPanelFragment = graphql`
-  fragment softwareLogResultPanel_execution on ScriptExecution {
+  fragment softwareLogResultPanel_device on SoftwareActionDevice {
     stdout
     stderr
     error
@@ -14,21 +14,21 @@ const softwareLogResultPanelFragment = graphql`
 `;
 
 interface SoftwareLogResultPanelProps {
-  execution: softwareLogResultPanel_execution$key;
+  device: softwareLogResultPanel_device$key;
   expanded: boolean;
   /** The collapse transition finished — the panel can unmount. */
   onCollapsed: () => void;
 }
 
 /**
- * What "Show Result" unfolds: the execution's whole output (see `executionOutput`).
+ * What "Show Result" unfolds: the device's whole output (see `executionOutput`).
  *
  * Rows animate on grid-template-rows (0fr ↔ 1fr), the app's collapse idiom (see
  * `onboarding-accordion.tsx`), so the panel needs no measured height; the output
  * itself scrolls past 400px, per the design.
  */
-export function SoftwareLogResultPanel({ execution, expanded, onCollapsed }: SoftwareLogResultPanelProps) {
-  const { stdout, stderr, error } = useFragment(softwareLogResultPanelFragment, execution);
+export function SoftwareLogResultPanel({ device, expanded, onCollapsed }: SoftwareLogResultPanelProps) {
+  const { stdout, stderr, error } = useFragment(softwareLogResultPanelFragment, device);
   const output = executionOutput({ stdout, stderr, error });
 
   return (

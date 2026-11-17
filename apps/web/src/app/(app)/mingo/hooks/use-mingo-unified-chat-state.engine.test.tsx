@@ -44,7 +44,7 @@ let container: HTMLDivElement;
 let root: Root;
 
 function Probe() {
-  useMingoUnifiedChatState();
+  useMingoUnifiedChatState({ onScreen: true });
   return null;
 }
 
@@ -79,7 +79,13 @@ describe('useMingoUnifiedChatState: the engine config', () => {
     render();
     expect(config().slashCommands).toBe(commands);
     expect(config().avatarUrlOf?.('/api/image/a.png')).toMatch(/a\.png$/);
-    expect(config().refresh).toMatchObject({ intervalMs: 60_000, awaitingTitleMs: 10_000, busyMs: 15_000 });
+    expect(config().refresh).toMatchObject({
+      intervalMs: 60_000,
+      awaitingTitleMs: 10_000,
+      expectingMs: 10_000,
+      expecting: false,
+      busyMs: 15_000,
+    });
     expect(config().refresh?.allowed).toEqual(expect.any(Function));
   });
 

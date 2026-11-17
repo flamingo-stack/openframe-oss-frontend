@@ -72,10 +72,12 @@ interface UseAiTopUpOptions {
   /** $ per token from the AI product's option; `null` while the catalog is on its way, or when it states no rate. */
   tokenPrice: number | null;
   /**
-   * Whole dollars picked before the user touches anything; nothing by default.
-   * A preset lands on its tile, any other figure on Custom with the field filled.
+   * What is picked before the user touches anything; nothing by default. A
+   * preset lands on its tile, any other figure on Custom with the field filled,
+   * `NO_TOP_UP` on "Don't top up". Followed until the first pick, so a surface
+   * may derive it from data that lands after the form mounts.
    */
-  initial?: number | null;
+  initial?: number | typeof NO_TOP_UP | null;
   /**
    * The smallest amount that can be sent, in whole dollars: the backend's
    * figure where the surface has read it (`AutoTopUpStatus.minimumAmountUsd`),
@@ -88,9 +90,9 @@ interface UseAiTopUpOptions {
   allowNone?: boolean;
 }
 
-function initialChoice(initial: number | null | undefined, presets: readonly number[]): TopUpChoice {
+function initialChoice(initial: number | typeof NO_TOP_UP | null | undefined, presets: readonly number[]): TopUpChoice {
   if (initial == null) return { selection: null, customUsd: '' };
-  if (presets.includes(initial)) return { selection: initial, customUsd: '' };
+  if (initial === NO_TOP_UP || presets.includes(initial)) return { selection: initial, customUsd: '' };
   return { selection: CUSTOM_TOP_UP, customUsd: String(initial) };
 }
 
@@ -141,12 +143,14 @@ export function useAiTopUp({
   presets = TOP_UP_PRESETS_USD,
   allowNone = false,
 }: UseAiTopUpOptions): AiTopUp {
-  const [stored, setChoice] = useState<TopUpChoice>(() => initialChoice(initial, presets));
+  // `null` until the user picks: the opening choice is read from `initial` on every render until then.
+  const [picked, setChoice] = useState<TopUpChoice | null>(null);
   // Set by the first submit and kept: from then on the fields answer every edit
   // at once, which is the moment the user is looking at them.
   const [attempted, setAttempted] = useState(false);
 
   const opening = initialChoice(initial, presets);
+  const stored = picked ?? opening;
   const choice: TopUpChoice = isOffered(stored.selection, presets, allowNone)
     ? stored
     : {
@@ -167,17 +171,17 @@ export function useAiTopUp({
     isComplete: problem == null,
     error: attempted ? problem : null,
     tokensForUsd: forUsd,
-    selectPreset: usd => setChoice(current => ({ ...current, selection: usd })),
-    selectNone: () => setChoice(current => ({ ...current, selection: NO_TOP_UP })),
-    selectCustom: () => setChoice(current => ({ ...current, selection: CUSTOM_TOP_UP })),
+    selectPreset: usd => setChoice(current => ({ ...(current ?? opening), selection: usd })),
+    selectNone: () => setChoice(current => ({ ...(current ?? opening), selection: NO_TOP_UP })),
+    selectCustom: () => setChoice(current => ({ ...(current ?? opening), selection: CUSTOM_TOP_UP })),
     // Digits only, so a pasted "$50" or "50.00" lands as the whole dollars it meant.
-    setCustomUsd: next => setChoice(current => ({ ...current, customUsd: next.replace(/\D/g, '') })),
+    setCustomUsd: next => setChoice(current => ({ ...(current ?? opening), customUsd: next.replace(/\D/g, '') })),
     validate: () => {
       setAttempted(true);
       return problem;
     },
     reset: () => {
-      setChoice(initialChoice(initial, presets));
+      setChoice(null);
       setAttempted(false);
     },
   };

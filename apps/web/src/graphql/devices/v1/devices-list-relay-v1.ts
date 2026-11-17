@@ -8,22 +8,29 @@ import { graphql } from 'react-relay';
  * A `@refetchable` fragment with `@connection`, so Relay owns the cursors and
  * page merging that the previous `useInfiniteQuery` did by hand.
  *
- * `filters: ["filter", "search"]` on the connection is required, not cosmetic:
- * without it every filter/search combination would write into ONE connection
+ * `filters: ["filter", "search", "sort"]` on the connection is required, not cosmetic:
+ * without it every filter/search/sort combination would write into ONE connection
  * record and the pages of a filtered list would append to the unfiltered one.
  * With it, each combination gets its own connection, which is the behaviour the
  * react-query key `[filter, search]` used to provide.
  *
- * Ordering is fixed to `status DESC` (online first) here rather than passed by
- * callers, so two screens showing the same fleet cannot disagree about its order.
+ * Ordering is `status DESC` (online first) unless the address asks for outdated
+ * clients first (`?sort=clientOutdated`, see `parseDeviceListSort`): the caller
+ * passes the order `useDevicesUrlParamsV1` reads, never one of its own.
  *
- * `unreadNotificationCount` is selected beside the shared fragment, not in it: only
- * this list draws a row's unread count, and the pickers on the same fragment should
- * not pay for it.
+ * `unreadNotificationCount` and `clientOutdated` are selected beside the shared
+ * fragment, not in it: only this list draws a row's unread count and OUTDATED tag,
+ * and the pickers on the same fragment should not pay for them.
  */
 export const devicesListRelayV1Query = graphql`
-  query devicesListRelayV1Query($filter: DeviceFilterInput, $search: String, $first: Int!, $after: String) {
-    ...devicesListRelayV1_query @arguments(filter: $filter, search: $search, first: $first, after: $after)
+  query devicesListRelayV1Query(
+    $filter: DeviceFilterInput
+    $search: String
+    $first: Int!
+    $after: String
+    $sort: SortInput!
+  ) {
+    ...devicesListRelayV1_query @arguments(filter: $filter, search: $search, first: $first, after: $after, sort: $sort)
   }
 `;
 
@@ -35,19 +42,16 @@ export const devicesListRelayV1Fragment = graphql`
     search: { type: "String" }
     first: { type: "Int", defaultValue: 20 }
     after: { type: "String" }
+    sort: { type: "SortInput!" }
   ) {
-    devices(
-      filter: $filter
-      search: $search
-      first: $first
-      after: $after
-      sort: { field: "connectivity", direction: DESC }
-    ) @connection(key: "devicesListRelayV1_devices", filters: ["filter", "search"]) {
+    devices(filter: $filter, search: $search, first: $first, after: $after, sort: $sort)
+      @connection(key: "devicesListRelayV1_devices", filters: ["filter", "search", "sort"]) {
       filteredCount
       edges {
         node {
           ...deviceFields_machine
           unreadNotificationCount
+          clientOutdated
         }
       }
       pageInfo {

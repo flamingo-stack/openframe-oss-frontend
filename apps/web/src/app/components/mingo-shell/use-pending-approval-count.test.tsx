@@ -12,10 +12,10 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearApprovalDecisions, noteApprovalDecision } from '@/app/components/approvals/approval-decisions';
-import { usePendingApprovalCount } from './use-pending-approval-count';
+import { usePendingApprovalCount, usePendingApprovalCountState } from './use-pending-approval-count';
 
 const { server, gate, session } = vi.hoisted(() => ({
-  server: { waitingChats: 0, waitingTickets: 0, techRequired: true, requests: [] as string[] },
+  server: { waitingChats: 0, waitingTickets: 0, techRequired: true, requests: [] as string[], failChats: false },
   gate: { open: true },
   session: {
     rows: [] as Array<{ id: string; title: string }>,
@@ -30,6 +30,7 @@ vi.mock('@/lib/api-client', () => {
       post: vi.fn(async (_url: string, body: { query: string }) => {
         if (body.query.includes('GetApprovalDialogsCount')) {
           server.requests.push('chats');
+          if (server.failChats) throw new Error('chat service down');
           return ok({ dialogs: { filteredCount: server.waitingChats } });
         }
         if (body.query.includes('GetPendingApprovalTicketsCount')) {
@@ -71,6 +72,12 @@ function Badge() {
   return <output data-badge>{usePendingApprovalCount()}</output>;
 }
 
+/** The count with its state, as "Needs you" reads it. */
+function CountState() {
+  const { count, loading } = usePendingApprovalCountState();
+  return <output data-state>{JSON.stringify({ count, loading })}</output>;
+}
+
 let container: HTMLDivElement;
 let root: Root;
 const badge = () => Number(container.querySelector('[data-badge]')?.textContent);
@@ -82,6 +89,7 @@ beforeEach(() => {
   server.waitingTickets = 0;
   server.techRequired = true;
   server.requests = [];
+  server.failChats = false;
   gate.open = true;
   session.rows = [];
   session.waiting = new Set();
@@ -111,6 +119,7 @@ async function render() {
       <QueryClientProvider client={queryClient}>
         <NotificationsProvider initialNotifications={[]}>
           <Badge />
+          <CountState />
         </NotificationsProvider>
       </QueryClientProvider>,
     ),
@@ -171,5 +180,51 @@ describe('usePendingApprovalCount', () => {
     await settle();
 
     expect(badge()).toBe(1);
+  });
+});
+
+describe('usePendingApprovalCountState', () => {
+  const state = () =>
+    JSON.parse(container.querySelector('[data-state]')?.textContent ?? '{}') as {
+      count: number | null;
+      loading: boolean;
+    };
+
+  it('is loading until both counts are in, then the exact sum', async () => {
+    server.waitingChats = 2;
+    server.waitingTickets = 3;
+    act(() =>
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <NotificationsProvider initialNotifications={[]}>
+            <CountState />
+          </NotificationsProvider>
+        </QueryClientProvider>,
+      ),
+    );
+    expect(state()).toEqual({ count: null, loading: true });
+    await settle();
+    expect(state()).toEqual({ count: 5, loading: false });
+  });
+
+  it('counts only the chats, done, on a tenant without a Tech Required lane', async () => {
+    server.techRequired = false;
+    server.waitingChats = 2;
+    await render();
+    expect(state()).toEqual({ count: 2, loading: false });
+  });
+
+  it('has no count when a count failed (the reader falls back), while the badge keeps what it has', async () => {
+    server.failChats = true;
+    server.waitingTickets = 3;
+    await render();
+    expect(state()).toEqual({ count: null, loading: false });
+    expect(badge()).toBe(3);
+  });
+
+  it('has no count behind the subscription lock, and is not loading', async () => {
+    gate.open = false;
+    await render();
+    expect(state()).toEqual({ count: null, loading: false });
   });
 });
