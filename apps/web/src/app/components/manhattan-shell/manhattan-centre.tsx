@@ -1,11 +1,9 @@
 'use client';
 
-import { Chevron02LeftIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   AppColumnHeader,
   type AppLayoutWorkAreaMode,
   ColumnBackSlot,
-  HeaderButton,
   useColumnBack,
 } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { previewFadeMask } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -450,22 +448,13 @@ function ManhattanPageHeader({
     if (mode !== 'split') onShowChat();
     router.push(routes.mingo.chat(openDialogId));
   };
-  const backLabel = pageBack?.label ?? 'Back';
-  const leading = pageBack ? (
-    <HeaderButton
-      icon={<Chevron02LeftIcon />}
-      onClick={pageBack.onClick}
-      aria-label={backLabel}
-      title={backLabel}
-      className="h-11 w-11"
-    />
-  ) : undefined;
+  // The header's first cell, as big as Close and flush with the column's edge (CU-17tkuw67ep4).
   if (mode === 'split') {
     return (
       <AppColumnHeader
         title={title}
         className={PAGE_HEADER_WINDOW_CLASS}
-        leading={leading}
+        back={pageBack}
         layoutAction="fullscreen"
         layoutActionLabel="Full screen page"
         onLayoutAction={onFullScreen}
@@ -478,7 +467,7 @@ function ManhattanPageHeader({
     <AppColumnHeader
       title={title}
       className={PAGE_HEADER_WINDOW_CLASS}
-      leading={leading}
+      back={pageBack}
       // The chat (or Start Work) comes back beside the page, with or without an open chat.
       layoutAction={canShowChat ? 'restore-split' : undefined}
       layoutActionLabel="Show the chat beside the page"
