@@ -526,14 +526,59 @@ describe('ManhattanCentre', () => {
       expect(currentMode()).toBe('split');
     });
 
+    /** The centre on a window of one column (`compact`) or two. */
+    function renderAt(compact: boolean) {
+      render(
+        <ManhattanCentre enabled compact={compact}>
+          {centre => <p data-testid="mode">{centre ? centre.mode : 'off'}</p>}
+        </ManhattanCentre>,
+      );
+    }
+
     it('a narrow window at the reload keeps its own layout and the stored choice', () => {
       windowWide(false);
       window.localStorage.setItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY, 'true');
       document.documentElement.setAttribute(MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE, '');
-      renderCentre();
+      renderAt(true);
       expect(useManhattanCentreStore.getState().chatView).toBe('split');
       expect(stored()).toBe('true');
       expect(document.documentElement.hasAttribute(MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE)).toBe(false);
+    });
+
+    it('closed before a reload on a narrow window: the column stays closed once the window widens', () => {
+      windowWide(false);
+      window.localStorage.setItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY, 'true');
+      renderAt(true);
+      renderAt(false);
+      expect(useManhattanCentreStore.getState().chatView).toBe('hidden');
+      expect(currentMode()).toBe('page');
+      expect(stored()).toBe('true');
+    });
+
+    it("closed before a reload on a narrow window: one column's own hidden on a new page does not erase it", () => {
+      windowWide(false);
+      window.localStorage.setItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY, 'true');
+      renderAt(true);
+      // A new page in one column: the page shown, the chat behind it (the layout's `hidden`).
+      nav.pathname = '/software';
+      renderAt(true);
+      expect(useManhattanCentreStore.getState().chatView).toBe('hidden');
+      renderAt(false);
+      expect(useManhattanCentreStore.getState().chatView).toBe('hidden');
+      expect(currentMode()).toBe('page');
+      expect(stored()).toBe('true');
+    });
+
+    it('a chat opened on a narrow window lets the stored closed column go', () => {
+      windowWide(false);
+      window.localStorage.setItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY, 'true');
+      renderAt(true);
+      chatState.activeDialogId = 'd-3';
+      renderAt(true);
+      expect(stored()).toBeNull();
+      renderAt(false);
+      expect(useManhattanCentreStore.getState().chatView).toBe('split');
+      expect(currentMode()).toBe('split');
     });
 
     it('the chat a reload brings back behind the page keeps the column closed; a chat opened after it opens it', () => {
