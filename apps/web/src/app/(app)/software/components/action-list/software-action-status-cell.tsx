@@ -24,18 +24,41 @@ export function SoftwareActionStatusCell({ action }: { action: softwareActionSta
   // A row still being read (a loading scope) has no fragment to read: the cell draws its loading form (an empty tag is the tag's skeleton).
   const data = useFragment(softwareActionStatusCellFragment, useLoadingScope() ? null : action);
   return (
-    <div className="flex min-w-0 flex-col items-start justify-center">
+    // Below md the column is as wide as its content, beside the open button (mobile frame 1049:16193): the tag and the
+    // start whole, the device-local note on a line of its own rather than widening the column past the name.
+    <div className="flex min-w-0 flex-col items-end justify-center content-md:items-start">
       <SoftwareActionStatusTag status={data?.status ?? ''} />
       {data?.status === SoftwareActionStatus.SCHEDULED && data.scheduledAt && (
-        <TruncateText variant="h6" tone="secondary">
-          {scheduledLabel(data.scheduledAt, data.timeReference)}
-        </TruncateText>
+        <ScheduledAt scheduledAt={data.scheduledAt} timeReference={data.timeReference} />
       )}
     </div>
   );
 }
 
-function scheduledLabel(scheduledAt: string, timeReference: string | null | undefined): string {
+function ScheduledAt({
+  scheduledAt,
+  timeReference,
+}: {
+  scheduledAt: string;
+  timeReference: string | null | undefined;
+}) {
   const { date, time } = formatScheduleStartAt(scheduledAt, timeReference);
-  return isDeviceLocalTime(timeReference) ? `${date}, ${time} (${DEVICE_LOCAL_TIME_NOTE})` : `${date}, ${time}`;
+  const local = isDeviceLocalTime(timeReference);
+  return (
+    <>
+      <TruncateText variant="h6" tone="secondary" className={local ? 'hidden content-md:block' : undefined}>
+        {local ? `${date}, ${time} (${DEVICE_LOCAL_TIME_NOTE})` : `${date}, ${time}`}
+      </TruncateText>
+      {local && (
+        <>
+          <TruncateText variant="h6" tone="secondary" className="content-md:hidden">
+            {`${date}, ${time}`}
+          </TruncateText>
+          <TruncateText variant="h6" tone="secondary" className="content-md:hidden">
+            {DEVICE_LOCAL_TIME_NOTE}
+          </TruncateText>
+        </>
+      )}
+    </>
+  );
 }
