@@ -13,6 +13,7 @@ import {
   RemoteSessionActorKind,
   RemoteSessionEndReason,
   RemoteSessionEventType,
+  RemoteSessionViewerLeftReason,
 } from '@/generated/schema-enums';
 import { type RecordingTimeline, toPlaybackMs } from '@/lib/meshcentral/recording';
 import { formatBytes } from './format';
@@ -29,6 +30,7 @@ const sessionEventFragment = graphql`
     offsetMs
     actor {
       kind
+      userId
       name
     }
     label
@@ -36,12 +38,14 @@ const sessionEventFragment = graphql`
     toMonitorId
     endReason
     holdReason
+    leftReason
   }
 `;
 
 /** One row of the Session Events list. */
 export interface SessionTimelineEvent {
   id: string;
+  type: RemoteSessionEventType;
   /** The server wall clock, ms since epoch - what places the row on the player's track. */
   atMs: number;
   /** Ms from the session start; null for a row before it. */
@@ -85,11 +89,23 @@ function keptDetail(event: SessionEventNode): string | null {
   return [reason, actor].filter(Boolean).join(', ') || null;
 }
 
+/** A colleague watching, not the host watching their own session from a second tab. */
+function isColleagueViewer(event: SessionEventNode, hostId: string | null): boolean {
+  return !hostId || event.actor.userId !== hostId;
+}
+
 /**
  * The title and detail of a row, worded as the design's ("Input enabled" /
  * "technician took keyboard and mouse"); null for a type the list does not show.
+ *
+ * A watcher shows as "Viewer joined" / "Viewer left" with their name, a dropped connection as a leave like any other.
+ * The host's own watching shows nothing, and a leave because the session ended is named on "Session ended" instead
+ * ({@link withViewersAtEnd}).
  */
-export function describeSessionEvent(event: SessionEventNode): Pick<SessionTimelineEvent, 'title' | 'detail'> | null {
+export function describeSessionEvent(
+  event: SessionEventNode,
+  hostId: string | null = null,
+): Pick<SessionTimelineEvent, 'title' | 'detail'> | null {
   switch (event.type) {
     case RemoteSessionEventType.STARTED:
       return { title: 'Session started', detail: byActor(event) };
@@ -122,21 +138,76 @@ export function describeSessionEvent(event: SessionEventNode): Pick<SessionTimel
       return { title: 'Recording kept', detail: keptDetail(event) };
     case RemoteSessionEventType.RECORDING_RELEASED:
       return { title: 'Recording released', detail: byActor(event) };
+    case RemoteSessionEventType.VIEWER_JOINED:
+      return isColleagueViewer(event, hostId) ? { title: 'Viewer joined', detail: event.actor.name ?? null } : null;
+    case RemoteSessionEventType.VIEWER_LEFT:
+      return isColleagueViewer(event, hostId) && event.leftReason !== RemoteSessionViewerLeftReason.SESSION_ENDED
+        ? { title: 'Viewer left', detail: event.actor.name ?? null }
+        : null;
     default:
       return null;
   }
 }
 
-export function toSessionTimelineEvent(ref: SessionEventRef): SessionTimelineEvent | null {
-  const event = readInlineData(sessionEventFragment, ref);
-  const text = describeSessionEvent(event);
+/** The name of a colleague who was still watching when the session ended; null for any other row. */
+function viewerAtEndOf(event: SessionEventNode, hostId: string | null): string | null {
+  if (event.type !== RemoteSessionEventType.VIEWER_LEFT) return null;
+  if (event.leftReason !== RemoteSessionViewerLeftReason.SESSION_ENDED) return null;
+  return isColleagueViewer(event, hostId) ? (event.actor.name ?? null) : null;
+}
+
+function timelineRowOf(event: SessionEventNode, hostId: string | null): SessionTimelineEvent | null {
+  const text = describeSessionEvent(event, hostId);
   if (!text) return null;
   return {
     id: event.id,
+    type: event.type as RemoteSessionEventType,
     atMs: Date.parse(String(event.at)),
     offsetMs: event.offsetMs != null ? Number(event.offsetMs) : null,
     ...text,
   };
+}
+
+export function toSessionTimelineEvent(
+  ref: SessionEventRef,
+  hostId: string | null = null,
+): SessionTimelineEvent | null {
+  return timelineRowOf(readInlineData(sessionEventFragment, ref), hostId);
+}
+
+/** One page of the timeline as the list reads it, and who of it was still watching when the session ended. */
+export function toSessionTimelinePage(
+  refs: readonly SessionEventRef[],
+  hostId: string | null,
+): { events: SessionTimelineEvent[]; viewersAtEnd: string[] } {
+  const events: SessionTimelineEvent[] = [];
+  const viewersAtEnd: string[] = [];
+  for (const ref of refs) {
+    const event = readInlineData(sessionEventFragment, ref);
+    const row = timelineRowOf(event, hostId);
+    if (row) events.push(row);
+    const watching = viewerAtEndOf(event, hostId);
+    if (watching) viewersAtEnd.push(watching);
+  }
+  return { events, viewersAtEnd };
+}
+
+/**
+ * Names on "Session ended" the colleagues who were still watching when it ended ("ended by Roman Smith · watching:
+ * Anna Lee"), in place of a "Viewer left" row each. A session nobody was watching at the end keeps its row as it is.
+ */
+export function withViewersAtEnd(
+  events: readonly SessionTimelineEvent[],
+  names: readonly string[],
+): SessionTimelineEvent[] {
+  const watching = [...new Set(names)];
+  if (watching.length === 0) return [...events];
+  const note = `watching: ${watching.join(', ')}`;
+  return events.map(event =>
+    event.type === RemoteSessionEventType.ENDED
+      ? { ...event, detail: event.detail ? `${event.detail} · ${note}` : note }
+      : event,
+  );
 }
 
 /**
