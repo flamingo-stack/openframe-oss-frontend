@@ -330,7 +330,7 @@ html[data-shell='mobile'] .fixed.bottom-0.left-0.right-0.z-50 {
 /* The chat column the user closed on a two-column window, kept across a reload (CU-17tkuw66xzn). The server's markup
    asks for the split; the `<head>` seed marks `<html>` (`manhattanChatClosedSeedScript`) and the page column fills the
    row from the first paint. The centre removes the mark once its view holds `hidden`, so a chat opened afterwards
-   comes back beside the page. Below 912px the rule above already draws one column. */
+   comes back beside the page. Below 912px (`MANHATTAN_COMPACT_BELOW`) the rule above already draws one column. */
 @media (min-width: 912px) {
   html[data-manhattan-chat-closed] [data-work-area='split'] > [data-work-area-column='chat'],
   html[data-manhattan-chat-closed] [data-work-area='split'] > [data-work-area-column='chat'] + div {
