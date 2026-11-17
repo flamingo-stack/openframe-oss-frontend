@@ -837,6 +837,48 @@ describe('ManhattanCentre', () => {
       expect(thread()?.classList.contains('hidden')).toBe(false);
     });
 
+    // CU-17tkuw6633f: set from the observer as a plain update, the padding rendered after the frame
+    // was painted, and Start Work kept the old one under the column's composer for a frame.
+    it("pads Start Work by the column dock's new height in the frame the dock changed in", () => {
+      const observed: Array<{ target: Element; options?: ResizeObserverOptions; fire: () => void }> = [];
+      let height = 120;
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          private readonly callback: ResizeObserverCallback;
+          constructor(callback: ResizeObserverCallback) {
+            this.callback = callback;
+          }
+          // As a browser delivers it: never on observe, later, from outside React.
+          observe(target: Element, options?: ResizeObserverOptions) {
+            observed.push({ target, options, fire: () => this.callback([], this) });
+          }
+          unobserve() {}
+          disconnect() {}
+        },
+      );
+      const offsetHeight = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(() => height);
+      try {
+        renderColumn();
+        const padded = () =>
+          container.querySelector<HTMLElement>('[data-testid="manhattan-start-work-scroller"] > div')?.style
+            .paddingBottom;
+        const dock = container.querySelector('[data-testid="manhattan-column-dock"]');
+        // Its border box, what `offsetHeight` reads.
+        expect(observed.find(entry => entry.target === dock)?.options).toEqual({ box: 'border-box' });
+        const fireDock = () => observed.find(entry => entry.target === dock)?.fire();
+        // Outside `act`, as the browser delivers it: nothing else flushes React before the assertions.
+        fireDock(); // the report on observe
+        expect(padded()).toBe('120px');
+        height = 168;
+        fireDock();
+        expect(padded()).toBe('168px');
+      } finally {
+        offsetHeight.mockRestore();
+        vi.unstubAllGlobals();
+      }
+    });
+
     it('"Close Start Work" leaves the page alone', () => {
       renderColumn();
       click('Close Start Work');

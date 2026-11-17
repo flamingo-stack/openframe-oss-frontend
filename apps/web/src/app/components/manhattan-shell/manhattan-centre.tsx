@@ -11,6 +11,7 @@ import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { ManhattanStartWork } from '@/app/(app)/mingo/home/manhattan-start-work';
 import { useMingoChat, useMingoChatThreadOnScreen } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { useChatPageNodeStore } from '@/app/components/mingo-shell/chat-page-node-store';
@@ -398,14 +399,25 @@ function ManhattanChatColumn({
 
 /**
  * An element's height, live (`ResizeObserver`, which reports it once on observe); without one,
- * the last height measured (0 before any).
+ * the last height measured (0 before any). A new height renders in the frame the element changed
+ * in: set from the observer as a plain update, it rendered after that frame was painted, and Start
+ * Work under the column's composer kept the old padding for a frame (CU-17tkuw6633f, as the
+ * shell's own dock inset).
  */
 function useElementHeight(element: HTMLElement | null): number {
   const [height, setHeight] = useState(0);
   useLayoutEffect(() => {
     if (!element || typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(() => setHeight(element.offsetHeight));
-    observer.observe(element);
+    // None yet: the report on observe sets the first one.
+    let last = -1;
+    const observer = new ResizeObserver(() => {
+      const next = element.offsetHeight;
+      if (next === last) return;
+      last = next;
+      flushSync(() => setHeight(next));
+    });
+    // Its border box, what `offsetHeight` reads: a padding or border change is a new height too.
+    observer.observe(element, { box: 'border-box' });
     return () => observer.disconnect();
   }, [element]);
   return height;
