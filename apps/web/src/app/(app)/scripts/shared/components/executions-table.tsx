@@ -620,8 +620,11 @@ export function ExecutionsTabShell({
   children,
   clientSearch,
   searchPlaceholder = 'Search for Executions',
+  toolbarActions,
 }: {
   children: (state: ExecutionsTabState) => ReactNode;
+  /** Beside the search box, before the narrow-width filter button: a list's own controls (Device Tags). */
+  toolbarActions?: ReactNode;
   /** The search box's placeholder — the lists name their rows differently. */
   searchPlaceholder?: string;
   /**
@@ -769,6 +772,7 @@ export function ExecutionsTabShell({
               startAdornment={<SearchIcon className="h-4 w-4 content-md:h-6 content-md:w-6" />}
             />
           </div>
+          {toolbarActions}
           <Button
             variant="outline"
             size="icon"

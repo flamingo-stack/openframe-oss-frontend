@@ -2,6 +2,7 @@
 
 import {
   type ColumnDef,
+  type DataTableSortState,
   FilterModal,
   type Row,
   useDataTable,
@@ -155,6 +156,9 @@ export interface SoftwareTableProps {
   onSelectionsChange?: (next: Partial<Record<string, string[]>>) => void;
   /** The fleet's funnel options, from the backend's facets. */
   filterOptions?: SoftwareListFilterOptions;
+  /** A device's Vulns sort (the header's toggle); the fleet's list is not sorted. */
+  sortState?: DataTableSortState | null;
+  onSortChange?: (columnId: string) => void;
   /** The fleet's filter window for a narrow content area (the frame's button opens it), with the same options. */
   filtersOpen?: boolean;
   onFiltersClose?: () => void;
@@ -178,6 +182,8 @@ function LoadedSoftwareTable({
   filterOptions = NO_SOFTWARE_LIST_FILTER_OPTIONS,
   filtersOpen = false,
   onFiltersClose = IGNORE_SELECTIONS,
+  sortState = null,
+  onSortChange,
 }: SoftwareTableProps) {
   // The rows have not answered yet: the table draws its own loading state, never the empty one.
   const loading = useLoadingScope();
@@ -215,6 +221,8 @@ function LoadedSoftwareTable({
         stickyHeaderOffset={stickyHeaderOffset}
         itemName="result"
         totalCount={totalCount}
+        sort={sortState}
+        onSortChange={onSortChange}
         isPending={isPending}
         emptyState={oneLineEmptyState(
           debouncedSearch

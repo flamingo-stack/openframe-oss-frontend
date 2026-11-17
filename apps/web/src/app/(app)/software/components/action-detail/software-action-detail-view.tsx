@@ -7,9 +7,11 @@ import { graphql } from 'react-relay';
 import type { softwareActionDetailViewQuery as SoftwareActionDetailViewQueryType } from '@/__generated__/softwareActionDetailViewQuery.graphql';
 import { ExecutionsTabShell } from '@/app/(app)/scripts/shared/components/executions-table';
 import { QueryIsland } from '@/app/components/shared';
+import { DeviceTagsFilter } from '../shared/device-tags-filter';
 import { ActionDetailHeader } from './action-detail-header';
 import { ActionDetailLogs } from './action-detail-logs';
 import { ActionDetailSummary } from './action-detail-summary';
+import { useSoftwareLogParams } from './use-software-log-params';
 
 /**
  * One install/update run. Null for an id with no dispatched run behind it,
@@ -45,6 +47,7 @@ interface SoftwareActionDetailViewProps {
  */
 export function SoftwareActionDetailView({ actionId, loading = false }: SoftwareActionDetailViewProps) {
   const variables = { id: actionId };
+  const { deviceTags, setDeviceTags } = useSoftwareLogParams();
 
   return (
     // No page padding here: it lives on the page's wrapper around
@@ -56,7 +59,11 @@ export function SoftwareActionDetailView({ actionId, loading = false }: Software
       <div className="flex flex-1 flex-col">
         <ActionSummaryIsland variables={variables} loading={loading} />
 
-        <ExecutionsTabShell clientSearch searchPlaceholder="Search for Logs">
+        <ExecutionsTabShell
+          clientSearch
+          searchPlaceholder="Search for Logs"
+          toolbarActions={<DeviceTagsFilter value={deviceTags} onChange={setDeviceTags} disabled={loading} />}
+        >
           {state => <ActionLogsIsland variables={variables} loading={loading} state={state} />}
         </ExecutionsTabShell>
       </div>

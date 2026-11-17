@@ -5,6 +5,7 @@ import type { SoftwareFilterInput } from '@/__generated__/softwareListTableQuery
 import { OsType, type SoftwareAutoUpdateStatus, SoftwareSource } from '@/generated/schema-enums';
 import { presentationFor } from '@/lib/exhaustive-map';
 import { autoUpdateFilterLabel } from '../shared/auto-update-status';
+import { type Facet, facetOptions } from '../shared/facet-options';
 import type { ListSelections } from '../shared/software-list-frame';
 import { SOFTWARE_LIST_COLUMNS } from './software-list-columns';
 
@@ -28,20 +29,6 @@ const OS_FILTER_OPTIONS: DataTableFilterOption[] = Object.values(OsType).map(os 
   label: getOSLabel(os),
 }));
 
-type Facet = ReadonlyArray<{ readonly value: string; readonly label: string; readonly count: number }>;
-
-/**
- * A value no title has is not offered, nor one the column draws as the empty mark (`labelFor` null: Unmanaged, Needs
- * adoption). The label is the cell's word, the server's for a value this build does not know.
- */
-function toOptions(facet: Facet, labelFor: (value: string) => string | null | undefined): DataTableFilterOption[] {
-  return facet.flatMap(option => {
-    const label = labelFor(option.value);
-    if (option.count <= 0 || label === null) return [];
-    return [{ id: option.value, value: option.value, label: label ?? option.label, count: option.count }];
-  });
-}
-
 /** The ENGINE cell's word: none for a title installed by hand. */
 function engineLabel(source: string): string | null | undefined {
   return source === SoftwareSource.UNMANAGED ? null : presentationFor(SOFTWARE_SOURCE_LABEL, source);
@@ -59,8 +46,8 @@ export function softwareListFilterOptions(facets: {
   const answered = facets.sources.length > 0 || facets.autoUpdateStatuses.length > 0;
   return {
     os: answered ? OS_FILTER_OPTIONS : [],
-    engine: toOptions(facets.sources, engineLabel),
-    autoUpdate: toOptions(facets.autoUpdateStatuses, autoUpdateFilterLabel),
+    engine: facetOptions(facets.sources, engineLabel),
+    autoUpdate: facetOptions(facets.autoUpdateStatuses, autoUpdateFilterLabel),
   };
 }
 

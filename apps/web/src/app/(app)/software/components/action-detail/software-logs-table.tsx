@@ -10,7 +10,7 @@ import {
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useEffect, useMemo } from 'react';
+import { useDeferredValue, useEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type {
   softwareLogsTableQuery as SoftwareLogsTableQueryType,
@@ -22,7 +22,7 @@ import { liveColumnMeta, useRetryKey } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { softwareActionStatusLabel } from '../action-list/software-action-status-tag';
-import { singleColumnFilter } from '../shared/column-filters';
+import { multiColumnFilter } from '../shared/column-filters';
 import { SoftwareLogCustomerCell } from './software-log-customer-cell';
 import { SoftwareLogDeviceCell } from './software-log-device-cell';
 import { SoftwareLogResultPanel } from './software-log-result-panel';
@@ -31,6 +31,7 @@ import { matchesSoftwareLog } from './software-log-search';
 import { SoftwareLogStatusCell } from './software-log-status-cell';
 import { SOFTWARE_LOG_COLUMNS } from './software-logs-columns';
 import { ResultPhasesContext, useResultPhases } from './use-result-phases';
+import { useSoftwareLogParams } from './use-software-log-params';
 
 /**
  * Every target device of one run with its result — `softwareActionExecutions(actionId)`. Unlike the run's execution
@@ -41,11 +42,13 @@ import { ResultPhasesContext, useResultPhases } from './use-result-phases';
  * tick or a keystroke lands at once, with no refetch.
  */
 const softwareLogsTableQuery = graphql`
-  query softwareLogsTableQuery($actionId: String!) {
-    softwareActionExecutions(actionId: $actionId) {
+  query softwareLogsTableQuery($actionId: String!, $filter: SoftwareActionDeviceFilterInput) {
+    softwareActionExecutions(actionId: $actionId, filter: $filter) {
       machineId
-      # What the status funnel narrows the rows by.
+      # What the Status and Customer funnels narrow the rows by, and the Customer funnel's words.
       status
+      organizationId
+      organizationName
       ...softwareLogDeviceCell_device
       ...softwareLogCustomerCell_device
       ...softwareLogStatusCell_device
@@ -81,9 +84,12 @@ interface SoftwareLogsTableProps {
  */
 export function SoftwareLogsTable({ actionId, state }: SoftwareLogsTableProps) {
   const retryKey = useRetryKey();
+  // Device Tags go to the server; the rows on screen stay while the narrowed list is read. Deferred as a string: the
+  // URL hands back a fresh array every render, and a deferred value that never settles never stops re-rendering.
+  const tagKey = useDeferredValue(useSoftwareLogParams().deviceTags.join(','));
   const data = useLazyLoadQuery<SoftwareLogsTableQueryType>(
     softwareLogsTableQuery,
-    { actionId },
+    { actionId, filter: tagKey ? { deviceTagIds: tagKey.split(',') } : null },
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
   return <SoftwareLogsRows allRows={data.softwareActionExecutions} state={state} />;
@@ -104,7 +110,6 @@ export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
     narrowSearch,
     isPending,
     tableFilters,
-    onFilterChange,
     mobileFilterOpen,
     onMobileFilterClose,
     stickyHeaderOffset,
@@ -112,6 +117,7 @@ export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
   } = state;
   const loading = useLoadingScope();
   const { phases, toggle, collapsed } = useResultPhases();
+  const { customer: tickedCustomers, deviceTags, setFunnels } = useSoftwareLogParams();
 
   // The statuses the run's devices are in, and how many each: the list is whole, so these are the facets. The labels
   // read the way the tags do ("Success", not "Completed").
@@ -126,6 +132,20 @@ export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
     }));
   }, [allRows]);
 
+  // The customers of the run's devices, and how many devices each: the same whole-list facet as the statuses.
+  const customerOptions = useMemo<FacetOption[]>(() => {
+    const byId = new Map<string, { label: string; count: number }>();
+    for (const row of allRows) {
+      if (!row.organizationId) continue;
+      const seen = byId.get(row.organizationId);
+      byId.set(row.organizationId, {
+        label: row.organizationName || row.organizationId,
+        count: (seen?.count ?? 0) + 1,
+      });
+    }
+    return [...byId].map(([value, { label, count }]) => ({ id: value, label, value, count }));
+  }, [allRows]);
+
   // While the run is read the table holds one page of placeholder rows, drawn with their real cells (never narrowed:
   // a placeholder has nothing to match).
   const placeholderRows = useMemo(
@@ -137,7 +157,11 @@ export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
   const logs =
     placeholderRows ??
     allRows.filter(
-      row => (ticked.length === 0 || ticked.includes(row.status)) && (!needle || matchesSoftwareLog(row, needle)),
+      row =>
+        (ticked.length === 0 || ticked.includes(row.status)) &&
+        (tickedCustomers.length === 0 ||
+          (row.organizationId != null && tickedCustomers.includes(row.organizationId))) &&
+        (!needle || matchesSoftwareLog(row, needle)),
     );
 
   // Memoized by hand on purpose: TanStack keys its column model on this array's
@@ -156,9 +180,11 @@ export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
       {
         id: SOFTWARE_LOG_COLUMNS.customer.id,
         header: SOFTWARE_LOG_COLUMNS.customer.header,
+        accessorFn: (row: LogRow) => row.organizationId ?? '',
         cell: ({ row }: { row: Row<LogRow> }) => <SoftwareLogCustomerCell device={row.original} />,
         enableSorting: false,
-        meta: liveColumnMeta(SOFTWARE_LOG_COLUMNS.customer),
+        filterFn: multiSelectFilterFn,
+        meta: liveColumnMeta(SOFTWARE_LOG_COLUMNS.customer, { filter: { options: customerOptions } }),
       },
       {
         id: SOFTWARE_LOG_COLUMNS.status.id,
@@ -176,11 +202,12 @@ export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
         meta: liveColumnMeta(SOFTWARE_LOG_COLUMNS.result),
       },
     ],
-    [statusOptions],
+    [statusOptions, customerOptions],
   );
 
-  const { columnFilters, onColumnFiltersChange } = singleColumnFilter(SOFTWARE_LOG_COLUMNS.status.id, ticked, status =>
-    onFilterChange({ status }),
+  const { columnFilters, onColumnFiltersChange } = multiColumnFilter(
+    { [SOFTWARE_LOG_COLUMNS.status.id]: ticked, [SOFTWARE_LOG_COLUMNS.customer.id]: tickedCustomers },
+    next => setFunnels({ status: next.status ?? [], customer: next.customer ?? [] }),
   );
 
   const table = useDataTable<LogRow>({
@@ -209,7 +236,8 @@ export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
 
   // Header, empty copy and the toolbar hand-off follow the script Execution
   // History table (`executions-table.tsx`), which reasons through each case.
-  const hasActiveFilter = columnFilters.length > 0;
+  // Device Tags narrow on the server: a run with no tagged device is a filter miss, not an empty run.
+  const hasActiveFilter = columnFilters.length > 0 || deviceTags.length > 0;
   const showHeader = loading || logs.length > 0 || hasActiveFilter || isPending;
 
   const resolvedEmptyState: NoDataProps =
@@ -248,9 +276,21 @@ export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
       <FilterModal
         isOpen={mobileFilterOpen}
         onClose={onMobileFilterClose}
-        filterGroups={[{ id: SOFTWARE_LOG_COLUMNS.status.id, title: 'Status', options: statusOptions }]}
-        onFilterChange={onFilterChange}
-        currentFilters={{ status: ticked }}
+        filterGroups={[
+          {
+            id: SOFTWARE_LOG_COLUMNS.customer.id,
+            title: SOFTWARE_LOG_COLUMNS.customer.header,
+            options: customerOptions,
+          },
+          { id: SOFTWARE_LOG_COLUMNS.status.id, title: 'Status', options: statusOptions },
+        ]}
+        onFilterChange={filters =>
+          setFunnels({
+            status: (filters.status as string[] | undefined) ?? [],
+            customer: (filters.customer as string[] | undefined) ?? [],
+          })
+        }
+        currentFilters={{ status: ticked, customer: tickedCustomers }}
       />
     </ResultPhasesContext.Provider>
   );

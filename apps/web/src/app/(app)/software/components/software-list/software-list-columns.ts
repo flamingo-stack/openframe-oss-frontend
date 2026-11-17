@@ -1,5 +1,4 @@
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
-import { FLEET_LIST_PAGE_SIZE } from '../shared/fleet-list-paging';
 
 /**
  * Column layout for the Software table, shared by every surface that draws the table (the fleet-wide page and a device's
@@ -9,7 +8,8 @@ import { FLEET_LIST_PAGE_SIZE } from '../shared/fleet-list-paging';
 const SOFTWARE_LIST_COLUMNS = {
   name: { id: 'name', header: 'Software', width: 'flex-1 min-w-0' },
   currentVersion: { id: 'currentVersion', header: 'Current Version', width: 'flex-1 min-w-0', hideAt: 'md' },
-  vulnerabilities: { id: 'cveCount', header: 'Vulns', width: 'w-[96px]' },
+  // Sorted by the CVE count it shows; the id is the backend sort field.
+  vulnerabilities: { id: 'cveCount', header: 'Vulns', width: 'w-[96px]', sortable: true },
   // The fleet-wide list's own (design 1076:16413): a device's tab reads one copy, which these say nothing about.
   os: { id: 'os', header: 'OS', width: 'w-[72px]', hideAt: 'md' },
   engine: { id: 'engine', header: 'Engine', width: 'flex-1 min-w-0', hideAt: 'lg' },
@@ -20,4 +20,7 @@ const SOFTWARE_LIST_COLUMNS = {
 
 export { SOFTWARE_LIST_COLUMNS };
 
-export const SOFTWARE_LIST_PAGE_SIZE = FLEET_LIST_PAGE_SIZE;
+/** A device's list sorts by its Vulns column; anything else in the URL falls back to the backend's own order. */
+export const DEVICE_SOFTWARE_SORTABLE_COLUMN_IDS: readonly string[] = [SOFTWARE_LIST_COLUMNS.vulnerabilities.id];
+
+export const SOFTWARE_LIST_PAGE_SIZE = 20;
