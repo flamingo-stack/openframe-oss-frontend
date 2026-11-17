@@ -56,6 +56,15 @@ export { MANHATTAN_WORK_AREA_STORAGE_KEY } from '@/lib/navigation-sidebar-state'
 export const MANHATTAN_WORK_AREA_SQUEEZE_FLOOR = 0.3;
 
 /**
+ * The column's composer: the lib's chat `<section>` loses the dock's max width and takes the
+ * column's inset. Only that section, the outermost in the slot: Tailwind writes this as
+ * `.slot section:not(.slot section section)`, so a section drawn inside the chat (the Getting
+ * Started block above the composer) keeps its own padding. A bare `[&_section]` reached them all.
+ */
+const COLUMN_COMPOSER_SECTION =
+  '[&_section:not(&_section_section)]:max-w-none [&_section:not(&_section_section)]:px-[var(--spacing-system-lf)]';
+
+/**
  * The Manhattan v2 centre: the chat column and the page column of
  * `AppLayout`'s work area, which shows when (plan D5, table T), and their headers (matrix H).
  * Mounted unconditionally around the layout inside `MingoChatProvider` (it reads the open
@@ -382,16 +391,16 @@ function ManhattanChatColumn({
       />
       {/* The composer spans the column (the dock's max width is for under a page), its ground
           edge to edge and the composer inset in it. Over Start Work it floats: Start Work runs on
-          under its ground and fades out above it. */}
+          under its ground and fades out above it. The width and inset go to the composer's own
+          section only (the outermost in the slot), not to the sections drawn inside the chat
+          above the composer: the Getting Started block took the column's 24px inset as its
+          own padding (CU-17tkuw66yf1). */}
       <div
         ref={setDock}
         data-testid="manhattan-column-dock"
         className={cn('shrink-0', startWork && 'pointer-events-none absolute inset-x-0 bottom-0 z-10')}
       >
-        <ManhattanComposerSlot
-          active={shown}
-          className="[&_section]:max-w-none [&_section]:px-[var(--spacing-system-lf)]"
-        />
+        <ManhattanComposerSlot active={shown} className={COLUMN_COMPOSER_SECTION} />
       </div>
     </div>
   );
