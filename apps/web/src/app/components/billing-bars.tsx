@@ -9,6 +9,7 @@ import { AnnouncementBarView, Button } from '@flamingo-stack/openframe-frontend-
 import { useEffect } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { billingBarsQuery as BillingBarsQueryType } from '@/__generated__/billingBarsQuery.graphql';
+import { useAiBalanceLowTokens } from '@/app/hooks/use-ai-balance-low-tokens';
 import { AutoTopUpDisabledReason, BillingNoticeType, SubscriptionStatus } from '@/generated/schema-enums';
 import { type AiBalanceTone, aiBalanceTone } from '@/lib/ai-balance-tone';
 import { formatDate } from '@/lib/format-date';
@@ -201,6 +202,7 @@ const NO_BARS: BillingBarsState = { ai: { tone: 'default' } };
  */
 export function BillingBarsHydrator({ onResolved }: { onResolved: (state: BillingBarsState) => void }) {
   const data = useLazyLoadQuery<BillingBarsQueryType>(billingBarsQuery, {}, { fetchPolicy: 'store-and-network' });
+  const lowTokens = useAiBalanceLowTokens();
 
   const subscription = data.subscription;
   const usage = subscription?.usage;
@@ -215,6 +217,7 @@ export function BillingBarsHydrator({ onResolved }: { onResolved: (state: Billin
           freeTokens: Number(usage?.aiTokensFree ?? 0),
           freeUsed: Number(usage?.aiTokensFreeUsed ?? 0),
           purchasedRemaining: Number(usage?.purchasedTokensRemaining ?? 0),
+          lowTokens,
         });
 
   // A primitive in the deps, so the effect re-fires on a real change rather than

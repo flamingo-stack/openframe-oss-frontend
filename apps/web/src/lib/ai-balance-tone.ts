@@ -26,6 +26,23 @@ export interface AiBalanceInput {
   freeUsed: number;
   /** Prepaid tokens still available (`usage.purchasedTokensRemaining`). */
   purchasedRemaining: number;
+  /** Where "running low" starts, in tokens: `aiBalanceLowTokens(settings)`. Unset, the fixed 1M. */
+  lowTokens?: number;
+}
+
+/** The Auto Top-Up arrangement as `autoTopUpSettings` answers it, or null when it could not be read. */
+export interface AutoTopUpThreshold {
+  readonly enabled: boolean;
+  readonly thresholdTokens?: number | null;
+}
+
+/**
+ * Where "running low" starts for this workspace: the level Auto Top-Up refills at, when it is on, so the yellow
+ * comes exactly when a refill would; the fixed 1M otherwise (off, unset, or not readable).
+ */
+export function aiBalanceLowTokens(settings: AutoTopUpThreshold | null | undefined): number {
+  const threshold = settings?.enabled ? Number(settings.thresholdTokens ?? 0) : 0;
+  return threshold > 0 ? threshold : AI_BALANCE_LOW_TOKENS;
 }
 
 /** The grant is spent: from here on, AI draws from the balance or stops. */
@@ -39,5 +56,5 @@ export function aiFreeTokensExhausted({
 export function aiBalanceTone(input: AiBalanceInput): AiBalanceTone {
   if (!aiFreeTokensExhausted(input)) return 'default';
   if (input.purchasedRemaining <= 0) return 'error';
-  return input.purchasedRemaining <= AI_BALANCE_LOW_TOKENS ? 'warning' : 'default';
+  return input.purchasedRemaining <= (input.lowTokens ?? AI_BALANCE_LOW_TOKENS) ? 'warning' : 'default';
 }

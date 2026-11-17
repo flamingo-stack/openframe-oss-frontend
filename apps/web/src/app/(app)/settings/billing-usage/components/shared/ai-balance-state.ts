@@ -43,7 +43,8 @@ export interface AiBalanceState {
   alert: AiAlert;
 }
 
-export function aiBalanceState(ref: aiBalanceState_subscription$key): AiBalanceState {
+/** `lowTokens`: where "running low" starts for this workspace (`useAiBalanceLowTokens`); unset, the fixed 1M. */
+export function aiBalanceState(ref: aiBalanceState_subscription$key, lowTokens?: number): AiBalanceState {
   const { status, usage } = readInlineData(aiBalanceStateFragment, ref);
   const isTrial = status === SubscriptionStatus.TRIAL;
 
@@ -61,7 +62,9 @@ export function aiBalanceState(ref: aiBalanceState_subscription$key): AiBalanceS
    * the one thing the trial's own card warns about — the paid card stays quiet,
    * and the fix is activation, not a top-up.
    */
-  const balanceTone = isTrial ? 'default' : aiBalanceTone({ freeTokens: free, freeUsed, purchasedRemaining: paid });
+  const balanceTone = isTrial
+    ? 'default'
+    : aiBalanceTone({ freeTokens: free, freeUsed, purchasedRemaining: paid, lowTokens });
   const trialExhausted = isTrial && aiFreeTokensExhausted({ freeTokens: free, freeUsed });
 
   let alert: AiAlert = null;

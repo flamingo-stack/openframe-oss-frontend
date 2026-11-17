@@ -50,6 +50,7 @@ import { MingoCompactionWatchers } from '@/app/components/mingo-compaction-watch
 import type { MingoUnifiedChat } from '../hooks/use-mingo-unified-chat-state';
 import { MingoChatRunner, MingoChatRunnerBoundary } from './mingo-chat-runner';
 import { createMingoChatStore, IDLE_MINGO_CHAT, type MingoChatSnapshot, type MingoChatStore } from './mingo-chat-store';
+import { MingoUsageHydrator } from './mingo-usage-hydrator';
 
 /** What `useMingoChat()` hands a surface. */
 export interface MingoChat {
@@ -137,6 +138,7 @@ export function MingoChatProvider({ enabled, identityEnabled, children }: MingoC
           {/* loading-standard-ok(SUSPENSE_FALLBACK): the runner draws nothing; it only runs the chat state */}
           <Suspense fallback={null}>
             <MingoChatRunner store={store} onScreen={onScreen} />
+            <MingoUsageHydrator onScreen={onScreen} />
           </Suspense>
         </MingoChatRunnerBoundary>
       ) : null}

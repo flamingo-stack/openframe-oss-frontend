@@ -73,7 +73,9 @@ import {
   useMingoDialogRowsStore,
 } from '../stores/mingo-dialog-rows-store';
 import { mingoThreadStore } from '../stores/mingo-thread-store';
+import { useMingoUsageStore } from '../stores/mingo-usage-store';
 import { retryingRead } from '../utils/retrying-read';
+import { buildUsagePanel } from './mingo-usage-panel-data';
 import { useMingoDialogAutoRead } from './use-mingo-dialog-read';
 import { useMingoDialogRowStatus } from './use-mingo-dialog-row-status';
 
@@ -153,6 +155,8 @@ export const mingoDialogs = createMingoGraphqlDialogs(postMingoGraphql, {
   pendingApproval: true,
   unread: true,
   imageUrlOf: image => getFullImageUrl(image.imageUrl, image.hash) ?? null,
+  // The Usage panel's breakdown and compaction zone; a backend without the fields still opens the dialog.
+  tokenUsageSplit: true,
 });
 
 /** The open dialog's history, a page at a time; a failed read tries again (`retryingRead`). */
@@ -418,8 +422,17 @@ export function useMingoUnifiedChatState({ onScreen }: { onScreen: boolean }): M
     readDialogAgain: mingoDialogs.fetchDialog,
   });
 
+  // The composer's token counter opens the Usage panel (Mingo only): the company's tokens and this chat's context.
+  // The company rows come from `MingoUsageHydrator` (the provider mounts it beside this state).
+  const company = useMingoUsageStore(s => s.company);
+  const { dialogTokenUsage = null } = state;
+  const stateWithUsage = useMemo<UnifiedChatState>(
+    () => ({ ...state, usagePanel: buildUsagePanel(company, dialogTokenUsage) }),
+    [state, company, dialogTokenUsage],
+  );
+
   return {
-    state,
+    state: stateWithUsage,
     dialogStatusOf,
     dialogNotFound: !!activeDialogId && missing.has(activeDialogId) && !!state.dialogError,
     dialogCreatedAt: activeDialogId ? (rows.get(activeDialogId)?.createdAt ?? null) : null,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { AI_BALANCE_LOW_TOKENS, aiBalanceTone, aiFreeTokensExhausted } from './ai-balance-tone';
+import { AI_BALANCE_LOW_TOKENS, aiBalanceLowTokens, aiBalanceTone, aiFreeTokensExhausted } from './ai-balance-tone';
 
 const grant = { freeTokens: 10_000_000, freeUsed: 10_000_000 };
 
@@ -21,5 +21,24 @@ describe('aiBalanceTone', () => {
     expect(aiBalanceTone({ ...grant, purchasedRemaining: AI_BALANCE_LOW_TOKENS + 1 })).toBe('default');
     expect(aiBalanceTone({ ...grant, purchasedRemaining: AI_BALANCE_LOW_TOKENS })).toBe('warning');
     expect(aiBalanceTone({ ...grant, purchasedRemaining: 0 })).toBe('error');
+  });
+});
+
+describe('aiBalanceLowTokens', () => {
+  it('is the Auto Top-Up level while Auto Top-Up is on', () => {
+    expect(aiBalanceLowTokens({ enabled: true, thresholdTokens: 2_500_000 })).toBe(2_500_000);
+  });
+
+  it('is the fixed 1M when Auto Top-Up is off, has no level, or could not be read', () => {
+    expect(aiBalanceLowTokens({ enabled: false, thresholdTokens: 2_500_000 })).toBe(AI_BALANCE_LOW_TOKENS);
+    expect(aiBalanceLowTokens({ enabled: true, thresholdTokens: null })).toBe(AI_BALANCE_LOW_TOKENS);
+    expect(aiBalanceLowTokens(null)).toBe(AI_BALANCE_LOW_TOKENS);
+  });
+
+  it('turns the balance yellow at the Auto Top-Up level', () => {
+    const lowTokens = aiBalanceLowTokens({ enabled: true, thresholdTokens: 2_500_000 });
+    expect(aiBalanceTone({ ...grant, purchasedRemaining: 2_500_001, lowTokens })).toBe('default');
+    expect(aiBalanceTone({ ...grant, purchasedRemaining: 2_500_000, lowTokens })).toBe('warning');
+    expect(aiBalanceTone({ ...grant, purchasedRemaining: 0, lowTokens })).toBe('error');
   });
 });
