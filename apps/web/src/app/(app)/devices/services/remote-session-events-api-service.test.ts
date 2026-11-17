@@ -88,7 +88,7 @@ describe('fetchSessionEventsPage', () => {
     ]);
     await expect(fetchSessionEventsPage('recording-1', null)).resolves.toEqual({
       events: [],
-      viewersAtEnd: ['Anna Lee'],
+      viewersAtEnd: [{ userId: 'user-anna', name: 'Anna Lee' }],
       nextCursor: null,
     });
   });

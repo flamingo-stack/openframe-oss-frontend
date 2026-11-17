@@ -65,12 +65,12 @@ describe('useSessionEvents', () => {
   it('names on "Session ended" everyone still watching, whichever page their leave came on', async () => {
     const first: SessionEventsPage = {
       events: [timelineRow(RemoteSessionEventType.STARTED, 'Session started', 'by Roman Smith')],
-      viewersAtEnd: ['Anna Lee'],
+      viewersAtEnd: [{ userId: 'user-anna', name: 'Anna Lee' }],
       nextCursor: 'cursor-2',
     };
     const second: SessionEventsPage = {
       events: [timelineRow(RemoteSessionEventType.ENDED, 'Session ended', 'ended by Roman Smith')],
-      viewersAtEnd: ['Bob Moss'],
+      viewersAtEnd: [{ userId: 'user-bob', name: 'Bob Moss' }],
       nextCursor: null,
     };
     service.page.mockImplementation((_id: string, after: string | null) => Promise.resolve(after ? second : first));

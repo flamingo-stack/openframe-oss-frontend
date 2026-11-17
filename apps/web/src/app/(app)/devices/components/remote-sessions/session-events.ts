@@ -149,11 +149,19 @@ export function describeSessionEvent(
   }
 }
 
-/** The name of a colleague who was still watching when the session ended; null for any other row. */
-function viewerAtEndOf(event: SessionEventNode, hostId: string | null): string | null {
+/** A colleague who was still watching when the session ended. */
+export interface ViewerAtEnd {
+  /** Who it is: two colleagues may share a name. */
+  userId: string | null;
+  name: string;
+}
+
+/** The colleague a row says was still watching when the session ended; null for any other row. */
+function viewerAtEndOf(event: SessionEventNode, hostId: string | null): ViewerAtEnd | null {
   if (event.type !== RemoteSessionEventType.VIEWER_LEFT) return null;
   if (event.leftReason !== RemoteSessionViewerLeftReason.SESSION_ENDED) return null;
-  return isColleagueViewer(event, hostId) ? (event.actor.name ?? null) : null;
+  if (!isColleagueViewer(event, hostId) || !event.actor.name) return null;
+  return { userId: event.actor.userId ?? null, name: event.actor.name };
 }
 
 function timelineRowOf(event: SessionEventNode, hostId: string | null): SessionTimelineEvent | null {
@@ -168,20 +176,13 @@ function timelineRowOf(event: SessionEventNode, hostId: string | null): SessionT
   };
 }
 
-export function toSessionTimelineEvent(
-  ref: SessionEventRef,
-  hostId: string | null = null,
-): SessionTimelineEvent | null {
-  return timelineRowOf(readInlineData(sessionEventFragment, ref), hostId);
-}
-
 /** One page of the timeline as the list reads it, and who of it was still watching when the session ended. */
 export function toSessionTimelinePage(
   refs: readonly SessionEventRef[],
   hostId: string | null,
-): { events: SessionTimelineEvent[]; viewersAtEnd: string[] } {
+): { events: SessionTimelineEvent[]; viewersAtEnd: ViewerAtEnd[] } {
   const events: SessionTimelineEvent[] = [];
-  const viewersAtEnd: string[] = [];
+  const viewersAtEnd: ViewerAtEnd[] = [];
   for (const ref of refs) {
     const event = readInlineData(sessionEventFragment, ref);
     const row = timelineRowOf(event, hostId);
@@ -194,15 +195,20 @@ export function toSessionTimelinePage(
 
 /**
  * Names on "Session ended" the colleagues who were still watching when it ended ("ended by Roman Smith · watching:
- * Anna Lee"), in place of a "Viewer left" row each. A session nobody was watching at the end keeps its row as it is.
+ * Anna Lee"), in place of a "Viewer left" row each, each colleague once however many pages repeat them. A session
+ * nobody was watching at the end keeps its row as it is.
  */
 export function withViewersAtEnd(
   events: readonly SessionTimelineEvent[],
-  names: readonly string[],
+  viewers: readonly ViewerAtEnd[],
 ): SessionTimelineEvent[] {
-  const watching = [...new Set(names)];
-  if (watching.length === 0) return [...events];
-  const note = `watching: ${watching.join(', ')}`;
+  const byViewer = new Map<string, string>();
+  for (const { userId, name } of viewers) {
+    const key = userId ?? `name:${name}`;
+    if (!byViewer.has(key)) byViewer.set(key, name);
+  }
+  if (byViewer.size === 0) return [...events];
+  const note = `watching: ${[...byViewer.values()].join(', ')}`;
   return events.map(event =>
     event.type === RemoteSessionEventType.ENDED
       ? { ...event, detail: event.detail ? `${event.detail} · ${note}` : note }

@@ -21,7 +21,6 @@ import {
   describeSessionEvent,
   placeSessionEvents,
   type SessionTimelineEvent,
-  toSessionTimelineEvent,
   toSessionTimelinePage,
   withViewersAtEnd,
 } from './session-events';
@@ -101,8 +100,11 @@ describe('describeSessionEvent', () => {
   });
 
   it('leaves out the rows the page does not list', () => {
-    expect(toSessionTimelineEvent(asRef(node(RemoteSessionEventType.CHAT_MESSAGE)))).toBeNull();
-    expect(toSessionTimelineEvent(asRef(node(RemoteSessionEventType.REMOTE_RECORDING_PLAYED)))).toBeNull();
+    const page = toSessionTimelinePage(
+      [node(RemoteSessionEventType.CHAT_MESSAGE), node(RemoteSessionEventType.REMOTE_RECORDING_PLAYED)].map(asRef),
+      HOST_ID,
+    );
+    expect(page.events).toEqual([]);
   });
 });
 
@@ -153,7 +155,7 @@ describe('viewer rows', () => {
       ].map(asRef),
       HOST_ID,
     );
-    expect(page.viewersAtEnd).toEqual(['Anna Lee']);
+    expect(page.viewersAtEnd).toEqual([{ userId: 'user-anna', name: 'Anna Lee' }]);
     expect(page.events.map(({ title }) => title)).toEqual(['Viewer joined', 'Session ended']);
   });
 });
@@ -176,16 +178,21 @@ describe('withViewersAtEnd', () => {
     detail,
   });
 
+  const anna = { userId: 'user-anna', name: 'Anna Lee' };
+  const bob = { userId: 'user-bob', name: 'Bob Moss' };
+
   it('adds who was watching to "Session ended", once each', () => {
-    const rows = withViewersAtEnd(
-      [row('started', T0, 0), ended('ended by Roman Smith')],
-      ['Anna Lee', 'Bob Moss', 'Anna Lee'],
-    );
+    const rows = withViewersAtEnd([row('started', T0, 0), ended('ended by Roman Smith')], [anna, bob, anna]);
     expect(rows.map(({ detail }) => detail)).toEqual([null, 'ended by Roman Smith · watching: Anna Lee, Bob Moss']);
   });
 
+  it('tells apart two colleagues who share a name', () => {
+    const otherAnna = { userId: 'user-anna-2', name: 'Anna Lee' };
+    expect(withViewersAtEnd([ended(null)], [anna, otherAnna])[0]?.detail).toBe('watching: Anna Lee, Anna Lee');
+  });
+
   it('names them alone on a "Session ended" that has no detail', () => {
-    expect(withViewersAtEnd([ended(null)], ['Anna Lee'])[0]?.detail).toBe('watching: Anna Lee');
+    expect(withViewersAtEnd([ended(null)], [anna])[0]?.detail).toBe('watching: Anna Lee');
   });
 
   it('leaves "Session ended" as it is when nobody was watching at the end', () => {

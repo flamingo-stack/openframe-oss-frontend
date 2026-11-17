@@ -4,7 +4,11 @@ import type { remoteSessionEventsApiServiceQuery as EventsQuery } from '@/__gene
 import { RemoteSessionEventType } from '@/generated/schema-enums';
 import { getRelayEnvironment } from '@/lib/relay';
 import { commitMutationPromise } from '@/lib/relay/commit-mutation';
-import { type SessionTimelineEvent, toSessionTimelinePage } from '../components/remote-sessions/session-events';
+import {
+  type SessionTimelineEvent,
+  toSessionTimelinePage,
+  type ViewerAtEnd,
+} from '../components/remote-sessions/session-events';
 
 /**
  * The Session Events list and the track markers of the recording page: the
@@ -72,7 +76,7 @@ const PAGE_SIZE = 500;
 export interface SessionEventsPage {
   events: SessionTimelineEvent[];
   /** Colleagues on this page who were still watching when the session ended: "Session ended" names them. */
-  viewersAtEnd: string[];
+  viewersAtEnd: ViewerAtEnd[];
   /** The cursor of the next page; null on the last one. */
   nextCursor: string | null;
 }
