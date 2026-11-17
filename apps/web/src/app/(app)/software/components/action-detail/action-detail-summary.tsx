@@ -1,12 +1,13 @@
 'use client';
 
-import { NotFoundError } from '@flamingo-stack/openframe-frontend-core';
+import { NotFoundError, Tag } from '@flamingo-stack/openframe-frontend-core';
 import { packageManagerLabel, softwareActionCopy } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { actionDetailSummary_action$key } from '@/__generated__/actionDetailSummary_action.graphql';
 import { PackageManagerType } from '@/generated/schema-enums';
 import { knownValue } from '@/lib/exhaustive-map';
+import { formatCount } from '@/lib/format-number';
 import { ProcessedDevicesCount } from '../shared/processed-devices-count';
 import { SummaryCard } from '../shared/summary-card';
 import { ActionDetailLogsHeading } from './action-detail-logs-heading';
@@ -18,8 +19,10 @@ const actionDetailSummaryFragment = graphql`
     software
     engine
     action
+    version
     respondedMachineCount
     totalMachineCount
+    waitingMachineCount
   }
 `;
 
@@ -48,16 +51,26 @@ export function ActionDetailSummary({ action }: { action: actionDetailSummary_ac
           { label: LABELS.packageManager, value: data ? packageManagerLabel(data.engine) : null },
           {
             label: LABELS.packageVersion,
-            // No catalog to ask for a manager this build does not know.
-            value:
-              data && packageManager ? (
-                <ActionPackageVersion packageManager={packageManager} packageName={data.software} />
-              ) : null,
+            // The version the run went to; a run without one went to the latest, which the catalog knows. No catalog
+            // to ask for a manager this build does not know.
+            value: data?.version ? (
+              data.version
+            ) : data && packageManager ? (
+              <ActionPackageVersion packageManager={packageManager} packageName={data.software} />
+            ) : null,
           },
           {
             label: LABELS.processed,
             value: data ? (
-              <ProcessedDevicesCount responded={data.respondedMachineCount} total={data.totalMachineCount} />
+              <span className="flex flex-wrap items-center gap-[var(--spacing-system-xsf)]">
+                <span>
+                  <ProcessedDevicesCount responded={data.respondedMachineCount} total={data.totalMachineCount} />
+                </span>
+                {/* Devices whose update is on hold there: the app is still open. */}
+                {data.waitingMachineCount > 0 && (
+                  <Tag label={`${formatCount(data.waitingMachineCount)} Waiting`} variant="warning" />
+                )}
+              </span>
             ) : null,
           },
         ]}
