@@ -193,9 +193,14 @@ const LOCAL_STORAGE_UPDATE_EVENT = 'localStorageUpdate';
  * and the preference carries over when the user switches between them.
  */
 export function readSidebarMinimized(): boolean {
+  return readStoredTrue(SIDEBAR_MINIMIZED_STORAGE_KEY);
+}
+
+/** Whether `key` holds `'true'` (JSON `true` reads the same). Client only; `false` on the server and when storage refuses. */
+function readStoredTrue(key: string): boolean {
   if (typeof window === 'undefined') return false;
   try {
-    return window.localStorage.getItem(SIDEBAR_MINIMIZED_STORAGE_KEY) === 'true';
+    return window.localStorage.getItem(key) === 'true';
   } catch {
     return false;
   }
@@ -321,12 +326,7 @@ export function manhattanChatClosedSeedScript(): string {
 
 /** Whether a closed chat column is stored. Client only; `false` on the server and when storage refuses. */
 export function readManhattanChatClosed(): boolean {
-  if (typeof window === 'undefined') return false;
-  try {
-    return window.localStorage.getItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY) === 'true';
-  } catch {
-    return false;
-  }
+  return readStoredTrue(MANHATTAN_CHAT_CLOSED_STORAGE_KEY);
 }
 
 /** Stores the closed chat column, or forgets it. Storage refused: the choice lasts for this page only. */
