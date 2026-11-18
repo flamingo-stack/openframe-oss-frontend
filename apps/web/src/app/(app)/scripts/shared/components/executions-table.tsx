@@ -14,6 +14,7 @@ import {
   ExecutionTimestampCell,
   ExecutionTimestampGridCell,
   getDeviceName,
+  OpenInNewTabCell,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
@@ -46,7 +47,6 @@ import type { ScriptExecutionFilterInput, SortInput } from '@/__generated__/scri
 import { ValueText } from '@/app/components/shared';
 import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
 import { LiveTable } from '@/app/components/shared/live-table';
-import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
 import { useSearchParam } from '@/app/hooks/use-search-param';
@@ -274,17 +274,6 @@ function OpenExecutionButton({ executionId }: { executionId: string }) {
   );
 }
 
-/** The execution's page in a new tab, as the grid's action button (`OpenExecutionButton` in the card rows). */
-function OpenExecutionGridButton({ executionId }: { executionId: string }) {
-  return (
-    <OpenRowButton
-      grid
-      label="Open execution details in new tab"
-      onClick={openInNewTab(routes.scripts.execution(executionId))}
-    />
-  );
-}
-
 /** The device and its customer on one line (the grid layout); the empty mark where the execution names no device. */
 function DeviceGridCell({ execution }: { execution: UiExecution }) {
   const loading = useLoadingScope();
@@ -436,7 +425,13 @@ function executionColumns({
       enableSorting: false,
       ...scriptsLiveColumnSize(EXECUTION_COLUMNS.open),
       meta: scriptsLiveColumnMeta(EXECUTION_COLUMNS.open, {
-        gridCell: ({ row }: { row: Row<UiExecution> }) => <OpenExecutionGridButton executionId={row.original.id} />,
+        gridCell: ({ row }: { row: Row<UiExecution> }) => (
+          <OpenInNewTabCell
+            href={routes.scripts.execution(row.original.id)}
+            grid
+            label="Open execution details in new tab"
+          />
+        ),
       }),
     },
   ];

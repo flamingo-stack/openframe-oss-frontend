@@ -248,13 +248,20 @@ export const ScheduleDevicesTab = memo(function ScheduleDevicesTabImpl({ schedul
   return (
     // Until the flag answers the tab is its loading state: a guess would draw one table and replace it with the other.
     <LoadingWhen loading={tableGate === 'loading'}>
-      <LoadingSuspense label="Loading devices">
-        <ScheduleDevicesTabReader scheduleId={scheduleId} tableLayout={tableLayout} />
-      </LoadingSuspense>
+      <ScheduleDevicesTabBoundary scheduleId={scheduleId} tableLayout={tableLayout} />
     </LoadingWhen>
   );
 });
 ScheduleDevicesTab.displayName = 'ScheduleDevicesTab';
+
+/** The tab's list, with its own boundary: in its scope the reader draws the list's loading form. */
+function ScheduleDevicesTabBoundary(props: { scheduleId: string; tableLayout: TableLayout }) {
+  return (
+    <LoadingSuspense label="Loading devices">
+      <ScheduleDevicesTabReader {...props} />
+    </LoadingSuspense>
+  );
+}
 
 function ScheduleDevicesTabReader({ scheduleId, tableLayout }: { scheduleId: string; tableLayout: TableLayout }) {
   // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.

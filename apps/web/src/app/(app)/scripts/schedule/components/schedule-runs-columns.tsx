@@ -3,6 +3,7 @@
 import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ExecutionTimestampGridCell,
+  OpenInNewTabCell,
   type ScriptsTableColumnLayout,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { ArrowRightUpIcon, Copy01Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
@@ -20,7 +21,6 @@ import {
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type ReactNode, useCallback, useMemo } from 'react';
 import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
-import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
@@ -303,11 +303,7 @@ function scheduleRunColumns({
       ...scriptsLiveColumnSize(RUN_COLUMNS.open),
       meta: scriptsLiveColumnMeta(RUN_COLUMNS.open, {
         gridCell: ({ row }: { row: Row<UiRun> }) => (
-          <OpenRowButton
-            grid
-            label="Open run details in new tab"
-            onClick={openInNewTab(runDetailsHref(row.original))}
-          />
+          <OpenInNewTabCell href={runDetailsHref(row.original)} grid label="Open run details in new tab" />
         ),
       }),
     },
