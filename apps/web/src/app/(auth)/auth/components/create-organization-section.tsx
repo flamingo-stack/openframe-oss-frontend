@@ -55,7 +55,7 @@ interface CreateOrganizationSectionProps {
    */
   onSsoLogin?: (provider: AuthSsoProvider) => void;
   isLoading?: boolean;
-  /** The email field's first value (`/auth?email=`, `signup-email-prefill.ts`). */
+  /** The email field's first value (`/auth?email=`, `signup-email-seed.ts`). */
   initialEmail?: string;
 }
 

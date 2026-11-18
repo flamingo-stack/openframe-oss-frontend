@@ -1,7 +1,8 @@
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
-import { resetSignupEmailPrefill, signupEmailSeedScript, useSignupEmailPrefill } from '@/lib/signup-email-prefill';
+import { resetSignupEmailPrefill, useSignupEmailPrefill } from '@/app/(auth)/auth/hooks/use-signup-email-prefill';
+import { signupEmailSeedScript } from '@/lib/signup-email-seed';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

@@ -6,9 +6,9 @@ import { NativeSsoSignupSection } from '@/app/(auth)/auth/components/native-sso-
 import { VALID_EMAIL_REGEX } from '@/app/(auth)/auth/constants/registration-validation';
 import { useAuth } from '@/app/(auth)/auth/hooks/use-auth';
 import { useRegistrationProviders } from '@/app/(auth)/auth/hooks/use-registration-providers';
+import { useSignupEmailPrefill } from '@/app/(auth)/auth/hooks/use-signup-email-prefill';
 import { useSsoSignupTakeover } from '@/app/(auth)/auth/hooks/use-sso-signup-takeover';
 import { useIsApplePlatform } from '@/app/hooks/use-apple-platform';
-import { useSignupEmailPrefill } from '@/lib/signup-email-prefill';
 
 export default function AuthPage() {
   const { isLoading, loginWithSso, registerOrganization } = useAuth();

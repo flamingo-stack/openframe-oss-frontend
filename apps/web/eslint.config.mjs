@@ -251,7 +251,7 @@ export default defineConfig([
     files: [
       'src/lib/navigation-sidebar-state.test.ts',
       'src/lib/super-user-seed.test.ts',
-      'src/lib/signup-email-prefill.test.ts',
+      'src/lib/signup-email-seed.test.ts',
     ],
     rules: { 'no-new-func': 'off' },
   },
