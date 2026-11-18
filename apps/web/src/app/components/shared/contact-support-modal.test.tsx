@@ -1,12 +1,13 @@
 /**
  * Contact Support's subject: a pick from the billing list is the subject itself, except
  * Other, which asks for it in the user's words; "Call Me Back" replaces the form (CU-17tkuw61dcb).
+ * The Help Center's variant takes the subject as free text and offers the same call-back (CU-86akejptf).
  */
 import type { ReactNode } from 'react';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { BillingContactSupportModal, ContactSupportModal } from './contact-support-modal';
+import { BillingContactSupportModal, ContactSupportModal, SupportContactModal } from './contact-support-modal';
 
 const submitTicket = vi.fn(async (_ticket: { subject: string; content: string }) => true);
 
@@ -59,10 +60,22 @@ vi.mock('./simple-modal', () => ({
   ),
 }));
 vi.mock('./billing-call-back', () => ({
-  BillingCallBack: ({ onDone }: { onDone: () => void }) => (
-    <button type="button" onClick={onDone}>
-      Book
-    </button>
+  SUPPORT_MEETING_PATH: '/support-path',
+  BillingCallBack: ({
+    onDone,
+    emptyMessage,
+    footnote,
+  }: {
+    onDone: () => void;
+    emptyMessage: string;
+    footnote?: ReactNode;
+  }) => (
+    <div data-testid="call-back">
+      <button type="button" data-empty={emptyMessage} onClick={onDone}>
+        Book
+      </button>
+      {footnote}
+    </div>
   ),
 }));
 
@@ -169,5 +182,58 @@ describe('ContactSupportModal', () => {
 
     act(() => button('Book')?.click());
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+});
+
+describe('SupportContactModal', () => {
+  it('takes the subject as free text and sends it', async () => {
+    act(() => root.render(<SupportContactModal open onOpenChange={() => {}} />));
+    expect(container.querySelector('h2')?.textContent).toBe('Contact Support');
+    expect(subjectPick()).toBeNull();
+
+    const subject = subjectInput();
+    const message = messageInput();
+    if (!subject || !message) throw new Error('form fields missing');
+    expect(button('Send')?.disabled).toBe(true);
+    type(subject, 'Agent offline');
+    type(message, 'Since this morning');
+    await send();
+
+    expect(submitTicket).toHaveBeenCalledWith(
+      expect.objectContaining({ subject: 'Agent offline', content: 'Since this morning' }),
+    );
+  });
+
+  it('offers Call Me Back with the neutral empty line, the email fallback and a Cancel', () => {
+    act(() => root.render(<SupportContactModal open onOpenChange={() => {}} />));
+
+    expect(container.querySelector('a[href="mailto:support@flamingo.run"]')).not.toBeNull();
+    expect(button('Cancel')).toBeDefined();
+    act(() => button('Call Me Back')?.click());
+    expect(button('Book')?.dataset.empty).toBe('No calls can be booked right now.');
+    // The call tab draws the email line itself (over its Continue); the modal does not add a second one.
+    const emails = container.querySelectorAll('a[href="mailto:support@flamingo.run"]');
+    expect(emails).toHaveLength(1);
+    expect(container.querySelector('[data-testid="call-back"]')?.contains(emails[0] ?? null)).toBe(true);
+  });
+
+  it('opens on the ticket form again after closing on Call Me Back', () => {
+    act(() => root.render(<SupportContactModal open onOpenChange={() => {}} />));
+    act(() => button('Call Me Back')?.click());
+    expect(messageInput()).toBeNull();
+
+    act(() => root.render(<SupportContactModal open={false} onOpenChange={() => {}} />));
+    act(() => root.render(<SupportContactModal open onOpenChange={() => {}} />));
+
+    expect(messageInput()).not.toBeNull();
+  });
+});
+
+describe('BillingContactSupportModal call-back', () => {
+  it('keeps its billing empty line', () => {
+    act(() => root.render(<BillingContactSupportModal open onOpenChange={() => {}} />));
+    act(() => button('Call Me Back')?.click());
+
+    expect(button('Book')?.dataset.empty).toBe('No billing calls can be booked right now.');
   });
 });
