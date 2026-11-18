@@ -1,9 +1,10 @@
 /**
  * The desktop shell's two page-startup seams. The "Open the app" link: the initializer subscribes
  * to the shell's arrival signal, takes the download id the shell holds, and stores it for the
- * signup. An OS notification click: the initializer follows the payload the shell forwards, the
- * click that started the app included. What the shell holds and how the signup sends it are tested
- * on their own sides; verified here is the seam.
+ * signup, then offers the one-time download hand-off. An OS notification click: the initializer
+ * follows the payload the shell forwards, the click that started the app included. What the shell
+ * holds, whether the hand-off opens and how the signup sends the id are tested on their own sides;
+ * verified here is the seam.
  *
  * And the mobile shell's one: the report that this bundle booted, which its over-the-air updater
  * waits for, goes out after the synchronous shell setup and before the tokens are hydrated.
@@ -20,9 +21,12 @@ const shell = vi.hoisted(() => ({
   backFails: false,
   calls: [] as string[],
   pending: [] as (string | null)[],
+  heldTake: null as Promise<string | null> | null,
   signal: null as (() => void) | null,
   listenFails: false,
   store: vi.fn<(id: string) => void>(),
+  handoff: vi.fn<() => boolean>(),
+  hydration: Promise.resolve(),
   clickTransport: false,
   click: null as ((payload: unknown) => void) | null,
   startupClick: null as unknown,
@@ -46,7 +50,7 @@ vi.mock('@/lib/native-back', () => ({
 vi.mock('@/lib/token-store', () => ({
   initTokenStore: () => {
     shell.boot.push('hydrate tokens');
-    return Promise.resolve();
+    return shell.hydration;
   },
 }));
 vi.mock('@/lib/native-update', () => ({
@@ -55,6 +59,7 @@ vi.mock('@/lib/native-update', () => ({
     return Promise.resolve();
   },
 }));
+vi.mock('@/lib/desktop-download-handoff', () => ({ startDownloadHandoff: shell.handoff }));
 // The tenant host decides whether an announcement's link is a page of the app.
 vi.mock('@/lib/runtime-config', () => ({ runtimeEnv: { tenantHostUrl: () => shell.tenantHost } }));
 vi.mock('@/lib/platform', () => ({
@@ -85,7 +90,7 @@ vi.mock('@/lib/native-shell', () => ({
   },
   takeDesktopDownloadId: () => {
     shell.calls.push('take');
-    return Promise.resolve(shell.pending.shift() ?? null);
+    return shell.heldTake ?? Promise.resolve(shell.pending.shift() ?? null);
   },
 }));
 
@@ -113,9 +118,12 @@ beforeEach(() => {
   shell.backFails = false;
   shell.calls = [];
   shell.pending = [];
+  shell.heldTake = null;
   shell.signal = null;
   shell.listenFails = false;
   shell.store.mockReset();
+  shell.handoff.mockReset();
+  shell.hydration = Promise.resolve();
   shell.clickTransport = false;
   shell.click = null;
   shell.startupClick = null;
@@ -163,6 +171,61 @@ describe('the "Open the app" download id', () => {
     shell.desktop = false;
     await mount();
     expect(shell.calls).toEqual([]);
+    expect(shell.handoff).not.toHaveBeenCalled();
+  });
+});
+
+describe('the download hand-off', () => {
+  it('is offered after the id a link brought is stored', async () => {
+    shell.pending = ['0f8fad5b-d9cb-469f-a165-70867728950e'];
+    await mount();
+    await vi.waitFor(() => expect(shell.handoff).toHaveBeenCalledTimes(1));
+    expect(shell.store.mock.invocationCallOrder[0]).toBeLessThan(shell.handoff.mock.invocationCallOrder[0]);
+  });
+
+  it('waits for the take even when the token store hydrated first', async () => {
+    let release = (_id: string | null) => {};
+    shell.heldTake = new Promise(resolve => {
+      release = resolve;
+    });
+    await mount();
+    await vi.waitFor(() => expect(shell.calls).toEqual(['listen', 'take']));
+    await act(async () => {});
+    expect(shell.handoff).not.toHaveBeenCalled();
+
+    await act(async () => release('0f8fad5b-d9cb-469f-a165-70867728950e'));
+    await vi.waitFor(() => expect(shell.handoff).toHaveBeenCalledTimes(1));
+    expect(shell.store.mock.invocationCallOrder[0]).toBeLessThan(shell.handoff.mock.invocationCallOrder[0]);
+  });
+
+  it('waits for the token store to hydrate', async () => {
+    let hydrated = () => {};
+    shell.hydration = new Promise<void>(resolve => {
+      hydrated = resolve;
+    });
+    await mount();
+    await vi.waitFor(() => expect(shell.calls).toEqual(['listen', 'take']));
+    expect(shell.handoff).not.toHaveBeenCalled();
+
+    await act(async () => hydrated());
+    await vi.waitFor(() => expect(shell.handoff).toHaveBeenCalledTimes(1));
+  });
+
+  it('is still offered when the signal cannot be subscribed', async () => {
+    shell.listenFails = true;
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    await mount();
+    await vi.waitFor(() => expect(shell.handoff).toHaveBeenCalledTimes(1));
+  });
+
+  it('is offered once per page, however many times the initializer mounts', async () => {
+    await mount();
+    await vi.waitFor(() => expect(shell.handoff).toHaveBeenCalledTimes(1));
+    act(() => root.unmount());
+    root = createRoot(container);
+    const { NativeShellInitializer } = await import('./native-shell-initializer');
+    await act(async () => root.render(<NativeShellInitializer />));
+    expect(shell.handoff).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -266,7 +329,9 @@ describe('the report that this bundle booted', () => {
 
   it('is not made on the desktop shell or in the browser', async () => {
     await mount();
-    expect(shell.boot).toEqual(['hydrate tokens']);
+    // The desktop's download hand-off awaits the same (memoized) hydration a second time.
+    expect(shell.boot.filter(step => step !== 'hydrate tokens')).toEqual([]);
+    expect(shell.boot).toContain('hydrate tokens');
 
     act(() => root.unmount());
     root = createRoot(container);

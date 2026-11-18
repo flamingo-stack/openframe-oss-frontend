@@ -477,6 +477,14 @@ test('an id that is not a UUID is dropped and leaves the stored one alone', () =
   assert.equal(A.collectRegistrationAttribution().downloadId, DOWNLOAD_ID);
 });
 
+test('whether a download id is kept: none, then the stored one, then none once it expired', () => {
+  assert.equal(A.hasStoredDownloadId(), false);
+  A.storeDownloadId(DOWNLOAD_ID);
+  assert.equal(A.hasStoredDownloadId(), true);
+  now += 91 * DAY_MS;
+  assert.equal(A.hasStoredDownloadId(), false);
+});
+
 test('the download id rides the SSO continue URL too', () => {
   A.storeDownloadId(DOWNLOAD_ID);
   const params = new URLSearchParams();

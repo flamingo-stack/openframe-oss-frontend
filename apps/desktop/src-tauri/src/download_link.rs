@@ -6,6 +6,15 @@
 //! an account made in the app, which no browser cookie reaches. The link carries
 //! an id and nothing else: it brings the app up and drives nothing in it.
 //!
+//! The same link comes back from the download hand-off page
+//! (`/auth/desktop-handoff` on the shared host), which the app opens in the
+//! default browser once, on an install nobody has signed in on
+//! (`desktop-download-handoff.ts` in the frontend). The page asks the gateway for
+//! the id in that browser's cookie and launches this link with it, or bare when
+//! there is none. A bare link only brings the window up, which is why
+//! [`handle_url`] reports it as handled. Nothing on this side tells the two
+//! sources apart.
+//!
 //! The webview keeps the id until signup (in its localStorage), so the shell only
 //! holds the latest one until the page takes it: on load, for a link that
 //! started the app, and on [`EVENT_RECEIVED`] for one that arrives while it
