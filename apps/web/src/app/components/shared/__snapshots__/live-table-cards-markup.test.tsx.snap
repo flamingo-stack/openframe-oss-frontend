@@ -1,0 +1,698 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`LiveTable, card layout (the default) > empty 1`] = `
+<div>
+  <div
+    class="transition-opacity duration-200"
+  >
+    <div
+      class="flex w-full flex-col"
+    >
+      <div
+        class="hidden content-md:flex content-md:flex-col sticky z-10 bg-ods-bg top-0"
+      >
+        <div
+          class="relative flex items-stretch gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)]"
+        >
+          <div
+            class="items-stretch hidden content-lg:flex flex-1 min-w-0"
+          >
+            <div
+              class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left"
+            >
+              <span
+                class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+              >
+                NAME
+              </span>
+            </div>
+          </div>
+          <div
+            class="items-stretch flex w-40 content-max-lg:[&&]:w-auto content-max-lg:[&&]:flex-none content-max-lg:[&&]:basis-auto"
+          >
+            <div
+              class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left content-max-lg:justify-start group cursor-pointer"
+            >
+              <span
+                class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+              >
+                ROLE
+              </span>
+              <svg
+                class="h-4 w-4 text-ods-text-secondary transition-colors duration-200 group-hover:text-ods-text-primary"
+                fill="none"
+                height="24"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M15.876 4a1.125 1.125 0 0 1 2.25 0v13.283l2.078-2.078a1.125 1.125 0 0 1 1.591 1.59l-4 4c-.438.44-1.15.44-1.59 0l-4-4-.078-.085a1.125 1.125 0 0 1 1.583-1.583l.085.078 2.08 2.08zm-10 16V6.716l-2.08 2.08a1.125 1.125 0 0 1-1.591-1.59l4-4.001.085-.078a1.126 1.126 0 0 1 1.506.078l3.999 4 .078.085a1.126 1.126 0 0 1-1.582 1.582l-.087-.076-2.078-2.08V20a1.126 1.126 0 0 1-2.25 0"
+                  fill="currentColor"
+                />
+              </svg>
+            </div>
+          </div>
+          <div
+            class="flex items-center absolute inset-y-0 right-[var(--spacing-system-mf)]"
+          />
+        </div>
+      </div>
+      <div
+        class="flex w-full flex-col gap-[var(--spacing-system-xsf)]"
+      >
+        <div
+          class="flex w-full flex-col items-center justify-center gap-[var(--spacing-system-l)] p-[var(--spacing-system-l)] py-[var(--spacing-system-xxl)]"
+        >
+          <div
+            class="flex flex-col items-center gap-[var(--spacing-system-l)] text-center text-ods-text-secondary"
+          >
+            <span
+              class="inline-flex size-4 shrink-0 items-center justify-center content-md:size-6 [&_svg]:h-4 [&_svg]:w-4 content-md:[&_svg]:h-6 content-md:[&_svg]:w-6"
+            >
+              <svg
+                class=""
+                fill="none"
+                height="24"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M6.548 15.861a1.125 1.125 0 1 1 1.59 1.591l-4.343 4.343a1.125 1.125 0 1 1-1.59-1.59z"
+                  fill="currentColor"
+                />
+                <path
+                  d="M19.875 11a6.876 6.876 0 1 0-13.751.002A6.876 6.876 0 0 0 19.876 11Zm2.25 0a9.126 9.126 0 1 1-18.25 0 9.126 9.126 0 0 1 18.25 0"
+                  fill="currentColor"
+                />
+              </svg>
+            </span>
+            <div
+              class="flex flex-col"
+            >
+              <p
+                class="break-words text-h4"
+              >
+                No people found
+              </p>
+              <p
+                class="break-words text-h6"
+              >
+                Try adjusting your search.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`LiveTable, card layout (the default) > loaded, sorted, a refetch in flight, a sub-row and a row class 1`] = `
+<div>
+  <div
+    class="transition-opacity duration-200 opacity-60"
+  >
+    <div
+      class="flex w-full flex-col"
+    >
+      <div
+        class="hidden content-md:flex content-md:flex-col sticky z-10 bg-ods-bg top-0"
+      >
+        <div
+          class="relative flex items-stretch gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)]"
+        >
+          <div
+            class="items-stretch hidden content-lg:flex flex-1 min-w-0"
+          >
+            <div
+              class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left"
+            >
+              <span
+                class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+              >
+                NAME
+              </span>
+            </div>
+          </div>
+          <div
+            class="items-stretch flex w-40 content-max-lg:[&&]:w-auto content-max-lg:[&&]:flex-none content-max-lg:[&&]:basis-auto"
+          >
+            <div
+              class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left content-max-lg:justify-start group cursor-pointer"
+            >
+              <span
+                class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+              >
+                ROLE
+              </span>
+              <svg
+                class="h-4 w-4 text-ods-accent"
+                fill="none"
+                height="24"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M10.875 19V5a1.125 1.125 0 0 1 2.25 0v14a1.125 1.125 0 1 1-2.25 0"
+                  fill="currentColor"
+                />
+                <path
+                  d="M17.204 12.205a1.125 1.125 0 1 1 1.591 1.59l-6 6c-.439.44-1.151.44-1.59 0l-6-6-.078-.085a1.126 1.126 0 0 1 1.583-1.583l.085.078L12 17.409z"
+                  fill="currentColor"
+                />
+              </svg>
+            </div>
+          </div>
+          <div
+            class="flex items-center absolute inset-y-0 right-[var(--spacing-system-mf)]"
+          >
+            <span
+              class="whitespace-nowrap text-ods-text-secondary text-h6"
+            >
+              2
+               
+              results
+            </span>
+          </div>
+        </div>
+      </div>
+      <div
+        class="flex w-full flex-col gap-[var(--spacing-system-xsf)]"
+      >
+        <div
+          class="overflow-hidden rounded-md border border-ods-border text-inherit no-underline block mb-1 bg-ods-card"
+          data-loading-item="true"
+        >
+          <a
+            class="cursor-pointer text-inherit no-underline transition-colors hover:bg-ods-bg-active block"
+            href="/people/r-1"
+          >
+            <div
+              class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px] shadow-[inset_0_-1px_0_0_var(--color-border-default)]"
+            >
+              <div
+                class="flex flex-col overflow-hidden justify-start text-left flex-1 min-w-0"
+              >
+                <div
+                  class="min-w-0 max-w-full"
+                >
+                  <span
+                    class="text-h4 text-ods-text-primary truncate block"
+                  >
+                    Maya Chen
+                  </span>
+                </div>
+              </div>
+              <div
+                class="flex flex-col overflow-hidden justify-start text-left w-40"
+              >
+                <div
+                  class="min-w-0 max-w-full"
+                >
+                  <span
+                    class="text-h4 text-ods-text-primary truncate block"
+                  >
+                    Admin
+                  </span>
+                </div>
+              </div>
+            </div>
+          </a>
+          <p
+            data-sub-row="true"
+          >
+            Owns the workspace
+          </p>
+        </div>
+        <a
+          class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block cursor-pointer transition-colors hover:bg-ods-bg-active mb-1"
+          data-loading-item="true"
+          href="/people/r-2"
+        >
+          <div
+            class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+          >
+            <div
+              class="flex flex-col overflow-hidden justify-start text-left flex-1 min-w-0"
+            >
+              <div
+                class="min-w-0 max-w-full"
+              >
+                <span
+                  class="text-h4 text-ods-text-primary truncate block"
+                >
+                  Jerome Park
+                </span>
+              </div>
+            </div>
+            <div
+              class="flex flex-col overflow-hidden justify-start text-left w-40"
+            >
+              <div
+                class="min-w-0 max-w-full"
+              >
+                <span
+                  class="text-h4 text-ods-text-primary truncate block"
+                >
+                  Technician
+                </span>
+              </div>
+            </div>
+          </div>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`LiveTable, card layout (the default) > loaded, with a next page 1`] = `
+<div>
+  <div
+    class="transition-opacity duration-200"
+  >
+    <div
+      class="flex w-full flex-col"
+    >
+      <div
+        class="hidden content-md:flex content-md:flex-col sticky z-10 bg-ods-bg top-[56px]"
+      >
+        <div
+          class="relative flex items-stretch gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)]"
+        >
+          <div
+            class="items-stretch hidden content-lg:flex flex-1 min-w-0"
+          >
+            <div
+              class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left"
+            >
+              <span
+                class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+              >
+                NAME
+              </span>
+            </div>
+          </div>
+          <div
+            class="items-stretch flex w-40 content-max-lg:[&&]:w-auto content-max-lg:[&&]:flex-none content-max-lg:[&&]:basis-auto"
+          >
+            <div
+              class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left content-max-lg:justify-start group cursor-pointer"
+            >
+              <span
+                class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+              >
+                ROLE
+              </span>
+              <svg
+                class="h-4 w-4 text-ods-text-secondary transition-colors duration-200 group-hover:text-ods-text-primary"
+                fill="none"
+                height="24"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M15.876 4a1.125 1.125 0 0 1 2.25 0v13.283l2.078-2.078a1.125 1.125 0 0 1 1.591 1.59l-4 4c-.438.44-1.15.44-1.59 0l-4-4-.078-.085a1.125 1.125 0 0 1 1.583-1.583l.085.078 2.08 2.08zm-10 16V6.716l-2.08 2.08a1.125 1.125 0 0 1-1.591-1.59l4-4.001.085-.078a1.126 1.126 0 0 1 1.506.078l3.999 4 .078.085a1.126 1.126 0 0 1-1.582 1.582l-.087-.076-2.078-2.08V20a1.126 1.126 0 0 1-2.25 0"
+                  fill="currentColor"
+                />
+              </svg>
+            </div>
+          </div>
+          <div
+            class="flex items-center absolute inset-y-0 right-[var(--spacing-system-mf)]"
+          >
+            <span
+              class="whitespace-nowrap text-ods-text-secondary text-h6"
+            >
+              2
+               
+              results
+            </span>
+          </div>
+        </div>
+      </div>
+      <div
+        class="flex w-full flex-col gap-[var(--spacing-system-xsf)]"
+      >
+        <a
+          class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block cursor-pointer transition-colors hover:bg-ods-bg-active mb-1"
+          data-loading-item="true"
+          href="/people/r-1"
+        >
+          <div
+            class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+          >
+            <div
+              class="flex flex-col overflow-hidden justify-start text-left flex-1 min-w-0"
+            >
+              <div
+                class="min-w-0 max-w-full"
+              >
+                <span
+                  class="text-h4 text-ods-text-primary truncate block"
+                >
+                  Maya Chen
+                </span>
+              </div>
+            </div>
+            <div
+              class="flex flex-col overflow-hidden justify-start text-left w-40"
+            >
+              <div
+                class="min-w-0 max-w-full"
+              >
+                <span
+                  class="text-h4 text-ods-text-primary truncate block"
+                >
+                  Admin
+                </span>
+              </div>
+            </div>
+          </div>
+        </a>
+        <a
+          class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block cursor-pointer transition-colors hover:bg-ods-bg-active mb-1"
+          data-loading-item="true"
+          href="/people/r-2"
+        >
+          <div
+            class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+          >
+            <div
+              class="flex flex-col overflow-hidden justify-start text-left flex-1 min-w-0"
+            >
+              <div
+                class="min-w-0 max-w-full"
+              >
+                <span
+                  class="text-h4 text-ods-text-primary truncate block"
+                >
+                  Jerome Park
+                </span>
+              </div>
+            </div>
+            <div
+              class="flex flex-col overflow-hidden justify-start text-left w-40"
+            >
+              <div
+                class="min-w-0 max-w-full"
+              >
+                <span
+                  class="text-h4 text-ods-text-primary truncate block"
+                >
+                  Technician
+                </span>
+              </div>
+            </div>
+          </div>
+        </a>
+      </div>
+      <div
+        class="sr-only"
+        role="status"
+      />
+      <div
+        aria-hidden="true"
+        class="h-1"
+      />
+    </div>
+  </div>
+</div>
+`;
+
+exports[`LiveTable, card layout (the default) > loaded, without the header 1`] = `
+<div>
+  <div
+    class="transition-opacity duration-200"
+  >
+    <div
+      class="flex w-full flex-col"
+    >
+      <div
+        class="flex w-full flex-col gap-[var(--spacing-system-xsf)]"
+      >
+        <a
+          class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block cursor-pointer transition-colors hover:bg-ods-bg-active mb-1"
+          data-loading-item="true"
+          href="/people/r-1"
+        >
+          <div
+            class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+          >
+            <div
+              class="flex flex-col overflow-hidden justify-start text-left flex-1 min-w-0"
+            >
+              <div
+                class="min-w-0 max-w-full"
+              >
+                <span
+                  class="text-h4 text-ods-text-primary truncate block"
+                >
+                  Maya Chen
+                </span>
+              </div>
+            </div>
+            <div
+              class="flex flex-col overflow-hidden justify-start text-left w-40"
+            >
+              <div
+                class="min-w-0 max-w-full"
+              >
+                <span
+                  class="text-h4 text-ods-text-primary truncate block"
+                >
+                  Admin
+                </span>
+              </div>
+            </div>
+          </div>
+        </a>
+        <a
+          class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block cursor-pointer transition-colors hover:bg-ods-bg-active mb-1"
+          data-loading-item="true"
+          href="/people/r-2"
+        >
+          <div
+            class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+          >
+            <div
+              class="flex flex-col overflow-hidden justify-start text-left flex-1 min-w-0"
+            >
+              <div
+                class="min-w-0 max-w-full"
+              >
+                <span
+                  class="text-h4 text-ods-text-primary truncate block"
+                >
+                  Jerome Park
+                </span>
+              </div>
+            </div>
+            <div
+              class="flex flex-col overflow-hidden justify-start text-left w-40"
+            >
+              <div
+                class="min-w-0 max-w-full"
+              >
+                <span
+                  class="text-h4 text-ods-text-primary truncate block"
+                >
+                  Technician
+                </span>
+              </div>
+            </div>
+          </div>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`LiveTable, card layout (the default) > loading: the columns form, one page of loading rows 1`] = `
+<div>
+  <div
+    aria-busy="true"
+    aria-hidden="true"
+    class="pointer-events-none select-none"
+    inert=""
+  >
+    <div
+      class="transition-opacity duration-200"
+    >
+      <div
+        class="flex w-full flex-col"
+      >
+        <div
+          class="hidden content-md:flex content-md:flex-col sticky z-10 bg-ods-bg top-0"
+        >
+          <div
+            class="relative flex items-stretch gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)]"
+          >
+            <div
+              class="items-stretch hidden content-lg:flex flex-1 min-w-0"
+            >
+              <div
+                class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left"
+              >
+                <span
+                  class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+                >
+                  NAME
+                </span>
+              </div>
+            </div>
+            <div
+              class="items-stretch flex w-40 content-max-lg:[&&]:w-auto content-max-lg:[&&]:flex-none content-max-lg:[&&]:basis-auto"
+            >
+              <div
+                class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left content-max-lg:justify-start group cursor-pointer"
+              >
+                <span
+                  class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+                >
+                  ROLE
+                </span>
+                <svg
+                  class="h-4 w-4 text-ods-text-secondary transition-colors duration-200 group-hover:text-ods-text-primary"
+                  fill="none"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  width="24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M15.876 4a1.125 1.125 0 0 1 2.25 0v13.283l2.078-2.078a1.125 1.125 0 0 1 1.591 1.59l-4 4c-.438.44-1.15.44-1.59 0l-4-4-.078-.085a1.125 1.125 0 0 1 1.583-1.583l.085.078 2.08 2.08zm-10 16V6.716l-2.08 2.08a1.125 1.125 0 0 1-1.591-1.59l4-4.001.085-.078a1.126 1.126 0 0 1 1.506.078l3.999 4 .078.085a1.126 1.126 0 0 1-1.582 1.582l-.087-.076-2.078-2.08V20a1.126 1.126 0 0 1-2.25 0"
+                    fill="currentColor"
+                  />
+                </svg>
+              </div>
+            </div>
+            <div
+              class="flex items-center absolute inset-y-0 right-[var(--spacing-system-mf)]"
+            >
+              <span
+                aria-hidden="true"
+                class="whitespace-nowrap text-ods-text-secondary text-h6"
+              >
+                <span
+                  aria-hidden="true"
+                  class="flex-col h-[1lh] inline-block w-6 align-top"
+                >
+                  <span
+                    class="flex h-[1lh] items-center"
+                  >
+                    <span
+                      aria-hidden="true"
+                      class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                    />
+                  </span>
+                </span>
+                 
+                results
+              </span>
+            </div>
+          </div>
+        </div>
+        <div
+          aria-hidden="true"
+          class="pointer-events-none select-none flex w-full flex-col gap-[var(--spacing-system-xsf)]"
+          inert=""
+        >
+          <div
+            class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block mb-1"
+            data-loading-item="true"
+          >
+            <div
+              class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+            >
+              <div
+                class="flex flex-col overflow-hidden justify-start text-left flex-1 min-w-0"
+              >
+                <div
+                  aria-hidden="true"
+                  class="flex flex-col text-h4 h-[1lh] w-3/4"
+                >
+                  <div
+                    class="flex h-[1lh] items-center"
+                  >
+                    <div
+                      aria-hidden="true"
+                      class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div
+                class="flex flex-col overflow-hidden justify-start text-left w-40"
+              >
+                <div
+                  aria-hidden="true"
+                  class="flex flex-col text-h4 h-[1lh] w-3/4"
+                >
+                  <div
+                    class="flex h-[1lh] items-center"
+                  >
+                    <div
+                      aria-hidden="true"
+                      class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block mb-1"
+            data-loading-item="true"
+          >
+            <div
+              class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+            >
+              <div
+                class="flex flex-col overflow-hidden justify-start text-left flex-1 min-w-0"
+              >
+                <div
+                  aria-hidden="true"
+                  class="flex flex-col text-h4 h-[1lh] w-3/4"
+                >
+                  <div
+                    class="flex h-[1lh] items-center"
+                  >
+                    <div
+                      aria-hidden="true"
+                      class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div
+                class="flex flex-col overflow-hidden justify-start text-left w-40"
+              >
+                <div
+                  aria-hidden="true"
+                  class="flex flex-col text-h4 h-[1lh] w-3/4"
+                >
+                  <div
+                    class="flex h-[1lh] items-center"
+                  >
+                    <div
+                      aria-hidden="true"
+                      class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
