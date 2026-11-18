@@ -72,7 +72,6 @@ import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-s
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useManhattanCentreStore } from '@/app/components/manhattan-shell/manhattan-centre-store';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
-import { routes } from '@/lib/routes';
 
 /** Stable source identifier used for localStorage namespacing inside the
  *  lib (`mingo-chat-openframe-v1` keys). Must not change between
@@ -336,12 +335,12 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
     <ChatRuntimeContext.Provider value={runtime}>
       <AssistantRuntimeContext.Provider value={assistant}>
         {/* A page's topic is its path, read by the lib from the address for the FAQ blocks, their ask cards and
-            the chat's quick actions. The Help Center mounts the hub's pages, so a page there asks with the hub
-            page's path (`/help-center/roadmap` asks `/roadmap`); every other screen asks with its own (`/devices`).
-            `showTopic`: each of them prints it as a faint stamp, in every build (the web app and the desktop app
-            alike), the hub's own rule, so whoever tags FAQs and quick actions on the hub can read the path to use
-            on the screen they are looking at. */}
-        <PageTopicsProvider basePath={routes.helpCenter.root} showTopic>
+            the chat's quick actions. Every screen asks with the path it is shown at, the Help Center's included
+            (`/help-center/tickets` is not the app's own `/tickets`), so content is tagged on the hub for the
+            exact screen it is written for. `showTopic`: each of them prints it as a faint stamp, in every build
+            (the web app and the desktop app alike), the hub's own rule, so whoever tags FAQs and quick actions on
+            the hub can read the path to use on the screen they are looking at. */}
+        <PageTopicsProvider showTopic>
           {children}
         </PageTopicsProvider>
       </AssistantRuntimeContext.Provider>
