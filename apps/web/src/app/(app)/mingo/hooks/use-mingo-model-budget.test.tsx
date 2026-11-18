@@ -3,9 +3,10 @@ import { act, useLayoutEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
+import { useMingoUsageStore } from '../stores/mingo-usage-store';
 import { type MingoUnifiedChat, useMingoUnifiedChatState } from './use-mingo-unified-chat-state';
 
-const { post, engine } = vi.hoisted(() => ({ post: vi.fn(), engine: { outcome: 'stopped' } }));
+const { post, engine } = vi.hoisted(() => ({ post: vi.fn(), engine: { outcome: 'stopped', usageEnabled: false } }));
 vi.mock('@/lib/api-client', () => ({ apiClient: { post }, REQUEST_TIMEOUT_MS: 30_000 }));
 
 vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', async importOriginal => ({
@@ -19,6 +20,18 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', async importO
     currentProvider: 'ANTHROPIC',
     currentModelLabel: 'Claude Opus 5.5',
     currentContextWindowMaxTokens: 200_000,
+    dialogTokenUsage: engine.usageEnabled
+      ? {
+          inputTokensSize: 11_860,
+          outputTokensSize: 940,
+          totalTokensSize: 12_800,
+          contextSize: 200_000,
+          uncachedInputTokensSize: 1_200,
+          cacheReadTokensSize: 10_100,
+          cacheWriteTokensSize: 560,
+          compactionThreshold: 0.85,
+        }
+      : null,
     messages: [
       {
         id: 'first-reply',
@@ -63,6 +76,7 @@ function Probe() {
 beforeEach(() => {
   vi.clearAllMocks();
   seen.value = null;
+  engine.usageEnabled = false;
   useFeatureFlagsStore.setState({ flags: { 'ai-mingo-chat-model-selection': true }, isLoaded: true });
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   root = createRoot(document.createElement('div'));
@@ -91,6 +105,7 @@ afterEach(() => {
   act(() => root.unmount());
   client.clear();
   useFeatureFlagsStore.getState().reset();
+  useMingoUsageStore.getState().setCompany({ free: null, balance: null, companyLoading: true });
 });
 
 async function queryTick() {
@@ -103,6 +118,36 @@ async function waitForSelectedModel() {
 }
 
 describe('model budget after the first reply ended without usage', () => {
+  it('preserves the usage panel when both flags are enabled and the selected model changes the budget', async () => {
+    engine.usageEnabled = true;
+    useFeatureFlagsStore.setState({
+      flags: { 'ai-mingo-chat-model-selection': true, 'mingo-chat-usage': true },
+      isLoaded: true,
+    });
+    useMingoUsageStore.getState().setCompany({
+      free: { used: 10_000_000, total: 10_000_000 },
+      balance: { tokens: 800_000, usd: 0.8, tone: 'warning' },
+      companyLoading: false,
+    });
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={client}>
+          <Probe />
+        </QueryClientProvider>,
+      );
+      await new Promise(resolve => setTimeout(resolve, 10));
+    });
+    await waitForSelectedModel();
+    expect(seen.value?.state.currentContextWindowMaxTokens).toBe(150_000);
+    expect(seen.value?.state.usagePanel).toEqual({
+      free: { used: 10_000_000, total: 10_000_000 },
+      balance: { tokens: 800_000, usd: 0.8, tone: 'warning' },
+      companyLoading: false,
+      context: { used: null, limit: null, compactionThreshold: 0.85 },
+      breakdown: { input: 1_200, cacheRead: 10_100, cacheWrite: 560, output: 940 },
+    });
+  });
+
   it.each(['stopped', 'failed'])(
     'replaces retained Claude metadata after a %s reply with the selected GPT budget',
     async outcome => {

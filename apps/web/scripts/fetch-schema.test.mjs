@@ -12,7 +12,15 @@ const PREVIOUS_API = 'type Query { previousApi: String }';
 const PREVIOUS_CHAT = 'type Query { previousChat: String }';
 const API_SCHEMA = `
   type Query { currentUser: User }
-  type User { id: ID!, displayName: String }
+  type User {
+    id: ID!
+    """
+    The user's displayed name.
+
+    Can be absent for a new user.
+    """
+    displayName: String
+  }
   enum AIProvider { ANTHROPIC OPENAI GOOGLE }
 `;
 const CHAT_SCHEMA = `
@@ -100,7 +108,9 @@ test('default regeneration keeps API and Chat contracts independently compilable
   const { directory, run } = fixture(t);
   const fetched = run('--import', './fetch-fixture.mjs', 'scripts/fetch-schema.mjs');
   assert.equal(fetched.status, 0, fetched.stderr);
-  const api = buildSchema(readFileSync(resolve(directory, 'schema.graphql'), 'utf8'));
+  const apiText = readFileSync(resolve(directory, 'schema.graphql'), 'utf8');
+  assert.doesNotMatch(apiText, /^[ \t]+$/m);
+  const api = buildSchema(apiText);
   const chat = buildSchema(readFileSync(resolve(directory, 'schema.chat.graphql'), 'utf8'));
   assert.equal(api.getQueryType().getFields().dialog, undefined);
   assert.ok(chat.getQueryType().getFields().dialog);

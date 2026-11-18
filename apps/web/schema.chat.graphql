@@ -337,11 +337,15 @@ type DialogStatistics {
 }
 
 type DialogTokenUsage {
+  cacheReadTokensSize: Int
+  cacheWriteTokensSize: Int
   chatType: ChatType
+  compactionThreshold: Float
   contextSize: Int
   inputTokensSize: Int
   outputTokensSize: Int
   totalTokensSize: Int
+  uncachedInputTokensSize: Int
 }
 
 type ErrorData implements MessageData {
@@ -388,6 +392,22 @@ type ExecutingToolData implements MessageData {
 type FeFeatureFlag {
   enabled: Boolean!
   name: String!
+}
+
+type ForwardingTest {
+  checks: [ForwardingTestCheck!]!
+  deadlineAt: Instant
+  evidence: String
+  failureReason: ForwardingTestFailureReason
+  finishedAt: Instant
+  ndrStatus: String
+  startedAt: Instant
+  state: ForwardingTestState!
+}
+
+type ForwardingTestCheck {
+  kind: ForwardingTestCheckKind!
+  result: ForwardingTestCheckResult!
 }
 
 type GuardrailOverride {
@@ -457,6 +477,55 @@ type Machine implements Node {
   organizationId: String!
 }
 
+type Mailbox implements Node {
+  actions: [MailboxAction!]!
+  blockListCount: Int!
+  defaultAssignee: User
+  defaultOrganization: Organization
+  defaultStatus: TicketStatusDefinition
+  heldCount: Int!
+  id: ID!
+  inboundAddress: String!
+  lastEmailAt: Instant
+  lastFinishedTestAt: Instant
+  lastTest: ForwardingTest!
+  mailboxId: String!
+  nextAutomaticTestAt: Instant
+  provider: MailboxProvider!
+  receivingState: MailboxReceivingState!
+  replyState: MailboxReplyState!
+  sendAsBrokenAt: Instant
+  sendAsSignIn: SendAsSignIn
+  setUpAt: Instant
+  setUpBy: User
+  signedInAccount: String
+  stats: MailboxStats!
+  supportAddress: String!
+}
+
+type MailboxConnection {
+  edges: [MailboxEdge!]!
+  filteredCount: Int!
+  pageInfo: PageInfo!
+}
+
+type MailboxEdge {
+  cursor: String!
+  node: Mailbox!
+}
+
+type MailboxPayload {
+  mailbox: Mailbox
+  userErrors: [ChatUserError!]!
+}
+
+type MailboxStats {
+  dropped: Int!
+  held: Int!
+  received: Int!
+  ticketsCreated: Int!
+}
+
 type Message implements Node {
   chatType: ChatType!
   createdAt: Instant!
@@ -488,6 +557,7 @@ type Mutation {
   Makes a policy the tenant default. Same as REST POST /api/v1/policies/{id}/activate.
   """
   activateGuardrailPolicy(input: GuardrailPolicyIdInput!): GuardrailPolicyPayload!
+  activateMailbox(input: ActivateMailboxInput!): MailboxPayload!
   addTicketNote(input: AddTicketNoteInput!): TicketNotePayload!
   addTicketTag(input: TicketTagAssignmentInput!): TicketPayload!
 
@@ -510,6 +580,7 @@ type Mutation {
   Creates an empty dialog. Same as REST POST /api/v1/dialogs. Subscribe to NATS chat.<dialog.dialogId>.* for the stream. dialog is null when the caller cannot read it.
   """
   createDialog(input: CreateDialogInput!): DialogPayload!
+  createMailbox(input: CreateMailboxInput!): MailboxPayload!
   createTempAttachmentUploadUrl(input: CreateTempAttachmentInput!): TempAttachmentPayload!
   createTicket(input: CreateTicketInput!): TicketPayload!
   createTicketAttachmentUploadUrl(input: CreateTicketAttachmentInput!): TicketAttachmentUploadPayload!
@@ -519,6 +590,7 @@ type Mutation {
   deleteTicketAttachment(input: DeleteByIdInput!): DeletePayload!
   deleteTicketNote(input: DeleteByIdInput!): DeletePayload!
   deleteTicketStatus(input: DeleteTicketStatusInput!): Boolean!
+  disconnectMailbox(input: MailboxIdInput!): DeletePayload!
 
   """
   Zeroes the caller's side of the unread message counter. Clients reset the client side, technicians the shared admin side; the owner of a Mingo chat also its unread assistant replies.
@@ -576,6 +648,9 @@ type Mutation {
   """
   resolveApprovalRequest(input: ResolveApprovalRequestInput!): DialogPayload!
 
+  """ STUB until CU-17tkuw66n94: always a top-level NOT_IMPLEMENTED error"""
+  runForwardingTest(input: MailboxIdInput!): MailboxPayload!
+
   """
   Creates or replaces the tenant's CUSTOM policy from a TEMPLATE plus per-rule overrides, and activates it. Same as REST PUT /api/v1/policies/custom.
   """
@@ -590,6 +665,12 @@ type Mutation {
   Sends a message. AI processing runs for ADMIN_AI_CHAT and for dialogs in AI mode. Same as REST POST /api/v1/messages. The AI reply streams over NATS chat.<dialogId>.*, not in this response. message is null when the caller cannot read it.
   """
   sendMessage(input: SendMessageInput!): MessagePayload!
+
+  """ STUB until CU-17tkuw66n95: always a top-level NOT_IMPLEMENTED error"""
+  signOutSendAs(input: MailboxIdInput!): MailboxPayload!
+
+  """ STUB until CU-17tkuw66n95: always a top-level NOT_IMPLEMENTED error"""
+  startSendAsSignIn(input: StartSendAsSignInInput!): StartSendAsSignInPayload!
 
   """
   Stops the running AI reply (cancels through Redis, any replica). Same as REST POST /api/v1/dialogs/{id}/stop. Without a running reply: userError ILLEGAL_STATE. The stream winds down asynchronously, so dialog.streamState may still read STREAMING. dialog is null when the caller cannot read it.
@@ -636,6 +717,7 @@ type Mutation {
   Sets the dialog status (admin tokens only). Same as REST PATCH /api/v1/dialogs/{id}/status. To archive, prefer archiveDialog: it also clears the dialog's notifications. dialog is null when the caller cannot read it.
   """
   updateDialogStatus(input: UpdateDialogStatusInput!): DialogPayload!
+  updateMailbox(input: UpdateMailboxInput!): MailboxPayload!
 
   """
   Gives the organization its own client AI config (breaks inheritance from the tenant default).
@@ -652,6 +734,7 @@ type Mutation {
   plus per-operation approval-level overrides.
   """
   updateOrganizationGuardrails(input: OrganizationGuardrailsInput!, organizationId: ID!): OrganizationGuardrailsPayload!
+  updatePendingMailbox(input: UpdatePendingMailboxInput!): MailboxPayload!
   updateTicket(input: UpdateTicketInput!): TicketPayload!
   updateTicketNote(input: UpdateTicketNoteInput!): TicketNotePayload!
   updateTicketStatus(input: UpdateTicketStatusInput!): TicketStatusDefinition!
@@ -840,6 +923,8 @@ type Query {
   One policy by raw or global id; null when it does not exist (REST answers 404). Same as REST GET /api/v1/policies/{id}.
   """
   guardrailPolicy(id: ID!): GuardrailPolicy
+  mailbox(id: ID!): Mailbox
+  mailboxes(after: String, filter: MailboxFilterInput, first: Int, search: String, sort: SortInput): MailboxConnection!
   messages(after: String, chatType: ChatType, dialogId: ID!, first: Int, sort: SortInput): MessageConnection!
 
   """
@@ -911,6 +996,20 @@ type RecordCardsData implements MessageData {
 type RecordData implements MessageData {
   sources: [ChatSourceAttachment!]!
   type: MessageDataType!
+}
+
+type SendAsSignIn {
+  account: String
+  completedAt: Instant
+  expiresAt: Instant!
+  outcome: SendAsSignInOutcome
+  startedAt: Instant!
+}
+
+type StartSendAsSignInPayload {
+  authorizeUrl: String
+  mailbox: Mailbox
+  userErrors: [ChatUserError!]!
 }
 
 type StatusCount {
@@ -1269,7 +1368,7 @@ interface TicketOwner {
   type: TicketOwnerEnum!
 }
 
-union _Entity = Dialog | GuardrailPolicy | Machine | Message | Organization | Ticket | TicketAttachment | TicketNote | TicketStatusDefinition | User
+union _Entity = Dialog | GuardrailPolicy | Machine | Mailbox | Message | Organization | Ticket | TicketAttachment | TicketNote | TicketStatusDefinition | User
 
 enum AIProvider {
   ANTHROPIC
@@ -1634,6 +1733,32 @@ enum EscalationOfferState {
   SUPERSEDED
 }
 
+enum ForwardingTestCheckKind {
+  CAME_BACK
+  ORIGINAL_SENDER_KEPT
+  SENT
+}
+
+enum ForwardingTestCheckResult {
+  FAILED
+  PASSED
+  UNKNOWN
+}
+
+enum ForwardingTestFailureReason {
+  FORWARDING_BOUNCED
+  GOOGLE_CONFIRMED_NO_EMAIL
+  NOTHING_ARRIVED
+  ORIGINAL_SENDER_LOST
+}
+
+enum ForwardingTestState {
+  FAILED
+  IDLE
+  PASSED
+  WAITING
+}
+
 enum GuardrailPolicyType {
   CUSTOM
   TEMPLATE
@@ -1654,6 +1779,29 @@ enum ListModule {
   TICKETS
   TIME_ENTRIES
   VULNERABILITIES
+}
+
+enum MailboxAction {
+  CHECK_FORWARDING
+  SIGN_IN
+}
+
+enum MailboxProvider {
+  GOOGLE_WORKSPACE
+  MICROSOFT_365
+}
+
+enum MailboxReceivingState {
+  NOT_RECEIVING
+  PENDING
+  QUIET
+  RECEIVING
+}
+
+enum MailboxReplyState {
+  AS_MAILBOX
+  CANNOT_SEND_AS_MAILBOX
+  NOT_SIGNED_IN
 }
 
 enum MessageDataType {
@@ -1718,6 +1866,14 @@ enum SecurityApprovalLevel {
   ASK_TECHNICIAN
   ASK_USER
   DENY
+}
+
+enum SendAsSignInOutcome {
+  CONSENT_DECLINED
+  ERROR
+  EXPIRED
+  GRANTED
+  SEND_AS_DENIED
 }
 
 enum SortDirection {
@@ -1808,6 +1964,14 @@ scalar federation__Scope
 
 scalar link__Import
 
+input ActivateMailboxInput {
+  blockList: [String!]
+  defaultAssigneeId: ID
+  defaultOrganizationId: ID
+  defaultStatusId: ID
+  mailboxId: ID!
+}
+
 input AddTicketNoteInput {
   content: String!
   ticketId: ID!
@@ -1859,6 +2023,12 @@ input CreateDialogInput {
   mode: DialogMode
   model: DialogModelInput
   ticketId: ID
+}
+
+input CreateMailboxInput {
+  provider: MailboxProvider!
+  replacesMailboxId: ID
+  supportAddress: String!
 }
 
 input CreateTempAttachmentInput {
@@ -1966,6 +2136,15 @@ input ListViewInput {
   search: String
 }
 
+input MailboxFilterInput {
+  receivingStates: [MailboxReceivingState!]
+  replyStates: [MailboxReplyState!]
+}
+
+input MailboxIdInput {
+  mailboxId: ID!
+}
+
 input OrganizationGuardrailsInput {
   overrides: [GuardrailOverrideInput!]
 
@@ -2062,6 +2241,11 @@ input SortInput {
   field: String
 }
 
+input StartSendAsSignInInput {
+  mailboxId: ID!
+  returnUrl: String
+}
+
 input StopDialogGenerationInput {
   chatType: ChatType!
   id: ID!
@@ -2150,6 +2334,18 @@ input UpdateDialogModelInput {
 input UpdateDialogStatusInput {
   id: ID!
   status: DialogStatus!
+}
+
+input UpdateMailboxInput {
+  defaultAssigneeId: ID
+  defaultOrganizationId: ID
+  defaultStatusId: ID
+  mailboxId: ID!
+}
+
+input UpdatePendingMailboxInput {
+  mailboxId: ID!
+  provider: MailboxProvider!
 }
 
 input UpdateTicketInput {
