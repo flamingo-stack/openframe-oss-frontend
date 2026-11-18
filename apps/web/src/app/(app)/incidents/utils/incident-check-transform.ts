@@ -55,6 +55,8 @@ export interface IncidentCheckParameter {
 }
 
 export interface IncidentCheck {
+  /** The check at the scope asked about (Relay id): a mutation's answer at that scope carries the same one. */
+  id: string;
   /** The stable key the mutations take, e.g. `resource-win-disk-low`. */
   check: string;
   name: string;
@@ -76,6 +78,7 @@ export interface IncidentCheck {
 export function toIncidentCheck(ref: insightCheckFields_insightCheck$key): IncidentCheck {
   const node = readInlineData(insightCheckFieldsFragment, ref);
   return {
+    id: node.id,
     check: node.check,
     name: node.title,
     platform: node.platform,

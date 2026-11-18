@@ -2,11 +2,16 @@
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { SlidersSquareHrIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { NoData, PageLayout, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { InfoCircleIcon, SlidersSquareHrIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  NoData,
+  PageLayout,
+  StackedRowsPanel,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { defineParamSchema } from '@flamingo-stack/openframe-frontend-core/utils';
-import { type ReactNode, useState } from 'react';
+import { useState } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { incidentChecksRelayQuery as IncidentChecksQueryType } from '@/__generated__/incidentChecksRelayQuery.graphql';
 import type { incidentChecksRelayScopeNameQuery as ScopeNameQueryType } from '@/__generated__/incidentChecksRelayScopeNameQuery.graphql';
@@ -18,7 +23,6 @@ import { useIncidentCheckMutations } from '../../hooks/use-incident-check-mutati
 import { INSIGHT_CHECK_SCOPE_LABELS } from '../../utils/incident-check-labels';
 import {
   type CheckScope,
-  type CheckSettingDraft,
   GLOBAL_SCOPE,
   type IncidentCheck,
   isCompleteScope,
@@ -27,8 +31,8 @@ import {
   toIncidentChecks,
   withEnabled,
 } from '../../utils/incident-check-transform';
-import { CheckRow } from './check-row';
 import { CheckScopeBar } from './check-scope-bar';
+import { CheckTable, type CheckTableRow } from './check-table';
 import { EditCheckModal } from './edit-check-modal';
 
 /** The tab's own URL params: which scope it shows (`?scope=CUSTOMER&scopeId=<organizationId>`). */
@@ -43,11 +47,8 @@ export const NO_CHECK_SCOPE = {
   scopeId: '',
 } satisfies Record<keyof typeof CHECK_SCOPE_PARAMS, unknown>;
 
-/** The built-in catalog's size: how many rows the list holds while it loads. */
-const CHECKS_SKELETON_ROWS = 15;
-
 const PRECEDENCE_NOTE =
-  'A device takes the most specific setting: its own, then its customer’s, then its tags’ (the strictest wins), then all devices’. A change applies from the next run of the check.';
+  'A device takes its own setting, then its customer’s, then its tags’ (the strictest wins), then all devices’. A change applies from the next run of the check.';
 
 function scopeOf(params: { scope: string; scopeId: string }): CheckScope {
   if (!isWritableScopeType(params.scope) || params.scope === InsightCheckScopeType.GLOBAL) return GLOBAL_SCOPE;
@@ -63,13 +64,11 @@ export function IncidentChecks() {
   const scope = scopeOf(params);
 
   return (
-    // Inset as the incident lists are. The note is a paragraph, not the subtitle: the subtitle is one clipped line.
+    // Inset as the incident lists are.
     <PageLayout title="Incident Checks" className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
       <div className="flex flex-col gap-[var(--spacing-system-l)]">
-        <div className="flex flex-col gap-[var(--spacing-system-xsf)]">
-          <ScopeBar scope={scope} onChange={next => setParams({ scope: next.type, scopeId: next.id ?? '' })} />
-          <p className="text-ods-text-secondary text-h6">{PRECEDENCE_NOTE}</p>
-        </div>
+        <ScopeBar scope={scope} onChange={next => setParams({ scope: next.type, scopeId: next.id ?? '' })} />
+        <PrecedenceBanner />
         {isCompleteScope(scope) ? (
           <ContentErrorBoundary title="Incident Checks" message="Couldn't load the checks." resetKey={scopeKey(scope)}>
             <CheckList scope={scope} />
@@ -145,11 +144,32 @@ function useScopeName(scope: CheckScope, scopeId: string): string | null {
   return data.node?.key ?? null;
 }
 
-const CHECK_SKELETON = Array.from({ length: CHECKS_SKELETON_ROWS }, (_, row) => `check-skeleton-${row}`).map(key => (
-  <CheckRow key={key} scope={GLOBAL_SCOPE} canEdit={false} />
-));
+/** How a device's setting is chosen, as the AI settings banner states whose actions are in effect. */
+function PrecedenceBanner() {
+  const admin = useAdminGate();
+  return (
+    <StackedRowsPanel
+      rows={[
+        {
+          id: 'precedence',
+          className: 'p-[var(--spacing-system-s)]',
+          columns: [
+            {
+              key: 'precedence',
+              wrap: true,
+              leadingIcon: <InfoCircleIcon className="size-6 text-ods-text-secondary" />,
+              value: 'The most specific setting wins',
+              label:
+                admin === 'not-admin' ? `${PRECEDENCE_NOTE} Only admins and owners can change them.` : PRECEDENCE_NOTE,
+            },
+          ],
+        },
+      ]}
+    />
+  );
+}
 
-/** The list at one scope, with its own boundary: in its scope it draws its rows as bars. */
+/** The table at one scope, with its own boundary: in its scope it is the table over loading rows. */
 function CheckList({ scope }: { scope: CheckScope }) {
   return (
     <LoadingSuspense label="Loading checks">
@@ -159,12 +179,8 @@ function CheckList({ scope }: { scope: CheckScope }) {
 }
 
 function CheckListReader({ scope }: { scope: CheckScope }) {
-  if (useLoadingScope()) return <CheckListFrame>{CHECK_SKELETON}</CheckListFrame>;
+  if (useLoadingScope()) return <CheckTable />;
   return <CheckListLive scope={scope} />;
-}
-
-function CheckListFrame({ children }: { children: ReactNode }) {
-  return <div className="overflow-hidden rounded-[6px] border border-ods-border bg-ods-card">{children}</div>;
 }
 
 function CheckListLive({ scope }: { scope: CheckScope }) {
@@ -174,35 +190,30 @@ function CheckListLive({ scope }: { scope: CheckScope }) {
     fetchKey: retryKey,
   });
   const checks = toIncidentChecks(data.insightChecks);
-  const admin = useAdminGate();
-  const canEdit = admin === 'admin';
+  const canEdit = useAdminGate() === 'admin';
   const { save, reset, isSaving, isPending } = useIncidentCheckMutations(scope);
   const [editing, setEditing] = useState<IncidentCheck | null>(null);
 
-  const write = (check: IncidentCheck, draft: CheckSettingDraft, successDescription: string, onSaved?: () => void) =>
-    save(check, draft, { successDescription, onSaved });
+  const rows: CheckTableRow[] = checks.map(check => ({
+    id: check.id,
+    check,
+    scope,
+    actions: canEdit
+      ? {
+          busy: isPending(check.check),
+          toggle: (enabled: boolean) =>
+            save(check, withEnabled(check, scope, enabled), {
+              successDescription: `${enabled ? 'Turned on' : 'Turned off'} here.`,
+            }),
+          edit: () => setEditing(check),
+          reset: () => reset(check, { successDescription: 'Now inherits every setting.' }),
+        }
+      : null,
+  }));
 
   return (
     <>
-      {admin === 'not-admin' && (
-        <p className="text-ods-text-secondary text-h6">Only admins and owners can change incident checks.</p>
-      )}
-      <CheckListFrame>
-        {checks.map(check => (
-          <CheckRow
-            key={check.check}
-            check={check}
-            scope={scope}
-            canEdit={canEdit}
-            busy={isPending(check.check)}
-            onToggle={(target, enabled) =>
-              write(target, withEnabled(target, scope, enabled), `${enabled ? 'Turned on' : 'Turned off'} here.`)
-            }
-            onEdit={setEditing}
-            onReset={target => reset(target, { successDescription: 'Now inherits every setting.' })}
-          />
-        ))}
-      </CheckListFrame>
+      <CheckTable rows={rows} />
       {editing && (
         <EditCheckModal
           key={editing.check}
@@ -215,7 +226,12 @@ function CheckListLive({ scope }: { scope: CheckScope }) {
           }
           isSaving={isSaving}
           onClose={() => setEditing(null)}
-          onSave={draft => write(editing, draft, 'Applies from the next run of the check.', () => setEditing(null))}
+          onSave={draft =>
+            save(editing, draft, {
+              successDescription: 'Applies from the next run of the check.',
+              onSaved: () => setEditing(null),
+            })
+          }
         />
       )}
     </>

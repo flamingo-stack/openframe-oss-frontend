@@ -15,7 +15,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
-import { InsightThresholdDirection } from '@/generated/schema-enums';
+import { InsightCheckScopeType, InsightThresholdDirection } from '@/generated/schema-enums';
 import { formatThreshold, parameterUnitSuffix } from '../../utils/incident-check-labels';
 import {
   type CheckScope,
@@ -133,7 +133,9 @@ export function EditCheckModal({ check, scope, scopeName, isSaving, onClose, onS
           void submit();
         }}
       >
-        <p className="text-ods-text-secondary text-h6">Applies to {scopeName}.</p>
+        <p className="text-ods-text-secondary text-h6">
+          {check.description} Applies to {scopeName}.
+        </p>
 
         <div className="flex flex-col gap-[var(--spacing-system-xs)]">
           <Label className="text-ods-text-primary text-h4">Run this check</Label>
@@ -159,9 +161,12 @@ export function EditCheckModal({ check, scope, scopeName, isSaving, onClose, onS
 
         {check.parameters.map((parameter, index) => {
           const setHere = parameters[index]?.setHere ?? false;
-          const inheritedFrom = isSetHere(parameter.source, scope)
-            ? null
-            : `${formatThreshold(parameter.value, parameter.unit, parameter.firesWhen)}, ${sourceLabel(parameter.source, scope).toLowerCase()}`;
+          // What inheriting gives now, under the field: the select itself stays short enough to read.
+          const threshold = formatThreshold(parameter.value, parameter.unit, parameter.firesWhen);
+          const inheritedNow =
+            isSetHere(parameter.source, scope) || parameter.source.type === InsightCheckScopeType.DEFAULT
+              ? ''
+              : `Currently ${threshold.charAt(0).toLowerCase()}${threshold.slice(1)} (${sourceLabel(parameter.source, scope)}). `;
           const error = form.formState.errors.parameters?.[index]?.value?.message;
           return (
             <div key={parameter.parameter} className="flex flex-col gap-[var(--spacing-system-xs)]">
@@ -179,9 +184,7 @@ export function EditCheckModal({ check, scope, scopeName, isSaving, onClose, onS
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="inherit">
-                          {inheritedFrom ? `${inherit} (${inheritedFrom})` : inherit}
-                        </SelectItem>
+                        <SelectItem value="inherit">{inherit}</SelectItem>
                         <SelectItem value="here">Set here</SelectItem>
                       </SelectContent>
                     </Select>
@@ -210,7 +213,7 @@ export function EditCheckModal({ check, scope, scopeName, isSaving, onClose, onS
                 />
               </div>
               <span className={error ? 'text-ods-error text-h6' : 'text-ods-text-secondary text-h6'}>
-                {error ?? parameterHint(parameter)}
+                {error ?? `${setHere ? '' : inheritedNow}${parameterHint(parameter)}`}
               </span>
             </div>
           );
