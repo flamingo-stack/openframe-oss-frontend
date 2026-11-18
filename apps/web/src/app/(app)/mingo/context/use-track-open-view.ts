@@ -1,5 +1,6 @@
 'use client';
 
+import type { OpenFrameRecordKind } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 /**
  * `useTrackOpenView` — call from an entity detail page to register it as the
  * Mingo "open view". Sets `openView` on mount / id-change and clears it on
@@ -14,13 +15,11 @@
  * @example
  *   useTrackOpenView(device ? { type: 'DEVICE', id: device.id, label: getDeviceName(device) || device.id } : null);
  */
-
 import { useEffect } from 'react';
 import { useMingoContextStore } from '../stores/mingo-context-store';
-import type { ContextEntityKind } from './context-types';
 
 export interface TrackOpenViewInput {
-  type: ContextEntityKind;
+  type: OpenFrameRecordKind;
   id: string;
   label: string;
   description?: string;

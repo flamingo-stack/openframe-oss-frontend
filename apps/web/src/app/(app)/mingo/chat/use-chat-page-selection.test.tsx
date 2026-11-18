@@ -9,23 +9,26 @@ import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { routes } from '@/lib/routes';
+import type { MingoUnifiedChat } from '../hooks/use-mingo-unified-chat-state';
 import { makeFakeChat } from '../providers/__tests__/fake-mingo-chat';
-import type { MingoChatState } from '../providers/mingo-chat-provider';
 import { useChatPageSelection } from './use-chat-page-selection';
 
 const replace = vi.hoisted(() => vi.fn<(href: string) => void>());
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace }) }));
-vi.mock('../hooks/use-mingo-dialog-selection', () => ({ MINGO_DIALOG_NOT_FOUND: 'MINGO_DIALOG_NOT_FOUND' }));
 
 const selectDialog = vi.fn<(id: string | null) => void>();
 
-function Page({ dialogId, chat }: { dialogId: string | null; chat: MingoChatState | null }) {
-  return <p>{useChatPageSelection(dialogId, chat)}</p>;
+function Page({ dialogId, chat }: { dialogId: string | null; chat: MingoUnifiedChat | null }) {
+  return <p>{useChatPageSelection(dialogId, chat).status}</p>;
 }
 
 /** A fresh state object, the way the session republishes one on every change. */
-function chatWith(activeDialogId: string | null, dialogError: string | null = null): MingoChatState {
-  return makeFakeChat({ activeDialogId, dialogError, selectDialog: id => selectDialog(id) });
+function chatWith(
+  activeDialogId: string | null,
+  dialogError: string | null = null,
+  dialogNotFound = false,
+): MingoUnifiedChat {
+  return makeFakeChat({ activeDialogId, dialogError, dialogNotFound, selectDialog: id => selectDialog(id) });
 }
 
 let container: HTMLDivElement;
@@ -101,7 +104,7 @@ describe('useChatPageSelection', () => {
   it('stays on the not-found state when the session drops a dialog that does not exist', () => {
     render(<Page dialogId="d-gone" chat={chatWith(null)} />);
     render(<Page dialogId="d-gone" chat={chatWith('d-gone')} />);
-    render(<Page dialogId="d-gone" chat={chatWith('d-gone', 'MINGO_DIALOG_NOT_FOUND')} />);
+    render(<Page dialogId="d-gone" chat={chatWith('d-gone', 'This conversation could not be found.', true)} />);
     expect(status()).toBe('not-found');
 
     // The session toasts it and drops the selection.

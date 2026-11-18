@@ -1,14 +1,13 @@
+import { OPENFRAME_RECORD_KIND } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 // Pins which picker entries a module's flag brings: an Incident is offered only
 // while `insights` holds, Software/Vulnerability only while `software-management`
 // does, and "not answered yet" reads as absent, never as present.
-
 import type { ChatContextEntityType } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 import { MINGO_CONTEXT_ENTITY_TYPES, useMingoContextEntityTypes } from './context-sources';
-import { CONTEXT_ENTITY_KIND } from './context-types';
 
 let container: HTMLDivElement;
 let root: Root;
@@ -27,9 +26,9 @@ const kinds = () => latest?.map(t => t.type) ?? [];
 
 /** The kinds a module's flag brings — everything else is always offered. */
 const GATED = new Set<string>([
-  CONTEXT_ENTITY_KIND.INSIGHT,
-  CONTEXT_ENTITY_KIND.SOFTWARE,
-  CONTEXT_ENTITY_KIND.VULNERABILITY,
+  OPENFRAME_RECORD_KIND.INSIGHT,
+  OPENFRAME_RECORD_KIND.SOFTWARE,
+  OPENFRAME_RECORD_KIND.VULNERABILITY,
 ]);
 const ALWAYS_ON = MINGO_CONTEXT_ENTITY_TYPES.map(t => t.type).filter(kind => !GATED.has(kind));
 
@@ -56,12 +55,12 @@ describe('useMingoContextEntityTypes', () => {
 
   it('adds Incident with `insights` alone', () => {
     act(() => useFeatureFlagsStore.getState().setFlags([{ name: 'insights', enabled: true }]));
-    expect(kinds()).toEqual([...ALWAYS_ON, CONTEXT_ENTITY_KIND.INSIGHT]);
+    expect(kinds()).toEqual([...ALWAYS_ON, OPENFRAME_RECORD_KIND.INSIGHT]);
   });
 
   it('adds Software and Vulnerability with `software-management` alone', () => {
     act(() => useFeatureFlagsStore.getState().setFlags([{ name: 'software-management', enabled: true }]));
-    expect(kinds()).toEqual([...ALWAYS_ON, CONTEXT_ENTITY_KIND.SOFTWARE, CONTEXT_ENTITY_KIND.VULNERABILITY]);
+    expect(kinds()).toEqual([...ALWAYS_ON, OPENFRAME_RECORD_KIND.SOFTWARE, OPENFRAME_RECORD_KIND.VULNERABILITY]);
   });
 
   it('offers the full list, in picker order, with both flags on', () => {

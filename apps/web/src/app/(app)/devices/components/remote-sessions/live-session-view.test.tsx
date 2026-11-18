@@ -131,7 +131,6 @@ const HOST_LINE: RemoteSessionChatMessage = {
   authorName: 'Roman Smith',
   sentAt: '2026-10-29T09:02:00.000Z',
   body: 'Let me check',
-  seq: 7,
 };
 
 let container: HTMLDivElement;

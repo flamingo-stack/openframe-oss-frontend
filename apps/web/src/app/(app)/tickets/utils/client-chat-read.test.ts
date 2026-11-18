@@ -5,7 +5,7 @@ import type { Dialog } from '../types/dialog.types';
 import { clearCachedUnreadMessages, lastClientMessageId } from './client-chat-read';
 import { dialogsQueryKeys } from './query-keys';
 
-const row = (id: string, authorType?: 'user' | 'admin' | 'fae') => ({ id, authorType });
+const row = (id: string, authorType?: 'user' | 'admin' | 'fae') => ({ id, metadata: { author: { authorType } } });
 
 describe('lastClientMessageId', () => {
   it('is null with no rows or no end-user rows', () => {

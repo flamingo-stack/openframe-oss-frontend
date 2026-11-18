@@ -1,11 +1,11 @@
 'use client';
 
 import { NotFoundError } from '@flamingo-stack/openframe-frontend-core';
+import { OPENFRAME_RECORD_KIND } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { employeeDetailsContentQuery } from '@/__generated__/employeeDetailsContentQuery.graphql';
-import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
 import { useTrackOpenView } from '@/app/(app)/mingo/context/use-track-open-view';
 import { useRetryKey } from '@/app/components/shared';
 import { toUserSummary } from '@/graphql/users/user-summary-fields';
@@ -72,7 +72,7 @@ function EmployeeDetailsQuery({ userId }: { userId: string }) {
   const summary = user ? toUserSummary(user) : null;
 
   // The Mingo "open view": the USER resolver and the `@user:id` marker take the raw id.
-  useTrackOpenView(summary ? { type: CONTEXT_ENTITY_KIND.USER, id: summary.rawId, label: summary.name } : null);
+  useTrackOpenView(summary ? { type: OPENFRAME_RECORD_KIND.USER, id: summary.rawId, label: summary.name } : null);
 
   return (
     <>

@@ -1,6 +1,7 @@
 'use client';
 
 import { NotFoundError, Tag, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
+import { OPENFRAME_RECORD_KIND } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { isEventTrigger } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
@@ -25,7 +26,6 @@ import { scheduleTriggerRelayQuery } from '@/graphql/scripts/schedule-trigger-re
 import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedule-detail-relay';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
-import { CONTEXT_ENTITY_KIND } from '../../../mingo/context/context-types';
 import { useTrackOpenView } from '../../../mingo/context/use-track-open-view';
 import { initiatorName } from '../../shared/utils/execution-helpers';
 import { platformsToIds } from '../../shared/utils/script-mappers';
@@ -107,7 +107,7 @@ function ScheduleHeaderView({ scheduleId, schedule }: ScheduleDetailsViewProps &
   const scheduleDbId = useMemo(() => decodeGlobalId(scheduleId)?.rawId ?? scheduleId, [scheduleId]);
   useTrackOpenView(
     !loading && schedule
-      ? { type: CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT, id: scheduleDbId, label: schedule.name || scheduleDbId }
+      ? { type: OPENFRAME_RECORD_KIND.SCHEDULED_SCRIPT, id: scheduleDbId, label: schedule.name || scheduleDbId }
       : null,
     { loading: loading },
   );

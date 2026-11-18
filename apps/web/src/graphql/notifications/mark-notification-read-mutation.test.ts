@@ -110,10 +110,9 @@ function seedUnread(lists: NotificationsConnectionFilters[]): void {
  */
 const visible = () => h.environment.getStore().getSource();
 
-function readState(): { read: unknown; status: unknown; unreadCount: unknown } {
+function readState(): { status: unknown; unreadCount: unknown } {
   const node = visible().get(ID);
   return {
-    read: node?.read,
     status: node?.status,
     unreadCount: visible().get(`client:UnreadCategoryCount:${CATEGORY}`)?.count,
   };
@@ -155,14 +154,14 @@ describe('markNotificationReadById', () => {
 
     expect(h.sent).toEqual([{ name: 'markNotificationReadMutation', variables: { id: ID } }]);
     // Before the server answers: the tap has to show as read already.
-    expect(readState()).toEqual({ read: true, status: NotificationReadStatus.READ, unreadCount: 1 });
+    expect(readState()).toEqual({ status: NotificationReadStatus.READ, unreadCount: 1 });
     expect(listed(UNFILTERED_NOTIFICATION_PAIR.unread)).toEqual([]);
     expect(listed(SEARCH_PAIR.unread)).toEqual([]);
 
     h.answer?.(true);
     await flush();
 
-    expect(readState()).toEqual({ read: true, status: NotificationReadStatus.READ, unreadCount: 1 });
+    expect(readState()).toEqual({ status: NotificationReadStatus.READ, unreadCount: 1 });
     expect(listed(SEARCH_PAIR.unread)).toEqual([]);
     expect(h.refreshCounts).toHaveBeenCalledWith(h.environment);
   });
@@ -175,7 +174,7 @@ describe('markNotificationReadById', () => {
     h.answer?.(false);
     await flush();
 
-    expect(readState()).toEqual({ read: false, status: NotificationReadStatus.UNREAD, unreadCount: 2 });
+    expect(readState()).toEqual({ status: NotificationReadStatus.UNREAD, unreadCount: 2 });
     expect(listed(UNFILTERED_NOTIFICATION_PAIR.unread)).toEqual([ID]);
     expect(warn).toHaveBeenCalledWith('[Notifications] mark-read on a shell tap failed:', RAW_ID, expect.any(Error));
     expect(h.refreshCounts).not.toHaveBeenCalled();
@@ -210,6 +209,6 @@ describe('commitMarkNotificationRead', () => {
     await flush();
 
     expect(onError).toHaveBeenCalledWith(expect.any(Error));
-    expect(readState().read).toBe(false);
+    expect(readState().status).toBe(NotificationReadStatus.UNREAD);
   });
 });

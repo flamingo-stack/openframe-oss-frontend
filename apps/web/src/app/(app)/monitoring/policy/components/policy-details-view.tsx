@@ -10,6 +10,7 @@ import {
   StackedRowsPanel,
   Tag,
 } from '@flamingo-stack/openframe-frontend-core';
+import { OPENFRAME_RECORD_KIND } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { getPolicyStatus, POLICY_STATUS_CONFIG } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { PenEditIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -18,7 +19,6 @@ import { useCallback, useState } from 'react';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
-import { CONTEXT_ENTITY_KIND } from '../../../mingo/context/context-types';
 import { useTrackOpenView } from '../../../mingo/context/use-track-open-view';
 import { ScriptEditor } from '../../../scripts/shared/components/script-editor';
 import { ConfirmDeleteMonitoringModal } from '../../components/confirm-delete-monitoring-modal';
@@ -57,7 +57,7 @@ export function PolicyDetailsView({ policyId }: PolicyDetailsViewProps) {
   // Register this policy as the Mingo "open view" (passive context) so the agent
   // gets the user's working context on the next message; cleared → recent views.
   useTrackOpenView(
-    policyDetails ? { type: CONTEXT_ENTITY_KIND.POLICY, id: policyId, label: policyDetails.name } : null,
+    policyDetails ? { type: OPENFRAME_RECORD_KIND.POLICY, id: policyId, label: policyDetails.name } : null,
     { loading: isLoading },
   );
 

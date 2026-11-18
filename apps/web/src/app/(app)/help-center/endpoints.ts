@@ -16,14 +16,14 @@
  * export, no Next server, no `rewrites()`), so a relative `/content` resolves
  * to a file that doesn't exist in the bundle. There — and ONLY there —
  * `CONTENT_ORIGIN` absolutizes every content endpoint to the tenant gateway.
- * The shell is always in bearer mode, and the chat's `EmbedAuthAdapter` lists
+ * The shell is always in bearer mode, and the app's `EmbedAuthAdapter` (`lib/embed-auth-adapter.ts`) lists
  * this origin in `allowedOrigins` so `embedAuthedFetch`'s cross-origin guard
  * sanctions it. Module-load evaluation is safe: a login that CHANGES the
  * tenant host does a full `window.location.assign` (see `NativeLoginResult.
  * tenantHostChanged`), so this module re-evaluates with the new host.
  *
  * The lib's content surfaces still fetch through `contentFetch`, which — because
- * this app registers an EmbedAuthAdapter for the chat — routes through
+ * this app registers an EmbedAuthAdapter (`lib/embed-auth-adapter.ts`) — routes through
  * `embedAuthedFetch` (bearer in dev-ticket mode + `credentials: include` +
  * 401-refresh). Same-origin keeps `embedAuthedFetch` valid in prod builds too.
  */
@@ -34,7 +34,8 @@ import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
 
 /** `''` on the web (relative, same-origin); the tenant gateway origin in the
- *  native shell. Exported for the chat auth adapter's `allowedOrigins`. */
+ *  native shell. Exported for the callers that build `/content` URLs outside `EP` (the chat runtime, the
+ *  agents' identities). */
 export const CONTENT_ORIGIN = isAppShell() ? runtimeEnv.tenantHostUrl() : '';
 
 /**

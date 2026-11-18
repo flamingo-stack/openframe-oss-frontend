@@ -7,6 +7,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { HeaderMingoButton } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import { COMPACT_BAND_FLEX } from './use-manhattan-squeeze';
 
 /** One glyph button of the bar, as the sidebars' footer buttons. */
 const BAR_BUTTON_CLASS = cn(
@@ -22,6 +23,11 @@ interface ManhattanCompactBarProps {
   onOpenNavigation: () => void;
   /** Behind the paywall: the chats are not reachable (the navigation is, as the rails are). */
   chatsDisabled?: boolean;
+  /**
+   * The window is not read yet (`ManhattanSqueeze.measured`): shown by the stylesheet, in the
+   * compact band only, so the first paint there has the bar before the JS knows the form.
+   */
+  bandOnly?: boolean;
 }
 
 /**
@@ -34,9 +40,15 @@ export function ManhattanCompactBar({
   onOpenChats,
   onOpenNavigation,
   chatsDisabled = false,
+  bandOnly = false,
 }: ManhattanCompactBarProps) {
   return (
-    <div className="hidden h-14 shrink-0 items-stretch border-b border-ods-border-panel bg-ods-panel md:flex">
+    <div
+      className={cn(
+        'hidden h-14 shrink-0 items-stretch border-b border-ods-border-panel bg-ods-panel',
+        bandOnly ? COMPACT_BAND_FLEX : 'md:flex',
+      )}
+    >
       {/* The chats at the left, as the phone top bar has them: Mingo's button. */}
       <HeaderMingoButton
         onClick={onOpenChats}

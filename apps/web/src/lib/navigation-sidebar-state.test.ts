@@ -1,11 +1,28 @@
 /** The pre-paint width seed: the persisted collapse, the width the user chose, and the Mingo-first default on a SaaS tenant. */
 
+import { WORK_AREA_SHARE_CSS_VAR, workAreaShareSeedScript } from '@flamingo-stack/openframe-frontend-core/utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { sidebarWidthFoucScript } from './navigation-sidebar-state';
+import {
+  MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE,
+  MANHATTAN_CHAT_CLOSED_STORAGE_KEY,
+  MANHATTAN_WORK_AREA_STORAGE_KEY,
+  manhattanChatClosedSeedScript,
+  readManhattanChatClosed,
+  readManhattanNavCollapsed,
+  sidebarWidthFoucScript,
+  writeManhattanChatClosed,
+  writeManhattanNavCollapsed,
+} from './navigation-sidebar-state';
 
 const WIDTH_VAR = '--of-navigation-sidebar-width';
 const END_WIDTH_VAR = '--of-navigation-sidebar-end-width';
 const CHOSEN_KEY = 'of.navigationSidebar.width:chosen';
+const JSDOM_WIDTH = window.innerWidth;
+
+/** The window's width as the seed reads it (jsdom does no layout). */
+function windowWidth(width: number) {
+  Object.defineProperty(window, 'innerWidth', { value: width, configurable: true, writable: true });
+}
 
 function seed({
   grouped,
@@ -29,6 +46,7 @@ describe('sidebarWidthFoucScript', () => {
     window.localStorage.clear();
     document.documentElement.style.removeProperty(WIDTH_VAR);
     document.documentElement.style.removeProperty(END_WIDTH_VAR);
+    windowWidth(JSDOM_WIDTH);
   });
 
   it('seeds the Manhattan v2 chats width for the grouped sidebar, the classic one otherwise', () => {
@@ -36,20 +54,54 @@ describe('sidebarWidthFoucScript', () => {
     expect(seed({ grouped: false })).toBe('224px');
   });
 
-  it('seeds the right navigation as the rail in the grouped shell, where it starts collapsed', () => {
+  const endWidth = () => document.documentElement.style.getPropertyValue(END_WIDTH_VAR);
+
+  it.each([
+    [1440, '200px'],
+    [1280, '200px'],
+    [1279, '56px'],
+    [1000, '56px'],
+  ])('seeds the right navigation on a first visit by window width: %ipx -> %s', (width, expected) => {
+    windowWidth(width);
     seed({ grouped: true });
-    expect(document.documentElement.style.getPropertyValue(END_WIDTH_VAR)).toBe('56px');
-    document.documentElement.style.removeProperty(END_WIDTH_VAR);
-    seed({ grouped: false });
-    expect(document.documentElement.style.getPropertyValue(END_WIDTH_VAR)).toBe('');
+    expect(endWidth()).toBe(expected);
+    // The chats sidebar is open at 280px at every width.
+    expect(document.documentElement.style.getPropertyValue(WIDTH_VAR)).toBe('280px');
   });
 
-  it('seeds the right navigation even when storage throws', () => {
+  it('seeds no right navigation in the classic shell', () => {
+    seed({ grouped: false });
+    expect(endWidth()).toBe('');
+  });
+
+  it("follows the user's stored choice at every width", () => {
+    window.localStorage.setItem('of.manhattan.navigation.collapsed', 'true');
+    windowWidth(1600);
+    seed({ grouped: true });
+    expect(endWidth()).toBe('56px');
+    window.localStorage.setItem('of.manhattan.navigation.collapsed', 'false');
+    windowWidth(1000);
+    seed({ grouped: true });
+    expect(endWidth()).toBe('200px');
+  });
+
+  it("ignores the old build's stored right-navigation key", () => {
+    window.localStorage.setItem('of.manhattan.navigation.minimized', 'true');
+    windowWidth(1440);
+    seed({ grouped: true });
+    expect(endWidth()).toBe('200px');
+  });
+
+  it('seeds the right navigation by width even when storage throws', () => {
     const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
       throw new DOMException('blocked', 'SecurityError');
     });
+    windowWidth(1440);
     new Function(sidebarWidthFoucScript(true))();
-    expect(document.documentElement.style.getPropertyValue(END_WIDTH_VAR)).toBe('56px');
+    expect(endWidth()).toBe('200px');
+    windowWidth(1000);
+    new Function(sidebarWidthFoucScript(true))();
+    expect(endWidth()).toBe('56px');
     getItem.mockRestore();
   });
 
@@ -78,5 +130,86 @@ describe('sidebarWidthFoucScript', () => {
     expect(seed({ grouped: true, chosen: JSON.stringify({ size: '400' }) })).toBe('280px');
     expect(seed({ grouped: true, chosen: JSON.stringify(400) })).toBe('280px');
     expect(seed({ grouped: false, minimized: true, chosen: 'not json' })).toBe('56px');
+  });
+});
+
+describe('writeManhattanNavCollapsed', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    window.localStorage.clear();
+    windowWidth(JSDOM_WIDTH);
+  });
+
+  it('keeps the choice for the page when storage refuses it', () => {
+    windowWidth(1440);
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('blocked', 'QuotaExceededError');
+    });
+    writeManhattanNavCollapsed(true);
+    expect(readManhattanNavCollapsed()).toBe(true);
+    writeManhattanNavCollapsed(false);
+    windowWidth(1000);
+    expect(readManhattanNavCollapsed()).toBe(false);
+  });
+});
+
+describe('the Manhattan divider seed (root layout)', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    document.documentElement.style.removeProperty(WORK_AREA_SHARE_CSS_VAR);
+  });
+
+  it('seeds the chat column share the work area stored under the Manhattan key, before paint', () => {
+    window.localStorage.setItem(MANHATTAN_WORK_AREA_STORAGE_KEY, JSON.stringify({ share: 0.3 }));
+    // The script is the lib's, built from constants: what runs in `<head>` runs here.
+    new Function(workAreaShareSeedScript(MANHATTAN_WORK_AREA_STORAGE_KEY))();
+    expect(document.documentElement.style.getPropertyValue(WORK_AREA_SHARE_CSS_VAR)).toBe('0.3');
+  });
+
+  it('seeds nothing before the divider was ever moved: the split starts in the middle', () => {
+    new Function(workAreaShareSeedScript(MANHATTAN_WORK_AREA_STORAGE_KEY))();
+    expect(document.documentElement.style.getPropertyValue(WORK_AREA_SHARE_CSS_VAR)).toBe('');
+  });
+});
+
+describe('the Manhattan closed chat column (CU-17tkuw66xzn)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    window.localStorage.clear();
+    document.documentElement.removeAttribute(MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE);
+  });
+
+  it('stores the closed column and forgets it', () => {
+    writeManhattanChatClosed(true);
+    expect(window.localStorage.getItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY)).toBe('true');
+    expect(readManhattanChatClosed()).toBe(true);
+    writeManhattanChatClosed(false);
+    expect(window.localStorage.getItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY)).toBeNull();
+    expect(readManhattanChatClosed()).toBe(false);
+  });
+
+  it('marks <html> before paint while a closed column is stored', () => {
+    window.localStorage.setItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY, 'true');
+    // What runs in `<head>` runs here.
+    new Function(manhattanChatClosedSeedScript())();
+    expect(document.documentElement.hasAttribute(MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE)).toBe(true);
+  });
+
+  it('marks nothing without one: the split from the first frame', () => {
+    new Function(manhattanChatClosedSeedScript())();
+    expect(document.documentElement.hasAttribute(MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE)).toBe(false);
+  });
+
+  it('refused storage: nothing stored, nothing thrown, the seed marks nothing', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('blocked', 'QuotaExceededError');
+    });
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('blocked', 'SecurityError');
+    });
+    expect(() => writeManhattanChatClosed(true)).not.toThrow();
+    expect(readManhattanChatClosed()).toBe(false);
+    new Function(manhattanChatClosedSeedScript())();
+    expect(document.documentElement.hasAttribute(MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE)).toBe(false);
   });
 });

@@ -30,13 +30,9 @@ export function getLiveConnectionPairs(): NotificationConnectionPair[] {
 /**
  * History lists that render a row's read status and have to re-read it from the server.
  *
- * oss-lib 6.37.31+ (#2466) relays an entity's archive as an ARCHIVED event, which the store
- * applies directly. A refresh is requested only when the store can't settle a status itself:
- * - an ARCHIVED for an id that was never loaded, so there is no card to flag;
- * - from older backends, which relay the archive as a plain READ, a READ for a row not already
- *   READ here — a read elsewhere and an archive look the same, and only the server knows which.
- *   Archiving moves only UNREAD rows, so a READ for a row already READ is never an archive.
- *   Drop this case once every environment runs 6.37.31+.
+ * The backend relays an entity's archive as an ARCHIVED event, which the store applies directly.
+ * A refresh is requested only when the store can't settle a status itself: an ARCHIVED for an id
+ * that was never loaded, so there is no card to flag.
  */
 const readStatusRefreshListeners = new Set<() => void>();
 

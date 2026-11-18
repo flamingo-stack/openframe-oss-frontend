@@ -1,6 +1,7 @@
 'use client';
 
 import { TitleBlock } from '@flamingo-stack/openframe-frontend-core';
+import { OPENFRAME_RECORD_KIND } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { AgentMark, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { TagIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { type PageActionButton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -8,7 +9,6 @@ import { memo, type ReactNode } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { InsightStatus } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
-import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
 import { mingoActionFor, useFixWithMingo } from '../hooks/use-fix-with-mingo';
 import { useIncident, useIncidentDetail } from '../hooks/use-incident';
@@ -109,7 +109,7 @@ function IncidentHeaderLoaded({ incident, transitions }: Required<IncidentHeader
   // One Mingo button: reopen the chat already started from this incident, or start one.
   const mingoSession = useLatestIncidentDialog(incident.insightId);
   // Mingo's "open view": this incident rides on every message sent while the page is up.
-  useTrackOpenView({ type: CONTEXT_ENTITY_KIND.INSIGHT, id: incident.insightId, label: incident.title });
+  useTrackOpenView({ type: OPENFRAME_RECORD_KIND.INSIGHT, id: incident.insightId, label: incident.title });
   const { transition, snoozeTarget, cancelSnooze, confirmSnooze, isMutating, isSnoozing } = useIncidentTransitions();
 
   // The status button is named after the transition the technician most likely

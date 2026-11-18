@@ -1,3 +1,5 @@
+import type { OpenFrameRecordKind } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import { DEVICE_FILTER_OUTDATED } from '@flamingo-stack/openframe-frontend-core/components/features';
 /**
  * The page a Mingo message is sent from, as the ai-agent's `currentPage` (what kind of
  * page and its name) and, on a list, `currentList` (which list and its filters). Read
@@ -12,7 +14,7 @@ import { type NavModuleId, navModuleLabel, navModuleOf } from '@/lib/navigation-
 import { routes } from '@/lib/routes';
 import type { ListModule, MessageListRef, MessagePageRef } from '../../tickets/services/ticket-service.types';
 import { MINGO_CONTEXT_ENTITY_TYPES } from './context-sources';
-import type { ContextEntityKind, ContextRefWithLabel } from './context-types';
+import type { ContextRefWithLabel } from './context-types';
 
 /** The ai-agent's limits on these inputs: past one, the whole message is rejected. */
 export const PAGE_CONTEXT_LIMITS = {
@@ -62,7 +64,7 @@ const LIST_PAGES: Record<string, ListPage> = {
 };
 
 /** Entity pages: their detail page registers the entity as `openView` (`useTrackOpenView`). */
-const ENTITY_PAGES: Record<string, ContextEntityKind> = {
+const ENTITY_PAGES: Record<string, OpenFrameRecordKind> = {
   '/devices/details': 'DEVICE',
   '/devices/details/remote-shell': 'DEVICE',
   '/devices/details/remote-desktop': 'DEVICE',
@@ -96,6 +98,16 @@ const NAMED_PAGES: Record<string, MessagePageRef> = {
 /** URL params that order or lay out a list rather than narrow it. */
 const NOT_A_FILTER = new Set(['id', 'tab', 'viewMode', 'page', 'pageSize', 'cursor', 'limit', 'mingoDialog']);
 const isSort = (key: string) => /sort/i.test(key);
+
+/**
+ * A URL filter value as the list's query means it. The Devices list's Status funnel carries OUTDATED in `statuses`,
+ * but it is the outdated-client flag, not a status: Mingo is told `clientOutdated: true`, as the server is.
+ */
+function filterField(module: ListModule, key: string, value: string): [field: string, value: string] {
+  return module === 'DEVICES' && key === 'statuses' && value === DEVICE_FILTER_OUTDATED
+    ? ['clientOutdated', 'true']
+    : [key, value];
+}
 const isSearch = (key: string) => /search$/i.test(key);
 
 const SETTINGS_PATH = '/settings';
@@ -124,9 +136,10 @@ function listOf(page: ListPage, query: URLSearchParams): MessageListRef {
       search = clip(value, PAGE_CONTEXT_LIMITS.search);
       continue;
     }
-    const values = filters.get(key) ?? [];
-    values.push(clip(value, PAGE_CONTEXT_LIMITS.value));
-    filters.set(key, values);
+    const [field, fieldValue] = filterField(page.module, key, value);
+    const values = filters.get(field) ?? [];
+    values.push(clip(fieldValue, PAGE_CONTEXT_LIMITS.value));
+    filters.set(field, values);
   }
   if (page.tabFilter) filters.set('tab', [query.get('tab') || page.tabFilter]);
 

@@ -1,8 +1,9 @@
 'use client';
 
-import { GiftIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { CoinIcon, GiftIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Card, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { LoadingLine } from '@/app/components/shared/loading-line';
+import { formatCurrency } from '@/lib/format-currency';
 import { formatCompactCount } from '@/lib/format-number';
 import { AI_BALANCE_EXPLANATION, AiTopUpFields } from '../ai-balance/ai-top-up-fields';
 import { AutoTopUpCheckbox } from '../ai-balance/auto-top-up-checkbox';
@@ -28,6 +29,8 @@ interface AiTokenBalanceCardProps {
    * there because the page's one button is what sends it — see below.
    */
   topUp: AiTopUp;
+  /** The purchased tokens still held, when the backend waives the purchase — `PlanCheckout.purchasedBalance`. */
+  purchasedBalance: { tokens: number; usd: number } | null;
   /** Whether that top-up repeats itself once the subscription runs; owned by the paywall for the same reason. */
   autoTopUp: boolean;
   /** There is a top-up for the switch to repeat; without one ("Don't top up") the switch is not offered. */
@@ -49,6 +52,7 @@ export function AiTokenBalanceCard({
   loading: loadingProp,
   deviceMode,
   topUp,
+  purchasedBalance,
   autoTopUp,
   canAutoTopUp,
   onAutoTopUpChange,
@@ -86,6 +90,21 @@ export function AiTokenBalanceCard({
           </p>
         )}
       </div>
+
+      {/* Why the top-up is optional here: the balance carries over to the new plan. Absent while loading, as an
+          optional block is. */}
+      {!loading && purchasedBalance && (
+        <div
+          data-loading-optional
+          className="flex items-start gap-[var(--spacing-system-xsf)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-mf)]"
+        >
+          <CoinIcon className="size-6 shrink-0 text-ods-accent" />
+          <p className="text-ods-text-primary text-h4">
+            <span className="text-ods-accent text-h3">{formatCompactCount(purchasedBalance.tokens)}</span> purchased
+            tokens ({formatCurrency(purchasedBalance.usd)}) left on your balance. A top-up is optional.
+          </p>
+        </div>
+      )}
 
       <AiTopUpFields topUp={topUp} label="Top up your balance" disabled={loading} loading={loading} />
 

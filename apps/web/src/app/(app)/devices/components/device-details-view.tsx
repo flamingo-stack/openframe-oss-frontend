@@ -10,9 +10,11 @@ import {
   TabNavigation,
   Tag,
 } from '@flamingo-stack/openframe-frontend-core';
+import { OPENFRAME_RECORD_KIND } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import {
+  DeviceConnectivityIcon,
+  DeviceLifecycleTag,
   getDeviceName,
-  getDeviceStatusConfig,
   WarningBlock,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -21,12 +23,13 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
-import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
 import { useDeviceActionsMenu } from '../hooks/use-device-actions-menu';
 import { useDeviceDetails } from '../hooks/use-device-details';
 import { useDirectoryGate } from '../hooks/use-directory-gate';
+import type { Device } from '../types/device.types';
 import { isDeviceStillConnecting } from '../utils/tool-connection-status';
+import { OutdatedClientBanner } from './outdated-client-banner';
 import { RecordingStorageBanner } from './remote-sessions/recording-storage-banner';
 import { RunScriptModal } from './run-script/run-script-modal';
 import { DeviceDirectoryGateContext, useDeviceTabs } from './tabs/device-tabs';
@@ -39,16 +42,21 @@ import { DeviceDirectoryGateContext, useDeviceTabs } from './tabs/device-tabs';
 // buttons and the menu's own icon cells use.
 const DETAIL_ICON_SIZE = 'w-[var(--icon-size-icon-size)] h-[var(--icon-size-icon-size)]';
 
-/** The device's status beside its title; while the device is read, the tag's own skeleton. */
-function DeviceStatusTag({ status }: { status: string | undefined }) {
-  const statusConfig = status === undefined ? null : getDeviceStatusConfig(status);
+/**
+ * Beside the title: whether the device is online right now (its connectivity icon, last seen on hover) and its
+ * lifecycle tag (Figma 3324-6819). While the device is read, both draw their skeletons.
+ */
+function DeviceStatusAdornment({ device }: { device: Pick<Device, 'status' | 'connectivity' | 'lastSeen'> | null }) {
+  const loading = useLoadingScope() || !device;
   return (
-    <Tag
-      label={statusConfig?.label ?? ''}
-      variant={statusConfig?.variant}
-      loading={useLoadingScope() || !statusConfig}
-      className="shrink-0"
-    />
+    <span className="inline-flex shrink-0 items-center gap-[var(--spacing-system-xsf)]">
+      <DeviceConnectivityIcon connectivity={device?.connectivity} lastSeen={device?.lastSeen} loading={loading} />
+      {loading ? (
+        <Tag label="" loading className="shrink-0" />
+      ) : (
+        <DeviceLifecycleTag status={device.status} connectivity={device.connectivity ?? null} className="shrink-0" />
+      )}
+    </span>
   );
 }
 
@@ -133,7 +141,7 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
   useTrackOpenView(
     normalizedDevice
       ? {
-          type: CONTEXT_ENTITY_KIND.DEVICE,
+          type: OPENFRAME_RECORD_KIND.DEVICE,
           id: deviceId,
           label: getDeviceName(normalizedDevice) || deviceId,
         }
@@ -220,7 +228,7 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
         menuActions={normalizedDevice ? menuActions : undefined}
         loadingActions={isLoading}
         actionsVariant="menu-primary"
-        titleAdornment={<DeviceStatusTag status={normalizedDevice?.status} />}
+        titleAdornment={<DeviceStatusAdornment device={normalizedDevice ?? null} />}
         className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       >
         {/* First-connect indication: shown only until every agent has registered per design; a later disconnect
@@ -234,6 +242,8 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
             />
           </div>
         )}
+
+        {normalizedDevice && <OutdatedClientBanner device={normalizedDevice} />}
 
         {/* Tenant-wide, so it shows whichever tab is open; nothing while storage has room. The page's own gap spaces
           both banners from the tabs. */}

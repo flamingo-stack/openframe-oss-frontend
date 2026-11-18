@@ -65,8 +65,8 @@ export function getProviderModelLabel(
 
 /**
  * Cross-provider variant of {@link getProviderModelLabel} for sources that
- * carry a provider DISPLAY name instead of the AIProvider enum (message
- * AssistantOwner metadata, stream chunks). Model names are unique across
+ * carry a provider DISPLAY name instead of the AIProvider enum (a history
+ * row's model, stream chunks). Model names are unique across
  * providers, so the first match wins; falls back to the raw value.
  */
 export function getModelLabelByName(

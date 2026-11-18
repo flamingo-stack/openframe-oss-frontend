@@ -31,8 +31,8 @@ import { composeOpenframeInAppContentUrl } from './help-center-content-href';
 // `layout.tsx` (cascade-scoped to this subtree) — no JS, no per-page prop.
 
 // NOTE: content-fetch auth needs NO wiring here. The lib's content surfaces route
-// through `contentFetch`, which reuses the SAME EmbedAuthAdapter the chat registers
-// (`openframe-chat-runtime-provider.tsx`) — so `/content/api/*` GET/POSTs carry the
+// through `contentFetch`, which reuses the SAME EmbedAuthAdapter the chat uses
+// (`lib/embed-auth-adapter.ts`) — so `/content/api/*` GET/POSTs carry the
 // same bearer + 401-refresh as the chat with zero help-center-specific setup.
 
 export function HelpCenterRuntimeProvider({ children }: { children: ReactNode }) {

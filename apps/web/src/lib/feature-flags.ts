@@ -82,6 +82,10 @@ export const FEATURE_FLAG_NAMES = [
   // context on demand. Off = the action is absent; auto-compaction is
   // unaffected either way.
   'mingo-compact-memory',
+  // The Usage panel behind the Mingo composer's token counter: the company's
+  // tokens and this chat's context. The backend reads the same key. Off = the
+  // counter keeps its hover card. On for dev / qa, false elsewhere.
+  'mingo-chat-usage',
   // AI-first onboarding: the full-screen `/setup` wizard in place of the
   // dashboard's Initial Setup card, and the Getting Started tour in Mingo (the
   // block above the docked composer, in the tour's conversation) in place of
@@ -100,6 +104,23 @@ export const FEATURE_FLAG_NAMES = [
   // report their customer, so the control stays hidden until the agents do. On
   // for dev / qa, absent elsewhere, which reads as off.
   'device-logs-customer-filter',
+  // The new data table (the design system's grid: one bordered block of 48px
+  // one-line rows) on every screen that draws a table, in place of card rows.
+  // Screens move to it in separate changes, and customers get them all at once:
+  // each screen reads this one flag (`useTableGridGate`). Off = card rows, as
+  // before. On for dev / qa; absent elsewhere until every table has moved, which
+  // reads as off.
+  'data-table-grid',
+  // The device status split (CU-86akb8vvf): the lifecycle tag (MANAGED,
+  // PENDING, ...) and the connectivity icon in every device view, with a
+  // Connectivity group in the STATUS funnel. Off = the look from before, one
+  // ONLINE / OFFLINE / PENDING tag and the device type icon
+  // (`DeviceStatusDisplay` 'legacy'). Only the look: either way online comes
+  // from `connectivity` and the queries send what the backend accepts, so it
+  // works with the backend's own switch
+  // (`openframe.features.devices.managed-status.enabled`) on or off. On for
+  // dev / qa, absent elsewhere, which reads as off.
+  'device-managed-status',
 ] as const;
 
 export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[number];

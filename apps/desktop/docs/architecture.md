@@ -52,6 +52,8 @@ server would have:
 - `window.__ENV` — `NEXT_PUBLIC_SHARED_HOST_URL`, `NEXT_PUBLIC_APP_MODE`, the
   dev-ticket observer flag, and `NEXT_PUBLIC_GTM_CONTAINER_ID`. This is what
   `next-runtime-env` reads; export builds omit `<PublicEnvScript />`.
+  `release.yml` and `scripts/build-web.sh` prerender the export in the same
+  `NEXT_PUBLIC_APP_MODE` (`saas-tenant`), so a change of mode changes all three.
   `NEXT_PUBLIC_TENANT_HOST_URL` is deliberately **absent**, so the frontend falls
   through to the tenant host learned at login.
 

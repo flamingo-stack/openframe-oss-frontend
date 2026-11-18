@@ -3,42 +3,32 @@
 import type { AppLayoutWorkAreaMode } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { create } from 'zustand';
 import type { ComposerRoute } from '@/app/components/mingo-shell/mingo-dock-route';
+import { writeManhattanChatClosed } from '@/lib/navigation-sidebar-state';
 
 /**
  * How the open chat sits beside a page in the Manhattan v2 centre (plan D5, table T):
  * - `split`: the chat column beside the page column (where a chat opens);
  * - `full`: the chat takes the centre, the page is hidden behind it ("chat full screen");
- * - `hidden`: the page takes the centre, the chat waits behind it ("page full screen").
- * Per tab (`sessionStorage`): a reload keeps it, a new tab starts at `split`.
+ * - `hidden`: the page takes the centre, the chat waits behind it ("page full screen"), or the chat was closed.
+ * The user's choice holds across pages. A reload starts at `split`, except a `hidden` chosen on a window wide enough
+ * for two columns: that one is stored (`MANHATTAN_CHAT_CLOSED_STORAGE_KEY`) and comes back after a reload (CU-17tkuw66xzn).
+ * One column's own `hidden` (compact: a new page shown, the chat behind it) is the layout's and stores nothing.
  */
 export type ManhattanChatView = 'split' | 'full' | 'hidden';
-
-const CHAT_VIEW_KEY = 'of.manhattan.chatView';
-
-function readChatView(): ManhattanChatView {
-  if (typeof window === 'undefined') return 'split';
-  try {
-    const stored = window.sessionStorage.getItem(CHAT_VIEW_KEY);
-    return stored === 'full' || stored === 'hidden' ? stored : 'split';
-  } catch {
-    return 'split';
-  }
-}
-
-function writeChatView(view: ManhattanChatView): void {
-  try {
-    window.sessionStorage.setItem(CHAT_VIEW_KEY, view);
-  } catch {
-    // Storage refused: the view holds for this page's life only.
-  }
-}
 
 interface ManhattanCentreStore {
   /** The chat column's thread node: the session's `EmbeddableChat` portals its header and thread into it. */
   threadNode: HTMLElement | null;
   setThreadNode: (node: HTMLElement | null) => void;
   chatView: ManhattanChatView;
+  /** Sets the view; on two columns (not `compact`) also stores `hidden` or forgets it. */
   setChatView: (view: ManhattanChatView) => void;
+  /**
+   * The chat the tab had behind its pages, selected again after a reload (`useChatBehindPage`): coming back is not a
+   * chat opened, so a closed column stays closed. Cleared once the centre has seen it.
+   */
+  restoredDialogId: string | null;
+  setRestoredDialogId: (id: string | null) => void;
   /** Below the two rails + 800px (`ManhattanSqueeze.compact`): one column, the sidebars as drawers. */
   compact: boolean;
   setCompact: (compact: boolean) => void;
@@ -64,14 +54,16 @@ interface ManhattanCentreStore {
   requestLinkedPage: () => void;
 }
 
-export const useManhattanCentreStore = create<ManhattanCentreStore>()(set => ({
+export const useManhattanCentreStore = create<ManhattanCentreStore>()((set, get) => ({
   threadNode: null,
   setThreadNode: threadNode => set({ threadNode }),
-  chatView: readChatView(),
+  chatView: 'split',
   setChatView: chatView => {
-    writeChatView(chatView);
+    if (!get().compact) writeManhattanChatClosed(chatView === 'hidden');
     set({ chatView });
   },
+  restoredDialogId: null,
+  setRestoredDialogId: restoredDialogId => set({ restoredDialogId }),
   compact: false,
   setCompact: compact => set({ compact }),
   chatsDismiss: 0,
@@ -84,30 +76,45 @@ export const useManhattanCentreStore = create<ManhattanCentreStore>()(set => ({
   requestLinkedPage: () => set(state => ({ linkedPageRequests: state.linkedPageRequests + 1 })),
 }));
 
+/** What else `workAreaModeOf` reads. */
+interface WorkAreaModeOptions {
+  /** No room for two columns (`ManhattanSqueeze.compact`). */
+  compact?: boolean;
+  /** Below md. */
+  phone?: boolean;
+  /** The session has a chat (off behind the paywall); on by default. */
+  chatEnabled?: boolean;
+  /** The chat page has let the thread in (`useChatPageNodeStore` `threadReady`). */
+  chatPageThread?: boolean;
+}
+
 /**
  * Which work-area columns show (plan D5, as changed by CU-17tkuw65znp: the chat is always
  * beside a page):
- * - Mingo's home (Start Work) and a chat's own page are pages: the page column alone, the
- *   composer docked under it (the chat page holds the thread);
+ * - Mingo's home (Start Work) is a page: the page column alone, the composer docked under it;
+ * - a chat's own page is the chat column alone (`chat`): the same column the chat has beside
+ *   a page, so the thread never moves between the two (CU-17tkuw66n0m). That once the page
+ *   lets the thread in (`chatPageThread`, the chat page's `threadReady`); until then (the chat
+ *   module or the conversation loading, or a state the page draws itself: not found, failed)
+ *   the page column alone;
  * - any other page, the full-height ones (remote desktop / shell, file manager) included:
  *   the chat column beside it (`split`) — the open chat, or Start Work when none is open —
  *   unless the user put the page full screen or closed the chat (`hidden` → the page alone,
  *   the composer under it), or put the chat full screen (`full` → the chat over the page,
- *   only while there is a chat to show);
+ *   only while there is a chat to show). The choice holds on the next pages too;
  * - no chat for this session (the paywall): the page alone;
  * - `compact` (no room for two columns, plan D19, unchanged): the page alone with no open
  *   chat, else the chat over the page unless `hidden` (over a full-height page only `full`);
- * - `phone` (below md): the page alone, always — a chat there is its own page.
+ * - `phone` (below md): the page alone, always — a chat there is its own page, which holds the thread.
  */
 export function workAreaModeOf(
   route: ComposerRoute,
   hasConversation: boolean,
   chatView: ManhattanChatView,
-  compact = false,
-  phone = false,
-  chatEnabled = true,
+  { compact = false, phone = false, chatEnabled = true, chatPageThread = false }: WorkAreaModeOptions = {},
 ): AppLayoutWorkAreaMode {
-  if (phone || route === 'home' || route === 'chat' || !chatEnabled) return 'page';
+  if (phone || route === 'home' || !chatEnabled) return 'page';
+  if (route === 'chat') return chatPageThread ? 'chat' : 'page';
   if (chatView === 'hidden') return 'page';
   if (compact) {
     // One column: the chat over the page, never over a full-height page unasked (as before).

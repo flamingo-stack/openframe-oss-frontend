@@ -9,7 +9,9 @@ import {
   DevicesPanelView,
   getDeviceActionsColumn,
   getDeviceFilterColumns,
+  useDeviceStatusDisplay,
   useTagFilterModal,
+  joinStatusFilterValue,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   type ColumnDef,
@@ -27,6 +29,7 @@ import { type ReactNode, useCallback, useMemo } from 'react';
 import { DeviceActionsDropdown } from '@/app/(app)/devices/components/device-actions-dropdown';
 import { DeviceFacets } from '@/app/(app)/devices/components/device-facets';
 import { useGridInfiniteScroll } from '@/app/(app)/devices/hooks/use-grid-infinite-scroll';
+import { useOutdatedClientFacet } from '@/app/(app)/devices/hooks/use-outdated-client-facet';
 import { useRowRemoteAccessPolicies } from '@/app/(app)/devices/hooks/use-remote-access-policy';
 import { useDevicesUrlParamsV1 } from '@/app/(app)/devices/hooks/v1/use-devices-url-params-v1';
 import { type UseDevicesResultV1, useDevicesV1 } from '@/app/(app)/devices/hooks/v1/use-devices-v1';
@@ -34,11 +37,13 @@ import { DEVICES_PAGE_SIZE } from '@/app/(app)/devices/queries/devices-api';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { bumpDeviceEpoch, useDeviceEpoch } from '@/app/(app)/devices/utils/device-refresh';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
+import type { TableLayout } from '@/app/hooks/use-table-layout';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { ContentErrorBoundary } from '../../content-error-boundary';
 import { EMBEDDED_PAGE_OFFSET } from '../../embedded-page';
 import { NO_ITEMS } from '../../no-next-page';
+import { DEVICES_TABLE_SETTINGS } from '../devices-table-settings';
 import { devicesViewMode } from '../devices-view-mode';
 
 /** The loaded table's actions column, minus the actions: the loading panel's columns take the same widths. */
@@ -114,6 +119,8 @@ export interface DevicesPanelPropsV1 {
    * Used by the archive page: DELETED devices are read-only records.
    */
   readOnlyRows?: boolean;
+  /** The table's layout (`DevicesPanelProps.tableLayout`): the Devices page is the grid table under both panels. */
+  tableLayout?: TableLayout;
 }
 
 function DevicesPanelContent(props: DevicesPanelPropsV1) {
@@ -130,7 +137,12 @@ function DevicesPanelContent(props: DevicesPanelPropsV1) {
   // themselves still read the live `params`, so a checkbox ticks immediately.
   const { deferredFilters, deferredSearch, isPending: isNarrowing } = useDeferredQuery(filters, debouncedSearch);
 
-  const list = useDevicesV1(deferredFilters, deferredSearch);
+  const outdatedFacet = useOutdatedClientFacet(
+    deferredFilters,
+    urlParams.tableFilters.status,
+    !props.hideFilters?.includes('status'),
+  );
+  const list = useDevicesV1(deferredFilters, deferredSearch, urlParams.sort);
   const epoch = useDeviceEpoch();
 
   const renderPanel = (deviceFilters: DeviceFilters | null) => (
@@ -139,7 +151,7 @@ function DevicesPanelContent(props: DevicesPanelPropsV1) {
       urlParams={urlParams}
       list={list}
       isNarrowing={isNarrowing}
-      deviceFilters={deviceFilters}
+      deviceFilters={deviceFilters && { ...deviceFilters, ...outdatedFacet }}
     />
   );
 
@@ -182,6 +194,7 @@ function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters
     noOrganizations = false,
     isCheckingOrganizations = false,
     readOnlyRows = false,
+    tableLayout,
   } = panel;
   const router = useRouter();
 
@@ -205,6 +218,7 @@ function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters
 
   const hasActiveDeviceFilters =
     params.statuses.length > 0 ||
+    params.connectivity.length > 0 ||
     params.osTypes.length > 0 ||
     params.organizationIds.length > 0 ||
     params.tags.length > 0;
@@ -218,10 +232,11 @@ function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters
   const showEmptyState =
     !!emptyState && !isNarrowing && !debouncedSearch && !hasActiveDeviceFilters && devices.length === 0;
 
+  const statusDisplay = useDeviceStatusDisplay();
   const filterColumns = useMemo(() => {
     const hidden = new Set(hideFilters ?? []);
-    return getDeviceFilterColumns(deviceFilters).filter(c => !hidden.has(c.key));
-  }, [deviceFilters, hideFilters]);
+    return getDeviceFilterColumns(deviceFilters, { statusDisplay }).filter(c => !hidden.has(c.key));
+  }, [deviceFilters, hideFilters, statusDisplay]);
   // Post-action list refresh is handled centrally: useDeviceActions invalidates
   // the device query roots, so no per-row refetch callback is needed.
   // The row menus disable Remote Control on DENY_ACCESS; only the table has them.
@@ -231,11 +246,13 @@ function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters
   // statuses are a query-side fallback and must not render as checked filters.
   const columnFilters = useMemo<ColumnFiltersState>(
     () => [
-      ...(params.statuses.length > 0 ? [{ id: 'status', value: params.statuses }] : []),
+      ...(params.statuses.length > 0 || params.connectivity.length > 0
+        ? [{ id: 'status', value: joinStatusFilterValue(params.statuses, params.connectivity) }]
+        : []),
       ...(params.osTypes.length > 0 ? [{ id: 'os', value: params.osTypes }] : []),
       ...(params.organizationIds.length > 0 ? [{ id: 'organization', value: params.organizationIds }] : []),
     ],
-    [params.statuses, params.osTypes, params.organizationIds],
+    [params.statuses, params.connectivity, params.osTypes, params.organizationIds],
   );
 
   const onColumnFiltersChange = useCallback<OnChangeFn<ColumnFiltersState>>(
@@ -335,6 +352,9 @@ function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters
       onGridFiltersChange={handleFilterChange}
       actionsColumn={actionsColumn}
       hideColumns={hideColumns}
+      tableLayout={tableLayout}
+      tableMaxHeight={tableLayout === 'grid' ? 'fill' : undefined}
+      tableSettings={tableLayout === 'grid' ? DEVICES_TABLE_SETTINGS : undefined}
       hideFilters={hideFilters}
       emptyMessage={emptyMessage}
       hasNextPage={hasNextPage}
@@ -459,6 +479,9 @@ function DevicesPanelPending({ panel: props, chrome, viewMode }: DevicesPanelBod
       // The loaded table always carries a row-actions column, and it takes real width from the others.
       actionsColumn={PENDING_ACTIONS_COLUMN}
       hideColumns={props.hideColumns}
+      tableLayout={props.tableLayout}
+      tableMaxHeight={props.tableLayout === 'grid' ? 'fill' : undefined}
+      tableSettings={props.tableLayout === 'grid' ? DEVICES_TABLE_SETTINGS : undefined}
       hideFilters={props.hideFilters}
     />
   );

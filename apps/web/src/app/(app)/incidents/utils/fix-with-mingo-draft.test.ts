@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { InsightSeverity, InsightStatus, InsightType } from '@/generated/schema-enums';
-import { incidentMingoDraft } from './fix-with-mingo-draft';
+import { incidentMingoDraft, linkedInsightId } from './fix-with-mingo-draft';
 import type { IncidentRow } from './incident-transform';
 
 const incident: IncidentRow = {
@@ -22,9 +22,10 @@ const incident: IncidentRow = {
 };
 
 describe('incidentMingoDraft', () => {
-  it('turns the leading markers into labelled mentions and keeps the ask as text', () => {
+  it('turns the leading record links into labelled mentions and keeps the ask as text', () => {
     const draft = incidentMingoDraft(
-      '@insight:qa-insight-2 @device:m-1\n\nUsing the insight and device context, investigate this problem.',
+      '[this incident](record://insight/qa-insight-2) [this device](record://device/m-1)\n\n' +
+        'Using the insight and device context, investigate this problem.',
       incident,
     );
     expect(draft.mentions).toEqual([
@@ -34,22 +35,52 @@ describe('incidentMingoDraft', () => {
     expect(draft.text).toBe('Using the insight and device context, investigate this problem.');
   });
 
-  it('labels an unexpected id with the id itself and keeps an unknown marker in the text', () => {
-    const draft = incidentMingoDraft('@insight:other @widget:w-1 look', incident);
+  it('reads a leading link whose address is in angle brackets, the form the record-link grammar allows', () => {
+    const draft = incidentMingoDraft(
+      '[this incident](<record://insight/qa-insight-2>)\n\nInvestigate this problem.',
+      incident,
+    );
+    expect(draft.mentions).toEqual([{ type: 'INSIGHT', id: 'qa-insight-2', label: 'macOS firewall is off' }]);
+    expect(draft.text).toBe('Investigate this problem.');
+  });
+
+  it('leaves a link later in the prompt in the text: only what the prompt opens with is attached', () => {
+    const draft = incidentMingoDraft('Look at [this device](record://device/m-1) please.', incident);
+    expect(draft.mentions).toEqual([]);
+    expect(draft.text).toBe('Look at [this device](record://device/m-1) please.');
+  });
+
+  it('labels an unexpected id with the id itself and keeps a link of an unknown type in the text', () => {
+    const draft = incidentMingoDraft('[a](record://insight/other) [w](record://widget/w-1) look', incident);
     expect(draft.mentions).toEqual([{ type: 'INSIGHT', id: 'other', label: 'other' }]);
-    expect(draft.text).toBe('@widget:w-1 look');
+    expect(draft.text).toBe('[w](record://widget/w-1) look');
   });
 
-  it('reads the markers after an unknown one', () => {
-    const draft = incidentMingoDraft('@widget:w-1 @device:m-1 look', incident);
+  it('reads the links after an unknown one, the id decoded', () => {
+    const draft = incidentMingoDraft('[w](record://widget/w-1) [d](record://device/m%2D1) look', {
+      ...incident,
+      machineId: 'm-1',
+    });
     expect(draft.mentions).toEqual([{ type: 'DEVICE', id: 'm-1', label: 'MacBook-Pro-Kirill.local' }]);
-    expect(draft.text).toBe('@widget:w-1 look');
+    expect(draft.text).toBe('[w](record://widget/w-1) look');
   });
 
-  it('copes with a prompt that has no markers', () => {
+  it('copes with a prompt that has no record links', () => {
     expect(incidentMingoDraft('just text', incident)).toEqual({
       text: 'just text',
       mentions: [],
     });
+  });
+});
+
+describe('linkedInsightId', () => {
+  it('reads the incident a record link names', () => {
+    expect(linkedInsightId('[d](record://device/m-1) [this incident](record://insight/qa-insight-2) why?')).toBe(
+      'qa-insight-2',
+    );
+  });
+
+  it('finds none in a message that names no incident', () => {
+    expect(linkedInsightId('[d](record://device/m-1) why?')).toBeUndefined();
   });
 });

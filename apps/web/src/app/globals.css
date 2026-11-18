@@ -301,3 +301,48 @@ html[data-shell='mobile'] .fixed.bottom-0.left-0.right-0.z-50 {
     opacity: 0.9;
   }
 }
+
+/* Manhattan v2's centre (the lib's `AppLayoutWorkArea` row: the chat column, the page column and
+   the chat page in it) has one ground, Figma `backgrounds/openframe-background` (CU-17tkuw66n0u;
+   openframe---mingo 1388:119220, 1408:294255): the chat looks the same beside a page, over it and
+   on its own page. Set as `--color-bg`, so everything inside that paints `bg-ods-bg` (the column
+   grounds, the composer dock's ground and fade, the context strip, the squeeze shadows) follows;
+   the composer's input row keeps `bg-ods-card` (Figma chat/dock 1445:46644). TODO: a semantic
+   token in the lib once its ODS v2 backgrounds are synced. */
+[data-work-area] {
+  --color-bg: var(--ods-backgrounds-openframe-background);
+  background-color: var(--color-bg);
+}
+/* Manhattan v2 below `MANHATTAN_COMPACT_BELOW` (912px of window): a phone or the compact layout,
+   one column, where the centre never shows the split once hydrated (`workAreaModeOf`). It reads
+   the window only after hydration, so the server's markup (the first paint, the page's skeleton)
+   asked for the split on a page: an empty chat column, the divider and the page's border, then
+   the page alone. Hidden here from the first paint; the page column fills the row. */
+@media not all and (min-width: 912px) {
+  [data-work-area='split'] > [data-work-area-column='chat'],
+  [data-work-area='split'] > [data-work-area-column='chat'] + div {
+    display: none;
+  }
+  [data-work-area='split'] > [data-work-area-column='page'] {
+    border-left-width: 0;
+  }
+}
+/* The chat column the user closed on a two-column window, kept across a reload (CU-17tkuw66xzn). The server's markup
+   asks for the split; the `<head>` seed marks `<html>` (`manhattanChatClosedSeedScript`) and the page column fills the
+   row from the first paint. The centre removes the mark once its view holds `hidden`, so a chat opened afterwards
+   comes back beside the page. Below 912px (`MANHATTAN_COMPACT_BELOW`) the rule above already draws one column. */
+@media (min-width: 912px) {
+  html[data-manhattan-chat-closed] [data-work-area='split'] > [data-work-area-column='chat'],
+  html[data-manhattan-chat-closed] [data-work-area='split'] > [data-work-area-column='chat'] + div {
+    display: none;
+  }
+  html[data-manhattan-chat-closed] [data-work-area='split'] > [data-work-area-column='page'] {
+    border-left-width: 0;
+  }
+}
+/* The v2 `EmbeddableChat` marks its panel Mingo's surface (`data-surface="mingo"`, lib
+   embeddable-chat): with the thread portalled out, the panel is the composer, whose context
+   strip would keep Mingo's tint. Its ground is the centre's too; the edge light keeps its cyan. */
+[data-work-area] [data-surface='mingo'] {
+  --color-bg: var(--ods-backgrounds-openframe-background);
+}

@@ -1,15 +1,11 @@
+import type { DialogMessagesPage } from '@/lib/dialog-messages-page';
 import type { ChatType, DialogIntent, DialogModeValue } from '../constants';
-import type { CursorPageInfo, Dialog, Message, TicketActivityFilter } from '../types/dialog.types';
+import type { CursorPageInfo, Dialog, TicketActivityFilter } from '../types/dialog.types';
 
 export interface TicketsPage {
   dialogs: Dialog[];
   pageInfo: CursorPageInfo;
   filteredCount: number;
-}
-
-export interface MessagePage {
-  messages: Message[];
-  pageInfo: CursorPageInfo;
 }
 
 /**
@@ -93,8 +89,6 @@ export interface FetchMessagesParams {
   chatType: ChatType;
   cursor?: string;
   limit: number;
-  sortField?: string;
-  sortDirection?: 'ASC' | 'DESC';
 }
 
 export interface CreateDialogParams {
@@ -168,10 +162,10 @@ export interface TicketService {
   fetchBoardColumnByStatusId(params: FetchBoardColumnByStatusIdParams): Promise<TicketsPage>;
   fetchPendingApprovalTickets(params: FetchPendingApprovalTicketsParams): Promise<TicketsPage>;
   countPendingApprovalTickets(statusId: string): Promise<number>;
-  /** The first `limit` tickets of the given lanes that the end user escalated. */
-  fetchEscalatedTickets(params: FetchEscalatedTicketsParams): Promise<Dialog[]>;
+  /** The first `limit` tickets of the given lanes that the end user escalated, newest first, and how many there are. */
+  fetchEscalatedTickets(params: FetchEscalatedTicketsParams): Promise<{ tickets: Dialog[]; count: number }>;
   fetchDialog(id: string): Promise<Dialog | null>;
-  fetchMessages(params: FetchMessagesParams): Promise<MessagePage>;
+  fetchMessages(params: FetchMessagesParams): Promise<DialogMessagesPage>;
   transitionTicket(ticketId: string, toStatusId: string): Promise<void>;
   reorderTicket(params: ReorderTicketParams): Promise<void>;
   /** Resets the technicians' shared unread client-message counter of one dialog;

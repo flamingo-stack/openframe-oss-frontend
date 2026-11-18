@@ -1,13 +1,14 @@
 'use client';
 
 import { NotFoundError } from '@flamingo-stack/openframe-frontend-core';
+import { OPENFRAME_RECORD_KIND } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { softwareDetailContentQuery as SoftwareDetailContentQueryType } from '@/__generated__/softwareDetailContentQuery.graphql';
-import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
 import { useTrackOpenView } from '@/app/(app)/mingo/context/use-track-open-view';
 import { useRetryKey } from '@/app/components/shared';
+import { SoftwareAutoUpdateBanner } from './software-auto-update-banner';
 import { SoftwareDetailHeader } from './software-detail-header';
 import { SoftwareDetailSummary } from './software-detail-summary';
 
@@ -26,6 +27,7 @@ const softwareDetailContentQuery = graphql`
       # chosen by in the picker.
       name
       ...softwareDetailHeader_software
+      ...softwareAutoUpdateBanner_software
       ...softwareDetailSummary_software
     }
   }
@@ -76,13 +78,20 @@ function SoftwareDetailContentQuery({ softwareId }: { softwareId: string }) {
   // working context on the next message (cleared on unmount → recent views).
   // The route's id is the inventory's own, the one the mention carries.
   useTrackOpenView(
-    software ? { type: CONTEXT_ENTITY_KIND.SOFTWARE, id: softwareId, label: software.name || softwareId } : null,
+    software ? { type: OPENFRAME_RECORD_KIND.SOFTWARE, id: softwareId, label: software.name || softwareId } : null,
   );
 
   return (
     <>
       <SoftwareDetailHeader software={software} />
-      {software ? <SoftwareDetailSummary software={software} /> : <NotFoundError message="Software not found" />}
+      {software ? (
+        <div className="flex flex-col gap-[var(--spacing-system-l)]">
+          <SoftwareAutoUpdateBanner software={software} />
+          <SoftwareDetailSummary software={software} />
+        </div>
+      ) : (
+        <NotFoundError message="Software not found" />
+      )}
     </>
   );
 }

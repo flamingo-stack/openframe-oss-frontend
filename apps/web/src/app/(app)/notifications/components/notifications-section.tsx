@@ -23,6 +23,7 @@ import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { NotificationReadStatus } from '@/generated/schema-enums';
 import {
+  isReadStatus,
   mapNotificationNode,
   parseCreatedAt,
   readNotificationNode,
@@ -193,7 +194,7 @@ function SectionTableLive({
           title: stripNotificationMarkup(node.title),
           description: node.description == null ? null : stripNotificationMarkup(node.description),
           createdAt: parseCreatedAt(node.createdAt),
-          read: node.read,
+          read: isReadStatus(node.status),
           archived: node.status === NotificationReadStatus.ARCHIVED,
           notification: mapNotificationNode(node),
         };

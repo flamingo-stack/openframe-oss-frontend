@@ -569,7 +569,7 @@ export async function refreshTokens(observedEpoch?: number, options: RefreshOpti
 
 /**
  * Boolean form for callers that only need "can I retry?" (the MeshCentral socket
- * and the chat runtime adapter). Anything deciding whether to SIGN THE USER OUT
+ * and the embed auth adapter). Anything deciding whether to SIGN THE USER OUT
  * must use {@link refreshTokens}: `false` here conflates a dead session with a 502.
  */
 export async function refreshAccessToken(observedEpoch?: number): Promise<boolean> {

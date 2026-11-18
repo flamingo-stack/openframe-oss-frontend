@@ -126,6 +126,8 @@ export function TicketsFilterModal({
       isOpen={isOpen}
       onClose={onClose}
       title="Filter Tickets"
+      // A scrolling body: with the phone keyboard up the fields are taller than the room above it.
+      contentClassName="flex flex-col gap-[var(--spacing-system-l)]"
       footer={
         <>
           <Button variant="outline" className="h-11 flex-1" onClick={handleReset}>

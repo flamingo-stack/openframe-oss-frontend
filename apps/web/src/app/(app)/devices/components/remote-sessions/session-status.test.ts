@@ -10,6 +10,7 @@ import {
   isAwaitingRecording,
   isLiveRow,
   isRecordingGone,
+  openDisabledHint,
   sessionHref,
 } from './session-status';
 
@@ -130,5 +131,17 @@ describe('session row target', () => {
 
   it('opens nothing from a running session while Watch live is off', () => {
     expect(sessionHref(target(running), null)).toBeNull();
+  });
+
+  it('says why Open is off only for a session that recorded nothing, the one row that does not say it itself', () => {
+    const notRecorded = { recordingState: 'none', recordingId: null } as const;
+    expect(openDisabledHint(target(notRecorded), null)).toBe('This session has no recording');
+    expect(openDisabledHint(target({ ...notRecorded, live: true }), null)).toBe('This session has no recording');
+    // With Watch live on, a running session opens the live page, recorded or not.
+    expect(openDisabledHint(target({ ...notRecorded, live: true }), OWN)).toBeNull();
+    expect(openDisabledHint(target(), null)).toBeNull();
+    for (const recordingState of ['ready', 'processing', 'failed', 'expired', 'deleted'] as const) {
+      expect(openDisabledHint(target({ recordingState, recordingId: null }), null)).toBeNull();
+    }
   });
 });

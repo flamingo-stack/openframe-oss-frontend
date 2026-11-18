@@ -342,7 +342,10 @@ paint, so nothing waits for a flag and no page shows a loader on the way.
   context and uploads survive navigation. The chat page publishes a node (`useChatPageNodeStore`) and
   the dock portals the header and thread into it: `threadContainer` is that node or `null`, **never
   `undefined`** — that switches the chat back to its in-place layout and remounts the composer, draft
-  and all. Nothing above the dock may clip or transform it (its menus open upwards). A chat capability
+  and all. A new container is a new portal: the whole thread remounts and opens on its latest message.
+  So the Manhattan v2 shell on a desktop keeps the thread in its chat column on the chat page too (the
+  column takes the centre there once the page sets `threadReady`), and only a phone's chat page holds
+  it. Nothing above the dock may clip or transform it (its menus open upwards). A chat capability
   goes into `useOpenframeChatProps()` (`mingo-shell/use-openframe-chat-props.ts`). On a plain page the
   dock lies over the page's end (`dockViewOf(route).floats`): the page scrolls on under it and fades out to
   transparent over its height (the lib's shared preview fade, `previewFadeMask`, `FadePreview`'s mask), seen
@@ -388,7 +391,9 @@ paint, so nothing waits for a flag and no page shows a loader on the way.
   skeleton until the answer); "Start with Mingo" goes home, where the dock creates the
   tour's conversation and follows it. The dock runs `useMingoTour` UNDER
   `useComposerTarget`: its Getting Started block stays above the composer on every page
-  while the tour's chat is open, and a step chip opens its section with Mingo's answer in the
+  while the tour's chat is open, except on home with the sheet down (`followsToChatPage`: home
+  hands the chat to its page, and drawing the tall block there flashed it over Start Work for
+  the moment the chat page takes to load), and a step chip opens its section with Mingo's answer in the
   sheet over it (`onStepOpened`). "Reset Onboarding" is in the chat's ⋯; the dashboard shows the intro
   banner above its sections.
 - **New shell UI lives in `src/app/components/mingo-shell/`** (chrome, dock, sidebar rows and
@@ -554,8 +559,8 @@ cannot load, a picture loaded without the bearer in a native shell, or a fallbac
   `?v=<hash>` already: `getFullImageUrl(url)` with no hash. There is no hash-only helper: a hashed URL without its
   host is what drew initials on the tickets board. A Google SSO picture is an absolute third-party URL and passes
   through unchanged.
-- **The lib resolves on render too, as a net.** `resolveBackendImageUrl` is the chat runtime adapter's
-  `resolveAssetUrl` (`openframe-chat-runtime-provider.tsx`), and every lib picture passes its src through it. It is
+- **The lib resolves on render too, as a net.** `resolveBackendImageUrl` is the embed auth adapter's
+  `resolveAssetUrl` (`src/lib/embed-auth-adapter.ts`), and every lib picture passes its src through it. It is
   not the contract: a URL that is compared, stored or sent anywhere still goes through `getFullImageUrl`.
 - **Bearer mode (the shells, dev-ticket web)**: a gateway picture waits for the credential, is fetched with it and is
   drawn from a blob. A picture still waiting for its credential, or refused by an old one, is fetched again when the
@@ -1081,7 +1086,7 @@ The root layout (`src/app/layout.tsx`) establishes the global provider hierarchy
   </head>
   <body>
     <GoogleTagManager />             <!-- Analytics (if GTM ID set) -->
-    <EmbedShimRegistration />        <!-- registers Next router/Link/Image into core-lib embed-shims -->
+    <EmbedShimRegistration />        <!-- registers Next router/Link/Image into core-lib embed-shims, and the embed auth adapter -->
     <DeploymentInitializer />        <!-- Runtime detection -->
     <NativeShellInitializer />       <!-- Capacitor/Tauri shell bridge -->
     <RelayProvider>                  <!-- react-relay environment (singleton) -->

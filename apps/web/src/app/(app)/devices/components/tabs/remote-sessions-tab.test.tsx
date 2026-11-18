@@ -165,6 +165,20 @@ describe('RemoteSessionsTab rows', () => {
     expect(ROWS.map(del)).toEqual([true, false, true, false, true, true, false, true]);
   });
 
+  it('says on the Open of a session that recorded nothing why it is off, and on no other row', () => {
+    const hint = (row: RecordingSummary) => {
+      const wrapper = button(row, 'Open session recording')?.parentElement;
+      act(() => wrapper?.focus());
+      const text = document.querySelector('[role="tooltip"]')?.textContent ?? null;
+      act(() => wrapper?.blur());
+      return text;
+    };
+    const NO_RECORDING = 'This session has no recording';
+
+    expect(ROWS.map(hint)).toEqual([null, null, null, null, null, NO_RECORDING, NO_RECORDING, null]);
+    expect(button(NOT_RECORDED, 'Open session recording')?.disabled).toBe(true);
+  });
+
   it('dims the trash glyph of a row that cannot be deleted', () => {
     const glyph = (row: RecordingSummary) => button(row, 'Delete session')?.querySelector('svg')?.getAttribute('class');
     expect(glyph(READY)).toContain('text-ods-error');
@@ -230,6 +244,12 @@ describe('RemoteSessionsTab with Watch live on', () => {
       '/devices/details/live-session?id=colleague-live',
     );
     expect(button(READY, 'Open session recording')?.disabled).toBe(false);
+  });
+
+  it('gives a running session that is not recorded no hint: it opens the live page', () => {
+    const wrapper = button(LIVE, 'Watch live')?.parentElement;
+    act(() => wrapper?.focus());
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
   });
 
   it('shows no expiry on a running session, even one with a file already listed', () => {

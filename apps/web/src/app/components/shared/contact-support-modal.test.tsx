@@ -15,7 +15,6 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/tickets', () => ({
   useTicketActions: () => ({ submitTicket, isSubmittingForm: false }),
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({
-  CHAT_ATTACHMENT_MIME_TYPES: [],
   ChatAttachmentChipStrip: () => null,
   useChatAttachments: () => ({
     attachments: [],

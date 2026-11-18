@@ -34,6 +34,9 @@ lockfile without its `libc` fields.
   the mobile over-the-air bundle (`openframe-mobile-<x.y.z>.tar.xz` + signed `mobile.json`,
   `apps/mobile/docs/ota.md`); a push to `main` builds the `latest` image when the web side
   changed, and the desktop bundles as workflow artifacts (no release) when `apps/desktop` changed.
+  The static export is built once per run (`build_web_export`, on Linux, with no secrets): the
+  desktop legs embed it (`make build-staged`) and the OTA job packs it, so neither installs nor
+  builds `apps/web`.
   Installed desktop apps update through the tenant gateway, which serves the release that
   environment runs; `openframe-saas-desktop`, where the shell was released before, is legacy. The
   release builds no store binaries: the signed `.ipa`/`.aab` come from the

@@ -13,6 +13,9 @@ import { create } from 'zustand';
  *   loaded, so the dock may portal into `node`. Until then the page keeps its skeleton, and a
  *   cold open shows one skeleton and then the chat — not the page's skeleton, the chat's own,
  *   then the messages under a placeholder title.
+ *
+ * Manhattan v2 on a desktop: the dock portals into the chat column instead (`threadContainer`),
+ * which takes the centre once `threadReady` (`workAreaModeOf`).
  */
 interface ChatPageNodeStore {
   node: HTMLElement | null;

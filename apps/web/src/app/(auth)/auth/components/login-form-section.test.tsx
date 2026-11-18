@@ -98,7 +98,6 @@ describe('toLoginDiscoveryResult', () => {
         tenant_id: 't-1',
         tenant_name: 'Acme',
         domain: 'acme.openframe.ai',
-        auth_providers: ['microsoft', 'google', 'apple', 'openframe'],
         openframe_login_enabled: false,
         custom_providers: ['microsoft'],
       }),
@@ -132,21 +131,7 @@ describe('toLoginDiscoveryResult', () => {
         openframe_login_enabled: null,
         custom_providers: null,
       }),
-    ).toMatchObject({ found: false, tenant: null, customProviders: [] });
-  });
-
-  it("treats an older server's auth_providers as no custom SSO, since it mixes in the platform defaults", () => {
-    expect(
-      toLoginDiscoveryResult({
-        email: 'kate@acme.com',
-        has_existing_accounts: true,
-        auth_providers: ['google', 'microsoft', 'openframe-sso'],
-      }),
-    ).toEqual({ found: true, tenant: null, tenantName: undefined, openframe: true, customProviders: [] });
-    expect(
-      toLoginDiscoveryResult({ email: 'kate@acme.com', has_existing_accounts: true, auth_providers: ['google'] })
-        .openframe,
-    ).toBe(false);
+    ).toMatchObject({ found: false, tenant: null, openframe: false, customProviders: [] });
   });
 
   it("reads a 'localhost' domain as no host", () => {

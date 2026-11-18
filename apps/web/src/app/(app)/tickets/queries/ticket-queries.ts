@@ -459,21 +459,23 @@ export const GET_PENDING_APPROVAL_TICKETS_COUNT_QUERY = `
 `;
 
 /**
- * The tickets of the given lanes that the end user escalated, in the board's order: the
- * home's "Needs you" card reads the Tech Required lanes through it.
+ * The tickets of the given lanes that the end user escalated, newest first (by ticket number,
+ * the tickets table's own sort): the home's "Needs you" queue reads the Tech Required lanes
+ * through it and lists what is newest, so its first few must be the newest, not the top of a lane.
  */
 export const GET_ESCALATED_TICKETS_QUERY = `
   query GetEscalatedTickets($statusIds: [ID!]!, $limit: Int!) {
     tickets(
       filter: { statusIds: $statusIds, escalatedByUser: true }
       first: $limit
-      sort: { field: "order", direction: ASC }
+      sort: { field: "ticketNumber", direction: DESC }
     ) {
       edges {
         node {
           ...BoardCardTicket
         }
       }
+      filteredCount
     }
   }
   ${BOARD_CARD_TICKET_FRAGMENT}

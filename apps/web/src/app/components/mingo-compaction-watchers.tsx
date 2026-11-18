@@ -1,22 +1,15 @@
 'use client';
 
-import {
-  type ChunkData,
-  MESSAGE_TYPE,
-  maxPersistedStreamSeq,
-  useJetStreamDialogSubscription,
-} from '@flamingo-stack/openframe-frontend-core';
+import { type ChunkData, MESSAGE_TYPE, maxPersistedStreamSeq } from '@flamingo-stack/openframe-frontend-core';
+import { MINGO_COMPACT_DIALOG_MUTATION } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
-import { useNatsAppConfig } from '@/lib/nats/nats-app-config';
-import { CHAT_CHUNKS_STREAM, MINGO_JETSTREAM_TOPIC } from '../(app)/mingo/hooks/use-mingo-realtime-subscription';
-import { COMPACT_MINGO_DIALOG_MUTATION } from '../(app)/mingo/queries/dialogs-queries';
-import { fetchMingoDialogMessages } from '../(app)/mingo/queries/fetch-dialog-messages';
+import { fetchDialogMessagesPage } from '@/lib/dialog-messages-page';
+import { useAppLiveTail } from '@/lib/nats/use-app-live-tail';
 import { useMingoCompactionStore } from '../(app)/mingo/stores/mingo-compaction-store';
-import { useMingoMessagesStore } from '../(app)/mingo/stores/mingo-messages-store';
-import { mingoDialogQueryKeys } from '../(app)/mingo/utils/query-keys';
+import { mingoThreadStreamSeq } from '../(app)/mingo/stores/mingo-thread-store';
+import { CHAT_TYPE, NATS_TOPICS } from '../(app)/tickets/constants';
 import type { GraphQlResponse } from '../(app)/tickets/utils/graphql';
 
 // Nothing has been sent while the stream is not live, so this bound can be short.
@@ -42,7 +35,7 @@ interface CompactDialogPayload {
 
 async function requestCompaction(dialogId: string): Promise<CompactionRequestResult> {
   const response = await apiClient.post<GraphQlResponse<{ compactDialog: CompactDialogPayload }>>('/chat/graphql', {
-    query: COMPACT_MINGO_DIALOG_MUTATION,
+    query: MINGO_COMPACT_DIALOG_MUTATION,
     variables: { input: { id: dialogId } },
   });
   // No answer (timeout, dropped connection): the request may have reached the
@@ -77,18 +70,12 @@ const LATEST_MESSAGES_LIMIT = 10;
  * it.
  */
 async function latestStreamSeq(dialogId: string): Promise<number> {
-  const response = await fetchMingoDialogMessages({
-    dialogId,
-    limit: LATEST_MESSAGES_LIMIT,
-    sortField: 'createdAt',
-    sortDirection: 'DESC',
-  });
-  if (!response.ok || !response.data?.data?.messages) {
-    throw new Error(response.error || 'Failed to fetch messages');
-  }
-  const persisted = maxPersistedStreamSeq([{ messages: response.data.data.messages.edges.map(edge => edge.node) }]);
-  return Math.max(persisted, useMingoMessagesStore.getState().getHighestStreamSeq(dialogId));
+  const page = await fetchDialogMessagesPage({ dialogId, chatType: CHAT_TYPE.ADMIN, limit: LATEST_MESSAGES_LIMIT });
+  const persisted = maxPersistedStreamSeq([page]);
+  return Math.max(persisted, mingoThreadStreamSeq(dialogId));
 }
+
+const noop = () => {};
 
 const stringField = (value: unknown) => (typeof value === 'string' && value ? value : undefined);
 
@@ -116,8 +103,6 @@ const stringField = (value: unknown) => (typeof value === 'string' && value ? va
  */
 function CompactionWatcher({ dialogId }: { dialogId: string }) {
   const { toast, dismiss } = useToast();
-  const queryClient = useQueryClient();
-  const { getWsUrl, onBeforeReconnect } = useNatsAppConfig();
   const finishCompaction = useMingoCompactionStore(state => state.finishCompaction);
 
   // State drives the timer; the ref guards the request, which a second
@@ -166,16 +151,12 @@ function CompactionWatcher({ dialogId }: { dialogId: string }) {
     if (outcome?.kind === 'failed') {
       settleError(outcome.reason || COMPACTION_FAILED_MESSAGE);
     } else if (outcome?.kind === 'compacted') {
-      settle(() => {
-        // A dialog compacted from the list without being open has no live tail
-        // writing the compaction into its cached history.
-        void queryClient.invalidateQueries({ queryKey: mingoDialogQueryKeys.messages(dialogId) });
-        toast({ title: 'Chat memory compacted', variant: 'success' });
-      });
+      // A dialog compacted without being open reads its compacted history when it is next opened.
+      settle(() => toast({ title: 'Chat memory compacted', variant: 'success' }));
     } else {
       settleError(COMPACTION_FAILED_MESSAGE);
     }
-  }, [dialogId, queryClient, settle, settleError, toast]);
+  }, [settle, settleError, toast]);
 
   // Created a tick late: the Toaster adds a toast on a deferred tick, so a
   // dismiss issued in the same tick as the create (StrictMode's throwaway mount)
@@ -249,16 +230,15 @@ function CompactionWatcher({ dialogId }: { dialogId: string }) {
     [settleTurnEnd],
   );
 
-  useJetStreamDialogSubscription({
-    enabled: startSeq !== undefined,
+  // The lib's JetStream tail, as the chat's own: it opens once the start sequence is known.
+  useAppLiveTail(NATS_TOPICS.ADMIN_MESSAGE, {
+    enabled: true,
     dialogId,
-    streamName: CHAT_CHUNKS_STREAM,
-    topic: MINGO_JETSTREAM_TOPIC,
-    optStartSeq: startSeq ?? null,
+    fromSeq: startSeq,
     onEvent: handleEvent,
+    onConnect: noop,
+    onResync: noop,
     onSubscribed: handleSubscribed,
-    onBeforeReconnect,
-    getNatsWsUrl: getWsUrl,
   });
 
   return null;

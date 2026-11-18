@@ -122,7 +122,6 @@ function row(id: string, attributes: Record<string, string>) {
     title: id,
     description: null,
     createdAt: asInstant('2026-11-01T10:00:00Z'),
-    read: false,
     status: 'UNREAD',
     category: 'TICKETS',
     type: 'TICKET_ASSIGNED',

@@ -3,7 +3,7 @@ import {
   DEFAULT_SOFTWARE_UPDATE_SETTINGS,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { describe, expect, it } from 'vitest';
-import { toUpdateSettingsInputs } from './update-settings-input';
+import { fromPolicySettings, toPolicyInput, toUpdateSettingsInputs } from './update-settings-input';
 
 const DAY = 86_400;
 
@@ -45,5 +45,32 @@ describe('toUpdateSettingsInputs', () => {
       enabled: false,
       settings: null,
     });
+  });
+});
+
+describe('fromPolicySettings', () => {
+  it('reads a saved policy back as the fields draw it, and round-trips through the input', () => {
+    const saved = { mode: 'WAIT', deadlineSeconds: 3 * DAY, countdownSeconds: 900 };
+    const policy = fromPolicySettings(saved, DEFAULT_SOFTWARE_UPDATE_POLICY);
+    expect(policy).toEqual({ mode: 'WAIT', deadlineEnabled: true, deadlineSeconds: 3 * DAY, countdownSeconds: 900 });
+    expect(toPolicyInput(policy)).toEqual(saved);
+  });
+
+  it('a wait without a deadline is "Update when app closes", keeping the fallback deadline for a later pick', () => {
+    expect(
+      fromPolicySettings(
+        { mode: 'WAIT', deadlineSeconds: null, countdownSeconds: 300 },
+        DEFAULT_SOFTWARE_UPDATE_POLICY,
+      ),
+    ).toEqual({ mode: 'WAIT', deadlineEnabled: false, deadlineSeconds: 7 * DAY, countdownSeconds: 300 });
+  });
+
+  it('a forced update has no deadline', () => {
+    expect(
+      fromPolicySettings(
+        { mode: 'FORCE', deadlineSeconds: null, countdownSeconds: 60 },
+        DEFAULT_SOFTWARE_UPDATE_POLICY,
+      ),
+    ).toMatchObject({ mode: 'FORCE', deadlineEnabled: false, countdownSeconds: 60 });
   });
 });

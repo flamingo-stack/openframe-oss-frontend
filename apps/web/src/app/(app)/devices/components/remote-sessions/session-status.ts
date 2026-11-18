@@ -28,6 +28,18 @@ export function sessionHref(row: SessionRow & Pick<RecordingSummary, 'id'>, live
   return row.recordingId && canOpenSession(row) ? routes.devices.remoteSessionRecording(row.recordingId) : null;
 }
 
+/**
+ * Why a row's Open is off, where nothing else in the row says it: a session that recorded nothing has no tag and no
+ * expiry. A processing, failed, expired or deleted row reads its state already, and gets no hint.
+ */
+export function openDisabledHint(
+  row: SessionRow & Pick<RecordingSummary, 'id'>,
+  liveRows: LiveRows | null,
+): string | null {
+  if (row.recordingState !== 'none' || sessionHref(row, liveRows) !== null) return null;
+  return 'This session has no recording';
+}
+
 /** The EXPIRES column's filter values (Figma 1695-88210). */
 export type ExpiresFilterValue = 'kept' | 'expiring' | 'expired';
 

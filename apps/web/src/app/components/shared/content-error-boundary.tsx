@@ -143,7 +143,7 @@ function isControlFlowError(error: unknown): boolean {
  * dependency. Next's `error.tsx` files look like function components only
  * because Next wraps them in its own class boundary. Every other boundary here
  * is a class for the same reason — `mingo-dock-error-boundary.tsx`,
- * `log-drawer-details.tsx`, `mention-tag.tsx`.
+ * `log-drawer-details.tsx`.
  */
 export class ContentErrorBoundary extends Component<ContentErrorBoundaryProps, ContentErrorBoundaryState> {
   // The enclosing boundary's key: one recovering in this same render has not committed it yet.

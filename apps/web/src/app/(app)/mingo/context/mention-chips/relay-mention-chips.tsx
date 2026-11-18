@@ -1,12 +1,18 @@
 'use client';
+
+import {
+  OPENFRAME_RECORD_KIND,
+  OPENFRAME_RECORD_TYPE,
+  type OpenFrameRecordKind,
+} from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
-import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { RecordChip } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { ErrorBoundary, getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 /**
- * Self-fetching mention chips for the GraphQL-resolvable entity types (device,
- * organization, kb article) — the `@marker:id` analogue of `[card://]` entity
- * cards. Each suspends on first fetch (→ skeleton), reads from the Relay store
+ * Self-fetching record-link chips for the GraphQL-resolvable entity types
+ * (device, organization, kb article). Each suspends on first fetch (→ skeleton), reads from the Relay store
  * on streaming remounts (`store-or-network`, no flash), and falls back to a
  * plain id chip on error / unresolved name.
  *
@@ -45,17 +51,15 @@ import type { relayMentionChipsSoftwareQuery } from '@/__generated__/relayMentio
 import { toUserSummary } from '@/graphql/users/user-summary-fields';
 import { ensureGlobalIdForType } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
-import { CONTEXT_ENTITY_KIND, CONTEXT_RELAY_TYPENAME, type ContextEntityKind } from '../context-types';
-import { MentionErrorBoundary, MentionTag } from './mention-tag';
+import { CONTEXT_RELAY_TYPENAME } from '../context-types';
 
 interface GraphqlMentionChipProps {
   /** GraphQL-resolvable kind — DEVICE | ORGANIZATION | USER | KB_ARTICLE | KB_FOLDER |
    *  SCRIPT | SCHEDULED_SCRIPT | INSIGHT | SOFTWARE. */
-  kind: ContextEntityKind;
+  kind: OpenFrameRecordKind;
   /** RAW db id (machineId / organizationId / kb id / script id / schedule id /
    *  software id). */
   id: string;
-  icon?: ReactNode;
   /** Known display name (e.g. a context item's picked label). Shown instead of
    *  the bare `id` when the live fetch can't resolve a name. */
   fallbackLabel?: string;
@@ -136,34 +140,49 @@ const SOFTWARE_QUERY = graphql`
 /** Detail-page URL for a resolved entity. Device/org/software routes key on the
  *  RAW id; the kb + script + schedule + incident routes key on the GLOBAL id
  *  (same id their queries take). */
-function hrefFor(kind: ContextEntityKind, rawId: string, globalId: string): string | undefined {
+function hrefFor(kind: OpenFrameRecordKind, rawId: string, globalId: string): string | null {
   switch (kind) {
-    case CONTEXT_ENTITY_KIND.DEVICE:
+    case OPENFRAME_RECORD_KIND.DEVICE:
       return routes.devices.details(rawId);
-    case CONTEXT_ENTITY_KIND.ORGANIZATION:
+    case OPENFRAME_RECORD_KIND.ORGANIZATION:
       return routes.customers.details(rawId);
-    case CONTEXT_ENTITY_KIND.SOFTWARE:
+    case OPENFRAME_RECORD_KIND.SOFTWARE:
       return routes.software.details(rawId);
-    case CONTEXT_ENTITY_KIND.USER:
+    case OPENFRAME_RECORD_KIND.USER:
       return routes.settings.employeeDetails(rawId);
-    case CONTEXT_ENTITY_KIND.KB_ARTICLE:
+    case OPENFRAME_RECORD_KIND.KB_ARTICLE:
       return routes.knowledgeBase.details(globalId);
-    case CONTEXT_ENTITY_KIND.KB_FOLDER:
+    case OPENFRAME_RECORD_KIND.KB_FOLDER:
       return routes.knowledgeBase.folder(globalId);
-    case CONTEXT_ENTITY_KIND.SCRIPT:
+    case OPENFRAME_RECORD_KIND.SCRIPT:
       return routes.scripts.details(globalId);
-    case CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT:
+    case OPENFRAME_RECORD_KIND.SCHEDULED_SCRIPT:
       return routes.scripts.schedules.details(globalId);
-    case CONTEXT_ENTITY_KIND.INSIGHT:
+    case OPENFRAME_RECORD_KIND.INSIGHT:
       return routes.incidents.details(globalId);
     default:
-      return undefined;
+      return null;
   }
+}
+
+/** The chip of one record of `kind`: the lib's `RecordChip`, opening the record on this app's own page for it. */
+function KindChip({
+  kind,
+  id,
+  globalId,
+  label,
+}: {
+  kind: OpenFrameRecordKind;
+  id: string;
+  globalId: string;
+  label: string;
+}) {
+  return <RecordChip type={OPENFRAME_RECORD_TYPE[kind]} id={id} label={label} href={hrefFor(kind, id, globalId)} />;
 }
 
 type InnerProps = GraphqlMentionChipProps & { globalId: string };
 
-function NodeInner({ kind, id, icon, globalId, fallbackLabel }: InnerProps) {
+function NodeInner({ kind, id, globalId, fallbackLabel }: InnerProps) {
   const data = useLazyLoadQuery<relayMentionChipsNodeQuery>(
     NODE_QUERY,
     { id: globalId },
@@ -186,92 +205,78 @@ function NodeInner({ kind, id, icon, globalId, fallbackLabel }: InnerProps) {
         break;
     }
   }
-  return <MentionTag icon={icon} label={label} href={hrefFor(kind, id, globalId)} />;
+  return <KindChip kind={kind} id={id} globalId={globalId} label={label} />;
 }
 
-function KbInner({ kind, id, icon, globalId, fallbackLabel }: InnerProps) {
+function KbInner({ kind, id, globalId, fallbackLabel }: InnerProps) {
   const data = useLazyLoadQuery<relayMentionChipsKbQuery>(
     KB_QUERY,
     { id: globalId },
     { fetchPolicy: 'store-or-network' },
   );
   return (
-    <MentionTag
-      icon={icon}
-      label={data.knowledgeBaseItem?.name || fallbackLabel || id}
-      href={hrefFor(kind, id, globalId)}
-    />
+    <KindChip kind={kind} id={id} globalId={globalId} label={data.knowledgeBaseItem?.name || fallbackLabel || id} />
   );
 }
 
-function ScriptInner({ kind, id, icon, globalId, fallbackLabel }: InnerProps) {
+function ScriptInner({ kind, id, globalId, fallbackLabel }: InnerProps) {
   const data = useLazyLoadQuery<relayMentionChipsScriptQuery>(
     SCRIPT_QUERY,
     { id: globalId },
     { fetchPolicy: 'store-or-network' },
   );
-  return <MentionTag icon={icon} label={data.script?.name || fallbackLabel || id} href={hrefFor(kind, id, globalId)} />;
+  return <KindChip kind={kind} id={id} globalId={globalId} label={data.script?.name || fallbackLabel || id} />;
 }
 
-function ScheduleInner({ kind, id, icon, globalId, fallbackLabel }: InnerProps) {
+function ScheduleInner({ kind, id, globalId, fallbackLabel }: InnerProps) {
   const data = useLazyLoadQuery<relayMentionChipsScheduleQuery>(
     SCHEDULE_QUERY,
     { id: globalId },
     { fetchPolicy: 'store-or-network' },
   );
-  return (
-    <MentionTag
-      icon={icon}
-      label={data.scriptSchedule?.name || fallbackLabel || id}
-      href={hrefFor(kind, id, globalId)}
-    />
-  );
+  return <KindChip kind={kind} id={id} globalId={globalId} label={data.scriptSchedule?.name || fallbackLabel || id} />;
 }
 
-function InsightInner({ kind, id, icon, globalId, fallbackLabel }: InnerProps) {
+function InsightInner({ kind, id, globalId, fallbackLabel }: InnerProps) {
   const data = useLazyLoadQuery<relayMentionChipsInsightQuery>(
     INSIGHT_QUERY,
     { id: globalId },
     { fetchPolicy: 'store-or-network' },
   );
-  return (
-    <MentionTag icon={icon} label={data.insight.title || fallbackLabel || id} href={hrefFor(kind, id, globalId)} />
-  );
+  return <KindChip kind={kind} id={id} globalId={globalId} label={data.insight.title || fallbackLabel || id} />;
 }
 
-function SoftwareInner({ kind, id, icon, globalId, fallbackLabel }: InnerProps) {
+function SoftwareInner({ kind, id, globalId, fallbackLabel }: InnerProps) {
   const data = useLazyLoadQuery<relayMentionChipsSoftwareQuery>(
     SOFTWARE_QUERY,
     { id: globalId },
     { fetchPolicy: 'store-or-network' },
   );
-  return (
-    <MentionTag icon={icon} label={data.software?.name || fallbackLabel || id} href={hrefFor(kind, id, globalId)} />
-  );
+  return <KindChip kind={kind} id={id} globalId={globalId} label={data.software?.name || fallbackLabel || id} />;
 }
 
-function innerFor(kind: ContextEntityKind): (p: InnerProps) => ReactNode {
+function innerFor(kind: OpenFrameRecordKind): (p: InnerProps) => ReactNode {
   switch (kind) {
-    case CONTEXT_ENTITY_KIND.KB_ARTICLE:
-    case CONTEXT_ENTITY_KIND.KB_FOLDER:
+    case OPENFRAME_RECORD_KIND.KB_ARTICLE:
+    case OPENFRAME_RECORD_KIND.KB_FOLDER:
       return KbInner;
-    case CONTEXT_ENTITY_KIND.SCRIPT:
+    case OPENFRAME_RECORD_KIND.SCRIPT:
       return ScriptInner;
-    case CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT:
+    case OPENFRAME_RECORD_KIND.SCHEDULED_SCRIPT:
       return ScheduleInner;
-    case CONTEXT_ENTITY_KIND.INSIGHT:
+    case OPENFRAME_RECORD_KIND.INSIGHT:
       return InsightInner;
-    case CONTEXT_ENTITY_KIND.SOFTWARE:
+    case OPENFRAME_RECORD_KIND.SOFTWARE:
       return SoftwareInner;
     default:
       return NodeInner;
   }
 }
 
-export function GraphqlMentionChip({ kind, id, icon, fallbackLabel }: GraphqlMentionChipProps) {
+export function GraphqlMentionChip({ kind, id, fallbackLabel }: GraphqlMentionChipProps) {
   const typename = CONTEXT_RELAY_TYPENAME[kind];
   // `id` may be a RAW db id (context item) OR an already-global id (an inline
-  // `@kb:<globalId>` mention, since KB's idHint == the node id). `ensure…`
+  // `record://kb/<globalId>` link, since KB's idHint == the node id). `ensure…`
   // encodes the former and passes the latter through unchanged — no double-encode.
   // `toGlobalId` emits the backend's unpadded form, so this global id is URL-safe
   // for the kb/script detail hrefs (`/scripts/details/<globalId>`). A kind with
@@ -279,11 +284,9 @@ export function GraphqlMentionChip({ kind, id, icon, fallbackLabel }: GraphqlMen
   // takes, so it goes through as is.
   const globalId = typename ? ensureGlobalIdForType(typename, id) : id;
   return (
-    <MentionErrorBoundary
-      fallback={<MentionTag icon={icon} label={fallbackLabel || id} href={hrefFor(kind, id, globalId)} />}
-    >
-      <GraphqlMentionLoader kind={kind} id={id} icon={icon} globalId={globalId} fallbackLabel={fallbackLabel} />
-    </MentionErrorBoundary>
+    <ErrorBoundary fallback={<KindChip kind={kind} id={id} globalId={globalId} label={fallbackLabel || id} />}>
+      <GraphqlMentionLoader kind={kind} id={id} globalId={globalId} fallbackLabel={fallbackLabel} />
+    </ErrorBoundary>
   );
 }
 
@@ -303,7 +306,7 @@ function GraphqlMentionLoader(props: InnerProps) {
 
 function GraphqlMentionReader(props: InnerProps) {
   // In a loading scope it draws the chip with no label and runs no read.
-  if (useLoadingScope()) return <MentionTag icon={props.icon} label="" />;
+  if (useLoadingScope()) return <RecordChip type={OPENFRAME_RECORD_TYPE[props.kind]} id={props.id} label="" loading />;
   const Inner = innerFor(props.kind);
   return <Inner {...props} />;
 }

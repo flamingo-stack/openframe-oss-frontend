@@ -1,7 +1,7 @@
 /**
  * The Manhattan v2 shell's left sidebar user row: the footer keeps the account, the one
- * time tracker, the bell and adds the collapse button, laid out as a row expanded and a
- * column in the rail.
+ * time tracker, the bell, the support-ticket alerts and adds the collapse button, laid out
+ * as a row expanded and a column in the rail.
  */
 
 import { act } from 'react';
@@ -10,7 +10,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ManhattanChatsFooter } from './manhattan-chats-sidebar';
 
 const { seen } = vi.hoisted(() => ({
-  seen: { tracker: 0, bell: 0, account: [] as Array<Record<string, unknown>> },
+  seen: {
+    tracker: 0,
+    bell: 0,
+    alerts: [] as Array<Record<string, unknown>>,
+    account: [] as Array<Record<string, unknown>>,
+  },
 }));
 
 vi.mock('@flamingo-stack/openframe-frontend-core/components/features', () => ({
@@ -25,6 +30,10 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/navigation', () => (
     seen.bell += 1;
     return <span data-cell="bell" />;
   },
+  TicketAlertsButton: (props: Record<string, unknown>) => {
+    seen.alerts.push(props);
+    return <span data-cell="alerts" />;
+  },
 }));
 vi.mock('@/app/components/mingo-shell/mingo-account-popover', () => ({
   MingoAccountPopover: (props: Record<string, unknown>) => {
@@ -33,10 +42,6 @@ vi.mock('@/app/components/mingo-shell/mingo-account-popover', () => ({
   },
 }));
 vi.mock('@/app/components/mingo-shell/mingo-sidebar-history', () => ({ MingoSidebarHistory: () => null }));
-// The "New Chat" row's count reads the Relay-backed "Needs you" sources: not what this file tests.
-vi.mock('@/app/(app)/mingo/home/needs-you/needs-you-card', () => ({
-  useNeedsYouCount: () => ({ count: 0, sources: null }),
-}));
 vi.mock('@/app/components/subscription-lock/subscription-guard', () => ({ useSubscriptionOpen: () => true }));
 
 let container: HTMLDivElement;
@@ -48,6 +53,7 @@ beforeEach(() => {
   root = createRoot(container);
   seen.tracker = 0;
   seen.bell = 0;
+  seen.alerts = [];
   seen.account = [];
 });
 
@@ -97,6 +103,13 @@ describe('ManhattanChatsFooter', () => {
     expect(seen.account.at(-1)).toMatchObject({ avatarOnly: true, logoutOnly: true });
   });
 
+  it('sets the support-ticket alerts beside the bell, opening the Help Center tickets', () => {
+    render();
+    const group = container.querySelector('[data-cell="account"]')?.parentElement?.parentElement;
+    expect(group?.contains(container.querySelector('[data-cell="alerts"]'))).toBe(true);
+    expect(seen.alerts.at(-1)).toMatchObject({ variant: 'compact', href: '/help-center/tickets', disabled: false });
+  });
+
   it('expands from the rail', () => {
     render({ minimized: true });
     expect(collapseButton()?.getAttribute('aria-label')).toBe('Show chats');
@@ -109,11 +122,13 @@ describe('ManhattanChatsFooter', () => {
     expect(seen.tracker).toBe(0);
     render({ inDrawer: true });
     expect(seen.tracker).toBe(0);
+    expect(seen.alerts).toHaveLength(0);
     expect(collapseButton()).toBeNull();
   });
 
   it('hands the lock to the account (Log out only)', () => {
     render({ locked: true });
     expect(seen.account.at(-1)).toMatchObject({ locked: true });
+    expect(seen.alerts.at(-1)).toMatchObject({ disabled: true });
   });
 });

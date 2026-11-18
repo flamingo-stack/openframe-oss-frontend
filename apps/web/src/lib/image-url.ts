@@ -35,8 +35,8 @@ function appendImageHash(imageUrl: string, hash?: string | null): string {
 const BACKEND_IMAGE_PATH = /^\/(?:api\/)?(?:images|knowledge-base\/images)\//;
 
 /**
- * Where a backend image path is served. Every picture the core lib draws passes through this first (the chat
- * runtime's auth adapter registers it as `resolveAssetUrl`), so a value that reached a picture without
+ * Where a backend image path is served. Every picture the core lib draws passes through this first (the embed
+ * auth adapter, `embed-auth-adapter.ts`, registers it as `resolveAssetUrl`), so a value that reached a picture without
  * `getFullImageUrl` still draws. Leaves every other URL as it is: absolute, `data:` / `blob:`, the bundle's
  * own files. Idempotent.
  */

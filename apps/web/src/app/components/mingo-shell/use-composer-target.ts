@@ -30,16 +30,17 @@ import type { ComposerRoute } from './mingo-dock-route';
  * - **A phone opens the chat on its page** wherever the sheet would rise: there a chat
  *   takes the screen, and only its page is the full chat.
  *
- * `EmbeddableChat.onDialogCreated` is not used: it reports only the panel's own
- * sends, and the host-side ones (home chips, launcher prompts) need this
- * selection-based follow anyway — two mechanisms would navigate twice for one send.
+ * The panel's own sends reach this through `EmbeddableChat.onMessageSent` (`onMessageSent` below), as they go out:
+ * the dialog they go into, or none when they create one. `onDialogCreated` is not used: the host-side sends (home
+ * chips, launcher prompts) need this selection-based follow anyway, and two mechanisms would navigate twice for one
+ * send.
  */
 interface ComposerTargetOptions {
   route: ComposerRoute;
   state: UnifiedChatState;
-  /** The session's always-new send (`MingoChatState.sendInNewDialog`). */
-  sendInNewDialog: (text: string) => Promise<void>;
-  /** A new chat created to make one entity (`MingoChatState.createIntentDialog`). */
+  /** A new chat sent `text` at once (`UnifiedChatState.startNewDialog({ prompt })`). */
+  sendInNewDialog: (text: string) => Promise<string | null>;
+  /** A new chat created to make one entity (`UnifiedChatState.startNewDialog({ intent })`). */
   createIntentDialog: (intent: DialogIntent) => Promise<string | null>;
   navigate: (href: string) => void;
   /** Raise the chat over the page (`useMingoSheetStore.show`). */
@@ -51,10 +52,10 @@ interface ComposerTargetOptions {
 }
 
 interface ComposerTarget {
-  /** `state` whose send, when no chat is open, follows the chat it creates. Hand it to `EmbeddableChat`. */
-  mingoState: UnifiedChatState;
+  /** A send from the panel went out (`EmbeddableChat.onMessageSent`): the chat it goes into, or null for a new one. */
+  onMessageSent: (send: { dialogId: string | null }) => void;
   /** `sendInNewDialog` that follows the chat it creates. */
-  sendInNewDialog: (text: string) => Promise<void>;
+  sendInNewDialog: (text: string) => Promise<string | null>;
   /** `createIntentDialog` that follows the chat it creates. */
   createIntentDialog: (intent: DialogIntent) => Promise<string | null>;
 }
@@ -68,9 +69,31 @@ function openChat(
   else openSheet();
 }
 
-/** A send that will create a chat; `from` is the chat open when it started. */
+/**
+ * Whether a chat that becomes active on `route` without a send leaves for its own page
+ * (`routes.mingo.chat(id)`) instead of showing where it is: Mingo's home with the sheet down.
+ * The Getting Started tour's chat is the one this happens to (the dock creates it on home),
+ * and the dock keeps the tour's block off home on the same rule, so home does not draw the
+ * block for the moment it takes the chat page to replace it. In v2 the sheet is never up on
+ * home (its work area is the page alone), so there this is every visit to home.
+ *
+ * The other way home hands a chat to its page is a send that creates one, through
+ * `openChat` with `phone` (the dock sets it on v2's home): this rule does not read `phone`,
+ * so a change to it there must keep both in step.
+ */
+export function followsToChatPage(route: ComposerRoute, sheetOpen: boolean): boolean {
+  return route === 'home' && !sheetOpen;
+}
+
+/**
+ * A send that will create a chat; `from` is the chat open when it started. A panel send (`settlesWithCreate`) is told
+ * only that it went out, so it ends when the engine's create does (`isDialogsLoading` rises and falls): `creating` is
+ * set once it has risen.
+ */
 interface PendingFollow {
   from: string | null;
+  settlesWithCreate?: boolean;
+  creating?: boolean;
 }
 
 export function useComposerTarget({
@@ -84,7 +107,7 @@ export function useComposerTarget({
   phone = false,
 }: ComposerTargetOptions): ComposerTarget {
   const activeDialogId = state.activeDialogId ?? null;
-  const { selectDialog } = state;
+  const { selectDialog, isDialogsLoading } = state;
 
   // Home: a new chat, once each time it shows with the sheet down — on entering it,
   // and on closing the sheet over it. The chat in the sheet stays open until then.
@@ -112,8 +135,17 @@ export function useComposerTarget({
     // The chat page follows its selection itself (`use-chat-page-selection.ts`).
     if (route === 'chat') return;
     if (created) openChat(activeDialogId, { phone, navigate, openSheet });
-    else if (route === 'home' && !sheetOpen) navigate(routes.mingo.chat(activeDialogId));
+    else if (followsToChatPage(route, sheetOpen)) navigate(routes.mingo.chat(activeDialogId));
   }, [activeDialogId, route, sheetOpen, phone, navigate, openSheet]);
+
+  // A panel send that created nothing (the create failed) disarms once the engine's create is over, so a later
+  // selection is not taken for its chat. One that created it was followed by the effect above, in the same commit.
+  useEffect(() => {
+    const follow = followRef.current;
+    if (!follow?.settlesWithCreate) return;
+    if (isDialogsLoading) follow.creating = true;
+    else if (follow.creating && committedIdRef.current === follow.from) followRef.current = null;
+  }, [isDialogsLoading]);
 
   // Wraps a send that may create a chat. A send that ends with no new chat (the
   // create failed) disarms, so a later selection is not taken for its chat. One
@@ -121,8 +153,7 @@ export function useComposerTarget({
   // the send itself returns.
   //
   // `catch` + rethrow, not `finally`: the React Compiler cannot lower a `try` without
-  // a `catch`, and skipped this whole hook over it, so `mingoState` was new on every
-  // render of the dock.
+  // a `catch`, and skipped this whole hook over it.
   const following = async <T>(send: () => Promise<T>): Promise<T> => {
     const follow: PendingFollow = { from: committedIdRef.current };
     followRef.current = follow;
@@ -139,19 +170,17 @@ export function useComposerTarget({
     }
   };
 
-  const mingoState: UnifiedChatState = {
-    ...state,
-    sendMessage: (text, options) => {
-      const open = state.activeDialogId;
-      if (!open) return following(() => state.sendMessage(text, options));
-      // The reply streams into the thread: over the page, or on the chat's own page.
-      if (route !== 'chat') openChat(open, { phone, navigate, openSheet });
-      return state.sendMessage(text, options);
-    },
+  const onMessageSent = ({ dialogId }: { dialogId: string | null }) => {
+    if (dialogId === null) {
+      followRef.current = { from: committedIdRef.current, settlesWithCreate: true, creating: isDialogsLoading };
+      return;
+    }
+    // The reply streams into the thread: over the page, or on the chat's own page.
+    if (route !== 'chat') openChat(dialogId, { phone, navigate, openSheet });
   };
 
   return {
-    mingoState,
+    onMessageSent,
     sendInNewDialog: text => following(() => sendInNewDialog(text)),
     createIntentDialog: intent => following(() => createIntentDialog(intent)),
   };

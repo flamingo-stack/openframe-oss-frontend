@@ -50,8 +50,29 @@ function defaultRedirect(): string {
   return '/auth';
 }
 
+/**
+ * A SaaS tenant's shell (Manhattan v2) has no dashboard: `app/(app)/dashboard/page.tsx`
+ * sends `/dashboard` to Start Work, but only in the browser, after the page has drawn the
+ * old dashboard's skeleton and an empty page. Sent here first, a load of `/dashboard` (a
+ * bookmark, a reload, an old link) lands on Start Work without drawing a page it leaves.
+ * The client redirect stays for what this does not see (the native shells' static export,
+ * a navigation inside the app).
+ */
+function shellRedirect(pathname: string): string | null {
+  if (getMode() !== 'saas-tenant') return null;
+  return pathname === '/dashboard' || pathname === '/dashboard/' ? '/mingo' : null;
+}
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  const shellTarget = shellRedirect(pathname);
+  if (shellTarget) {
+    // The query string rides along, as below.
+    const url = request.nextUrl.clone();
+    url.pathname = shellTarget;
+    return NextResponse.redirect(url);
+  }
 
   if (!isAllowed(pathname)) {
     // clone() carries the query string over and only `pathname` is reassigned — deliberately.

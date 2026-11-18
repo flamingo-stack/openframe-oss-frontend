@@ -13,6 +13,7 @@ import { NotificationReadStatus } from '@/generated/schema-enums';
 import { createConnection, makeOfflineEnvironment, nodeIds } from './__tests__/store-fixtures';
 import { getLiveConnectionPairs, registerLiveConnectionPairs } from './live-connection-pairs';
 import {
+  isReadStatus,
   makeDeleteNotificationUpdater,
   makeMarkAllReadUpdater,
   makeMarkReadUpdater,
@@ -99,12 +100,8 @@ function statusOf(environment: Environment, id: string): NotificationReadStatus 
   return status;
 }
 
-function isRead(environment: Environment, id: string): boolean | undefined {
-  let read: boolean | undefined;
-  update(environment, store => {
-    read = store.get(id)?.getValue('read') as boolean | undefined;
-  });
-  return read;
+function isRead(environment: Environment, id: string): boolean {
+  return isReadStatus(statusOf(environment, id));
 }
 
 describe('a READ event', () => {

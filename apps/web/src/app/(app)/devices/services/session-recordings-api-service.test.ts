@@ -389,7 +389,6 @@ describe('SessionRecordingsApiService', () => {
         { id: 'm1', author: 'technician', authorName: 'Roman Smith', sentAt: '2026-09-25T10:50:00Z', body: 'Hi' },
         { id: 'm2', author: 'user', authorName: 'User', sentAt: '2026-09-25T10:50:10Z', body: 'Hello' },
       ],
-      lastSeq: 0,
     });
 
     const detail = await service.get('rec-2');

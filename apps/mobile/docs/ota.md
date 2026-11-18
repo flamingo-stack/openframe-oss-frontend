@@ -15,13 +15,13 @@ Every release dispatch of `.github/workflows/release.yml` attaches two files to 
 | `openframe-mobile-<x.y.z>.tar.xz` | The web static export as a ustar archive in one xz stream, with no `window.__ENV` in it. One bundle for every environment: a phone copies the `window.__ENV` script of its own built-in bundle into it, so each app keeps its shared host and dev-ticket setting. The committed `apps/web/.env.local` still loads at build time, as for the desktop and store bundles; the app reads its values from `window.__ENV` at runtime, so only build-time output such as `og:url` carries them. |
 | `mobile.json` | Its manifest: `{keyId, payload, signature}`. `payload` is base64 of `{format, version, bridgeLevel, url, size, sha256}`; `signature` is ECDSA P-256 / SHA-256 over those payload bytes, DER, base64. |
 
-- The `build_mobile_ota` job builds the export, packs and signs it, then checks the result
-  against `apps/mobile/ota/keys.json`. A failure fails the release, like a desktop leg. It sets
-  no environment's values, only `NEXT_PUBLIC_APP_MODE=saas-tenant`, the mode every mobile lane
-  builds with, because the root layout prerenders by it (the sidebar width it seeds). Only the
-  pack step is given the signing key, but it shares the job, and so the workspace, with `npm ci`
-  and the build: the key is as safe as the dependencies those run (the desktop's
-  `TAURI_SIGNING_PRIVATE_KEY` is in the same position).
+- The `build_mobile_ota` job packs and signs the export `build_web_export` built for the run,
+  the one the desktop legs embed, then checks the result against `apps/mobile/ota/keys.json`. A
+  failure fails the release, like a desktop leg. The export sets no environment's values, only
+  `NEXT_PUBLIC_APP_MODE=saas-tenant`, the mode every mobile lane builds with and the desktop shell
+  runs in, because the root layout prerenders by it (the sidebar width it seeds). The signing key
+  is in a job that runs no `npm ci` and no build: the export reaches it as an artifact. A
+  dependency the build ran can still change what gets signed; it cannot read the key.
 - `bridgeLevel` is `REQUIRED_BRIDGE_LEVEL` in `apps/web/src/lib/native-shell.ts`.
 - `keyId` is the first 16 lowercase hex digits of SHA-256 over the signing key's public SPKI
   DER, in its one 91-byte form (named curve, uncompressed point), the only one `ota-verify.mjs`

@@ -14,7 +14,6 @@ import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-muta
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { canOpenFaeApp, openFaeApp } from '@/lib/fae-app';
 import { useOnboardingStore } from '@/stores/onboarding-store';
-import { MINGO_DIALOG_NOT_FOUND } from '../hooks/use-mingo-dialog-selection';
 import { GettingStartedBlock } from './getting-started-block';
 import { clearGettingStartedView, useGettingStartedAside } from './getting-started-view';
 import { doneTourStepIds } from './tour-progress';
@@ -27,8 +26,8 @@ export interface MingoTourInput {
   state: UnifiedChatState;
   /** Create an empty conversation with this title and open it. */
   createNamedDialog: (title: string) => Promise<string | null>;
-  /** Why the open conversation could not be fetched, or null. */
-  dialogError: string | null;
+  /** The open conversation's record answered that it does not exist for this viewer. */
+  dialogNotFound: boolean;
   /** When the open conversation was created (the server's record), or null until it has loaded. */
   dialogCreatedAt?: string | null;
   /** A chip opened its section (`href`) and its prompt is on its way: where the host shows the answer. */
@@ -62,7 +61,9 @@ export interface MingoTour {
  * every device of this user finds the same conversation. In it Mingo's
  * greeting heads the thread (a local message, re-added on every load, and kept
  * once the tour is over) and the Getting Started block sits above the composer,
- * on every page while that conversation is the open one. A chip sends its
+ * on every page while that conversation is the open one (the dock leaves it off
+ * Mingo's home with the sheet down, which hands the conversation to its own page
+ * the moment it is created there: `followsToChatPage`). A chip sends its
  * prompt there through the state it was given, opens its section beside the
  * chat and marks its step done on the server. "Finish tour" completes the
  * user's onboarding and "Skip Onboarding" (once confirmed) skips it, either of
@@ -73,7 +74,7 @@ export interface MingoTour {
 export function useMingoTour({
   state,
   createNamedDialog,
-  dialogError,
+  dialogNotFound,
   dialogCreatedAt = null,
   onStepOpened,
   onScreen = false,
@@ -121,8 +122,7 @@ export function useMingoTour({
   // The remembered conversation is gone (deleted, or another workspace's
   // record): treat it as none, so the pass below creates a new one and records
   // that in its place.
-  const gone =
-    candidateDialogId !== null && activeDialogId === candidateDialogId && dialogError === MINGO_DIALOG_NOT_FOUND;
+  const gone = candidateDialogId !== null && activeDialogId === candidateDialogId && dialogNotFound;
   const dialogId = gone || !active ? null : candidateDialogId;
 
   // The tour's conversation, created once and recorded on success; a failed
@@ -227,8 +227,8 @@ export function useMingoTour({
     return {
       id: `tour-greeting-${greetedDialogId}`,
       role: 'assistant',
-      content: tourGreeting(firstName),
-      timestamp: startedAt,
+      metadata: { createdAt: startedAt },
+      parts: [{ type: 'text', text: tourGreeting(firstName) }],
     };
   }, [greeted, hasMoreMessages, startedAt, greetedDialogId, firstName]);
 

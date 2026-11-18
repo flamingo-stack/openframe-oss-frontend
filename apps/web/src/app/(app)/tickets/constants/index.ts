@@ -12,8 +12,8 @@
 // - Lib APPROVAL_STATUS adds PENDING and CANCELLED. CANCELLED
 //   reconciliation: this app's NATS wire never carries a cancelled
 //   resolution — APPROVAL_RESULT chunks encode a boolean `approved`, and
-//   the lib's `decodeNatsChunk` maps it to 'approved' | 'rejected' only,
-//   exactly like the legacy `parseChunkToAction` did. So cancelled events
+//   the lib's `createMingoDecoder` maps it to 'approved' | 'rejected' only,
+//   exactly like the legacy `parseChunkToAction` did. So cancelled chunks
 //   were never received before and still cannot be produced on this wire;
 //   the widened type only matters for shared lib signatures
 //   (ChatApprovalStatus). No UI for it exists here by design.

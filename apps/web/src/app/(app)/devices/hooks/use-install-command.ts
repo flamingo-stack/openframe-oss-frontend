@@ -22,6 +22,12 @@ interface UseInstallCommandOptions {
   tags?: TagEntry[];
   /** The device's own remote access mode; null/absent = follows its customer (no flag). */
   remoteAccessMode?: RemoteAccessMode | null;
+  /**
+   * For a device that is already enrolled: the agent re-registers under its saved machine id, and
+   * an install-time `--userId` would make whoever copied the command the one who added the device.
+   * Without it the server keeps the stored value.
+   */
+  reinstall?: boolean;
 }
 
 function buildTagArgs(tags: TagEntry[], platform: OSPlatformId): string[] {
@@ -110,15 +116,17 @@ export function useInstallCommand({
   platform,
   tags = [],
   remoteAccessMode = null,
+  reinstall = false,
 }: UseInstallCommandOptions) {
-  const { initialKey } = useRegistrationSecret();
+  const { initialKey, error: secretError } = useRegistrationSecret();
   // Unlike the install key, nothing waits for it: a command copied before it
   // arrives still enrolls the device (see useAgentLogKey).
   const logKey = useAgentLogKey();
   // Installing user, so registration can associate the device with whoever ran
   // the command. Populated from /api/me by useAuthSession; optional in the
   // command because the store hydrates a beat after mount.
-  const userId = useAuthStore(selectUser)?.id;
+  const viewerId = useAuthStore(selectUser)?.id;
+  const userId = reinstall ? undefined : viewerId;
 
   // Read through the store rather than a `useMemo`: the prerender has no
   // `window` and answers 'localhost', so computing this during the first client
@@ -195,5 +203,5 @@ export function useInstallCommand({
     userId: userId || undefined,
   };
 
-  return { command, registerCommand, initialKey, installRequest, rotateMachineId };
+  return { command, registerCommand, initialKey, secretError, installRequest, rotateMachineId };
 }

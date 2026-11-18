@@ -30,7 +30,6 @@ export const notificationFieldsFragment = graphql`
     title
     description
     createdAt
-    read
     status
     category
     type

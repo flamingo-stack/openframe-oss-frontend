@@ -26,6 +26,7 @@ import { useRetryKey } from '@/app/components/shared';
 import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { ValueText } from '@/app/components/shared/value-text';
+import { DirectoryRuleKind } from '@/generated/schema-enums';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { deletedValuesBadge, ruleKindLabel, ruleValueLabel } from '../../utils/tenant-presentation';
 import { boundCustomerOption } from '../tenant-form/bound-customer';
@@ -67,7 +68,7 @@ interface AttributionRuleRow {
   /** "Archived" / "Deleted": the customer stays bound, and its users count as unattributed. */
   badge?: string;
   matchBy: string;
-  /** `null` for a rule with no values (`ALL`): the empty mark. A deleted value reads "<name> (deleted)". */
+  /** `null` for a rule with no values: the empty mark. A deleted value reads "<name> (deleted)". */
   values: string | null;
   /** "Deleted value" while some of `values` are gone from the directory: the rule claims nobody through them. */
   valuesBadge: string | null;
@@ -88,7 +89,9 @@ const ATTRIBUTION_RULES_SKELETON_ROWS = 2;
 function toRows(customers: Customers): AttributionRuleRow[] {
   return customers.flatMap(customer => {
     const { organizationId, name, badge } = boundCustomerOption(customer);
-    return customer.rules.map((rule, index) => ({
+    // `ALL` is "One customer owns this tenant", not a rule: the summary card already names that customer.
+    const rules = customer.rules.filter(rule => rule.kind !== DirectoryRuleKind.ALL);
+    return rules.map((rule, index) => ({
       id: `${organizationId}:${index}`,
       customer: name,
       badge,
@@ -200,6 +203,9 @@ function AttributionRulesTable({ customers }: { customers: Customers | null }) {
   const sort = sorting[0] ? { id: sorting[0].id, desc: sorting[0].desc } : null;
   const selected = Object.fromEntries(columnFilters.map(filter => [filter.id, filter.value as string[]]));
 
+  // Nothing but ALL rules (left out by `toRows`): no section at all, rather than an empty table.
+  if (!loading && customers.length > 0 && rows.length === 0) return null;
+
   return (
     <section className="flex flex-col gap-[var(--spacing-system-l)]">
       <div className="flex items-center justify-between gap-[var(--spacing-system-m)]">
@@ -245,7 +251,7 @@ function AttributionRulesTable({ customers }: { customers: Customers | null }) {
           loadingCells={loading}
           skeletonRows={ATTRIBUTION_RULES_SKELETON_ROWS}
           emptyState={
-            rows.length === 0
+            customers?.length === 0
               ? {
                   title: 'No customers yet',
                   description: 'Choose the customers this directory serves in Edit Integration.',

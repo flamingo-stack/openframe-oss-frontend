@@ -244,11 +244,11 @@ export default defineConfig([
   },
 
   {
-    // The sidebar's pre-paint seed is a string the root layout inlines into `<head>`;
-    // its test runs that string the way the browser does. `no-new-func` assumes the
-    // source is untrusted or dynamic; here it is our own constant.
+    // The pre-paint seeds (the sidebar's, the super user strip's) are strings the root layout
+    // inlines into `<head>`; their tests run those strings the way the browser does. `no-new-func`
+    // assumes the source is untrusted or dynamic; here it is our own constant.
     name: 'openframe-frontend/inline-head-script-test',
-    files: ['src/lib/navigation-sidebar-state.test.ts'],
+    files: ['src/lib/navigation-sidebar-state.test.ts', 'src/lib/super-user-seed.test.ts'],
     rules: { 'no-new-func': 'off' },
   },
 

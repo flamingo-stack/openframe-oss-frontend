@@ -193,14 +193,14 @@ export function SsoConfigurationTab() {
     }
   }, [fetchTenantDomain]);
 
-  // The 'openframe' pseudo-provider backs the tenant-wide built-in login toggle.
-  // Older backends 404 on it (fetchProviderConfig -> undefined); any other
-  // failure also hides the row rather than blocking the page.
+  // The 'openframe' pseudo-provider backs the tenant-wide built-in login toggle. The
+  // backend answers it for every tenant (enabled until a tenant turns it off); a
+  // failure hides the row rather than blocking the page.
   const loadOpenframeSso = useCallback(async () => {
     setIsOpenframeLoading(true);
     try {
       const cfg = await fetchProviderConfig('openframe');
-      setOpenframeSso(cfg ? { enabled: cfg.enabled === true } : null);
+      setOpenframeSso({ enabled: cfg?.enabled === true });
     } catch (err) {
       console.error('Failed to load OpenFrame SSO state:', err);
       setOpenframeSso(null);

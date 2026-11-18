@@ -9,13 +9,11 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, NoData } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useLayoutEffect, useState } from 'react';
 import { useChatPageNodeStore } from '@/app/components/mingo-shell/chat-page-node-store';
 import { dockViewOf } from '@/app/components/mingo-shell/mingo-dock-route';
 import { routes } from '@/lib/routes';
 import { useMingoChatSurface, useMingoChatThreadOnScreen } from '../providers/mingo-chat-provider';
-import { mingoDialogQueryKeys } from '../utils/query-keys';
 import { useChatPageSelection } from './use-chat-page-selection';
 
 /**
@@ -28,13 +26,13 @@ import { useChatPageSelection } from './use-chat-page-selection';
  * itself: a dialog that does not exist, one that failed to load, a crashed session.
  * An archived chat opens read-only — the chat does that from the dialog's record.
  * `null`: a chat not created yet ("What to ask Mingo?"), the page of the one it creates next.
+ * Manhattan v2 on a desktop shows the thread in its chat column instead (the dock's `threadContainer`).
  */
 export function MingoChatView({ dialogId }: { dialogId: string | null }) {
   // A surface: the page shows the chat, so the session runs while it is up even
   // before the dock registers.
   const { chat, error, retry: restartChat } = useMingoChatSurface();
-  const status = useChatPageSelection(dialogId, error ? null : chat);
-  const queryClient = useQueryClient();
+  const { status, retry } = useChatPageSelection(dialogId, error ? null : chat);
 
   if (error) {
     return (
@@ -67,10 +65,6 @@ export function MingoChatView({ dialogId }: { dialogId: string | null }) {
   }
 
   if (status === 'failed' && dialogId !== null) {
-    const retry = () => {
-      void queryClient.refetchQueries({ queryKey: mingoDialogQueryKeys.detail(dialogId) });
-      void queryClient.refetchQueries({ queryKey: mingoDialogQueryKeys.messages(dialogId) });
-    };
     return (
       <ChatPageState
         icon={<ChatExclamationIcon />}

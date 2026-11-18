@@ -1,12 +1,12 @@
-import type { Message as ChatMessage } from '@flamingo-stack/openframe-frontend-core';
+import type { ChatMessage } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import type { InfiniteData, QueryClient } from '@tanstack/react-query';
 import type { TicketsPage } from '../services/ticket-service.types';
 import { dialogsQueryKeys } from './query-keys';
 
 /**
- * The END USER's rows carry this `authorType` on both the persisted history
- * (`useHistoricalMessages`) and the live direct-message intercept
- * (`useSideChunkProcessor`); technician rows are `'admin'`, assistants `'fae'`.
+ * The END USER's rows carry this `authorType` on both the persisted history and a
+ * live direct message (the lib's chat engine draws both); technician rows are
+ * `'admin'`, assistants `'fae'`.
  */
 const CLIENT_AUTHOR_TYPE = 'user';
 
@@ -18,10 +18,10 @@ const CLIENT_AUTHOR_TYPE = 'user';
  * behind: a client message now on screen - with the history, or live - that
  * arrived since the last mark. Technician and assistant rows do not move it.
  */
-export function lastClientMessageId(messages: readonly Pick<ChatMessage, 'id' | 'authorType'>[]): string | null {
+export function lastClientMessageId(messages: readonly Pick<ChatMessage, 'id' | 'metadata'>[]): string | null {
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i];
-    if (message.authorType === CLIENT_AUTHOR_TYPE) return message.id;
+    if (message.metadata?.author?.authorType === CLIENT_AUTHOR_TYPE) return message.id;
   }
   return null;
 }

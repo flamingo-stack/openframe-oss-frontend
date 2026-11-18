@@ -3,28 +3,25 @@
  * Self-fetching mention chips for the REST / ai-agent-GraphQL entity types. One
  * generic component (`RestMentionChip`) backed by a per-marker async resolver,
  * driven by a TanStack `useSuspenseQuery` so the skeleton/Suspense story matches
- * the Relay chips. Resolvers never throw — they degrade to `{ label: id }` on a
- * failed response — so the chip always renders (id when the name can't load).
+ * the Relay chips. Resolvers never throw: they degrade to `{ label: id }` on a
+ * failed response, so the chip always renders (id when the name can't load).
  *
  * id semantics + routes (per the picker in `rest-items.tsx` / `relay-items.tsx`):
- *   - policy → fleet `getPolicy(policyId)`        → /monitoring/policy/{id}
- *   - query  → fleet `getQuery(queryId)`          → /monitoring/query/{id}
- *   - script → tactical `getScript(id)`           → /scripts/details/{id}
- *   - ticket → ai-agent `ticket(id:)` GraphQL      → /tickets/dialog?id={id}
+ *   - policy: fleet `getPolicy(policyId)`, /monitoring/policy/{id}
+ *   - query: fleet `getQuery(queryId)`, /monitoring/query/{id}
+ *   - ticket: ai-agent `ticket(id:)` GraphQL, /tickets/dialog?id={id}
  *
- * The `script` resolver here is the LEGACY (Tactical) path. New scripts resolve
- * via the Relay `GraphqlMentionChip`; `render-mention.tsx` dispatches by id shape
- * (24-char ObjectId → new, numeric → this Tactical resolver) so BOTH resolve.
+ * A script resolves through the Relay `GraphqlMentionChip` (`render-mention.tsx`).
  */
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { RecordChip } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useSuspenseQuery } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
 import { formatTicketRef } from '@/app/(app)/tickets/utils/ticket-ref';
 import { apiClient } from '@/lib/api-client';
 import { fleetApiClient } from '@/lib/fleet-api-client';
 import { routes } from '@/lib/routes';
-import { MentionErrorBoundary, MentionTag } from './mention-tag';
 
 interface Resolved {
   label: string;
@@ -45,14 +42,6 @@ async function resolveQuery(id: string): Promise<Resolved> {
   return { label: name || id, href: routes.monitoring.query(id) };
 }
 
-async function resolveScript(id: string): Promise<Resolved> {
-  // TODO(openframe-rmm): Tactical RMM removed — the legacy single-script endpoint is gone.
-  // Numeric (legacy) script ids can no longer resolve a name, so degrade to the id + link
-  // (the caller's `fallbackLabel` is preferred over the raw id in `RestInner`). New scripts
-  // resolve via the Relay `GraphqlMentionChip`. See render-mention.tsx dispatch.
-  return { label: id, href: routes.scripts.details(id) };
-}
-
 interface TicketEnvelope {
   data?: { ticket?: { title?: string; ticketNumber?: number } };
 }
@@ -71,14 +60,12 @@ async function resolveTicket(id: string): Promise<Resolved> {
 const RESOLVERS: Record<string, (id: string) => Promise<Resolved>> = {
   policy: resolvePolicy,
   query: resolveQuery,
-  script: resolveScript,
   ticket: resolveTicket,
 };
 
 interface RestMentionChipProps {
   marker: string;
   id: string;
-  icon?: ReactNode;
   /** Known display name (e.g. a context item's picked label). Shown instead of
    *  the bare `id` when the live resolve can't find the entity. */
   fallbackLabel?: string;
@@ -100,11 +87,11 @@ function RestLoader(props: RestMentionChipProps) {
 
 function RestReader(props: RestMentionChipProps) {
   // In a loading scope it draws the chip with no label and runs no read.
-  if (useLoadingScope()) return <MentionTag icon={props.icon} label="" />;
+  if (useLoadingScope()) return <RecordChip type={props.marker} id={props.id} label="" loading />;
   return <RestInner {...props} />;
 }
 
-function RestInner({ marker, id, icon, fallbackLabel }: RestMentionChipProps) {
+function RestInner({ marker, id, fallbackLabel }: RestMentionChipProps) {
   const { data } = useSuspenseQuery({
     queryKey: ['mingo-mention', marker, id],
     queryFn: () => RESOLVERS[marker](id),
@@ -113,13 +100,13 @@ function RestInner({ marker, id, icon, fallbackLabel }: RestMentionChipProps) {
   // Resolvers degrade to `{ label: id }` when the lookup misses; in that case
   // prefer the caller's known label over showing the raw id.
   const label = data.label === id && fallbackLabel ? fallbackLabel : data.label;
-  return <MentionTag icon={icon} label={label} href={data.href} />;
+  return <RecordChip type={marker} id={id} label={label} href={data.href ?? null} />;
 }
 
-export function RestMentionChip({ marker, id, icon, fallbackLabel }: RestMentionChipProps) {
+export function RestMentionChip({ marker, id, fallbackLabel }: RestMentionChipProps) {
   return (
-    <MentionErrorBoundary fallback={<MentionTag icon={icon} label={fallbackLabel || id} />}>
-      <RestLoader marker={marker} id={id} icon={icon} fallbackLabel={fallbackLabel} />
-    </MentionErrorBoundary>
+    <ErrorBoundary fallback={<RecordChip type={marker} id={id} label={fallbackLabel || id} href={null} />}>
+      <RestLoader marker={marker} id={id} fallbackLabel={fallbackLabel} />
+    </ErrorBoundary>
   );
 }

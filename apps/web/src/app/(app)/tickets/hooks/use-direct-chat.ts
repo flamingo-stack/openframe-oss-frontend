@@ -4,7 +4,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
-import { CHAT_TYPE, DIALOG_MODE } from '../constants';
+import { DIALOG_MODE } from '../constants';
 import { ticketService } from '../services';
 import type { Dialog } from '../types/dialog.types';
 import { ticketsQueryKeys } from '../utils/query-keys';
@@ -64,26 +64,6 @@ export function useDirectChat({ ticketId, dialogId, currentMode, onDialogCreated
     },
   });
 
-  const sendClientMessageMutation = useMutation({
-    mutationFn: async (message: string) => {
-      const cached = queryClient.getQueryData<Dialog | null>(ticketsQueryKeys.detail(ticketId));
-      const activeDialogId = dialogId || cached?.dialogId;
-      if (!activeDialogId) {
-        throw new Error('No active dialog');
-      }
-
-      await ticketService.sendMessage(activeDialogId, message.trim(), CHAT_TYPE.CLIENT);
-    },
-    onError: (error: Error) => {
-      toast({
-        title: 'Send Failed',
-        description: error.message,
-        variant: 'destructive',
-        duration: 5000,
-      });
-    },
-  });
-
   const startDirectChat = useCallback(() => {
     if (createDialogMutation.isPending || switchModeMutation.isPending) return;
 
@@ -94,20 +74,9 @@ export function useDirectChat({ ticketId, dialogId, currentMode, onDialogCreated
     }
   }, [dialogId, createDialogMutation, switchModeMutation]);
 
-  const sendClientMessage = useCallback(
-    (message: string) => {
-      const trimmed = message.trim();
-      if (!trimmed || sendClientMessageMutation.isPending) return;
-      sendClientMessageMutation.mutate(trimmed);
-    },
-    [sendClientMessageMutation],
-  );
-
   return {
     isDirectMode,
     isStartingDirectChat: createDialogMutation.isPending || switchModeMutation.isPending,
-    isSendingClientMessage: sendClientMessageMutation.isPending,
     startDirectChat,
-    sendClientMessage,
   };
 }

@@ -9,6 +9,7 @@ import {
   QueryReportTable,
   TabNavigation,
 } from '@flamingo-stack/openframe-frontend-core';
+import { OPENFRAME_RECORD_KIND } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import {
   CheckCircleIcon,
   MonitorIcon,
@@ -24,7 +25,6 @@ import { InfoCell } from '@/app/components/shared/info-cell';
 import { LoadingParagraph } from '@/app/components/shared/loading-paragraph';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { type QueryDetailTab, routes, TAB_IDS } from '@/lib/routes';
-import { CONTEXT_ENTITY_KIND } from '../../../mingo/context/context-types';
 import { useTrackOpenView } from '../../../mingo/context/use-track-open-view';
 import { ScriptEditor } from '../../../scripts/shared/components/script-editor';
 import { ConfirmDeleteMonitoringModal } from '../../components/confirm-delete-monitoring-modal';
@@ -97,7 +97,7 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
 
   // Register this query as the Mingo "open view" (passive context) so the agent
   // gets the user's working context on the next message; cleared → recent views.
-  useTrackOpenView(queryDetails ? { type: CONTEXT_ENTITY_KIND.QUERY, id: queryId, label: queryDetails.name } : null, {
+  useTrackOpenView(queryDetails ? { type: OPENFRAME_RECORD_KIND.QUERY, id: queryId, label: queryDetails.name } : null, {
     loading: isLoading,
   });
 

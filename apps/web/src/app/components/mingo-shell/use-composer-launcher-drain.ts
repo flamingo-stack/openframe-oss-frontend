@@ -25,7 +25,7 @@ interface ComposerLauncherDrainOptions {
   handle: EmbeddableChatHandle | null;
   route: ComposerRoute;
   /** The follow-wrapped always-new send (`useComposerTarget`). */
-  sendInNewDialog: (text: string) => Promise<void>;
+  sendInNewDialog: (text: string) => Promise<string | null>;
   /** The follow-wrapped intent chat (`useComposerTarget`). */
   createIntentDialog: (intent: DialogIntent) => Promise<string | null>;
   /** Selects a chat for the session (`UnifiedChatState.selectDialog`). */

@@ -187,13 +187,8 @@ describe("MingoComposerSheet: a phone's chat list", () => {
     expect(useMingoSheetStore.getState().listOpen).toBe(false);
   });
 
-  it("draws the list over Mingo's own pages in Manhattan v2 only (its top bar button opens it from any page)", () => {
-    location.pathname = '/mingo/chat/';
-    location.search = 'id=a';
-    render();
-    act(() => useMingoSheetStore.getState().showList());
-    expect(container.textContent).not.toContain('chat list');
-
+  it('draws no list in Manhattan v2, which has its own panel from the left for it (useMingoPhoneChatsPanel)', () => {
+    location.pathname = '/devices/';
     act(() => root.unmount());
     root = createRoot(container);
     act(() =>
@@ -204,8 +199,8 @@ describe("MingoComposerSheet: a phone's chat list", () => {
       ),
     );
     act(() => useMingoSheetStore.getState().showList());
-    expect(sheet.props?.open).toBe(true);
-    expect(container.textContent).toContain('chat list');
+    expect(sheet.props?.open).toBe(false);
+    expect(container.textContent).not.toContain('chat list');
   });
 
   it('draws no list on a desktop, where the sidebar holds the chats', () => {

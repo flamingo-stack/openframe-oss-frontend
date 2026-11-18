@@ -4,7 +4,11 @@ import type { remoteSessionEventsApiServiceQuery as EventsQuery } from '@/__gene
 import { RemoteSessionEventType } from '@/generated/schema-enums';
 import { getRelayEnvironment } from '@/lib/relay';
 import { commitMutationPromise } from '@/lib/relay/commit-mutation';
-import { type SessionTimelineEvent, toSessionTimelineEvent } from '../components/remote-sessions/session-events';
+import {
+  type SessionTimelineEvent,
+  toSessionTimelinePage,
+  type ViewerAtEnd,
+} from '../components/remote-sessions/session-events';
 
 /**
  * The Session Events list and the track markers of the recording page: the
@@ -21,6 +25,7 @@ const eventsQuery = graphql`
   ) {
     remoteSessionRecording(recordingId: $recordingId) {
       session {
+        technicianId
         events(types: $types, first: $first, after: $after) {
           edges {
             node {
@@ -45,7 +50,10 @@ const playedMutation = graphql`
   }
 `;
 
-/** The rows the page lists and marks; the rest of the timeline (request, chat, playback) is not part of the design. */
+/**
+ * The rows the page lists and marks; the rest of the timeline (request, chat, the host's connection, playback) is not
+ * part of the design.
+ */
 const LISTED_TYPES: RemoteSessionEventType[] = [
   RemoteSessionEventType.STARTED,
   RemoteSessionEventType.INPUT_ENABLED,
@@ -58,6 +66,8 @@ const LISTED_TYPES: RemoteSessionEventType[] = [
   RemoteSessionEventType.ENDED,
   RemoteSessionEventType.RECORDING_KEPT,
   RemoteSessionEventType.RECORDING_RELEASED,
+  RemoteSessionEventType.VIEWER_JOINED,
+  RemoteSessionEventType.VIEWER_LEFT,
 ];
 
 /** The server's page ceiling: a usual session fits one page. */
@@ -65,6 +75,8 @@ const PAGE_SIZE = 500;
 
 export interface SessionEventsPage {
   events: SessionTimelineEvent[];
+  /** Colleagues on this page who were still watching when the session ended: "Session ended" names them. */
+  viewersAtEnd: ViewerAtEnd[];
   /** The cursor of the next page; null on the last one. */
   nextCursor: string | null;
 }
@@ -77,11 +89,16 @@ export async function fetchSessionEventsPage(recordingId: string, after: string 
     { recordingId, types: LISTED_TYPES, first: PAGE_SIZE, after },
     { fetchPolicy: 'network-only' },
   ).toPromise();
-  const connection = data?.remoteSessionRecording?.session.events;
-  if (!connection) return { events: [], nextCursor: null };
+  const session = data?.remoteSessionRecording?.session;
+  if (!session) return { events: [], viewersAtEnd: [], nextCursor: null };
+  const { events } = session;
   return {
-    events: connection.edges.flatMap(({ node }) => toSessionTimelineEvent(node) ?? []),
-    nextCursor: connection.pageInfo.hasNextPage ? (connection.pageInfo.endCursor ?? null) : null,
+    // The host watching their own session from a second tab is not a viewer.
+    ...toSessionTimelinePage(
+      events.edges.map(({ node }) => node),
+      session.technicianId,
+    ),
+    nextCursor: events.pageInfo.hasNextPage ? (events.pageInfo.endCursor ?? null) : null,
   };
 }
 

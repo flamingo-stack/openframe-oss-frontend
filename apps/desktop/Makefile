@@ -1,9 +1,9 @@
 # Build entry points for the OpenFrame desktop shell (Tauri).
 #
-# Mirrors clients/openframe-chat/Makefile in openframe-oss-tenant so the same CI
-# shape drives both:
+# Mirrors clients/openframe-chat/Makefile in openframe-oss-tenant:
 #   make lint
 #   make build TARGET=<rust-target> OPENFRAME_VERSION=<v> [BUNDLES=app]
+# plus `make build-staged`, which CI runs (see the target).
 #
 # Two differences, both forced by this shell bundling the web app's
 # static export rather than building its own UI:
@@ -12,8 +12,9 @@
 #     target needs www/ to exist — hence the placeholder dependency on lint/test.
 #   - the shared auth host is baked in at compile time (see below).
 #
-# `make build` is the CI path: tauri.conf.json asks for updater artifacts, which
-# fail without TAURI_SIGNING_PRIVATE_KEY. A local unsigned .app skips them:
+# `make build` and `make build-staged` are the shippable builds: tauri.conf.json
+# asks for updater artifacts, which fail without TAURI_SIGNING_PRIVATE_KEY. A
+# local unsigned .app skips them:
 #   make web
 #   OPENFRAME_SHARED_HOST_URL=<host> npx tauri build --bundles app \
 #     --config '{"bundle":{"createUpdaterArtifacts":false}}'
@@ -34,9 +35,9 @@ OPENFRAME_GTM_CONTAINER_ID ?=
 export OPENFRAME_GTM_CONTAINER_ID
 
 # Checked at parse time so a shippable build fails before the minutes-long
-# frontend export, not after. Same guard as openframe-mobile's inject-env.mjs:
-# without it the bundle renders and then 401s every call.
-ifneq (,$(filter build,$(MAKECMDGOALS)))
+# frontend export or Rust build, not after. Same guard as openframe-mobile's
+# inject-env.mjs: without it the bundle renders and then 401s every call.
+ifneq (,$(filter build build-staged,$(MAKECMDGOALS)))
 ifeq ($(OPENFRAME_SHARED_HOST_URL),)
 $(error OPENFRAME_SHARED_HOST_URL is required, e.g. \
   make build OPENFRAME_SHARED_HOST_URL=https://openframe.ai)
@@ -62,7 +63,7 @@ ifneq ($(BUNDLES),)
   BUNDLES_FLAG := --bundles $(BUNDLES)
 endif
 
-.PHONY: deps web web-placeholder fmt fmt-check clippy lint build test clean
+.PHONY: deps web web-placeholder fmt fmt-check clippy lint build build-staged test clean
 
 deps:
 	$(NPM) ci
@@ -87,7 +88,10 @@ clippy: web-placeholder
 
 lint: fmt-check clippy
 
-build: deps web
+build: web build-staged
+
+# `build` over a www/ staged already: release.yml builds the export once per run.
+build-staged: deps
 	npx tauri build $(TARGET_FLAG) $(BUNDLES_FLAG) $(VERSION_FLAG)
 
 test: web-placeholder

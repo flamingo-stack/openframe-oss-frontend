@@ -3,7 +3,7 @@
 import { useOptionalNotifications } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useMingoMessagesStore } from '@/app/(app)/mingo/stores/mingo-messages-store';
+import { mingoThreadStore } from '@/app/(app)/mingo/stores/mingo-thread-store';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useApproveRequest } from '@/app/components/notifications/use-approve-request';
 import { type ApprovalDecision, settleApprovalCaches } from './approval-decisions';
@@ -43,11 +43,8 @@ export function useApprovalDecider(): ApprovalDecider {
     const decision: ApprovalDecision = approve ? 'approved' : 'rejected';
     const resolvedByName = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email || null;
     settleApprovalCaches(queryClient, card.approvalRequestId);
-    if (card.dialogId) {
-      const messages = useMingoMessagesStore.getState();
-      if (messages.messagesByDialog.has(card.dialogId)) {
-        messages.updateApprovalStatusInMessages(card.dialogId, card.approvalRequestId, decision, resolvedByName);
-      }
+    if (card.dialogId && mingoThreadStore.snapshotOf(card.dialogId).messages.length > 0) {
+      mingoThreadStore.updateApprovalStatus(card.dialogId, card.approvalRequestId, decision, resolvedByName);
     }
     setKept(previous => ({ ...previous, [card.approvalRequestId]: decidedCard(card, decision, resolvedByName) }));
   };

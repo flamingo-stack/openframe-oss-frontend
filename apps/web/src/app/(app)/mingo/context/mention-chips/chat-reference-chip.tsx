@@ -1,15 +1,15 @@
 'use client';
 
 /**
- * Inline `@chat:<dialogId>` — Mingo citing an EARLIER CONVERSATION of the same
- * technician when it answers from chat memory. The ai-agent's memory search
- * hands the model a `chatTag` per supporting source — only for dialogs the
- * asking technician owns, and never the one open — and the model pastes that
- * marker beside the statement it supports.
+ * A chat record link, `[title](record://chat/<dialogId>)`: Mingo citing an
+ * EARLIER CONVERSATION of the same technician when it answers from chat memory.
+ * The ai-agent's memory search hands the model a `sourceId` per supporting
+ * source (only for dialogs the asking technician owns, and never the one
+ * open), and the model links it beside the statement it supports.
  *
- * `chat` is a reference marker, not a `ContextItemType`: nothing attaches a
+ * `chat` is a record type, not a `ContextItemType`: nothing attaches a
  * conversation as context, the picker does not offer one, and it has no entry
- * in `CONTEXT_ENTITY_MARKER`. It is the one mention-only marker.
+ * in `OPENFRAME_RECORD_TYPE` (it is the lib's `OPENFRAME_CHAT_RECORD_TYPE`). It is the one link-only type.
  *
  * The chip links to that chat's page (`mingoDialogLink`, the canonical chat route).
  *
@@ -20,17 +20,14 @@
  * under a generic label, since the chat resolves the dialog on its own.
  */
 
+import { OPENFRAME_CHAT_RECORD_TYPE } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { RecordChip } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useSuspenseQuery } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { mingoDialogLink } from '@/lib/routes';
-import { MentionErrorBoundary, MentionTag } from './mention-tag';
-
-/** The marker the ai-agent writes in front of a recalled dialog's id
- *  (`ConversationMemoryReferenceService.CHAT_TAG_PREFIX`, without the `@`). */
-export const CHAT_REFERENCE_MARKER = 'chat';
 
 /** The backend substitutes this for a blank title itself; kept here for a
  *  `null` title the schema still allows. */
@@ -75,12 +72,11 @@ export async function resolveChatReference(id: string): Promise<ChatReference | 
 interface ChatReferenceChipProps {
   /** The dialog id the marker carries. */
   id: string;
-  icon?: ReactNode;
 }
 
 /** The linked form: the chat's page, whether the title resolved or not. */
-function LinkedChatTag({ id, label, icon }: { id: string; label: string; icon?: ReactNode }) {
-  return <MentionTag icon={icon} label={label} href={mingoDialogLink(id)} />;
+function LinkedChatTag({ id, label }: { id: string; label: string }) {
+  return <RecordChip type={OPENFRAME_CHAT_RECORD_TYPE} id={id} label={label} href={mingoDialogLink(id)} />;
 }
 
 /**
@@ -99,13 +95,13 @@ function ChatReferenceLoader(props: ChatReferenceChipProps) {
 
 function ChatReferenceReader(props: ChatReferenceChipProps) {
   // In a loading scope it draws the chip with no label and runs no read.
-  if (useLoadingScope()) return <MentionTag icon={props.icon} label="" />;
+  if (useLoadingScope()) return <RecordChip type={OPENFRAME_CHAT_RECORD_TYPE} id={props.id} label="" loading />;
   return <ChatReferenceInner {...props} />;
 }
 
-function ChatReferenceInner({ id, icon }: ChatReferenceChipProps) {
+function ChatReferenceInner({ id }: ChatReferenceChipProps) {
   const { data } = useSuspenseQuery({
-    queryKey: ['mingo-mention', CHAT_REFERENCE_MARKER, id],
+    queryKey: ['mingo-mention', OPENFRAME_CHAT_RECORD_TYPE, id],
     queryFn: () => resolveChatReference(id),
     staleTime: 5 * 60 * 1000,
     // One retry, not the default three: this chip sits inline in a sentence, and
@@ -113,14 +109,14 @@ function ChatReferenceInner({ id, icon }: ChatReferenceChipProps) {
     // not hold a skeleton in the prose for the whole backoff ladder.
     retry: 1,
   });
-  if (!data) return <MentionTag icon={icon} label={UNAVAILABLE_CHAT} />;
-  return <LinkedChatTag id={data.id} label={data.title} icon={icon} />;
+  if (!data) return <RecordChip type={OPENFRAME_CHAT_RECORD_TYPE} id={id} label={UNAVAILABLE_CHAT} href={null} />;
+  return <LinkedChatTag id={data.id} label={data.title} />;
 }
 
-export function ChatReferenceChip({ id, icon }: ChatReferenceChipProps) {
+export function ChatReferenceChip({ id }: ChatReferenceChipProps) {
   return (
-    <MentionErrorBoundary fallback={<LinkedChatTag id={id} label={UNRESOLVED_CHAT} icon={icon} />}>
-      <ChatReferenceLoader id={id} icon={icon} />
-    </MentionErrorBoundary>
+    <ErrorBoundary fallback={<LinkedChatTag id={id} label={UNRESOLVED_CHAT} />}>
+      <ChatReferenceLoader id={id} />
+    </ErrorBoundary>
   );
 }
