@@ -65,6 +65,11 @@ interface ServerDevicePickerListsProps {
   isDeviceDisabled?: (device: Device) => string | undefined;
   /** The halves have not been read yet (a client read); inside a loading scope the picker switches itself. */
   loading?: boolean;
+  /**
+   * Draw the picker's "Select Specific Devices / Select Devices by Criteria" radio, criteria disabled and tagged
+   * "Coming Soon" (an owner whose API has no criteria yet, but whose design shows the choice). Default false.
+   */
+  showSelectionModeRadio?: boolean;
 }
 
 /**
@@ -96,6 +101,7 @@ export function ServerDevicePickerLists({
   onRemoveAll,
   isDeviceDisabled,
   loading: loadingProp,
+  showSelectionModeRadio = false,
 }: ServerDevicePickerListsProps) {
   const loading = useLoadingScope() || !!loadingProp;
   const availableEdges = available.connection?.edges;
@@ -135,7 +141,7 @@ export function ServerDevicePickerLists({
       skeletonRows={DEVICE_PICKER_PAGE_SIZE}
       // The selector still draws its Add All / Remove All while loading: no write before the lists are read.
       disabled={busy || loading}
-      showSelectionModeRadio={false}
+      showSelectionModeRadio={showSelectionModeRadio}
       // Only meaningful on Available: every row on the Selected tab is assigned
       // by definition, and the Selected tab shows removals by dropping the row.
       selectedIds={isAvailable ? selectedKeys : undefined}

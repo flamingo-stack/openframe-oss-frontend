@@ -82,6 +82,10 @@ export const FEATURE_FLAG_NAMES = [
   // context on demand. Off = the action is absent; auto-compaction is
   // unaffected either way.
   'mingo-compact-memory',
+  // The Usage panel behind the Mingo composer's token counter: the company's
+  // tokens and this chat's context. The backend reads the same key. Off = the
+  // counter keeps its hover card. On for dev / qa, false elsewhere.
+  'mingo-chat-usage',
   // AI-first onboarding: the full-screen `/setup` wizard in place of the
   // dashboard's Initial Setup card, and the Getting Started tour in Mingo (the
   // block above the docked composer, in the tour's conversation) in place of
@@ -107,6 +111,16 @@ export const FEATURE_FLAG_NAMES = [
   // before. On for dev / qa; absent elsewhere until every table has moved, which
   // reads as off.
   'data-table-grid',
+  // The device status split (CU-86akb8vvf): the lifecycle tag (MANAGED,
+  // PENDING, ...) and the connectivity icon in every device view, with a
+  // Connectivity group in the STATUS funnel. Off = the look from before, one
+  // ONLINE / OFFLINE / PENDING tag and the device type icon
+  // (`DeviceStatusDisplay` 'legacy'). Only the look: either way online comes
+  // from `connectivity` and the queries send what the backend accepts, so it
+  // works with the backend's own switch
+  // (`openframe.features.devices.managed-status.enabled`) on or off. On for
+  // dev / qa, absent elsewhere, which reads as off.
+  'device-managed-status',
   // The dashboard's GraphQL (`/api/graphql` and `/chat/graphql`, Relay and raw
   // POST) goes through the federation router at `/api/router/graphql`
   // (`graphql-router.ts`). On where the router runs (dev), absent elsewhere,

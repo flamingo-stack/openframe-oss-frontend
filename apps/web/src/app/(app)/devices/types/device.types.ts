@@ -188,7 +188,10 @@ export interface Device {
   macAddress?: string;
 
   // System Status
+  /** Lifecycle: PENDING, MANAGED (legacy ONLINE / OFFLINE), PENDING_DELETION, ARCHIVED, DELETED. */
   status: string;
+  /** ONLINE / OFFLINE right now, apart from the lifecycle; null = never reported (reads as offline). */
+  connectivity?: string | null;
   uptime?: number; // seconds
   last_seen?: string;
   lastSeen?: string;
@@ -212,6 +215,11 @@ export interface Device {
   orbit_version?: string;
   fleet_desktop_version?: string;
   scripts_enabled?: boolean;
+  /**
+   * The server's verdict that the OpenFrame client is below the supported version (`Machine.clientOutdated`). The
+   * threshold is a server setting: never compare `agentVersion` against a version here.
+   */
+  clientOutdated?: boolean;
   agentVersion?: string;
 
   // Unified Arrays (NO NESTING)
@@ -309,8 +317,11 @@ export type DeviceGraphQlNode = {
   ip?: string;
   macAddress?: string;
   osUuid?: string;
+  /** The server's outdated-client verdict (`Machine.clientOutdated`). */
+  clientOutdated?: boolean;
   agentVersion?: string;
   status: string;
+  connectivity?: string | null;
   lastSeen?: string;
   organization?: {
     id: string;

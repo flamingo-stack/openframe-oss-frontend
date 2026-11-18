@@ -11,7 +11,7 @@
  * `signup_started`, `signup_completed`, `identify`.
  */
 
-import { isDesktopShell } from '@/lib/platform';
+import { isAppShell, isDesktopShell } from '@/lib/platform';
 import { moveToTenantOrigin } from '@/lib/posthog/desktop-tenant-urls';
 
 /** dataLayer event names for the signup funnel. */
@@ -44,6 +44,43 @@ export function queueDesktopPostHogSetup(): void {
   w.posthog = w.posthog || [];
   w.posthog.push(['set_config', { before_send: moveToTenantOrigin }]);
   w.posthog.push(['register', { app_platform: 'desktop' }]);
+}
+
+/** PostHog event for a tap on Sign in on the "Sign in required" overlay. */
+export const SIGN_IN_REQUIRED_CLICK_EVENT = 'sign_in_required_click';
+
+export interface SignInRequiredClick {
+  app_mode: string;
+  shell: string;
+  /** Where the tap navigates; null when the auth host is not configured. */
+  target_url: string | null;
+  /** True when there was nowhere to navigate and the overlay showed an error instead. */
+  fallback: boolean;
+}
+
+/**
+ * Record a tap on the "Sign in required" overlay, so a "Sign in does nothing" report can be
+ * checked against what the tap did. Captured on the GTM-loaded `window.posthog` directly rather
+ * than through the dataLayer: it needs no GTM trigger, and `sendBeacon` lets it survive the
+ * cross-origin navigation the same tap starts.
+ *
+ * Best-effort and silent: a no-op until the SDK has loaded (on desktop `window.posthog` is a
+ * plain call queue until GTM runs, see {@link queueDesktopPostHogSetup}), and in the native
+ * shells, whose store privacy labels this event is not part of.
+ */
+export function captureSignInRequiredClick(properties: SignInRequiredClick): void {
+  if (typeof window === 'undefined' || isAppShell()) return;
+  try {
+    const posthog = (window as unknown as { posthog?: { capture?: unknown } }).posthog;
+    if (typeof posthog?.capture !== 'function') return;
+    (posthog.capture as (event: string, props: object, options: object) => void)(
+      SIGN_IN_REQUIRED_CLICK_EVENT,
+      properties,
+      { transport: 'sendBeacon' },
+    );
+  } catch {
+    // Analytics is best-effort — never break sign-in.
+  }
 }
 
 /** Signup form rendered / first interaction. */

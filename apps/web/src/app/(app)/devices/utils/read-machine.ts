@@ -11,11 +11,21 @@ export function readMachineEdges(
   return (edges ?? []).flatMap(edge => (edge?.node ? [machineToDevice(edge.node)] : []));
 }
 
-/** The scrolled list's edges: each row with the viewer's unread notifications about it, which only that list selects. */
+/**
+ * The scrolled list's edges: each row with the viewer's unread notifications about it and the server's outdated-client
+ * flag, which only that list selects.
+ */
 export function readListedMachineEdges(
   edges:
     | ReadonlyArray<
-        | { readonly node?: (deviceFields_machine$key & { readonly unreadNotificationCount: number }) | null }
+        | {
+            readonly node?:
+              | (deviceFields_machine$key & {
+                  readonly unreadNotificationCount: number;
+                  readonly clientOutdated: boolean;
+                })
+              | null;
+          }
         | null
         | undefined
       >
@@ -23,6 +33,14 @@ export function readListedMachineEdges(
     | undefined,
 ): Device[] {
   return (edges ?? []).flatMap(edge =>
-    edge?.node ? [{ ...machineToDevice(edge.node), unreadNotificationCount: edge.node.unreadNotificationCount }] : [],
+    edge?.node
+      ? [
+          {
+            ...machineToDevice(edge.node),
+            unreadNotificationCount: edge.node.unreadNotificationCount,
+            clientOutdated: edge.node.clientOutdated,
+          },
+        ]
+      : [],
   );
 }

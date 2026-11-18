@@ -3,6 +3,7 @@
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { freeAiTokensCard_subscription$key } from '@/__generated__/freeAiTokensCard_subscription.graphql';
+import { useAiBalanceLowTokens } from '@/app/hooks/use-ai-balance-low-tokens';
 import { formatCompactCount } from '@/lib/format-number';
 import { aiBalanceState } from '../shared/ai-balance-state';
 import { StatSuffix, UsageStatCard } from '../shared/usage-stat-card';
@@ -16,8 +17,9 @@ const freeAiTokensCardFragment = graphql`
 /** The period's free grant, and how much of it is gone. */
 export function FreeAiTokensCard({ subscription }: { subscription: freeAiTokensCard_subscription$key | null }) {
   const data = useFragment(freeAiTokensCardFragment, subscription);
+  const lowTokens = useAiBalanceLowTokens();
   // One card, both forms: while the subscription is on its way the card draws its figure and caption as bars.
-  const ai = useLoadingScope() || data == null ? null : aiBalanceState(data);
+  const ai = useLoadingScope() || data == null ? null : aiBalanceState(data, lowTokens);
 
   return (
     <UsageStatCard

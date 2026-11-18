@@ -1,6 +1,7 @@
 'use client';
 
-import { type DataTableSortState, LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { Button, type DataTableSortState, LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useMemo, useState } from 'react';
@@ -35,6 +36,9 @@ export interface SoftwareListFrameRenderProps {
   /** Nothing in the list at all (not a search or funnel miss) — the frame drops its toolbar. */
   onEmptyChange: (isEmpty: boolean) => void;
   stickyHeaderOffset: string;
+  /** The narrow content area's filter window is open (`filterModal`): the list draws it, with the options it read. */
+  filtersOpen: boolean;
+  onFiltersClose: () => void;
 }
 
 interface SoftwareListFrameProps {
@@ -55,6 +59,11 @@ interface SoftwareListFrameProps {
    * the list component draws its own loading state and does not fetch.
    */
   loading?: boolean;
+  /**
+   * The funnels again, for a narrow content area where the columns that carry them are hidden: a filter button beside
+   * the search opens the list's filter window (`filtersOpen`), which the list draws with the options it read.
+   */
+  filterModal?: boolean;
   /** Above the toolbar while the list has rows — a device tab's sync banner. */
   banner?: ReactNode;
   className?: string;
@@ -98,10 +107,12 @@ export function SoftwareListFrame({
   sortableIds = NO_ITEMS,
   filterKeys = NO_ITEMS,
   loading = false,
+  filterModal = false,
   banner,
   className,
   children,
 }: SoftwareListFrameProps) {
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const searchKey = paramName(paramPrefix, 'search');
   const sortByKey = paramName(paramPrefix, 'sortBy');
   const sortDirKey = paramName(paramPrefix, 'sortDir');
@@ -167,6 +178,8 @@ export function SoftwareListFrame({
     isPending,
     onEmptyChange: setIsEmpty,
     stickyHeaderOffset,
+    filtersOpen,
+    onFiltersClose: () => setFiltersOpen(false),
   };
 
   return (
@@ -181,6 +194,19 @@ export function SoftwareListFrame({
           value={searchInput}
           onChange={setSearchInput}
           disabled={loading}
+          actions={
+            filterModal && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="content-md:hidden"
+                onClick={() => setFiltersOpen(true)}
+                disabled={loading}
+                aria-label="Open filters"
+                leftIcon={<Filter02Icon className="text-ods-text-primary" />}
+              />
+            )
+          }
         />
       )}
 

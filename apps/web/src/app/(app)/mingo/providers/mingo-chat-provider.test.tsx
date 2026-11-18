@@ -25,6 +25,8 @@ const { toast, watchers } = vi.hoisted(() => ({
 vi.mock('../hooks/use-mingo-unified-chat-state', async () => ({
   useMingoUnifiedChatState: (await import('./__tests__/fake-mingo-chat')).useFakeMingoUnifiedChatState,
 }));
+// The Usage panel's billing read is Relay; the provider tests are about the chat session.
+vi.mock('./mingo-usage-hydrator', () => ({ MingoUsageHydrator: () => null }));
 vi.mock('@/lib/active-dialog-views', async () => ({
   registerActiveDialogView: (await import('./__tests__/fake-mingo-chat')).fakeRegisterActiveDialogView,
 }));

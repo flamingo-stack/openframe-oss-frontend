@@ -1,5 +1,6 @@
 import { isNonCookieableHost, toRegistrableBaseDomain } from '@flamingo-stack/openframe-frontend-core/platform-domains';
 import { type CookieAttributes, readCookie, writeCookie } from './cookies';
+import { routes } from './routes';
 
 /**
  * Partner-referral capture: `?ref=<code>` on any OpenFrame surface → the `of_ref` cookie, read
@@ -99,7 +100,7 @@ export function readReferralCode(): string | undefined {
  * when the cookie already holds this exact code — see the ITP note at the top of the file.
  */
 export function captureReferralFromUrl(): void {
-  if (typeof window === 'undefined') return;
+  if (typeof window === 'undefined' || window.location.pathname.replace(/\/$/, '') === routes.auth.error()) return;
 
   let code: string | undefined;
   try {
