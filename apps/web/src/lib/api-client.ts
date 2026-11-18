@@ -68,6 +68,7 @@ export const AUTH_UNAVAILABLE_MESSAGE = 'Authentication temporarily unavailable'
 import { clientIdentityHeaders } from './client-identity';
 import { isOnline } from './connectivity';
 import { forceLogout } from './force-logout';
+import { graphqlPath } from './graphql-router';
 import { runtimeEnv } from './runtime-config';
 import {
   isSessionGone,
@@ -149,7 +150,7 @@ class ApiClient {
 
     const tenantHost = runtimeEnv.tenantHostUrl();
 
-    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    const cleanPath = graphqlPath(path.startsWith('/') ? path : `/${path}`);
     if (tenantHost) return `${tenantHost}${cleanPath}`;
 
     // Default: use relative path (no host)
@@ -242,7 +243,10 @@ class ApiClient {
     }
 
     try {
-      const response = await fetch(url, {
+      // Built again rather than reusing `url`: a GraphQL path follows the
+      // `graphql-router` flag (`graphqlPath`), which may answer while this
+      // request is parked on the gates above. Only the path can change.
+      const response = await fetch(this.buildUrl(path), {
         ...fetchOptions,
         headers: requestHeaders,
         credentials: 'include', // Always include cookies for cookie-based auth
