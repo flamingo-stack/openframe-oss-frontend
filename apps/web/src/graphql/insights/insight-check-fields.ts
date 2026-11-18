@@ -14,7 +14,6 @@ export const insightCheckFieldsFragment = graphql`
     platform
     description
     severity
-    escalatedSeverity
     intervalSeconds
     enabled
     enabledScopeType

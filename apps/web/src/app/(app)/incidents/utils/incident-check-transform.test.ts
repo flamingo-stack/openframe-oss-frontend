@@ -28,7 +28,6 @@ function diskLow(overrides: Record<string, unknown> = {}) {
     platform: 'WINDOWS',
     description: 'Free space is below the threshold set for this device.',
     severity: 'HIGH',
-    escalatedSeverity: 'CRITICAL',
     intervalSeconds: 3600,
     enabled: true,
     enabledScopeType: 'CUSTOMER',
@@ -60,7 +59,6 @@ describe('toIncidentCheck', () => {
     expect(check).toMatchObject({
       name: 'Disk is almost full',
       severity: 'HIGH',
-      escalatedSeverity: 'CRITICAL',
       intervalSeconds: 3600,
       enabledSource: { type: 'CUSTOMER', id: 'org-1', name: 'Acme' },
     });

@@ -8066,14 +8066,10 @@ type InsightCheck {
   """What the check looks for and why it matters."""
   description: String!
 
-  """The severity an insight of this check opens with."""
+  """
+  The severity every insight of this check opens with, whatever the measured value.
+  """
   severity: InsightSeverity!
-
-  """
-  The harshest severity the check opens with when the measured value is far past the threshold,
-  e.g. CRITICAL for a disk with under 5% free. Null for a check that always opens at `severity`.
-  """
-  escalatedSeverity: InsightSeverity
 
   """How often the check runs on each device, in seconds."""
   intervalSeconds: Int!

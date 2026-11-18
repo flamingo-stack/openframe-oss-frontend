@@ -62,9 +62,8 @@ export interface IncidentCheck {
   name: string;
   platform: CheckData['platform'];
   description: string;
-  /** The severity its incident opens with, and the one it can rise to far past the threshold (else null). */
+  /** The severity its incident opens with. */
   severity: CheckData['severity'];
-  escalatedSeverity: CheckData['escalatedSeverity'];
   /** How often it runs on each device, in seconds. */
   intervalSeconds: number;
   enabled: boolean;
@@ -84,7 +83,6 @@ export function toIncidentCheck(ref: insightCheckFields_insightCheck$key): Incid
     platform: node.platform,
     description: node.description,
     severity: node.severity,
-    escalatedSeverity: node.escalatedSeverity ?? null,
     intervalSeconds: node.intervalSeconds,
     enabled: node.enabled,
     enabledSource: {

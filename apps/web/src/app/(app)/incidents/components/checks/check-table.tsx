@@ -16,7 +16,7 @@ import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { formatInterval } from '../../utils/format-interval';
 import { formatThreshold, INSIGHT_CHECK_PLATFORM_LABELS } from '../../utils/incident-check-labels';
 import type { CheckScope, IncidentCheck } from '../../utils/incident-check-transform';
-import { INCIDENT_SEVERITY_LABELS, labelOf } from '../../utils/incident-labels';
+import { labelOf } from '../../utils/incident-labels';
 import { IncidentSeverityTag } from '../incident-tags';
 import { settingSummary } from './check-source';
 import { CHECK_COLUMNS } from './check-table-columns';
@@ -69,14 +69,10 @@ function thresholdValues(check: IncidentCheck): string[] {
 }
 
 function SeverityCell({ check }: { check?: IncidentCheck }) {
+  // A column flexbox: `items-start` keeps the tag at its own width, as in the incident lists.
   return (
-    <div className="flex min-w-0 flex-col items-start justify-center gap-[var(--spacing-system-xxs)]">
+    <div className="flex min-w-0 flex-col items-start justify-center">
       <IncidentSeverityTag severity={check?.severity} />
-      {check?.escalatedSeverity && (
-        <TruncateText variant="h6" tone="secondary">
-          {`Up to ${labelOf(INCIDENT_SEVERITY_LABELS, check.escalatedSeverity)}`}
-        </TruncateText>
-      )}
     </div>
   );
 }
