@@ -1,5 +1,6 @@
 'use client';
 
+import { TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { ValueText } from '@/app/components/shared/value-text';
 import { SoftwareAutoUpdateStatus } from '@/generated/schema-enums';
 import { presentationFor } from '@/lib/exhaustive-map';
@@ -20,7 +21,17 @@ const AUTO_UPDATE_LABEL: Record<SoftwareAutoUpdateStatus, string | null> = {
 
 /** An AUTO-UPDATE cell: On, Off, "No package found", or the empty mark (unknown, or installed by hand). */
 export function AutoUpdateStatusValue({ status }: { status: string | null | undefined }) {
-  return <ValueText value={status ? (presentationFor(AUTO_UPDATE_LABEL, status) ?? null) : null} />;
+  const label = status ? (presentationFor(AUTO_UPDATE_LABEL, status) ?? null) : null;
+  // Nothing to auto-update with is a fact about the title, not a setting: it reads muted, as on the tablet frame
+  // (1098:309), so the On / Off rows stand out.
+  if (status === SoftwareAutoUpdateStatus.NO_PACKAGE) {
+    return (
+      <TruncateText variant="h6" tone="secondary">
+        {label ?? ''}
+      </TruncateText>
+    );
+  }
+  return <ValueText value={label} />;
 }
 
 /**

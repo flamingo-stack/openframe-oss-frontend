@@ -99,10 +99,11 @@ function SoftwareListTableQuery({
   onFiltersClose,
 }: SoftwareListTableProps) {
   const retryKey = useRetryKey();
+  const filter = toSoftwareFilter(deferredSelections);
   const queryData = useLazyLoadQuery<SoftwareListTableQueryType>(
     softwareListTableQuery,
     {
-      filter: toSoftwareFilter(deferredSelections),
+      filter,
       search: debouncedSearch || null,
       first: SOFTWARE_LIST_PAGE_SIZE,
       after: null,
@@ -116,8 +117,8 @@ function SoftwareListTableQuery({
   >(softwareListTableFragment, queryData);
 
   const rows = data.softwares.edges.map(edge => edge.node);
-  // The funnels' options: what occurs across the tenant's titles, from the server.
-  const filterOptions = useSoftwareListFilters();
+  // The funnels' options: what occurs across the tenant's titles, from the server, over the search and the other funnels.
+  const filterOptions = useSoftwareListFilters(filter, debouncedSearch || null);
 
   const fetchNextPage = () => {
     if (hasNext && !isLoadingNext) loadNext(SOFTWARE_LIST_PAGE_SIZE);

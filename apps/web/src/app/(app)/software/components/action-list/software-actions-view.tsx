@@ -11,6 +11,7 @@ import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { routes } from '@/lib/routes';
+import { FilterWindowButton } from '../shared/filter-window-button';
 import { SOFTWARE_SECTIONS } from '../shared/software-sections';
 import { type SoftwareActionSelections, SoftwareActionsTable } from './software-actions-table';
 
@@ -68,6 +69,7 @@ export function SoftwareActionsView({ loading = false }: { loading?: boolean }) 
   } = useSearchParam(params.search, value => setParam('search', value), 300);
 
   const [isEmpty, setIsEmpty] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
 
   // Memoized for its identity, not for speed: `useDeferredQuery` tells a pending
@@ -91,6 +93,8 @@ export function SoftwareActionsView({ loading = false }: { loading?: boolean }) 
       isPending={isPending}
       onEmptyChange={setIsEmpty}
       stickyHeaderOffset={stickyHeaderOffset}
+      filtersOpen={filtersOpen}
+      onFiltersClose={() => setFiltersOpen(false)}
     />
   );
 
@@ -106,6 +110,7 @@ export function SoftwareActionsView({ loading = false }: { loading?: boolean }) 
             value={searchInput}
             onChange={setSearchInput}
             disabled={loading}
+            actions={<FilterWindowButton onClick={() => setFiltersOpen(true)} disabled={loading} />}
           />
         )}
 

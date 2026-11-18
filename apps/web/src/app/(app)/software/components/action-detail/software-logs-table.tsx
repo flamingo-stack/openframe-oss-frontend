@@ -18,8 +18,9 @@ import type {
 } from '@/__generated__/softwareLogsTableQuery.graphql';
 import type { ExecutionsTabState } from '@/app/(app)/scripts/shared/components/executions-table';
 import type { FacetOption } from '@/app/(app)/scripts/shared/utils/facet-options';
-import { liveColumnMeta, useRetryKey } from '@/app/components/shared';
+import { liveColumnMeta, NO_ITEMS, useRetryKey } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import type { SoftwareActionStatus } from '@/generated/schema-enums';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { softwareActionStatusLabel } from '../action-list/software-action-status-tag';
 import { multiColumnFilter } from '../shared/column-filters';
@@ -38,27 +39,36 @@ import { useSoftwareLogParams } from './use-software-log-params';
  * history, it also lists the devices the run has not reached yet (offline, or a schedule still to fire) as SCHEDULED,
  * and a device whose update is on hold there (the app is open) as WAITING.
  *
- * The list comes whole (a run targets at most 100 devices), so the status funnel and the search narrow it here: a
- * tick or a keystroke lands at once, with no refetch.
+ * The Status and Customer funnels and Device Tags narrow it on the server (`filter`). Their options and counts come
+ * from the same list unfiltered (`facets`): the run's devices, at most 100, until the backend answers facets of its own.
+ * The search box stays on the page: it matches what a row shows (its output and customer too), and the server's
+ * `search` reads the hostname only.
  */
 const softwareLogsTableQuery = graphql`
   query softwareLogsTableQuery($actionId: String!, $filter: SoftwareActionDeviceFilterInput) {
     softwareActionExecutions(actionId: $actionId, filter: $filter) {
       machineId
-      # What the Status and Customer funnels narrow the rows by, and the Customer funnel's words.
+      # The ticks the funnel headers draw against each row.
       status
       organizationId
-      organizationName
       ...softwareLogDeviceCell_device
       ...softwareLogCustomerCell_device
       ...softwareLogStatusCell_device
       ...softwareLogResultPanel_device
       ...softwareLogSearch_device
     }
+    facets: softwareActionExecutions(actionId: $actionId) {
+      # The Status and Customer funnels' options: the values the run's devices have, and the customers' words.
+      machineId
+      status
+      organizationId
+      organizationName
+    }
   }
 `;
 
 type LogRow = softwareLogsTableQuery$data['softwareActionExecutions'][number];
+type FacetRow = softwareLogsTableQuery$data['facets'][number];
 
 const EMPTY_STATE: NoDataProps = {
   icon: <ClipboardListIcon />,
@@ -84,19 +94,32 @@ interface SoftwareLogsTableProps {
  */
 export function SoftwareLogsTable({ actionId, state }: SoftwareLogsTableProps) {
   const retryKey = useRetryKey();
-  // Device Tags go to the server; the rows on screen stay while the narrowed list is read. Deferred as a string: the
-  // URL hands back a fresh array every render, and a deferred value that never settles never stops re-rendering.
-  const tagKey = useDeferredValue(useSoftwareLogParams().deviceTags.join(','));
+  const { status, customer, deviceTags } = useSoftwareLogParams();
+  // The rows on screen stay while the narrowed list is read. Deferred as a string: the URL hands back fresh arrays every
+  // render, and a deferred value that never settles never stops re-rendering.
+  const filterKey = useDeferredValue(JSON.stringify([status, customer, deviceTags]));
+  const [statuses, organizationIds, deviceTagIds] = JSON.parse(filterKey) as [string[], string[], string[]];
+  const filter =
+    statuses.length + organizationIds.length + deviceTagIds.length === 0
+      ? null
+      : {
+          ...(statuses.length > 0 && { statuses: statuses as SoftwareActionStatus[] }),
+          ...(organizationIds.length > 0 && { organizationIds }),
+          ...(deviceTagIds.length > 0 && { deviceTagIds }),
+        };
   const data = useLazyLoadQuery<SoftwareLogsTableQueryType>(
     softwareLogsTableQuery,
-    { actionId, filter: tagKey ? { deviceTagIds: tagKey.split(',') } : null },
+    { actionId, filter },
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
-  return <SoftwareLogsRows allRows={data.softwareActionExecutions} state={state} />;
+  return <SoftwareLogsRows allRows={data.softwareActionExecutions} facetRows={data.facets} state={state} />;
 }
 
 interface SoftwareLogsRowsProps {
+  /** The run's devices the funnels and Device Tags leave, from the server. */
   allRows: readonly LogRow[];
+  /** The run's devices unfiltered: the funnels' options. None while the run is read. */
+  facetRows?: readonly FacetRow[];
   state: ExecutionsTabState;
 }
 
@@ -105,7 +128,7 @@ interface SoftwareLogsRowsProps {
  * header is real and the body is one page of placeholder rows with their real cells (`ActionDetailLogs` renders it
  * so before the run answers).
  */
-export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
+export function SoftwareLogsRows({ allRows, facetRows = NO_ITEMS, state }: SoftwareLogsRowsProps) {
   const {
     narrowSearch,
     isPending,
@@ -119,23 +142,23 @@ export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
   const { phases, toggle, collapsed } = useResultPhases();
   const { customer: tickedCustomers, deviceTags, setFunnels } = useSoftwareLogParams();
 
-  // The statuses the run's devices are in, and how many each: the list is whole, so these are the facets. The labels
-  // read the way the tags do ("Success", not "Completed").
+  // The statuses the run's devices are in, and how many each, over the run unfiltered. The labels read the way the tags
+  // do ("Success", not "Completed").
   const statusOptions = useMemo<FacetOption[]>(() => {
     const counts = new Map<string, number>();
-    for (const row of allRows) counts.set(row.status, (counts.get(row.status) ?? 0) + 1);
+    for (const row of facetRows) counts.set(row.status, (counts.get(row.status) ?? 0) + 1);
     return [...counts].map(([value, count]) => ({
       id: value,
       label: softwareActionStatusLabel(value) ?? value,
       value,
       count,
     }));
-  }, [allRows]);
+  }, [facetRows]);
 
-  // The customers of the run's devices, and how many devices each: the same whole-list facet as the statuses.
+  // The customers of the run's devices, and how many devices each: the same unfiltered run as the statuses.
   const customerOptions = useMemo<FacetOption[]>(() => {
     const byId = new Map<string, { label: string; count: number }>();
-    for (const row of allRows) {
+    for (const row of facetRows) {
       if (!row.organizationId) continue;
       const seen = byId.get(row.organizationId);
       byId.set(row.organizationId, {
@@ -144,7 +167,7 @@ export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
       });
     }
     return [...byId].map(([value, { label, count }]) => ({ id: value, label, value, count }));
-  }, [allRows]);
+  }, [facetRows]);
 
   // While the run is read the table holds one page of placeholder rows, drawn with their real cells (never narrowed:
   // a placeholder has nothing to match).
@@ -154,15 +177,8 @@ export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
   );
   const needle = narrowSearch.trim().toLowerCase();
   const ticked = tableFilters.status ?? [];
-  const logs =
-    placeholderRows ??
-    allRows.filter(
-      row =>
-        (ticked.length === 0 || ticked.includes(row.status)) &&
-        (tickedCustomers.length === 0 ||
-          (row.organizationId != null && tickedCustomers.includes(row.organizationId))) &&
-        (!needle || matchesSoftwareLog(row, needle)),
-    );
+  // The funnels came back narrowed from the server; the search box narrows what is left.
+  const logs = placeholderRows ?? (needle ? allRows.filter(row => matchesSoftwareLog(row, needle)) : allRows);
 
   // Memoized by hand on purpose: TanStack keys its column model on this array's
   // identity and `flexRender` mounts each `cell` function as a component, so a
@@ -211,7 +227,8 @@ export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
   );
 
   const table = useDataTable<LogRow>({
-    data: logs,
+    // The table only ever reads the rows it is handed.
+    data: logs as LogRow[],
     columns,
     getRowId,
     enableSorting: false,

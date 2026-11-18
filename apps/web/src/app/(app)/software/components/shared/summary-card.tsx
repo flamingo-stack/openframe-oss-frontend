@@ -20,28 +20,30 @@ export interface SummaryField {
 
 interface SummaryCardProps {
   fields: readonly SummaryField[];
-  /** How many fields sit side by side from md up; below md they stack. */
+  /** How many fields sit side by side from md up; below md they go two to a row. */
   columns: SummaryCardColumns;
   /** A full-width block above the fields (the CVE's description). */
   lead?: ReactNode;
 }
 
 /**
- * The card under a Software detail page's title: labelled values in a row,
- * stacked below md. In a loading scope every `InfoCell` draws itself (label real,
+ * The card under a Software detail page's title: labelled values in a row, two to a row below md (the phone frames
+ * 1239:20463, 1059:18100, 1:10271), a rule between the rows. In a loading scope every `InfoCell` draws itself (label real,
  * value a text bar), so loading and loaded share every metric by construction.
  */
 export function SummaryCard({ fields, columns, lead }: SummaryCardProps) {
+  // Below md the fields pair up: every row but the last has a rule under it.
+  const lastPhoneRow = fields.length - 1 - ((fields.length - 1) % 2);
   return (
     <div className="flex flex-col rounded-md border border-ods-border bg-ods-card">
       {lead && <div className="flex flex-col border-b border-ods-border p-[var(--spacing-system-m)]">{lead}</div>}
-      <div className={cn('grid grid-cols-1', GRID_COLUMNS[columns])}>
+      <div className={cn('grid grid-cols-2', GRID_COLUMNS[columns])}>
         {fields.map((field, idx) => (
           <div
             key={field.label}
             className={cn(
               'flex min-h-14 items-center p-[var(--spacing-system-m)] content-md:min-h-20',
-              idx < fields.length - 1 && 'border-b border-ods-border content-md:border-b-0',
+              idx < lastPhoneRow && 'border-b border-ods-border content-md:border-b-0',
             )}
           >
             <InfoCell

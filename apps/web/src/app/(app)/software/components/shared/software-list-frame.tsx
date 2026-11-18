@@ -1,7 +1,6 @@
 'use client';
 
-import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, type DataTableSortState, LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { type DataTableSortState, LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useMemo, useState } from 'react';
@@ -10,6 +9,7 @@ import { SearchToolbar } from '@/app/components/shared/search-toolbar';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { FilterWindowButton } from './filter-window-button';
 import { type ServerSortInput, useServerSort } from './use-server-sort';
 
 /** Every funnel's selection, keyed by its column id. */
@@ -193,19 +193,7 @@ export function SoftwareListFrame({
           value={searchInput}
           onChange={setSearchInput}
           disabled={loading}
-          actions={
-            filterModal && (
-              <Button
-                variant="outline"
-                size="icon"
-                className="content-md:hidden"
-                onClick={() => setFiltersOpen(true)}
-                disabled={loading}
-                aria-label="Open filters"
-                leftIcon={<Filter02Icon className="text-ods-text-primary" />}
-              />
-            )
-          }
+          actions={filterModal && <FilterWindowButton onClick={() => setFiltersOpen(true)} disabled={loading} />}
         />
       )}
 

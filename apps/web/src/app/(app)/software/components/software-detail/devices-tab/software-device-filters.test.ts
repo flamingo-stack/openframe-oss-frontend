@@ -12,12 +12,17 @@ describe('toSoftwareOnDeviceFilter', () => {
       toSoftwareOnDeviceFilter({ softwareVersion: ['OUTDATED'], installedBy: [], autoUpdate: ['OFF'] }, ['tag-1']),
     ).toEqual({ statuses: ['OUTDATED'], autoUpdateStatuses: ['OFF'], deviceTagIds: ['tag-1'] });
     expect(toSoftwareOnDeviceFilter({ installedBy: ['BREW'] }, [])).toEqual({ installedBy: ['BREW'] });
+    expect(toSoftwareOnDeviceFilter({ device: ['MANAGED'] }, [])).toEqual({ deviceStatuses: ['MANAGED'] });
   });
 });
 
 describe('softwareDeviceFilterOptions', () => {
   // What test-env.qa answered for gh on 2026-11-17, on the read model.
   const answered = {
+    deviceStatuses: [
+      { value: 'MANAGED', label: 'Managed', count: 3 },
+      { value: 'DELETED', label: 'Deleted', count: 2 },
+    ],
     statuses: [
       { value: 'UP_TO_DATE', label: 'Up to date', count: 0 },
       { value: 'OUTDATED', label: 'Outdated', count: 9 },
@@ -34,6 +39,10 @@ describe('softwareDeviceFilterOptions', () => {
     expect(options.softwareVersion.map(({ value, label, count }) => ({ value, label, count }))).toEqual([
       { value: 'OUTDATED', label: 'Outdated', count: 9 },
     ]);
+    expect(options.device.map(({ value, label, count }) => ({ value, label, count }))).toEqual([
+      { value: 'MANAGED', label: 'Managed', count: 3 },
+      { value: 'DELETED', label: 'Deleted', count: 2 },
+    ]);
     expect(options.installedBy.map(({ value, label }) => ({ value, label }))).toEqual([
       { value: 'BREW', label: 'Brew' },
     ]);
@@ -42,7 +51,10 @@ describe('softwareDeviceFilterOptions', () => {
   });
 
   it('offers nothing where the backend leaves the facets empty (Fleet paging)', () => {
-    expect(softwareDeviceFilterOptions({ statuses: [], installedBy: [], autoUpdateStatuses: [] })).toEqual({
+    expect(
+      softwareDeviceFilterOptions({ deviceStatuses: [], statuses: [], installedBy: [], autoUpdateStatuses: [] }),
+    ).toEqual({
+      device: [],
       softwareVersion: [],
       installedBy: [],
       autoUpdate: [],

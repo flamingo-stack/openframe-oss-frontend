@@ -23,7 +23,10 @@ export function SoftwareDeviceVersionCell({
   const data = useFragment(softwareDeviceVersionCellFragment, useLoadingScope() ? null : softwareOnDevice);
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-      <ValueText value={data?.softwareVersion} />
+      {/* On a phone the row keeps the chip alone (1239:20463): the version is the tablet's and desktop's. */}
+      <span className="hidden min-w-0 content-md:flex">
+        <ValueText value={data?.softwareVersion} />
+      </span>
       <SoftwareOnDeviceStatusTag status={data?.status} />
     </div>
   );

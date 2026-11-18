@@ -4,8 +4,8 @@ import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 
 /**
  * Software Update Details' own narrowing, beside the execution shell's search: the Status and Customer funnels
- * (organization ids, narrowed on the page: the run's devices come whole) and the Device Tags window (raw tag ids, sent
- * as `deviceTagIds`). Kept in the URL, so the toolbar's button and the logs below it read one state.
+ * (`statuses`, `organizationIds`) and the Device Tags window (raw tag ids, `deviceTagIds`), all sent to the server.
+ * Kept in the URL, so the toolbar's button and the logs below it read one state.
  */
 export function useSoftwareLogParams() {
   const { params, setParam, setParams } = useApiParams({
@@ -14,6 +14,7 @@ export function useSoftwareLogParams() {
     deviceTags: { type: 'array', default: [] },
   });
   return {
+    status: params.status,
     customer: params.customer,
     deviceTags: params.deviceTags,
     /**
