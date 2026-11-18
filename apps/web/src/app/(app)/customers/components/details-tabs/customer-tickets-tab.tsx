@@ -8,6 +8,8 @@ import {
   SearchInput,
   useDataTable,
   useLoadingScope,
+  GRID_ACTION_COLUMN_SIZE,
+  GRID_MIN_WIDTH,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
@@ -15,6 +17,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { oneLineEmptyState } from '@/app/components/shared/empty-state';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { ResponsiveActionButton } from '@/app/components/shared/responsive-action-button';
+import { useTableGrid } from '@/app/components/shared/table-layout-scope';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { routes } from '@/lib/routes';
@@ -27,6 +30,18 @@ import { TICKETS_PAGE_SIZE, useTicketsQuery } from '../../../tickets/hooks/use-t
 import type { Dialog } from '../../../tickets/types/dialog.types';
 import { CustomerTabHeader } from './customer-tab-header';
 
+/**
+ * The grid widths of this tab's ticket columns, by column: the grid lays a column out by its `size`, the card rows by
+ * the shared columns' own widths. The cells' one-line grid form belongs to the shared ticket columns: until they state
+ * one, the grid clips their card cells to one line.
+ */
+const GRID_COLUMN_SIZE: Record<string, { size: number; minSize?: number; label: string }> = {
+  title: { size: 420, label: 'Ticket' },
+  source: { size: 280, minSize: GRID_MIN_WIDTH.icon, label: 'Source' },
+  assignee: { size: 280, minSize: GRID_MIN_WIDTH.media, label: 'Assignee' },
+  status: { size: 180, label: 'Status' },
+};
+
 interface CustomerTicketsTabProps {
   organizationId: string;
 }
@@ -38,6 +53,8 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
+  // The layout the customer's page asks for.
+  const tableGrid = useTableGrid('customer-tickets');
 
   // Scoped on the server (`TicketFilterInput.organizationIds`): a ticket counts as the customer's
   // only through its own `organizationId`, not through the owning machine's current organization.
@@ -60,10 +77,23 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
 
   const { isUserDeleted } = useUserStatusMap(tickets.map(ticket => ticket.assignedTo));
   // The shared ticket columns and the trailing open-in-new-tab action.
-  const columns = useMemo<ColumnDef<Dialog>[]>(
-    () => [...getTicketTableColumns({ isArchived: false, isUserDeleted }), getTicketOpenColumn()],
-    [isUserDeleted],
-  );
+  const columns = useMemo<ColumnDef<Dialog>[]>(() => {
+    const data = getTicketTableColumns({ isArchived: false, isUserDeleted }).map(source => {
+      // What the grid reads beside the card widths: the column's size and its name in the settings menu.
+      const key = (source as { accessorKey?: string }).accessorKey;
+      const grid = key ? GRID_COLUMN_SIZE[key] : undefined;
+      return grid
+        ? { ...source, size: grid.size, minSize: grid.minSize, meta: { ...source.meta, label: grid.label } }
+        : source;
+    });
+    // The open column is the grid's action column kept by hand (pinned right, never hidden), so that the card rows
+    // keep it as it is.
+    const open = getTicketOpenColumn();
+    return [
+      ...data,
+      { ...open, size: GRID_ACTION_COLUMN_SIZE, enableHiding: false, meta: { ...open.meta, gridKind: 'action' } },
+    ];
+  }, [isUserDeleted]);
 
   const loading = scoped || isLoading;
   // While the customer or the first page is read the table holds one page of placeholder rows, drawn with the real
@@ -110,6 +140,7 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
       {/* The first page is a client read: the table draws its own loading state in this scope. */}
       <LoadingWhen loading={loading}>
         <LiveTable
+          {...tableGrid}
           table={table}
           pageSize={TICKETS_PAGE_SIZE}
           isPending={isPending}

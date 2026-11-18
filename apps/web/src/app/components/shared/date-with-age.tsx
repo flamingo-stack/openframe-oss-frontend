@@ -1,6 +1,6 @@
 'use client';
 
-import { TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { DataTable, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { differenceInCalendarDays } from 'date-fns';
 import { formatDate, toValidDate } from '@/lib/format-date';
 import { pluralize } from '@/lib/pluralize';
@@ -20,5 +20,22 @@ export function DateWithAge({ date }: { date: string | number | Date | null | un
         {pluralize(differenceInCalendarDays(new Date(), value), 'day')}
       </TruncateText>
     </div>
+  );
+}
+
+/**
+ * `DateWithAge` in a grid table (`meta.gridCell`): one line, the date and its age after it. While the row is read (a
+ * loading scope) it is the cell's own bar.
+ */
+export function DateWithAgeGridCell({ date }: { date: string | number | Date | null | undefined }) {
+  const loading = useLoadingScope();
+  const value = toValidDate(date);
+  if (loading) return <DataTable.Cell text="" />;
+  if (!value) return <ValueText value={null} />;
+  return (
+    <DataTable.Cell
+      text={formatDate(value)}
+      secondary={pluralize(differenceInCalendarDays(new Date(), value), 'day')}
+    />
   );
 }

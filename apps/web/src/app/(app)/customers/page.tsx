@@ -2,6 +2,7 @@
 
 import { getTabComponent } from '@flamingo-stack/openframe-frontend-core';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { TableLayoutScope } from '@/app/components/shared/table-layout-scope';
 import { CUSTOMERS_TABS, CustomersTabNavigation } from './components/customers-tabs';
 
 export default function Organizations() {
@@ -18,7 +19,9 @@ export default function Organizations() {
     <div className="flex w-full flex-col">
       <div className="flex w-full flex-col">
         <CustomersTabNavigation activeTab={params.tab} onTabChange={tab => setParams({ tab, search: '' })} />
-        {TabComponent ? <TabComponent /> : null}
+        {/* The list is the page's content, with nothing under it: in the grid layout the table is the page's scroll
+            area (`fill`). */}
+        <TableLayoutScope fill>{TabComponent ? <TabComponent /> : null}</TableLayoutScope>
       </div>
     </div>
   );

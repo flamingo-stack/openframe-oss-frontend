@@ -10,11 +10,20 @@ import { useResultPhasesContext } from './use-result-phases';
  * `ResultPhasesContext`, so the column definition itself captures nothing that
  * changes (see the context for why that matters).
  */
-export function SoftwareLogResultToggleCell({ id }: { id: string }) {
+export function SoftwareLogResultToggleCell({
+  id,
+  grid = false,
+}: {
+  id: string;
+  /** The toggle's form in a grid table's action column: the chevron alone, in the 40px button with no box of its own. */
+  grid?: boolean;
+}) {
   const { phases, toggle } = useResultPhasesContext();
   // Static chrome: while the row is read (a loading scope) it is drawn for real and inert.
   const loading = useLoadingScope();
-  return <SoftwareLogResultToggle open={phases.get(id) === 'open'} onToggle={() => toggle(id)} disabled={loading} />;
+  const open = phases.get(id) === 'open';
+  if (grid) return <SoftwareLogResultGridToggle open={open} onToggle={() => toggle(id)} disabled={loading} />;
+  return <SoftwareLogResultToggle open={open} onToggle={() => toggle(id)} disabled={loading} />;
 }
 
 /** The row's "Show Result" / "Hide Result" control. */
@@ -60,6 +69,39 @@ export function SoftwareLogResultToggle({
         aria-label={label}
         leftIcon={chevron}
         className="bg-ods-card content-md:hidden"
+      />
+    </div>
+  );
+}
+
+/**
+ * The row's "Show Result" / "Hide Result" control in a grid table's action column: the column is 56px, so the control
+ * is its chevron, named for a screen reader. `data-no-row-click` keeps a row link from firing under it.
+ */
+function SoftwareLogResultGridToggle({
+  open,
+  onToggle,
+  disabled,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  disabled: boolean;
+}) {
+  return (
+    <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
+      <Button
+        variant="transparent"
+        size="icon"
+        onClick={onToggle}
+        disabled={disabled}
+        aria-expanded={open}
+        aria-label={open ? 'Hide Result' : 'Show Result'}
+        leftIcon={
+          <Chevron02DownIcon
+            className={cn('transition-transform duration-200 motion-reduce:transition-none', open && 'rotate-180')}
+          />
+        }
+        className="size-10 border-0 md:size-10"
       />
     </div>
   );

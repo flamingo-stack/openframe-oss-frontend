@@ -1,9 +1,10 @@
 'use client';
 
-import { TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { DataTable, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { softwareVulnerabilitiesCell_software$key } from '@/__generated__/softwareVulnerabilitiesCell_software.graphql';
 import { ValueText } from '@/app/components/shared';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { pluralize } from '@/lib/pluralize';
 
 const softwareVulnerabilitiesCellFragment = graphql`
@@ -38,4 +39,15 @@ export function SoftwareVulnerabilitiesCell({ software }: { software: softwareVu
       )}
     </div>
   );
+}
+
+/** VULNS column in the grid layout: one line, the CVE count, or the empty mark with "no CPE match" after it. */
+export function SoftwareVulnerabilitiesGridCell({ software }: { software: softwareVulnerabilitiesCell_software$key }) {
+  // A row still being read (a loading scope) has no fragment to read: the cell draws its bar.
+  const data = useFragment(softwareVulnerabilitiesCellFragment, useLoadingScope() ? null : software);
+  const cveCount = data?.vulnerabilitySummary?.cveCount ?? 0;
+  if (!data) return <DataTable.Cell text="" />;
+  if (cveCount > 0) return <DataTable.Cell text={pluralize(cveCount, 'CVE')} />;
+  // Only an explicit `false` means "scanned, no CPE entry", as in a card row.
+  return <DataTable.Cell text={EMPTY_VALUE} secondary={data.cpeMatched === false ? 'no CPE match' : undefined} />;
 }

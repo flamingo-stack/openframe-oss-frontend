@@ -21,6 +21,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import { useTenantManagementV2Gate } from '@/app/(app)/cloud-tenant-management/components/shared/use-tenant-management-gate';
 import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remote-access-approval-gate';
+import { TableLayoutScope } from '@/app/components/shared/table-layout-scope';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { getFullImageUrl } from '@/lib/image-url';
 import { type CustomerDetailTab, type CustomerEditTab, routes } from '@/lib/routes';
@@ -242,13 +243,17 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
         >
           <TabNavigation tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange} staticLabels>
             {tab => (
-              <LoadingWhen loading={tab === CUSTOMER_DEVICE_GUARDRAILS_TAB_ID && deviceGuardrailsGateLoading}>
-                <TabContent
-                  activeTab={tab}
-                  TabComponent={getCustomerTabComponent(tab)}
-                  componentProps={{ organizationId: id, organization }}
-                />
-              </LoadingWhen>
+              // The layout of the tables in the tabs (Tickets, Users, Groups). No `fill`: a tab is one section of the
+              // customer's page, so the page scrolls, not the table.
+              <TableLayoutScope>
+                <LoadingWhen loading={tab === CUSTOMER_DEVICE_GUARDRAILS_TAB_ID && deviceGuardrailsGateLoading}>
+                  <TabContent
+                    activeTab={tab}
+                    TabComponent={getCustomerTabComponent(tab)}
+                    componentProps={{ organizationId: id, organization }}
+                  />
+                </LoadingWhen>
+              </TableLayoutScope>
             )}
           </TabNavigation>
         </PageLayout>

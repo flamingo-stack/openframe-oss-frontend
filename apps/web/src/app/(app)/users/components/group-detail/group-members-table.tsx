@@ -6,6 +6,7 @@ import {
   Button,
   type ColumnDef,
   FilterModal,
+  GRID_MIN_WIDTH,
   InfoHint,
   type Row,
   useDataTable,
@@ -30,7 +31,9 @@ import {
 } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { OpenRowButton } from '@/app/components/shared/open-row-button';
+import { openRowColumn } from '@/app/components/shared/open-row-column';
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
+import { useTableGrid } from '@/app/components/shared/table-layout-scope';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { DirectoryMembershipScope } from '@/generated/schema-enums';
 import { toAccountRow } from '@/graphql/directory/account-row-fields';
@@ -51,7 +54,15 @@ import {
 import { topAdminRole } from '../../utils/user-presentation';
 import { UserTabHeading } from '../user-detail/user-tab-heading';
 import { FirstPlusCountCell } from '../users-list/user-row-cells';
-import { MemberCell, MemberCustomerCell, type MemberRow, MemberTypeCell } from './group-member-row';
+import {
+  MemberCell,
+  MemberCustomerCell,
+  MemberCustomerGridCell,
+  MemberGridCell,
+  type MemberRow,
+  MemberTypeCell,
+  MemberTypeGridCell,
+} from './group-member-row';
 
 const MEMBERS_PAGE_SIZE = 20;
 
@@ -192,6 +203,11 @@ const SCOPE_OPTIONS = [
   { id: DirectoryMembershipScope.NESTED, label: 'Nested', value: DirectoryMembershipScope.NESTED },
 ];
 
+/*
+ * The columns. Each data column also states what the grid layout reads: a `size` (its designed width), a `label` where
+ * the header is not the column's name, and a one-line `gridCell` where the card cell has a second line. The licences
+ * are one line already.
+ */
 const COLUMNS: ColumnDef<MemberRow>[] = [
   {
     id: MEMBER_COLUMNS.member.id,
@@ -199,38 +215,55 @@ const COLUMNS: ColumnDef<MemberRow>[] = [
     cell: ({ row }: { row: Row<MemberRow> }) => <MemberCell row={row.original} />,
     enableSorting: false,
     filterFn: multiSelectFilterFn,
-    meta: liveColumnMeta(MEMBER_COLUMNS.member, { filter: { options: SCOPE_OPTIONS } }),
+    size: 420,
+    minSize: GRID_MIN_WIDTH.media,
+    meta: liveColumnMeta(MEMBER_COLUMNS.member, {
+      label: 'Member',
+      filter: { options: SCOPE_OPTIONS },
+      gridCell: ({ row }: { row: Row<MemberRow> }) => <MemberGridCell row={row.original} />,
+    }),
   },
   {
     id: MEMBER_COLUMNS.type.id,
     header: MEMBER_COLUMNS.type.header,
     cell: ({ row }: { row: Row<MemberRow> }) => <MemberTypeCell row={row.original} />,
     enableSorting: false,
-    meta: liveColumnMeta(MEMBER_COLUMNS.type),
+    size: 220,
+    meta: liveColumnMeta(MEMBER_COLUMNS.type, {
+      gridCell: ({ row }: { row: Row<MemberRow> }) => <MemberTypeGridCell row={row.original} />,
+    }),
   },
   {
     id: MEMBER_COLUMNS.customer.id,
     header: MEMBER_COLUMNS.customer.header,
     cell: ({ row }: { row: Row<MemberRow> }) => <MemberCustomerCell row={row.original} />,
     enableSorting: false,
-    meta: liveColumnMeta(MEMBER_COLUMNS.customer),
+    size: 260,
+    minSize: GRID_MIN_WIDTH.media,
+    meta: liveColumnMeta(MEMBER_COLUMNS.customer, {
+      gridCell: ({ row }: { row: Row<MemberRow> }) => <MemberCustomerGridCell row={row.original} />,
+    }),
   },
   {
     id: MEMBER_COLUMNS.licences.id,
     header: MEMBER_COLUMNS.licences.header,
     cell: ({ row }: { row: Row<MemberRow> }) => <FirstPlusCountCell names={row.original.licenses} />,
     enableSorting: false,
+    size: 240,
     meta: liveColumnMeta(MEMBER_COLUMNS.licences),
   },
   {
-    id: MEMBER_COLUMNS.open.id,
+    // The grid's form of the column: an action column, its button inert on a row with nothing to open. The card cell
+    // stays its own: a record no machine is linked to has no button there.
+    ...openRowColumn<MemberRow>(MEMBER_COLUMNS.open, row => ({
+      label: `Open ${row.name ?? 'member'} in new tab`,
+      href: row.href,
+    })),
     cell: ({ row }: { row: Row<MemberRow> }) => {
       const { href, name } = row.original;
       if (!href) return null;
       return <OpenRowButton label={`Open ${name ?? 'member'} in new tab`} onClick={openInNewTab(href)} />;
     },
-    enableSorting: false,
-    meta: liveColumnMeta(MEMBER_COLUMNS.open),
   },
 ];
 
@@ -403,6 +436,7 @@ function MembersRows({
   infiniteScroll: InfiniteScroll;
 }) {
   const loading = useLoadingScope();
+  const tableGrid = useTableGrid('group-members');
   const externalCount = external?.count ?? 0;
   const placeholderRows = useMemo(
     () => (loading ? loadingPlaceholderRows<MemberRow>(MEMBERS_PAGE_SIZE) : null),
@@ -432,6 +466,7 @@ function MembersRows({
           </p>
         )}
         <LiveTable
+          {...tableGrid}
           table={table}
           pageSize={MEMBERS_PAGE_SIZE}
           loadingCells={loading}

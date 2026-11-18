@@ -1,6 +1,6 @@
 'use client';
 
-import { TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { DataTable, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { softwareLogStatusCell_device$key } from '@/__generated__/softwareLogStatusCell_device.graphql';
 import { formatDateTime } from '@/lib/format-date';
@@ -35,5 +35,18 @@ export function SoftwareLogStatusCell({ device }: { device: softwareLogStatusCel
         </TruncateText>
       )}
     </div>
+  );
+}
+
+/** STATUS column in the grid layout: one line, the run's state on this device and when it finished (or was sent). */
+export function SoftwareLogStatusGridCell({ device }: { device: softwareLogStatusCell_device$key }) {
+  // A row still being read (a loading scope) has no fragment to read: an empty tag is the tag's skeleton.
+  const data = useFragment(softwareLogStatusCellFragment, useLoadingScope() ? null : device);
+  const at = data?.finishedAt ?? data?.dispatchedAt;
+  return (
+    <DataTable.Cell
+      tag={<SoftwareActionStatusTag status={data?.status ?? ''} />}
+      secondary={at ? formatDateTime(at) : undefined}
+    />
   );
 }

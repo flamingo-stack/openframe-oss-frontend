@@ -7,6 +7,7 @@ import {
   type DataTableFilterOption,
   type FilterGroup,
   FilterModal,
+  GRID_MIN_WIDTH,
   type Row,
   useDataTable,
   useLoadingScope,
@@ -33,6 +34,8 @@ import {
 } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { OpenRowButton } from '@/app/components/shared/open-row-button';
+import { openRowColumn } from '@/app/components/shared/open-row-column';
+import { useTableGrid } from '@/app/components/shared/table-layout-scope';
 import { DirectoryReadability, TopAdminState } from '@/generated/schema-enums';
 import { toClaimingCustomer } from '@/graphql/directory/customer-claim-fields';
 import { openInNewTab } from '@/lib/open-in-new-tab';
@@ -47,7 +50,16 @@ import {
   userStatusTooltip,
 } from '../../utils/user-presentation';
 import { type UserFilterOptions, useUserFilters } from './use-user-filters';
-import { CustomerCell, FirstPlusCountCell, StatusCell, UserCell, type UserRow } from './user-row-cells';
+import {
+  CustomerCell,
+  CustomerGridCell,
+  FirstPlusCountCell,
+  StatusCell,
+  StatusGridCell,
+  UserCell,
+  UserGridCell,
+  type UserRow,
+} from './user-row-cells';
 import { CUSTOMER_USER_COLUMNS, USER_COLUMNS, USERS_PAGE_SIZE } from './users-columns';
 import type { UserSelections } from './users-filter';
 
@@ -178,6 +190,9 @@ function toUserRow(node: PersonNode): UserRow {
 /**
  * The columns. The global page (Figma 733:99047) names the customer and narrows by it; a customer's Users tab
  * (733:98943) is already one customer, so it shows the licences instead and narrows by them.
+ *
+ * Each data column also states what the grid layout reads: a `size` (its designed width) and a one-line `gridCell`
+ * where the card cell has a second line. A column without a `gridCell` is one line already.
  */
 function buildColumns(options: UserFilterOptions, customerScoped: boolean): ColumnDef<UserRow>[] {
   const layout = customerScoped ? CUSTOMER_USER_COLUMNS : USER_COLUMNS;
@@ -187,7 +202,11 @@ function buildColumns(options: UserFilterOptions, customerScoped: boolean): Colu
       header: layout.user.header,
       cell: ({ row }: { row: Row<UserRow> }) => <UserCell row={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(layout.user),
+      size: 420,
+      minSize: GRID_MIN_WIDTH.media,
+      meta: liveColumnMeta(layout.user, {
+        gridCell: ({ row }: { row: Row<UserRow> }) => <UserGridCell row={row.original} />,
+      }),
     },
     ...(customerScoped
       ? []
@@ -198,7 +217,12 @@ function buildColumns(options: UserFilterOptions, customerScoped: boolean): Colu
             cell: ({ row }: { row: Row<UserRow> }) => <CustomerCell row={row.original} />,
             enableSorting: false,
             filterFn: multiSelectFilterFn,
-            meta: liveColumnMeta(USER_COLUMNS.customer, { filter: { options: options.customers } }),
+            size: 280,
+            minSize: GRID_MIN_WIDTH.media,
+            meta: liveColumnMeta(USER_COLUMNS.customer, {
+              filter: { options: options.customers },
+              gridCell: ({ row }: { row: Row<UserRow> }) => <CustomerGridCell row={row.original} />,
+            }),
           },
         ]),
     {
@@ -206,6 +230,7 @@ function buildColumns(options: UserFilterOptions, customerScoped: boolean): Colu
       header: layout.devices.header,
       cell: ({ row }: { row: Row<UserRow> }) => <FirstPlusCountCell names={row.original.devices} />,
       enableSorting: false,
+      size: 220,
       meta: liveColumnMeta(layout.devices),
     },
     {
@@ -214,7 +239,11 @@ function buildColumns(options: UserFilterOptions, customerScoped: boolean): Colu
       cell: ({ row }: { row: Row<UserRow> }) => <StatusCell row={row.original} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(layout.status, { filter: { options: options.statuses } }),
+      size: 280,
+      meta: liveColumnMeta(layout.status, {
+        filter: { options: options.statuses },
+        gridCell: ({ row }: { row: Row<UserRow> }) => <StatusGridCell row={row.original} />,
+      }),
     },
     ...(customerScoped
       ? [
@@ -224,19 +253,23 @@ function buildColumns(options: UserFilterOptions, customerScoped: boolean): Colu
             cell: ({ row }: { row: Row<UserRow> }) => <FirstPlusCountCell names={row.original.licenses} />,
             enableSorting: false,
             filterFn: multiSelectFilterFn,
+            size: 240,
             meta: liveColumnMeta(CUSTOMER_USER_COLUMNS.license, { filter: { options: options.licenses } }),
           },
         ]
       : []),
     {
-      id: layout.open.id,
+      // The grid's form of the column: an action column, its button inert on a row with nothing to open. The card cell
+      // stays its own: a person no account explains has no button there.
+      ...openRowColumn<UserRow>(layout.open, row => ({
+        label: `Open ${row.name ?? 'user'} in new tab`,
+        href: row.href,
+      })),
       cell: ({ row }: { row: Row<UserRow> }) => {
         const { href, name } = row.original;
         if (!href) return null;
         return <OpenRowButton label={`Open ${name ?? 'user'} in new tab`} onClick={openInNewTab(href)} />;
       },
-      enableSorting: false,
-      meta: liveColumnMeta(layout.open),
     },
   ];
 }
@@ -261,6 +294,9 @@ function filterGroups(options: UserFilterOptions, customerScoped: boolean): Filt
 
 const getRowId = (row: UserRow) => row.id;
 const rowHref = (row: UserRow) => row.href ?? null;
+
+/** The viewer's saved column layout, one per column set: the global list and a customer's tab draw different columns. */
+const settingsKey = (customerScoped: boolean) => (customerScoped ? 'customer-users' : 'directory-users');
 
 interface DirectoryUsersTableProps {
   /** The customer whose users these are (its Users tab); absent on the global Users page. */
@@ -370,6 +406,7 @@ function UsersRows({
   onFiltersClose,
 }: UsersRowsProps) {
   const loading = useLoadingScope();
+  const tableGrid = useTableGrid(settingsKey(!!organizationId));
   const { columnFilters, onColumnFiltersChange } = multiColumnFilter(selections, onSelectionsChange);
   const placeholderRows = useMemo(() => (loading ? loadingPlaceholderRows<UserRow>(USERS_PAGE_SIZE) : null), [loading]);
 
@@ -407,6 +444,7 @@ function UsersRows({
   return (
     <>
       <LiveTable
+        {...tableGrid}
         table={table}
         pageSize={USERS_PAGE_SIZE}
         loadingCells={loading}
