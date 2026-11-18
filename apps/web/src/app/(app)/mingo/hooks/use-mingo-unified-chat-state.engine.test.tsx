@@ -34,6 +34,9 @@ vi.mock('@flamingo-stack/openframe-frontend-core/contexts', () => ({
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', () => ({ useToast: () => ({ toast, dismiss: vi.fn() }) }));
 vi.mock('@/app/hooks/use-feature-flag', () => ({ useFeatureFlag: (name: string) => flags.get(name) ?? false }));
 vi.mock('@/app/hooks/use-ai-model', () => ({ useAiModelStatus: () => ({ aiModel: null }) }));
+vi.mock('../models/use-mingo-model-selection', () => ({
+  useMingoModelSelection: () => ({ gate: 'off', menuItems: [] }),
+}));
 vi.mock('@/lib/nats/nats-app-config', () => ({
   useNatsAppConfig: () => ({ getWsUrl: () => 'wss://nats.test', onBeforeReconnect: undefined }),
 }));

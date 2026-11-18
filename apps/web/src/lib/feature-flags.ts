@@ -86,6 +86,7 @@ export const FEATURE_FLAG_NAMES = [
   // tokens and this chat's context. The backend reads the same key. Off = the
   // counter keeps its hover card. On for dev / qa, false elsewhere.
   'mingo-chat-usage',
+  'ai-mingo-chat-model-selection',
   // AI-first onboarding: the full-screen `/setup` wizard in place of the
   // dashboard's Initial Setup card, and the Getting Started tour in Mingo (the
   // block above the docked composer, in the tour's conversation) in place of

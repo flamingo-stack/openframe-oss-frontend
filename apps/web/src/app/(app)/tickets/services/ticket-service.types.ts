@@ -1,3 +1,4 @@
+import type { AIProvider } from '@/generated/schema-enums';
 import type { DialogMessagesPage } from '@/lib/dialog-messages-page';
 import type { ChatType, DialogIntent, DialogModeValue } from '../constants';
 import type { CursorPageInfo, Dialog, TicketActivityFilter } from '../types/dialog.types';
@@ -92,6 +93,7 @@ export interface FetchMessagesParams {
 }
 
 export interface CreateDialogParams {
+  model?: { provider: AIProvider; modelName: string };
   agentType: 'ADMIN' | 'CLIENT';
   ticketId?: string;
   /** The stored insight id when the chat is about an incident — the server lists the chat under it. */
