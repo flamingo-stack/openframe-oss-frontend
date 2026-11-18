@@ -15,6 +15,7 @@ globalThis.window = {
     search: '?utm_source=desktop',
     hostname: 'tauri.localhost',
     protocol: 'http:',
+    pathname: '/auth/',
     href: 'http://tauri.localhost/auth/?utm_source=desktop',
   },
   localStorage: {
