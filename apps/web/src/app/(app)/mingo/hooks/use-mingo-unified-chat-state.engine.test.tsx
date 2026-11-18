@@ -5,7 +5,7 @@
  */
 
 import type { UseChatEngineConfig } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { act } from 'react';
+import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mingoDialogLink } from '@/lib/routes';
@@ -42,9 +42,13 @@ vi.mock('./use-mingo-dialog-row-status', () => ({ useMingoDialogRowStatus: () =>
 
 let container: HTMLDivElement;
 let root: Root;
+const last: { chat: ReturnType<typeof useMingoUnifiedChatState> | null } = { chat: null };
 
 function Probe() {
-  useMingoUnifiedChatState({ onScreen: true });
+  const chat = useMingoUnifiedChatState({ onScreen: true });
+  useEffect(() => {
+    last.chat = chat;
+  });
   return null;
 }
 
@@ -62,6 +66,7 @@ describe('useMingoUnifiedChatState: the engine config', () => {
     vi.clearAllMocks();
     flags.clear();
     captured.config = null;
+    last.chat = null;
     tenantHost.url = 'https://acme.openframe.ai';
     useMingoCompactionStore.setState({ compactingDialogIds: [] });
     container = document.createElement('div');
@@ -117,6 +122,15 @@ describe('useMingoUnifiedChatState: the engine config', () => {
     expect(useMingoCompactionStore.getState().compactingDialogIds).toEqual(['d-1']);
     expect(toast).toHaveBeenCalledTimes(1);
     expect(toast).toHaveBeenCalledWith({ title: 'Already compacting this chat' });
+  });
+
+  it('hands the counter its Usage panel only behind its flag', () => {
+    render();
+    expect(last.chat?.state.usagePanel).toBeNull();
+
+    flags.set('mingo-chat-usage', true);
+    render();
+    expect(last.chat?.state.usagePanel).toEqual(expect.objectContaining({ context: expect.any(Object) }));
   });
 
   it('copies the canonical link on the tenant host', async () => {

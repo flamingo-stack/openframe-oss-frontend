@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   refreshTokens: vi.fn(),
   forceLogout: vi.fn(),
   epoch: 1,
+  subscriptionGate: () => Promise.resolve(),
 }));
 
 vi.mock('./platform', () => ({ isMobileShell: () => true, mobilePlatform: () => 'ios' }));
@@ -12,7 +13,7 @@ vi.mock('./client-identity', () => ({
   clientBundleVersion: () => '1.0.100',
 }));
 vi.mock('./session-ready', () => ({ waitForSessionReady: () => Promise.resolve() }));
-vi.mock('./subscription-gate', () => ({ waitForSubscriptionGate: () => Promise.resolve() }));
+vi.mock('./subscription-gate', () => ({ waitForSubscriptionGate: () => mocks.subscriptionGate() }));
 vi.mock('./token-refresh-manager', () => ({ refreshTokens: mocks.refreshTokens }));
 vi.mock('./force-logout', () => ({ forceLogout: mocks.forceLogout }));
 vi.mock('./token-store', () => ({
@@ -44,6 +45,7 @@ let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   mocks.epoch = 1;
+  mocks.subscriptionGate = () => Promise.resolve();
   mocks.refreshTokens.mockReset();
   mocks.forceLogout.mockReset();
   fetchMock = vi.fn(() =>
@@ -184,5 +186,23 @@ describe('apiClient session health', () => {
     fetchMock.mockImplementation(respond(410));
     await apiClient.external('https://tenant.example.com/api/devices');
     expect(health.getSessionHealth()).toBe('gone');
+  });
+});
+
+describe('apiClient GraphQL path', () => {
+  it('follows a graphql-router flag that answers while the request waits on the gates', async () => {
+    let openGate = () => {};
+    mocks.subscriptionGate = () => new Promise<void>(resolve => (openGate = resolve));
+    const { apiClient } = await load();
+    const { useFeatureFlagsStore } = await import('@/stores/feature-flags-store');
+    fetchMock.mockImplementation(() => Promise.resolve(new Response('{}', { status: 200 })));
+
+    const pending = apiClient.post('/chat/graphql', { query: '{ x }' });
+    await Promise.resolve();
+    useFeatureFlagsStore.getState().setFlags([{ name: 'graphql-router', enabled: true }]);
+    openGate();
+    await pending;
+
+    expect(fetchMock).toHaveBeenCalledWith('https://tenant.example.com/api/router/graphql', expect.anything());
   });
 });

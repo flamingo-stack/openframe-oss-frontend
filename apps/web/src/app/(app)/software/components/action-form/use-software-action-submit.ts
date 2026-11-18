@@ -20,6 +20,7 @@ import type { ScheduleTimeReference, SoftwareAction } from '@/generated/schema-e
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { pluralize } from '@/lib/pluralize';
 import { routes } from '@/lib/routes';
+import { softwareScheduleName } from './schedule-name';
 import type { SoftwareActionTitle } from './software-action-title';
 import { type PackageInput, toPackageInputs } from './software-row';
 import { toUpdateSettingsInputs } from './update-settings-input';
@@ -112,10 +113,11 @@ export function useSoftwareActionSubmit(
       fail('Invalid start time', PAST_START_MESSAGE);
       return null;
     }
+    const start = applyTimeSlot(date, time);
     return {
-      name: `${copy.verb} ${names.join(', ')}`,
+      name: softwareScheduleName(copy.verb, names, start, timeReference),
       timeReference,
-      startAt: toScheduleInstant(applyTimeSlot(date, time), timeReference),
+      startAt: toScheduleInstant(start, timeReference),
     };
   };
 

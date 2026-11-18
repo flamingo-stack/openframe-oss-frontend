@@ -17,6 +17,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { graphql, useFragment, useMutation } from 'react-relay';
+import type { RecordSourceSelectorProxy } from 'relay-runtime';
 import type { softwareAutoUpdateForm_policy$key } from '@/__generated__/softwareAutoUpdateForm_policy.graphql';
 import type { softwareAutoUpdateFormTurnOffMutation as TurnOffMutationType } from '@/__generated__/softwareAutoUpdateFormTurnOffMutation.graphql';
 import type { softwareAutoUpdateFormTurnOnMutation as TurnOnMutationType } from '@/__generated__/softwareAutoUpdateFormTurnOnMutation.graphql';
@@ -50,6 +51,15 @@ const turnOffMutation = graphql`
     }
   }
 `;
+
+/**
+ * After a Save, the title's policy in the store is the one from before it, and the page reads `store-and-network`: the
+ * next visit would open on it (its devices are put on the draft once, from what it reads first). Marked stale, the
+ * next visit waits for the server's.
+ */
+function invalidatePolicy(store: RecordSourceSelectorProxy, softwareId: string) {
+  store.getRoot().getLinkedRecord('softwareAutoUpdatePolicy', { softwareId })?.invalidateRecord();
+}
 
 /** The saved policy the form opens on: its settings, its devices, and whether it is on at all. */
 const softwareAutoUpdateFormPolicyFragment = graphql`
@@ -105,18 +115,35 @@ export function SoftwareAutoUpdateForm({ softwareId, title, os, loading = false 
   const saved = useFragment(softwareAutoUpdateFormPolicyFragment, title?.policy ?? null);
   // The page is where auto-update is turned on: it opens ticked, as the design does, and on the saved settings.
   const [enabled, setEnabled] = useState(true);
-  const [policy, setPolicy] = useState<SoftwareUpdatePolicy>(() => {
+  const savedPolicy = (): SoftwareUpdatePolicy => {
     const fallback = defaultSoftwareUpdateSettings(userNotifications).policy;
     const settings = saved?.settings;
     if (!settings) return fallback;
     const { mode, deadlineSeconds, countdownSeconds } = settings;
     return fromPolicySettings({ mode, deadlineSeconds, countdownSeconds }, fallback);
-  });
+  };
+  const [policy, setPolicy] = useState<SoftwareUpdatePolicy>(savedPolicy);
+  // The page draws the policy the store holds first and the server's answer after it (store-and-network), and with no
+  // saved settings the defaults wait on the notifications flag. Until the user edits a field, the form follows what
+  // lands; otherwise a Save made for another field wrote a stale deadline and countdown back.
+  const [edited, setEdited] = useState(false);
+  const settingsKey = saved?.settings
+    ? `${saved.settings.mode}:${saved.settings.deadlineSeconds}:${saved.settings.countdownSeconds}`
+    : `default:${userNotifications}`;
+  const [seededKey, setSeededKey] = useState(settingsKey);
+  if (seededKey !== settingsKey) {
+    setSeededKey(settingsKey);
+    if (!edited) setPolicy(savedPolicy());
+  }
+  const editPolicy = (next: SoftwareUpdatePolicy) => {
+    setEdited(true);
+    setPolicy(next);
+  };
 
   // The devices it can be on: live ones on the title's systems. One object per system, since the picker's queries and
   // facets are keyed by it.
   const scope = useMemo<DeviceFilterInput>(
-    () => ({ statuses: [DEVICE_STATUS.ONLINE, DEVICE_STATUS.OFFLINE], osTypes: os ? [os] : PACKAGE_MANAGER_SYSTEMS }),
+    () => ({ statuses: [DEVICE_STATUS.MANAGED], osTypes: os ? [os] : PACKAGE_MANAGER_SYSTEMS }),
     [os],
   );
   const draft = useDraftBundle({ enabled: !loading });
@@ -144,6 +171,7 @@ export function SoftwareAutoUpdateForm({ softwareId, title, os, loading = false 
       }
       commitTurnOff({
         variables: { softwareId },
+        updater: store => invalidatePolicy(store, softwareId),
         onCompleted: () => leave(`${title.name} updates only when you run Update Software.`),
         onError: error => fail(getRelayErrorMessage(error, 'Failed to turn off auto-update')),
       });
@@ -155,6 +183,7 @@ export function SoftwareAutoUpdateForm({ softwareId, title, os, loading = false 
     }
     commitTurnOn({
       variables: { input: { softwareId, bundleId: draft.bundleId, settings: toPolicyInput(policy) } },
+      updater: store => invalidatePolicy(store, softwareId),
       onCompleted: () => {
         // The bundle is COMPLETED now: the policy's record, not a draft to discard.
         draft.markSubmitted();
@@ -195,7 +224,7 @@ export function SoftwareAutoUpdateForm({ softwareId, title, os, loading = false 
 
       {enabled && (
         <>
-          <SoftwareUpdatePolicyFields name="autoUpdatePolicy" policy={policy} onChange={setPolicy} />
+          <SoftwareUpdatePolicyFields name="autoUpdatePolicy" policy={policy} onChange={editPolicy} />
 
           <h2 className="pt-[var(--spacing-system-l)] text-ods-text-primary text-h2">Device Selection</h2>
 

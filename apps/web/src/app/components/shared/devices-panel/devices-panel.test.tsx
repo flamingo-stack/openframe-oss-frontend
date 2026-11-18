@@ -23,6 +23,8 @@ const env = vi.hoisted(() => ({
   listsAsked: [] as ('main' | 'tm2')[],
   /** Set while the list is out: the list suspends on it, as its Relay query does. */
   listOut: null as Promise<void> | null,
+  /** Set to answer the list with no devices. */
+  noDevices: false,
   fleetFacets: {
     statuses: [{ value: 'ONLINE', label: 'Online', count: 1 }],
     deviceTypes: [],
@@ -81,8 +83,8 @@ function fakeList(list: 'main' | 'tm2', filters: Record<string, unknown>) {
   env.listFilters.push(filters);
   if (env.listOut) throw env.listOut;
   return {
-    devices: [{ id: 'd1', machineId: 'm1', status: 'ONLINE', hostname: 'host-1' }],
-    filteredCount: 1,
+    devices: env.noDevices ? [] : [{ id: 'd1', machineId: 'm1', status: 'ONLINE', hostname: 'host-1' }],
+    filteredCount: env.noDevices ? 0 : 1,
     hasNextPage: false,
     isFetchingNextPage: false,
     fetchNextPage: () => undefined,
@@ -158,6 +160,7 @@ describe('DevicesPanel and the directory gate', () => {
     env.listFilters = [];
     env.listsAsked = [];
     env.listOut = null;
+    env.noDevices = false;
     const Observer = class {
       observe() {}
       unobserve() {}
@@ -344,7 +347,7 @@ describe('DevicesPanel and the directory gate', () => {
     const dialog = () => document.querySelector('[role="dialog"]');
 
     it('keeps the header filters when Device Tags are applied', async () => {
-      setAddress('?statuses=ONLINE');
+      setAddress('?statuses=PENDING');
       flagsOn();
       render();
       await settle();
@@ -363,8 +366,8 @@ describe('DevicesPanel and the directory gate', () => {
       push.mockRestore();
       // Apply ran (it closes the window); the params it sent equal the address's, so nothing need be written.
       expect(dialog()?.getAttribute('data-state')).toBe('closed');
-      expect(written.every(url => url.includes('statuses=ONLINE'))).toBe(true);
-      expect(window.location.search).toContain('statuses=ONLINE');
+      expect(written.every(url => url.includes('statuses=PENDING'))).toBe(true);
+      expect(window.location.search).toContain('statuses=PENDING');
     });
 
     it('carries SOURCES from lg until xl, where beside the customer column its header has no funnel', async () => {
@@ -440,6 +443,16 @@ describe('DevicesPanel and the directory gate', () => {
         expect(filter).not.toHaveProperty('userLinks');
         expect(filter).not.toHaveProperty('directorySources');
       }
+    });
+
+    it('keeps the toolbar, not the empty state, when only a connectivity filter in the address matches nothing', async () => {
+      setAddress('?connectivity=ONLINE');
+      env.noDevices = true;
+      flagsOff();
+      render({ emptyState: <div>No devices yet</div> });
+      await settle();
+      expect(text()).not.toContain('No devices yet');
+      expect(funnels()).toContain('Filter by STATUS');
     });
 
     it('is the panel when the flags fail, as they then read off', async () => {

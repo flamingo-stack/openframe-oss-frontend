@@ -47,9 +47,11 @@ import {
   useSyncExternalStore,
 } from 'react';
 import { MingoCompactionWatchers } from '@/app/components/mingo-compaction-watchers';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import type { MingoUnifiedChat } from '../hooks/use-mingo-unified-chat-state';
 import { MingoChatRunner, MingoChatRunnerBoundary } from './mingo-chat-runner';
 import { createMingoChatStore, IDLE_MINGO_CHAT, type MingoChatSnapshot, type MingoChatStore } from './mingo-chat-store';
+import { MingoUsageHydrator } from './mingo-usage-hydrator';
 
 /** What `useMingoChat()` hands a surface. */
 export interface MingoChat {
@@ -127,6 +129,8 @@ export function MingoChatProvider({ enabled, identityEnabled, children }: MingoC
     retry,
   };
   const running = enabled && surfaceCount > 0;
+  // The Usage panel's company figures are read only while the panel exists.
+  const usagePanelEnabled = useFeatureFlag('mingo-chat-usage');
 
   return (
     <MingoChatSessionContext.Provider value={session}>
@@ -137,6 +141,7 @@ export function MingoChatProvider({ enabled, identityEnabled, children }: MingoC
           {/* loading-standard-ok(SUSPENSE_FALLBACK): the runner draws nothing; it only runs the chat state */}
           <Suspense fallback={null}>
             <MingoChatRunner store={store} onScreen={onScreen} />
+            {usagePanelEnabled ? <MingoUsageHydrator onScreen={onScreen} /> : null}
           </Suspense>
         </MingoChatRunnerBoundary>
       ) : null}

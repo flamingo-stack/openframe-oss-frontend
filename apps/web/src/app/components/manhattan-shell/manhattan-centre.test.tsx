@@ -10,6 +10,10 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useChatPageNodeStore } from '@/app/components/mingo-shell/chat-page-node-store';
 import { useMingoSheetStore } from '@/app/components/mingo-shell/mingo-sheet-store';
+import {
+  MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE,
+  MANHATTAN_CHAT_CLOSED_STORAGE_KEY,
+} from '@/lib/navigation-sidebar-state';
 import { ManhattanCentre } from './manhattan-centre';
 import { useManhattanCentreStore, workAreaModeOf } from './manhattan-centre-store';
 import { ManhattanComposerPortal, ManhattanComposerSlot } from './manhattan-composer-host';
@@ -76,7 +80,13 @@ beforeEach(() => {
   nav.push.mockReset();
   chatState.activeDialogId = null;
   chatState.messages = [];
-  useManhattanCentreStore.setState({ chatView: 'split', shownMode: null, whatToAskInColumn: false });
+  useManhattanCentreStore.setState({
+    chatView: 'split',
+    shownMode: null,
+    whatToAskInColumn: false,
+    compact: false,
+    restoredDialogId: null,
+  });
   useChatPageNodeStore.setState({ node: null, chatMounted: false, threadReady: false });
   viewport.mdUp = true;
 });
@@ -85,6 +95,9 @@ afterEach(() => {
   act(() => root.unmount());
   container.remove();
   window.sessionStorage.clear();
+  window.localStorage.clear();
+  document.documentElement.removeAttribute(MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE);
+  vi.unstubAllGlobals();
 });
 
 describe('workAreaModeOf', () => {
@@ -466,10 +479,146 @@ describe('ManhattanCentre', () => {
     expect(currentMode()).toBe('split');
   });
 
-  it('starts beside the page after a reload: the view is not stored', () => {
-    useManhattanCentreStore.getState().setChatView('hidden');
-    expect(window.sessionStorage.length).toBe(0);
-    expect(window.localStorage.getItem('of.manhattan.chatView')).toBeNull();
+  describe('a closed chat column across a reload (CU-17tkuw66xzn)', () => {
+    /** The window as `matchMedia` answers it: two columns from 912px. */
+    function windowWide(wide: boolean) {
+      vi.stubGlobal('matchMedia', (query: string) => ({ matches: wide, media: query }));
+    }
+    const stored = () => window.localStorage.getItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY);
+
+    it('stores a column closed on two columns, and forgets it on any other view', () => {
+      const { setChatView } = useManhattanCentreStore.getState();
+      setChatView('hidden');
+      expect(stored()).toBe('true');
+      // "Restore split", "Show chat", a chat opened: all land on `split`.
+      setChatView('split');
+      expect(stored()).toBeNull();
+      setChatView('hidden');
+      setChatView('full');
+      expect(stored()).toBeNull();
+      // Only this choice: nothing in the per-tab storage the view once used.
+      expect(window.sessionStorage.length).toBe(0);
+    });
+
+    it("one column's own hidden stores nothing, and leaves a stored choice alone", () => {
+      useManhattanCentreStore.setState({ compact: true });
+      useManhattanCentreStore.getState().setChatView('hidden');
+      expect(stored()).toBeNull();
+      window.localStorage.setItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY, 'true');
+      useManhattanCentreStore.getState().setChatView('split');
+      expect(stored()).toBe('true');
+    });
+
+    it('comes back closed after a reload on two columns, and lets the seed mark go', () => {
+      windowWide(true);
+      window.localStorage.setItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY, 'true');
+      document.documentElement.setAttribute(MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE, '');
+      renderCentre();
+      expect(useManhattanCentreStore.getState().chatView).toBe('hidden');
+      expect(currentMode()).toBe('page');
+      expect(document.documentElement.hasAttribute(MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE)).toBe(false);
+    });
+
+    it('nothing stored: the split after a reload', () => {
+      windowWide(true);
+      renderCentre();
+      expect(useManhattanCentreStore.getState().chatView).toBe('split');
+      expect(currentMode()).toBe('split');
+    });
+
+    /** The centre on a window of one column (`compact`) or two. */
+    function renderAt(compact: boolean) {
+      render(
+        <ManhattanCentre enabled compact={compact}>
+          {centre => <p data-testid="mode">{centre ? centre.mode : 'off'}</p>}
+        </ManhattanCentre>,
+      );
+    }
+
+    it('a narrow window at the reload keeps its own layout and the stored choice', () => {
+      windowWide(false);
+      window.localStorage.setItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY, 'true');
+      document.documentElement.setAttribute(MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE, '');
+      renderAt(true);
+      expect(useManhattanCentreStore.getState().chatView).toBe('split');
+      expect(stored()).toBe('true');
+      expect(document.documentElement.hasAttribute(MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE)).toBe(false);
+    });
+
+    it('closed before a reload on a narrow window: the column stays closed once the window widens', () => {
+      windowWide(false);
+      window.localStorage.setItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY, 'true');
+      renderAt(true);
+      // The window widens to two columns: the same mounted centre, `compact` off.
+      windowWide(true);
+      renderAt(false);
+      expect(useManhattanCentreStore.getState().chatView).toBe('hidden');
+      expect(currentMode()).toBe('page');
+      expect(stored()).toBe('true');
+    });
+
+    it("closed before a reload on a narrow window: one column's own hidden on a new page does not erase it", () => {
+      windowWide(false);
+      window.localStorage.setItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY, 'true');
+      renderAt(true);
+      // A new page in one column: the page shown, the chat behind it (the layout's `hidden`).
+      nav.pathname = '/software';
+      renderAt(true);
+      expect(useManhattanCentreStore.getState().chatView).toBe('hidden');
+      // The window widens to two columns: the same mounted centre, `compact` off.
+      windowWide(true);
+      renderAt(false);
+      expect(useManhattanCentreStore.getState().chatView).toBe('hidden');
+      expect(currentMode()).toBe('page');
+      expect(stored()).toBe('true');
+    });
+
+    it('the centre switched off on a narrow window is no widening: the stored choice stays and waits', () => {
+      windowWide(false);
+      window.localStorage.setItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY, 'true');
+      renderAt(true);
+      nav.pathname = '/software';
+      renderAt(true);
+      render(
+        <ManhattanCentre enabled={false} compact>
+          {() => null}
+        </ManhattanCentre>,
+      );
+      expect(useManhattanCentreStore.getState().chatView).toBe('hidden');
+      expect(stored()).toBe('true');
+    });
+
+    it('a chat opened on a narrow window lets the stored closed column go', () => {
+      windowWide(false);
+      window.localStorage.setItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY, 'true');
+      renderAt(true);
+      chatState.activeDialogId = 'd-3';
+      renderAt(true);
+      expect(stored()).toBeNull();
+      // The window widens to two columns: the same mounted centre, `compact` off.
+      windowWide(true);
+      renderAt(false);
+      expect(useManhattanCentreStore.getState().chatView).toBe('split');
+      expect(currentMode()).toBe('split');
+    });
+
+    it('the chat a reload brings back behind the page keeps the column closed; a chat opened after it opens it', () => {
+      windowWide(true);
+      window.localStorage.setItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY, 'true');
+      renderCentre();
+      // `useChatBehindPage` selects the tab's chat again once the list has loaded.
+      useManhattanCentreStore.getState().setRestoredDialogId('d-1');
+      chatState.activeDialogId = 'd-1';
+      renderCentre();
+      expect(currentMode()).toBe('page');
+      expect(stored()).toBe('true');
+      expect(useManhattanCentreStore.getState().restoredDialogId).toBeNull();
+      // A chat picked in the history afterwards.
+      chatState.activeDialogId = 'd-2';
+      renderCentre();
+      expect(currentMode()).toBe('split');
+      expect(stored()).toBeNull();
+    });
   });
 
   it('a link from the chat full screen to another detail page (a query change) shows it beside the chat', () => {
@@ -686,6 +835,48 @@ describe('ManhattanCentre', () => {
       renderColumn();
       expect(startWork()).toBeNull();
       expect(thread()?.classList.contains('hidden')).toBe(false);
+    });
+
+    // CU-17tkuw6633f: set from the observer as a plain update, the padding rendered after the frame
+    // was painted, and Start Work kept the old one under the column's composer for a frame.
+    it("pads Start Work by the column dock's new height in the frame the dock changed in", () => {
+      const observed: Array<{ target: Element; options?: ResizeObserverOptions; fire: () => void }> = [];
+      let height = 120;
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          private readonly callback: ResizeObserverCallback;
+          constructor(callback: ResizeObserverCallback) {
+            this.callback = callback;
+          }
+          // As a browser delivers it: never on observe, later, from outside React.
+          observe(target: Element, options?: ResizeObserverOptions) {
+            observed.push({ target, options, fire: () => this.callback([], this) });
+          }
+          unobserve() {}
+          disconnect() {}
+        },
+      );
+      const offsetHeight = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(() => height);
+      try {
+        renderColumn();
+        const padded = () =>
+          container.querySelector<HTMLElement>('[data-testid="manhattan-start-work-scroller"] > div')?.style
+            .paddingBottom;
+        const dock = container.querySelector('[data-testid="manhattan-column-dock"]');
+        // Its border box, what `offsetHeight` reads.
+        expect(observed.find(entry => entry.target === dock)?.options).toEqual({ box: 'border-box' });
+        const fireDock = () => observed.find(entry => entry.target === dock)?.fire();
+        // Outside `act`, as the browser delivers it: nothing else flushes React before the assertions.
+        fireDock(); // the report on observe
+        expect(padded()).toBe('120px');
+        height = 168;
+        fireDock();
+        expect(padded()).toBe('168px');
+      } finally {
+        offsetHeight.mockRestore();
+        vi.unstubAllGlobals();
+      }
     });
 
     it('"Close Start Work" leaves the page alone', () => {

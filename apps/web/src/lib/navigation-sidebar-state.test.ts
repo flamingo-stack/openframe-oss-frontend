@@ -3,9 +3,14 @@
 import { WORK_AREA_SHARE_CSS_VAR, workAreaShareSeedScript } from '@flamingo-stack/openframe-frontend-core/utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE,
+  MANHATTAN_CHAT_CLOSED_STORAGE_KEY,
   MANHATTAN_WORK_AREA_STORAGE_KEY,
+  manhattanChatClosedSeedScript,
+  readManhattanChatClosed,
   readManhattanNavCollapsed,
   sidebarWidthFoucScript,
+  writeManhattanChatClosed,
   writeManhattanNavCollapsed,
 } from './navigation-sidebar-state';
 
@@ -164,5 +169,47 @@ describe('the Manhattan divider seed (root layout)', () => {
   it('seeds nothing before the divider was ever moved: the split starts in the middle', () => {
     new Function(workAreaShareSeedScript(MANHATTAN_WORK_AREA_STORAGE_KEY))();
     expect(document.documentElement.style.getPropertyValue(WORK_AREA_SHARE_CSS_VAR)).toBe('');
+  });
+});
+
+describe('the Manhattan closed chat column (CU-17tkuw66xzn)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    window.localStorage.clear();
+    document.documentElement.removeAttribute(MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE);
+  });
+
+  it('stores the closed column and forgets it', () => {
+    writeManhattanChatClosed(true);
+    expect(window.localStorage.getItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY)).toBe('true');
+    expect(readManhattanChatClosed()).toBe(true);
+    writeManhattanChatClosed(false);
+    expect(window.localStorage.getItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY)).toBeNull();
+    expect(readManhattanChatClosed()).toBe(false);
+  });
+
+  it('marks <html> before paint while a closed column is stored', () => {
+    window.localStorage.setItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY, 'true');
+    // What runs in `<head>` runs here.
+    new Function(manhattanChatClosedSeedScript())();
+    expect(document.documentElement.hasAttribute(MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE)).toBe(true);
+  });
+
+  it('marks nothing without one: the split from the first frame', () => {
+    new Function(manhattanChatClosedSeedScript())();
+    expect(document.documentElement.hasAttribute(MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE)).toBe(false);
+  });
+
+  it('refused storage: nothing stored, nothing thrown, the seed marks nothing', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('blocked', 'QuotaExceededError');
+    });
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('blocked', 'SecurityError');
+    });
+    expect(() => writeManhattanChatClosed(true)).not.toThrow();
+    expect(readManhattanChatClosed()).toBe(false);
+    new Function(manhattanChatClosedSeedScript())();
+    expect(document.documentElement.hasAttribute(MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE)).toBe(false);
   });
 });

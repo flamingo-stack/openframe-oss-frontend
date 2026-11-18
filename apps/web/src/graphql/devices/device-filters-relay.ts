@@ -17,6 +17,12 @@ export const deviceFiltersRelayQuery = graphql`
         label
         count
       }
+      # ONLINE / OFFLINE: the Connectivity group of the STATUS funnel.
+      connectivity {
+        value
+        label
+        count
+      }
       deviceTypes {
         value
         label

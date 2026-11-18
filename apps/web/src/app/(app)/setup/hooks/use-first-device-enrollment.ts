@@ -1,10 +1,12 @@
 'use client';
 
+import { isDeviceConnected } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useEffect } from 'react';
 import { fetchQuery, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 import type { Environment, FetchPolicy } from 'relay-runtime';
 import type { firstDeviceEnrollmentRelayQuery as EnrollmentQuery } from '@/__generated__/firstDeviceEnrollmentRelayQuery.graphql';
 import { DeviceStatus, SortDirection } from '@/generated/schema-enums';
+import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
 import { firstDeviceEnrollmentRelayQuery } from '@/graphql/onboarding/first-device-enrollment-relay';
 import { decodeGlobalId } from '@/lib/relay-id';
 
@@ -13,19 +15,19 @@ const POLL_MS = 5_000;
 
 // Every status an enrolling or enrolled machine can carry. Deleted, archived and
 // decommissioned ones are a previous life of the workspace, not the first device.
-const ENROLLMENT_VARIABLES = {
-  filter: {
+// Built when asked, not at module load: whether MANAGED goes out is answered after the app starts.
+const enrollmentVariables = () => ({
+  filter: toRelayDeviceFilter({
     statuses: [
       DeviceStatus.PENDING,
       DeviceStatus.ACTIVE,
       DeviceStatus.INACTIVE,
       DeviceStatus.MAINTENANCE,
-      DeviceStatus.ONLINE,
-      DeviceStatus.OFFLINE,
+      DeviceStatus.MANAGED,
     ],
-  },
+  }),
   sort: { field: 'lastSeen', direction: SortDirection.DESC },
-};
+});
 
 // `store-and-network`: the mount reads whatever the store already holds and asks
 // once; the interval below keeps the store fresh and every reader re-renders
@@ -71,7 +73,7 @@ function toFirstDevice(node: DeviceNode | null | undefined): FirstDevice | null 
     machineId: node.machineId?.trim() || null,
     mentionId: decodeGlobalId(node.id)?.rawId ?? (node.machineId?.trim() || null),
     name: node.displayName?.trim() || node.hostname?.trim() || 'your device',
-    online: node.status === DeviceStatus.ONLINE,
+    online: isDeviceConnected(node.connectivity),
     stages: {
       enrolled: true,
       inventoryReceived: enrollment?.inventoryConnectedAt != null,
@@ -86,7 +88,7 @@ function toFirstDevice(node: DeviceNode | null | undefined): FirstDevice | null 
  * rather than a component that renders it.
  */
 export async function fetchFirstDevice(environment: Environment): Promise<FirstDevice | null> {
-  const data = await fetchQuery<EnrollmentQuery>(environment, firstDeviceEnrollmentRelayQuery, ENROLLMENT_VARIABLES, {
+  const data = await fetchQuery<EnrollmentQuery>(environment, firstDeviceEnrollmentRelayQuery, enrollmentVariables(), {
     fetchPolicy: 'store-or-network',
   }).toPromise();
   return toFirstDevice(data?.devices.edges?.[0]?.node);
@@ -100,7 +102,7 @@ export function useFirstDeviceEnrollment(polling: boolean): FirstDevice | null {
   const environment = useRelayEnvironment();
   const data = useLazyLoadQuery<EnrollmentQuery>(
     firstDeviceEnrollmentRelayQuery,
-    ENROLLMENT_VARIABLES,
+    enrollmentVariables(),
     ENROLLMENT_OPTIONS,
   );
 
@@ -109,7 +111,7 @@ export function useFirstDeviceEnrollment(polling: boolean): FirstDevice | null {
     const timer = setInterval(() => {
       // Refresh the store; the `useLazyLoadQuery` above re-renders from it. A
       // failed poll is retried by the next tick, so its error is not surfaced.
-      fetchQuery<EnrollmentQuery>(environment, firstDeviceEnrollmentRelayQuery, ENROLLMENT_VARIABLES, {
+      fetchQuery<EnrollmentQuery>(environment, firstDeviceEnrollmentRelayQuery, enrollmentVariables(), {
         fetchPolicy: 'network-only',
       }).subscribe({ error: () => undefined });
     }, POLL_MS);
