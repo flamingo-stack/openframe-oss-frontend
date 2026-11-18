@@ -18,7 +18,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type ChangeEvent, type ReactNode, useCallback, useRef, useState } from 'react';
-import { BillingCallBack } from './billing-call-back';
+import { BillingCallBack, SUPPORT_MEETING_PATH } from './billing-call-back';
 import { noop } from './no-next-page';
 import { SimpleModal } from './simple-modal';
 
@@ -39,8 +39,11 @@ interface ContactSupportModalProps {
   subjects?: readonly string[];
   /** A line under the form, over the submit (the billing modal's email fallback). */
   footnote?: ReactNode;
-  /** A second tab, "Call Me Back", drawn in place of the form; it brings its own footer. */
-  callBack?: (close: () => void) => ReactNode;
+  /**
+   * A second tab, "Call Me Back", drawn in place of the form; it brings its own
+   * footer, so it also takes the footnote, to draw over that footer.
+   */
+  callBack?: (close: () => void, footnote: ReactNode) => ReactNode;
 }
 
 /** The pick-list entry that asks for the subject in the user's own words. */
@@ -59,6 +62,22 @@ const MESSAGE_MAX_CHARS = 5000;
 const SUBJECT_MAX_CHARS = 200;
 /** Shows the counter only once the message is long enough for the cap to matter. */
 const COUNTER_VISIBLE_AT = Math.floor(MESSAGE_MAX_CHARS * 0.8);
+
+/**
+ * The tabbed variants (Help Center, lock screens) are wide enough for the email
+ * line on one line: it measures ~527px at the desktop h4 size, and 600px left
+ * 518px for it. Figma draws 600 (help-center 154:5904). The wizard's single form
+ * has no email line and keeps 600.
+ */
+const TABBED_WIDTH_CLASS = 'md:max-w-[640px]';
+
+/**
+ * With two tabs the window keeps one height on desktop, so switching tabs does not
+ * resize it (the designs draw both tabs at one height). The call tab is the taller
+ * one: the lib scheduler's fixed card plus its timezone row, so this is its height
+ * and the ticket form's spare room goes above the footnote. Phones size to content.
+ */
+const TABBED_HEIGHT_CLASS = 'md:h-[870px]';
 
 /**
  * "Contact Support" — the support ticket form, as a modal.
@@ -95,6 +114,13 @@ export function ContactSupportModal({
 }: ContactSupportModalProps) {
   const { toast } = useToast();
   const [tab, setTab] = useState<SupportTab>('ticket');
+  // Every opening starts on the ticket form. The modal stays mounted while closed,
+  // so without this a close on Call Me Back (or a booked call) reopened there.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setTab('ticket');
+  }
   const [subjectPick, setSubjectPick] = useState('');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
@@ -170,7 +196,7 @@ export function ContactSupportModal({
     <SimpleModal
       isOpen={open}
       onClose={handleClose}
-      className="md:max-w-[600px]"
+      className={callBack ? `${TABBED_WIDTH_CLASS} ${TABBED_HEIGHT_CLASS}` : 'md:max-w-[600px]'}
       title={title}
       contentClassName="flex flex-col gap-[var(--spacing-system-l)]"
       footer={
@@ -187,7 +213,8 @@ export function ContactSupportModal({
             <div className="hidden flex-1 sm:block" />
             <Button
               type="button"
-              className="flex-1"
+              // Beside the call tab's Continue the submit keeps the same 248px (15.5rem) the design draws.
+              className={callBack ? 'flex-1 sm:max-w-[15.5rem]' : 'flex-1'}
               onClick={handleSubmit}
               disabled={!canSubmit}
               loading={isSubmittingForm}
@@ -208,7 +235,7 @@ export function ContactSupportModal({
       )}
 
       {showsCallBack ? (
-        callBack(() => onOpenChange(false))
+        callBack(() => onOpenChange(false), footnote)
       ) : (
         <>
           <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
@@ -293,7 +320,8 @@ export function ContactSupportModal({
         </>
       )}
 
-      {footnote && <div className="mt-auto">{footnote}</div>}
+      {/* The call tab draws the footnote itself, over its own Continue. */}
+      {footnote && !showsCallBack && <div className="mt-auto">{footnote}</div>}
     </SimpleModal>
   );
 }
@@ -307,7 +335,18 @@ const BILLING_SUBJECTS = [
   OTHER_SUBJECT,
 ] as const;
 
-const BILLING_EMAIL = 'support@flamingo.run';
+const SUPPORT_EMAIL = 'support@flamingo.run';
+
+/** The email fallback both variants draw under the form. */
+const EMAIL_FOOTNOTE = (
+  <p className="text-ods-text-secondary text-h4">
+    Prefer email? We reply within 24 hours.{' '}
+    <a href={`mailto:${SUPPORT_EMAIL}`} className="text-ods-text-primary underline underline-offset-2">
+      {SUPPORT_EMAIL}
+    </a>
+    .
+  </p>
+);
 
 /**
  * Contact Support as the lock screens open it: billing subjects, the call-back
@@ -322,16 +361,39 @@ export function BillingContactSupportModal({
       open={open}
       onOpenChange={onOpenChange}
       subjects={BILLING_SUBJECTS}
-      callBack={close => <BillingCallBack onDone={close} />}
-      footnote={
-        <p className="text-ods-text-secondary text-h4">
-          Prefer email? We reply within 24 hours.{' '}
-          <a href={`mailto:${BILLING_EMAIL}`} className="text-ods-text-primary underline underline-offset-2">
-            {BILLING_EMAIL}
-          </a>
-          .
-        </p>
-      }
+      callBack={(close, footnote) => (
+        <BillingCallBack
+          onDone={close}
+          meetingPath={SUPPORT_MEETING_PATH}
+          emptyMessage="No billing calls can be booked right now."
+          footnote={footnote}
+        />
+      )}
+      footnote={EMAIL_FOOTNOTE}
+    />
+  );
+}
+
+/**
+ * Contact Support as the Help Center opens it: the subject in the user's own
+ * words, the call-back tab, the email fallback, and a Cancel on phones (designs
+ * help-center 154:5904, 154:6361, 154:5941; CU-86akejptf).
+ */
+export function SupportContactModal({ open, onOpenChange }: Pick<ContactSupportModalProps, 'open' | 'onOpenChange'>) {
+  return (
+    <ContactSupportModal
+      open={open}
+      onOpenChange={onOpenChange}
+      cancelLabel="Cancel"
+      callBack={(close, footnote) => (
+        <BillingCallBack
+          onDone={close}
+          meetingPath={SUPPORT_MEETING_PATH}
+          emptyMessage="No calls can be booked right now."
+          footnote={footnote}
+        />
+      )}
+      footnote={EMAIL_FOOTNOTE}
     />
   );
 }
