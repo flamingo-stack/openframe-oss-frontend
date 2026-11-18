@@ -1895,6 +1895,7 @@ enum TicketActivityState {
 
 enum TicketCreationSource {
   ADMIN_DASHBOARD
+  EMAIL
   FAE_DIALOG
   FAE_FORM
 }
