@@ -32,6 +32,7 @@ import {
 } from '../../shared/components/executions-table';
 import { InitiatorIdentity, toInitiator } from '../../shared/components/initiator-identity';
 import { executionStatusLabel, executionStatusVariant } from '../../shared/utils/execution-helpers';
+import { SCRIPTS_TABLE_SETTINGS } from '../../shared/utils/grid-columns';
 import { DIVIDED_CELL_CLASS, INFO_BAR_FRAME_CLASS, infoBarCell } from './schedule-info-bar';
 
 interface ScheduleRunDetailsViewProps {
@@ -329,7 +330,9 @@ export function ScheduleRunDetailsView({ runId }: ScheduleRunDetailsViewProps) {
             same search box, same funnels, same sticky toolbar and boundary. It
             mounts immediately: `clientSearch` is all it needs to know, and the
             run's id reaches the query inside its boundary. */}
-        <ExecutionsTabShell clientSearch>{state => <RunExecutions runId={runId} state={state} />}</ExecutionsTabShell>
+        <ExecutionsTabShell clientSearch tableSettings={SCRIPTS_TABLE_SETTINGS.scheduleExecutions}>
+          {state => <RunExecutions runId={runId} state={state} />}
+        </ExecutionsTabShell>
       </div>
     </div>
   );

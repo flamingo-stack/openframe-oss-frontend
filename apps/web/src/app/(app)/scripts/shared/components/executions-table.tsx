@@ -4,10 +4,15 @@ import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/compone
 import {
   EXECUTION_COLUMNS,
   ExecutionDeviceCell,
+  ExecutionDeviceGridCell,
   ExecutionInitiatorCell,
   ExecutionResultCell,
+  ExecutionResultGridCell,
+  ExecutionSourceBadge,
   ExecutionStatusCell,
+  ExecutionStatusGridCell,
   ExecutionTimestampCell,
+  ExecutionTimestampGridCell,
   getDeviceName,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
@@ -21,10 +26,12 @@ import {
   type ActionsMenuGroup,
   Button,
   type ColumnDef,
+  type DataTableSettings,
   type DateFilterResult,
   type DateRange,
   FilterModal,
   Input,
+  LoadingWhen,
   type NoDataProps,
   type Row,
   useDataTable,
@@ -39,11 +46,12 @@ import type { ScriptExecutionFilterInput, SortInput } from '@/__generated__/scri
 import { ValueText } from '@/app/components/shared';
 import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
 import { LiveTable } from '@/app/components/shared/live-table';
-import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
+import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { type TableLayout, tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { executionFacetsFragment } from '@/graphql/scripts/execution-facets';
 import { executionFieldsFragment } from '@/graphql/scripts/execution-fields';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
@@ -53,6 +61,7 @@ import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { executionOutput, executionStatusLabel } from '../utils/execution-helpers';
 import { type FacetOption, facetFilter, facetToSortedOptions } from '../utils/facet-options';
+import { scriptsLiveColumnMeta, scriptsLiveColumnSize } from '../utils/grid-columns';
 import { type Initiator, InitiatorAvatar, InitiatorName, toInitiator } from './initiator-identity';
 
 /**
@@ -238,6 +247,10 @@ export interface ExecutionsTableProps {
   onMobileFilterClose: () => void;
   /** See `ExecutionsTabState.onEmptyChange` — arrives with the shell's state. */
   onEmptyChange?: (empty: boolean) => void;
+  /** The table's layout — arrives with the shell's state. Default: card rows. */
+  tableLayout?: TableLayout;
+  /** The grid table's settings (the viewer's saved column layout) — arrives with the shell's state. */
+  tableSettings?: DataTableSettings;
 }
 
 /** A placeholder row's initiator (the table's loading form): nobody, so its avatar and name draw their loading form. */
@@ -261,9 +274,50 @@ function OpenExecutionButton({ executionId }: { executionId: string }) {
   );
 }
 
+/** The execution's page in a new tab, as the grid's action button (`OpenExecutionButton` in the card rows). */
+function OpenExecutionGridButton({ executionId }: { executionId: string }) {
+  return (
+    <OpenRowButton
+      grid
+      label="Open execution details in new tab"
+      onClick={openInNewTab(routes.scripts.execution(executionId))}
+    />
+  );
+}
+
+/** The device and its customer on one line (the grid layout); the empty mark where the execution names no device. */
+function DeviceGridCell({ execution }: { execution: UiExecution }) {
+  const loading = useLoadingScope();
+  if (!loading && !execution.machineName) return <ValueText value={null} />;
+  return <ExecutionDeviceGridCell name={execution.machineName} organization={execution.organization} />;
+}
+
+/**
+ * "Executed by" on one line (the grid layout): the avatar, the name, the chip of what dispatched it and the script
+ * beside them. The name stays the link to that person's page, as in the card rows; the script's name is the part
+ * that gives way.
+ */
+function InitiatorGridCell({ execution }: { execution: UiExecution }) {
+  // A placeholder row (the table's loading form) has no initiator.
+  const initiator = execution.initiator ?? NO_INITIATOR;
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xsf)]">
+      <InitiatorAvatar initiator={initiator} size="sm" />
+      <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xxs)]">
+        <InitiatorName initiator={initiator} inRow />
+        <ExecutionSourceBadge source={execution.source} />
+        {execution.scriptName && (
+          <span className="min-w-0 flex-1 truncate text-ods-text-secondary text-h6">{execution.scriptName}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /**
  * The table's columns: the loaded table and its loading state draw the same ones. With no `facetOptions` (loading)
- * the filterable columns' funnels are pending and the Execution header's calendar is inert.
+ * the filterable columns' funnels are pending and the Execution header's calendar is inert. Each column also states
+ * what the grid layout reads: its width, its name in the settings menu and its one-line cell.
  */
 function executionColumns({
   facetOptions,
@@ -285,7 +339,12 @@ function executionColumns({
         <ExecutionTimestampCell timestamp={row.original.timestamp} executionId={row.original.executionId} />
       ),
       enableSorting: false,
-      meta: liveColumnMeta(EXECUTION_COLUMNS.executionId),
+      ...scriptsLiveColumnSize(EXECUTION_COLUMNS.executionId),
+      meta: scriptsLiveColumnMeta(EXECUTION_COLUMNS.executionId, {
+        gridCell: ({ row }: { row: Row<UiExecution> }) => (
+          <ExecutionTimestampGridCell timestamp={row.original.timestamp} executionId={row.original.executionId} />
+        ),
+      }),
     },
     {
       accessorKey: 'status',
@@ -293,7 +352,11 @@ function executionColumns({
       cell: ({ row }: { row: Row<UiExecution> }) => <ExecutionStatusCell status={row.original.status} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(EXECUTION_COLUMNS.status, { filter: facetFilter(facetOptions?.statusOptions) }),
+      ...scriptsLiveColumnSize(EXECUTION_COLUMNS.status),
+      meta: scriptsLiveColumnMeta(EXECUTION_COLUMNS.status, {
+        filter: facetFilter(facetOptions?.statusOptions),
+        gridCell: ({ row }: { row: Row<UiExecution> }) => <ExecutionStatusGridCell status={row.original.status} />,
+      }),
     },
     {
       // accessorKey is `machineId` so the filter option values (machineIds)
@@ -308,7 +371,11 @@ function executionColumns({
       ),
       enableSorting: false,
       filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(EXECUTION_COLUMNS.machineId, { filter: facetFilter(facetOptions?.machineOptions) }),
+      ...scriptsLiveColumnSize(EXECUTION_COLUMNS.machineId),
+      meta: scriptsLiveColumnMeta(EXECUTION_COLUMNS.machineId, {
+        filter: facetFilter(facetOptions?.machineOptions),
+        gridCell: ({ row }: { row: Row<UiExecution> }) => <DeviceGridCell execution={row.original} />,
+      }),
     },
     {
       // The column's value is the initiator's id so the filter option values (user ids)
@@ -332,7 +399,11 @@ function executionColumns({
       },
       enableSorting: false,
       filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(EXECUTION_COLUMNS.initiatorId, { filter: facetFilter(facetOptions?.initiatorOptions) }),
+      ...scriptsLiveColumnSize(EXECUTION_COLUMNS.initiatorId),
+      meta: scriptsLiveColumnMeta(EXECUTION_COLUMNS.initiatorId, {
+        filter: facetFilter(facetOptions?.initiatorOptions),
+        gridCell: ({ row }: { row: Row<UiExecution> }) => <InitiatorGridCell execution={row.original} />,
+      }),
     },
     {
       accessorKey: 'result',
@@ -341,7 +412,12 @@ function executionColumns({
         <ExecutionResultCell result={row.original.result} empty={<ValueText value={null} />} />
       ),
       enableSorting: false,
-      meta: liveColumnMeta(EXECUTION_COLUMNS.result),
+      ...scriptsLiveColumnSize(EXECUTION_COLUMNS.result),
+      meta: scriptsLiveColumnMeta(EXECUTION_COLUMNS.result, {
+        gridCell: ({ row }: { row: Row<UiExecution> }) => (
+          <ExecutionResultGridCell result={row.original.result} empty={<ValueText value={null} />} />
+        ),
+      }),
     },
     {
       id: 'actions',
@@ -351,13 +427,17 @@ function executionColumns({
         </div>
       ),
       enableSorting: false,
-      meta: liveColumnMeta(EXECUTION_COLUMNS.actions),
+      ...scriptsLiveColumnSize(EXECUTION_COLUMNS.actions),
+      meta: scriptsLiveColumnMeta(EXECUTION_COLUMNS.actions),
     },
     {
       id: 'open',
       cell: ({ row }: { row: Row<UiExecution> }) => <OpenExecutionButton executionId={row.original.id} />,
       enableSorting: false,
-      meta: liveColumnMeta(EXECUTION_COLUMNS.open),
+      ...scriptsLiveColumnSize(EXECUTION_COLUMNS.open),
+      meta: scriptsLiveColumnMeta(EXECUTION_COLUMNS.open, {
+        gridCell: ({ row }: { row: Row<UiExecution> }) => <OpenExecutionGridButton executionId={row.original.id} />,
+      }),
     },
   ];
 }
@@ -379,6 +459,8 @@ export function ExecutionsTable({
   mobileFilterOpen,
   onMobileFilterClose,
   onEmptyChange,
+  tableLayout,
+  tableSettings,
 }: ExecutionsTableProps) {
   const { toast } = useToast();
   const { statusOptions, machineOptions, initiatorOptions } = facetOptions;
@@ -505,6 +587,10 @@ export function ExecutionsTable({
         table={table}
         pageSize={EXECUTIONS_PAGE_SIZE}
         stickyHeaderOffset={stickyHeaderOffset}
+        // The list is one section of a script's, a schedule's or a run's page: the page scrolls, so the grid table
+        // takes no height of its own.
+        layout={tableLayout}
+        settings={tableSettings}
         showHeader={showHeader}
         emptyState={resolvedEmptyState}
         rowHref={executionHref}
@@ -580,6 +666,13 @@ export interface ExecutionsTabState {
    * {@link ExecutionsTable}, which is what knows.
    */
   onEmptyChange: (empty: boolean) => void;
+  /**
+   * The table's layout, from the app's one table flag. The shell reads the flag ONCE and hands the layout to the
+   * loading table and, through this state, to {@link ExecutionsTable}: the two never draw different tables.
+   */
+  tableLayout: TableLayout;
+  /** The grid table's settings: the list's own storage key. Spread into {@link ExecutionsTable} with the layout. */
+  tableSettings?: DataTableSettings;
 }
 
 interface ExecutionsTabBodyProps {
@@ -604,6 +697,8 @@ function ExecutionsTabBodyReader({ state, children }: ExecutionsTabBodyProps) {
         columns={LOADING_COLUMNS}
         pageSize={EXECUTIONS_PAGE_SIZE}
         stickyHeaderOffset={state.stickyHeaderOffset}
+        layout={state.tableLayout}
+        settings={state.tableSettings}
       />
     );
   }
@@ -620,8 +715,17 @@ export function ExecutionsTabShell({
   children,
   clientSearch,
   searchPlaceholder = 'Search for Executions',
+  tableSettings,
 }: {
   children: (state: ExecutionsTabState) => ReactNode;
+  /**
+   * The grid table's settings: the storage key the viewer's column layout is kept under. Each list names its own
+   * (`SCRIPTS_TABLE_SETTINGS`); lists that draw the same columns share one.
+   *
+   * Naming it is how a list takes part in the app's table flag: with it the list draws the grid table where the flag
+   * is on. A list that names none stays on card rows whatever the flag says.
+   */
+  tableSettings?: DataTableSettings;
   /** The search box's placeholder — the lists name their rows differently. */
   searchPlaceholder?: string;
   /**
@@ -656,6 +760,11 @@ export function ExecutionsTabShell({
     sortDir: { type: 'string', default: 'desc' },
   });
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  // The new grid table, behind the app's one table flag; card rows while it is off, and for a list that has not
+  // named its storage key (it has not moved to the grid).
+  const tableGate = useTableGridGate();
+  const followsTableFlag = tableSettings !== undefined;
+  const tableLayout = followsTableFlag ? tableLayoutFor(tableGate) : 'cards';
   // Set by the table below (the only thing that knows how many rows there are):
   // an un-narrowed empty list has nothing to search, so the toolbar goes away and
   // leaves the placeholder alone.
@@ -779,27 +888,32 @@ export function ExecutionsTabShell({
           />
         </div>
       )}
-      <ExecutionsTabBody
-        state={{
-          backendFilters: deferredVars.filter,
-          sort: deferredVars.sort,
-          // A caller whose `search` is spoken for gets the typed term as
-          // client-side narrowing instead. Everywhere else it is the query's own
-          // term and nothing is narrowed twice.
-          querySearch: clientSearch ? '' : deferredSearch,
-          narrowSearch: clientSearch ? deferredSearch : '',
-          isPending,
-          tableFilters,
-          onFilterChange: handleFilterChange,
-          dateFilter,
-          mobileFilterOpen,
-          onMobileFilterClose: () => setMobileFilterOpen(false),
-          stickyHeaderOffset,
-          onEmptyChange: setIsEmpty,
-        }}
-      >
-        {children}
-      </ExecutionsTabBody>
+      {/* Until the flag answers the list is its loading form: a guess would draw one table and replace it. */}
+      <LoadingWhen loading={followsTableFlag && tableGate === 'loading'}>
+        <ExecutionsTabBody
+          state={{
+            backendFilters: deferredVars.filter,
+            sort: deferredVars.sort,
+            // A caller whose `search` is spoken for gets the typed term as
+            // client-side narrowing instead. Everywhere else it is the query's own
+            // term and nothing is narrowed twice.
+            querySearch: clientSearch ? '' : deferredSearch,
+            narrowSearch: clientSearch ? deferredSearch : '',
+            isPending,
+            tableFilters,
+            onFilterChange: handleFilterChange,
+            dateFilter,
+            mobileFilterOpen,
+            onMobileFilterClose: () => setMobileFilterOpen(false),
+            stickyHeaderOffset,
+            onEmptyChange: setIsEmpty,
+            tableLayout,
+            tableSettings,
+          }}
+        >
+          {children}
+        </ExecutionsTabBody>
+      </LoadingWhen>
     </div>
   );
 }

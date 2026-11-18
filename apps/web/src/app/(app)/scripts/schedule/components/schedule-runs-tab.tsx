@@ -12,6 +12,7 @@ import {
   type DateRange,
   FilterModal,
   Input,
+  LoadingWhen,
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -32,12 +33,14 @@ import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { type TableLayout, tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { ScriptExecutionStatus } from '@/generated/schema-enums';
 import { scheduleRunsRelayFragment, scheduleRunsRelayQuery } from '@/graphql/scripts/schedule-runs-relay';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
 import { formatDateTime } from '@/lib/format-date';
 import { toInitiator } from '../../shared/components/initiator-identity';
 import { executionStatusLabel } from '../../shared/utils/execution-helpers';
+import { SCRIPTS_TABLE_SETTINGS } from '../../shared/utils/grid-columns';
 import {
   RUNS_PAGE_SIZE,
   runDetailsHref,
@@ -82,6 +85,17 @@ interface ContentProps {
   stickyHeaderOffset: string;
   /** Reports the "no runs yet" placeholder up, so the tab can drop the toolbar over it. */
   onEmptyChange: (empty: boolean) => void;
+  /** The table's layout, from the app's one table flag: read once by the tab and handed to every form of the list. */
+  tableLayout: TableLayout;
+}
+
+/**
+ * The table's layout props, the same for the loaded table and its loading form. The tab is one section of the
+ * schedule's page, so the page scrolls and the grid table takes no height of its own; `LiveTable` passes the
+ * settings on only in the grid layout.
+ */
+function gridTableProps(tableLayout: TableLayout) {
+  return { layout: tableLayout, settings: SCRIPTS_TABLE_SETTINGS.scheduleRuns };
 }
 
 function ScheduleRunsContent({
@@ -97,6 +111,7 @@ function ScheduleRunsContent({
   onMobileFilterClose,
   stickyHeaderOffset,
   onEmptyChange,
+  tableLayout,
 }: ContentProps) {
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<RunsQueryType>(
@@ -225,6 +240,7 @@ function ScheduleRunsContent({
         table={table}
         pageSize={RUNS_PAGE_SIZE}
         stickyHeaderOffset={stickyHeaderOffset}
+        {...gridTableProps(tableLayout)}
         showHeader={showHeader}
         emptyState={emptyState}
         rowHref={runDetailsHref}
@@ -271,6 +287,7 @@ function ScheduleRunsTableReader(props: ContentProps) {
         columns={SCHEDULE_RUN_LOADING_COLUMNS}
         pageSize={RUNS_PAGE_SIZE}
         stickyHeaderOffset={props.stickyHeaderOffset}
+        {...gridTableProps(props.tableLayout)}
       />
     );
   return <ScheduleRunsContent {...props} />;
@@ -288,6 +305,8 @@ function ScheduleRunsTableReader(props: ContentProps) {
  */
 export const ScheduleRunsTab = memo(function ScheduleRunsTabImpl({ scheduleId }: { scheduleId: string }) {
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
+  // The new grid table, behind the app's one table flag; card rows while it is off.
+  const tableGate = useTableGridGate();
   // Deliberately NOT `search` / `status`: those belong to the Execution History
   // tab on this same page (and its `search` is what a Runs row drills into), so
   // sharing the keys would leak this table's narrowing into that one on a tab
@@ -408,20 +427,24 @@ export const ScheduleRunsTab = memo(function ScheduleRunsTabImpl({ scheduleId }:
           />
         </div>
       )}
-      <ScheduleRunsTable
-        scheduleId={scheduleId}
-        debouncedSearch={deferredSearch}
-        backendFilters={deferredVars.filter}
-        sort={deferredVars.sort}
-        isPending={isPending}
-        tableFilters={tableFilters}
-        dateFilter={dateFilter}
-        onFilterChange={handleFilterChange}
-        mobileFilterOpen={mobileFilterOpen}
-        onMobileFilterClose={() => setMobileFilterOpen(false)}
-        stickyHeaderOffset={stickyHeaderOffset}
-        onEmptyChange={setIsEmpty}
-      />
+      {/* Until the flag answers the list is its loading form: a guess would draw one table and replace it. */}
+      <LoadingWhen loading={tableGate === 'loading'}>
+        <ScheduleRunsTable
+          scheduleId={scheduleId}
+          debouncedSearch={deferredSearch}
+          backendFilters={deferredVars.filter}
+          sort={deferredVars.sort}
+          isPending={isPending}
+          tableFilters={tableFilters}
+          dateFilter={dateFilter}
+          onFilterChange={handleFilterChange}
+          mobileFilterOpen={mobileFilterOpen}
+          onMobileFilterClose={() => setMobileFilterOpen(false)}
+          stickyHeaderOffset={stickyHeaderOffset}
+          onEmptyChange={setIsEmpty}
+          tableLayout={tableLayoutFor(tableGate)}
+        />
+      </LoadingWhen>
     </div>
   );
 });
