@@ -17,6 +17,7 @@ import { toUserSummary } from '@/graphql/users/user-summary-fields';
 import { knownValues } from '@/lib/exhaustive-map';
 import { getFullImageUrl } from '@/lib/image-url';
 import { rawIdOf } from '@/lib/relay-id';
+import { parameterPresentation, type ThresholdComparison } from './incident-check-labels';
 
 /**
  * A row of the Incidents table. The enum fields keep the artifact's own union
@@ -94,6 +95,20 @@ export function toIncidentUser(rawId: string, ref: userSummaryFields_user$key | 
   return { id: rawId, name, avatarUrl, deleted };
 }
 
+/** A threshold the finding was made against, and the scope that set it. */
+export interface IncidentThreshold {
+  parameter: string;
+  label: string;
+  comparison: ThresholdComparison | null;
+  /** From this build's names: `InsightThreshold` carries no unit. */
+  unit: string | null;
+  value: number;
+  /** DEFAULT (the built-in value), GLOBAL, TAG, CUSTOMER or DEVICE; the artifact's union. */
+  scopeType: string;
+  /** `organizationId`, `Tag.id` or `machineId`; null for DEFAULT and GLOBAL. */
+  scopeId: string | null;
+}
+
 /** The detail page's incident: the row plus what only it draws. */
 export interface Incident extends IncidentRow {
   description: string | null;
@@ -101,6 +116,8 @@ export interface Incident extends IncidentRow {
   interval: number | null;
   /** The osquery evidence rows; null for incidents recorded before evidence was kept. */
   queryResult: QueryResultRow[] | null;
+  /** Empty for an on/off check; null for incidents recorded before thresholds were kept. */
+  thresholds: IncidentThreshold[] | null;
   organizationImageUrl?: string;
 }
 
@@ -125,6 +142,20 @@ export function toIncident(ref: insightFields_insight$key): Incident {
     description: node.description ?? null,
     interval: node.interval ?? null,
     queryResult: node.queryResult ? node.queryResult.map(toQueryResultRow) : null,
+    thresholds: node.thresholds
+      ? node.thresholds.map(threshold => {
+          const presentation = parameterPresentation(threshold.parameter);
+          return {
+            parameter: threshold.parameter,
+            label: presentation.label,
+            comparison: presentation.comparison,
+            unit: presentation.unit,
+            value: threshold.value,
+            scopeType: threshold.scopeType,
+            scopeId: threshold.scopeId ?? null,
+          };
+        })
+      : null,
     organizationImageUrl: getFullImageUrl(node.organization?.image?.imageUrl, node.organization?.image?.hash),
   };
 }

@@ -12,9 +12,11 @@ import { InsightStatus } from '@/generated/schema-enums';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDateTime } from '@/lib/format-date';
 import { routes } from '@/lib/routes';
+import { useIncidentChecksGate } from '../hooks/use-incident-checks-gate';
 import { formatInterval } from '../utils/format-interval';
+import { formatThreshold } from '../utils/incident-check-labels';
 import { INCIDENT_TYPE_LABELS, labelOf } from '../utils/incident-labels';
-import type { Incident } from '../utils/incident-transform';
+import type { Incident, IncidentThreshold } from '../utils/incident-transform';
 import { IncidentSeverityTag, IncidentStatusTag } from './incident-tags';
 
 /** One strip of the card: cells wrap below the 4-up desktop layout instead of overflowing. */
@@ -33,6 +35,24 @@ function Cell({ optional, children }: { optional?: boolean; children: ReactNode 
       {children}
     </div>
   );
+}
+
+/** Where an incident's threshold was set, as the line under it says it. */
+const THRESHOLD_SCOPE_WORDS: Readonly<Record<string, string>> = {
+  DEFAULT: 'Default threshold',
+  GLOBAL: 'Set for all devices',
+  TAG: 'Set for a device tag',
+  CUSTOMER: 'Set for this customer',
+  DEVICE: 'Set for this device',
+};
+
+/** The Checks tab at the scope that set the threshold: the default and all devices are both changed at the top. */
+function checksLinkOf(threshold: IncidentThreshold): string {
+  const { scopeType, scopeId } = threshold;
+  if (scopeId && (scopeType === 'TAG' || scopeType === 'CUSTOMER' || scopeType === 'DEVICE')) {
+    return routes.incidents.checks({ scope: scopeType, scopeId });
+  }
+  return routes.incidents.checks();
 }
 
 /** How many lines the detecting query's description typically runs to (a sentence or two at the card's width). */
@@ -62,6 +82,8 @@ interface IncidentSummaryCardProps {
 export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryCardProps) {
   const loading = useLoadingScope() || !incident;
   const snoozedUntil = incident?.status === InsightStatus.SNOOZED ? incident.snoozedUntil : null;
+  // A threshold links to the Checks tab only where that tab exists; still unanswered, it is plain text.
+  const checksLinked = useIncidentChecksGate() === 'on';
 
   return (
     <div className="overflow-hidden rounded-[6px] border border-ods-border bg-ods-card">
@@ -151,6 +173,32 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
           </Cell>
         )}
       </Row>
+
+      {/* The thresholds the finding was made against: a threshold check's incident has them, an on/off check's and
+          one recorded before they were kept do not, so the strip is an optional part. */}
+      {incident?.thresholds && incident.thresholds.length > 0 && (
+        <Row>
+          {incident.thresholds.map(threshold => (
+            <Cell key={threshold.parameter} optional>
+              <InfoCell
+                value={
+                  checksLinked ? (
+                    <Link
+                      href={checksLinkOf(threshold)}
+                      className="text-ods-accent underline hover:text-ods-accent-hover"
+                    >
+                      {formatThreshold(threshold.value, threshold.unit, threshold.comparison)}
+                    </Link>
+                  ) : (
+                    formatThreshold(threshold.value, threshold.unit, threshold.comparison)
+                  )
+                }
+                label={`${threshold.label} · ${THRESHOLD_SCOPE_WORDS[threshold.scopeType] ?? threshold.scopeType}`}
+              />
+            </Cell>
+          ))}
+        </Row>
+      )}
     </div>
   );
 }
