@@ -178,7 +178,7 @@ function CheckListLive({ scope }: { scope: CheckScope }) {
   const checks = toIncidentChecks(data.insightChecks);
   const admin = useAdminGate();
   const canEdit = admin === 'admin';
-  const { save, reset, isSaving, pendingCheck } = useIncidentCheckMutations(scope, () => setWrites(count => count + 1));
+  const { save, reset, isSaving, isPending } = useIncidentCheckMutations(scope, () => setWrites(count => count + 1));
   const [editing, setEditing] = useState<IncidentCheck | null>(null);
 
   const write = (check: IncidentCheck, draft: CheckSettingDraft, successDescription: string, onSaved?: () => void) =>
@@ -196,7 +196,7 @@ function CheckListLive({ scope }: { scope: CheckScope }) {
             check={check}
             scope={scope}
             canEdit={canEdit}
-            busy={pendingCheck === check.check}
+            busy={isPending(check.check)}
             onToggle={(target, enabled) =>
               write(target, withEnabled(target, scope, enabled), `${enabled ? 'Turned on' : 'Turned off'} here.`)
             }

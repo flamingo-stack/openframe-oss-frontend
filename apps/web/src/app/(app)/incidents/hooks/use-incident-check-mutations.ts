@@ -37,11 +37,18 @@ export function useIncidentCheckMutations(scope: CheckScope, onWritten: () => vo
   const { toast } = useToast();
   const [commitUpdate, isUpdating] = useMutation<UpdateMutationType>(updateInsightCheckSettingMutation);
   const [commitReset, isResetting] = useMutation<ResetMutationType>(resetInsightCheckSettingMutation);
-  // The check a write is on its way for: its row locks until the answer.
-  const [pendingCheck, setPendingCheck] = useState<string | null>(null);
+  // The checks a write is on its way for: each row locks until its own answer, whatever answers first.
+  const [pendingChecks, setPendingChecks] = useState<ReadonlySet<string>>(() => new Set());
+  const markPending = (check: string, pending: boolean) =>
+    setPendingChecks(current => {
+      const next = new Set(current);
+      if (pending) next.add(check);
+      else next.delete(check);
+      return next;
+    });
 
-  const onError = (error: Error) => {
-    setPendingCheck(null);
+  const onError = (target: SaveTarget) => (error: Error) => {
+    markPending(target.check, false);
     toast({
       title: 'Error',
       description: getRelayErrorMessage(error, "Couldn't save the check"),
@@ -52,18 +59,18 @@ export function useIncidentCheckMutations(scope: CheckScope, onWritten: () => vo
   const onCompleted =
     (target: SaveTarget, { successDescription, onSaved }: SaveOptions) =>
     () => {
-      setPendingCheck(null);
+      markPending(target.check, false);
       toast({ title: `${target.name} saved`, description: successDescription, variant: 'success' });
       onSaved?.();
       onWritten();
     };
 
   const reset = (target: SaveTarget, options: SaveOptions) => {
-    setPendingCheck(target.check);
+    markPending(target.check, true);
     commitReset({
       variables: { input: { check: target.check, ...scopeInput(scope) } },
       onCompleted: onCompleted(target, options),
-      onError,
+      onError: onError(target),
     });
   };
 
@@ -72,14 +79,14 @@ export function useIncidentCheckMutations(scope: CheckScope, onWritten: () => vo
       reset(target, options);
       return;
     }
-    setPendingCheck(target.check);
+    markPending(target.check, true);
     commitUpdate({
       variables: { input: toUpdateInput(target.check, scope, draft) },
       onCompleted: onCompleted(target, options),
-      onError,
+      onError: onError(target),
     });
   };
 
   const isSaving = isUpdating || isResetting;
-  return { save, reset, isSaving, pendingCheck: isSaving ? pendingCheck : null };
+  return { save, reset, isSaving, isPending: (check: string) => pendingChecks.has(check) };
 }
