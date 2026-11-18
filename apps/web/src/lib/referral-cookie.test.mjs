@@ -28,7 +28,12 @@ function visibleTo(hostname) {
 function browseTo(url) {
   const parsed = new URL(url);
   globalThis.window = {
-    location: { hostname: parsed.hostname, protocol: parsed.protocol, search: parsed.search },
+    location: {
+      hostname: parsed.hostname,
+      protocol: parsed.protocol,
+      pathname: parsed.pathname,
+      search: parsed.search,
+    },
   };
   globalThis.document = {
     get cookie() {
@@ -172,6 +177,26 @@ test('an unusable ?ref= is ignored and leaves an existing referral intact', () =
 
   assert.equal(R.readReferralCode(), 'partner-123');
   assert.equal(jar.length, 1);
+});
+
+test('the login error page keeps the stored referral: its ?ref= is the error name', () => {
+  browseTo('https://openframe.ai/?ref=partner-123');
+  R.captureReferralFromUrl();
+
+  for (const page of ['/auth/error', '/auth/error/']) {
+    browseTo(`https://openframe.ai${page}?ref=SSO_LOGIN_FAILED`);
+    R.captureReferralFromUrl();
+    assert.equal(R.readReferralCode(), 'partner-123', `${page} must not overwrite the referral`);
+  }
+});
+
+test('the login error page stores nothing for a visitor without a referral', () => {
+  for (const page of ['/auth/error', '/auth/error/']) {
+    browseTo(`https://openframe.ai${page}?ref=SSO_LOGIN_FAILED`);
+    R.captureReferralFromUrl();
+    assert.equal(R.readReferralCode(), undefined, `${page} must not store its error name as a referral`);
+  }
+  assert.equal(writes, 0);
 });
 
 test('a hand-edited cookie value is re-validated on read', () => {
