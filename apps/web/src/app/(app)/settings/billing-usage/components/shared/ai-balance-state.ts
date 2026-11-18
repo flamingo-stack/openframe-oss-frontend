@@ -43,8 +43,8 @@ export interface AiBalanceState {
   alert: AiAlert;
 }
 
-/** `lowTokens`: where "running low" starts for this workspace (`useAiBalanceLowTokens`); unset, the fixed 1M. */
-export function aiBalanceState(ref: aiBalanceState_subscription$key, lowTokens?: number): AiBalanceState {
+/** `lowTokens`: where "running low" starts for this workspace (`useAiBalanceLowTokens`); unset, the fixed 1M; null while unknown (no warning yet). */
+export function aiBalanceState(ref: aiBalanceState_subscription$key, lowTokens?: number | null): AiBalanceState {
   const { status, usage } = readInlineData(aiBalanceStateFragment, ref);
   const isTrial = status === SubscriptionStatus.TRIAL;
 

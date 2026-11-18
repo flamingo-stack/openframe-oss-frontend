@@ -8,7 +8,7 @@ export type CompanyUsage = Pick<ChatUsagePanelData, 'free' | 'balance' | 'compan
 /** The panel's company rows from the subscription's usage. A trial has no balance to colour (as on the billing page). */
 export function companyUsageOf(
   subscription: MingoUsageHydratorQueryType['response']['subscription'],
-  lowTokens: number,
+  lowTokens: number | null,
   loading: boolean,
 ): CompanyUsage {
   const usage = subscription?.usage;

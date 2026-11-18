@@ -41,4 +41,9 @@ describe('aiBalanceLowTokens', () => {
     expect(aiBalanceTone({ ...grant, purchasedRemaining: 2_500_000, lowTokens })).toBe('warning');
     expect(aiBalanceTone({ ...grant, purchasedRemaining: 0, lowTokens })).toBe('error');
   });
+
+  it('holds the yellow back while the level is not known, but still says an empty balance', () => {
+    expect(aiBalanceTone({ ...grant, purchasedRemaining: 1, lowTokens: null })).toBe('default');
+    expect(aiBalanceTone({ ...grant, purchasedRemaining: 0, lowTokens: null })).toBe('error');
+  });
 });

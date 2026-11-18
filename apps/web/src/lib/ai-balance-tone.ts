@@ -26,8 +26,9 @@ export interface AiBalanceInput {
   freeUsed: number;
   /** Prepaid tokens still available (`usage.purchasedTokensRemaining`). */
   purchasedRemaining: number;
-  /** Where "running low" starts, in tokens: `aiBalanceLowTokens(settings)`. Unset, the fixed 1M. */
-  lowTokens?: number;
+  /** Where "running low" starts, in tokens (`useAiBalanceLowTokens`). Unset, the fixed 1M; null while it is not known
+   *  yet, which holds the warning back (a late yellow, never one that disappears a moment later). */
+  lowTokens?: number | null;
 }
 
 /** The Auto Top-Up arrangement as `autoTopUpSettings` answers it, or null when it could not be read. */
@@ -56,5 +57,6 @@ export function aiFreeTokensExhausted({
 export function aiBalanceTone(input: AiBalanceInput): AiBalanceTone {
   if (!aiFreeTokensExhausted(input)) return 'default';
   if (input.purchasedRemaining <= 0) return 'error';
+  if (input.lowTokens === null) return 'default';
   return input.purchasedRemaining <= (input.lowTokens ?? AI_BALANCE_LOW_TOKENS) ? 'warning' : 'default';
 }
