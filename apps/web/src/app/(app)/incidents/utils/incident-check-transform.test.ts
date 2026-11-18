@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { insightCheckFields_insightCheck$key } from '@/__generated__/insightCheckFields_insightCheck.graphql';
+import { sourceLabel } from '../components/checks/check-source';
 import {
   GLOBAL_SCOPE,
   isEmptyDraft,
@@ -21,24 +22,32 @@ const DEVICE = { type: 'DEVICE', id: 'm-1' } as const;
 /** `resource-win-disk-low` as the API answers it for a device: on from the customer, 15% from a tag. */
 function diskLow(overrides: Record<string, unknown> = {}) {
   return toIncidentCheck({
+    id: 'SW5zaWdodENoZWNrOjE=',
     check: 'resource-win-disk-low',
-    kind: 'DISK_SPACE_LOW',
+    title: 'Disk is almost full',
     platform: 'WINDOWS',
     description: 'Free space is below the threshold set for this device.',
+    severity: 'HIGH',
+    escalatedSeverity: 'CRITICAL',
+    intervalSeconds: 3600,
     enabled: true,
     enabledScopeType: 'CUSTOMER',
     enabledScopeId: 'org-1',
+    enabledScopeName: 'Acme',
     customized: true,
     parameters: [
       {
         parameter: 'freePercent',
+        label: 'Free disk space',
         unit: 'PERCENT',
+        firesWhen: 'BELOW',
         value: 15,
         defaultValue: 10,
         min: 1,
         max: 50,
         scopeType: 'TAG',
         scopeId: 'VGFnOnQtMQ==',
+        scopeName: 'servers',
       },
     ],
     ...overrides,
@@ -46,33 +55,41 @@ function diskLow(overrides: Record<string, unknown> = {}) {
 }
 
 describe('toIncidentCheck', () => {
-  it('names the check by its kind and the parameter by its key', () => {
+  it('takes the name, severity, interval and every label from the API', () => {
     const check = diskLow();
-    expect(check.name).toBe('Low disk space');
+    expect(check).toMatchObject({
+      name: 'Disk is almost full',
+      severity: 'HIGH',
+      escalatedSeverity: 'CRITICAL',
+      intervalSeconds: 3600,
+      enabledSource: { type: 'CUSTOMER', id: 'org-1', name: 'Acme' },
+    });
     expect(check.parameters[0]).toMatchObject({
       label: 'Free disk space',
-      comparison: 'below',
+      firesWhen: 'BELOW',
       unit: 'PERCENT',
-      source: { type: 'TAG', id: 'VGFnOnQtMQ==' },
+      source: { type: 'TAG', id: 'VGFnOnQtMQ==', name: 'servers' },
     });
   });
+});
 
-  it('shows an unknown parameter by its key, with no side', () => {
-    const check = diskLow({
-      parameters: [
-        { parameter: 'maxWidgets', unit: 'COUNT', value: 3, defaultValue: 3, min: 1, max: 9, scopeType: 'DEFAULT' },
-      ],
-    });
-    expect(check.parameters[0]).toMatchObject({ label: 'maxWidgets', comparison: null });
+describe('sourceLabel', () => {
+  it('names an inherited customer, tag or device; says nothing more for one set here', () => {
+    const check = diskLow();
+    const [freePercent] = check.parameters;
+    expect(freePercent && sourceLabel(freePercent.source, DEVICE)).toBe('From tag · servers');
+    expect(sourceLabel(check.enabledSource, DEVICE)).toBe('From customer · Acme');
+    expect(sourceLabel(check.enabledSource, CUSTOMER)).toBe('Set here');
+    expect(sourceLabel({ type: 'CUSTOMER', id: 'org-1', name: null }, DEVICE)).toBe('From customer');
   });
 });
 
 describe('isSetHere', () => {
   it('matches the scope by kind and id; all devices by kind alone', () => {
-    expect(isSetHere({ type: 'CUSTOMER', id: 'org-1' }, CUSTOMER)).toBe(true);
-    expect(isSetHere({ type: 'CUSTOMER', id: 'org-2' }, CUSTOMER)).toBe(false);
-    expect(isSetHere({ type: 'GLOBAL', id: null }, GLOBAL_SCOPE)).toBe(true);
-    expect(isSetHere({ type: 'DEFAULT', id: null }, GLOBAL_SCOPE)).toBe(false);
+    expect(isSetHere({ type: 'CUSTOMER', id: 'org-1', name: null }, CUSTOMER)).toBe(true);
+    expect(isSetHere({ type: 'CUSTOMER', id: 'org-2', name: null }, CUSTOMER)).toBe(false);
+    expect(isSetHere({ type: 'GLOBAL', id: null, name: null }, GLOBAL_SCOPE)).toBe(true);
+    expect(isSetHere({ type: 'DEFAULT', id: null, name: null }, GLOBAL_SCOPE)).toBe(false);
   });
 });
 
@@ -91,7 +108,9 @@ describe('withEnabled', () => {
       parameters: [
         {
           parameter: 'freePercent',
+          label: 'Free disk space',
           unit: 'PERCENT',
+          firesWhen: 'BELOW',
           value: 20,
           defaultValue: 10,
           min: 1,

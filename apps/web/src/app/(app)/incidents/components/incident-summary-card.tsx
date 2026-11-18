@@ -187,10 +187,10 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
                       href={checksLinkOf(threshold)}
                       className="text-ods-accent underline hover:text-ods-accent-hover"
                     >
-                      {formatThreshold(threshold.value, threshold.unit, threshold.comparison)}
+                      {formatThreshold(threshold.value, threshold.unit, threshold.firesWhen)}
                     </Link>
                   ) : (
-                    formatThreshold(threshold.value, threshold.unit, threshold.comparison)
+                    formatThreshold(threshold.value, threshold.unit, threshold.firesWhen)
                   )
                 }
                 label={`${threshold.label} · ${THRESHOLD_SCOPE_WORDS[threshold.scopeType] ?? threshold.scopeType}`}

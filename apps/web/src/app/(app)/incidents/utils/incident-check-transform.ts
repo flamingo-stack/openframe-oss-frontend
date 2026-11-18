@@ -6,8 +6,6 @@ import type {
 import type { UpdateInsightCheckSettingInput } from '@/__generated__/updateInsightCheckSettingMutation.graphql';
 import { InsightCheckScopeType } from '@/generated/schema-enums';
 import { insightCheckFieldsFragment } from '@/graphql/insights/insight-check-fields';
-import { INSIGHT_KIND_LABELS, parameterPresentation, type ThresholdComparison } from './incident-check-labels';
-import { labelOf } from './incident-labels';
 
 /** The scopes a setting can be written at: everything but the built-in DEFAULT. */
 export type WritableScopeType = Exclude<InsightCheckScopeType, 'DEFAULT'>;
@@ -38,12 +36,16 @@ export const GLOBAL_SCOPE: CheckScope = { type: InsightCheckScopeType.GLOBAL, id
 export interface CheckValueSource {
   type: insightCheckFields_insightCheck$data['enabledScopeType'];
   id: string | null;
+  /** The customer's name, the tag's key or the device's name; null for DEFAULT and GLOBAL. */
+  name: string | null;
 }
+
+type CheckData = insightCheckFields_insightCheck$data;
 
 export interface IncidentCheckParameter {
   parameter: string;
   label: string;
-  comparison: ThresholdComparison | null;
+  firesWhen: CheckData['parameters'][number]['firesWhen'];
   unit: string;
   value: number;
   defaultValue: number;
@@ -56,8 +58,13 @@ export interface IncidentCheck {
   /** The stable key the mutations take, e.g. `resource-win-disk-low`. */
   check: string;
   name: string;
-  platform: insightCheckFields_insightCheck$data['platform'];
+  platform: CheckData['platform'];
   description: string;
+  /** The severity its incident opens with, and the one it can rise to far past the threshold (else null). */
+  severity: CheckData['severity'];
+  escalatedSeverity: CheckData['escalatedSeverity'];
+  /** How often it runs on each device, in seconds. */
+  intervalSeconds: number;
   enabled: boolean;
   enabledSource: CheckValueSource;
   /** The scope asked about stores something of its own: there is something to reset. */
@@ -70,26 +77,30 @@ export function toIncidentCheck(ref: insightCheckFields_insightCheck$key): Incid
   const node = readInlineData(insightCheckFieldsFragment, ref);
   return {
     check: node.check,
-    name: labelOf(INSIGHT_KIND_LABELS, node.kind),
+    name: node.title,
     platform: node.platform,
     description: node.description,
+    severity: node.severity,
+    escalatedSeverity: node.escalatedSeverity ?? null,
+    intervalSeconds: node.intervalSeconds,
     enabled: node.enabled,
-    enabledSource: { type: node.enabledScopeType, id: node.enabledScopeId ?? null },
+    enabledSource: {
+      type: node.enabledScopeType,
+      id: node.enabledScopeId ?? null,
+      name: node.enabledScopeName ?? null,
+    },
     customized: node.customized,
-    parameters: node.parameters.map(parameter => {
-      const presentation = parameterPresentation(parameter.parameter);
-      return {
-        parameter: parameter.parameter,
-        label: presentation.label,
-        comparison: presentation.comparison,
-        unit: parameter.unit,
-        value: parameter.value,
-        defaultValue: parameter.defaultValue,
-        min: parameter.min,
-        max: parameter.max,
-        source: { type: parameter.scopeType, id: parameter.scopeId ?? null },
-      };
-    }),
+    parameters: node.parameters.map(parameter => ({
+      parameter: parameter.parameter,
+      label: parameter.label,
+      firesWhen: parameter.firesWhen,
+      unit: parameter.unit,
+      value: parameter.value,
+      defaultValue: parameter.defaultValue,
+      min: parameter.min,
+      max: parameter.max,
+      source: { type: parameter.scopeType, id: parameter.scopeId ?? null, name: parameter.scopeName ?? null },
+    })),
   };
 }
 

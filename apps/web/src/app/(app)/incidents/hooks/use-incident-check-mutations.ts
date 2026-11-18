@@ -30,10 +30,10 @@ interface SaveOptions {
 
 /**
  * The two writes of the Checks tab. A draft that stores nothing is sent as a reset: the update
- * refuses an empty setting. `onWritten` refetches the list, since `InsightCheck` has no id for the
- * store to merge an answer into, and a write at one scope moves what the others inherit.
+ * refuses an empty setting. Each answer is the check at this scope under the list's own id, so the
+ * row updates from the store; other scopes' lists refetch when they are opened (`store-and-network`).
  */
-export function useIncidentCheckMutations(scope: CheckScope, onWritten: () => void) {
+export function useIncidentCheckMutations(scope: CheckScope) {
   const { toast } = useToast();
   const [commitUpdate, isUpdating] = useMutation<UpdateMutationType>(updateInsightCheckSettingMutation);
   const [commitReset, isResetting] = useMutation<ResetMutationType>(resetInsightCheckSettingMutation);
@@ -62,7 +62,6 @@ export function useIncidentCheckMutations(scope: CheckScope, onWritten: () => vo
       markPending(target.check, false);
       toast({ title: `${target.name} saved`, description: successDescription, variant: 'success' });
       onSaved?.();
-      onWritten();
     };
 
   const reset = (target: SaveTarget, options: SaveOptions) => {

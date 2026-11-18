@@ -169,16 +169,14 @@ function CheckListFrame({ children }: { children: ReactNode }) {
 
 function CheckListLive({ scope }: { scope: CheckScope }) {
   const retryKey = useRetryKey();
-  // Bumped after every write: `InsightCheck` has no id to merge a mutation's answer into.
-  const [writes, setWrites] = useState(0);
   const data = useLazyLoadQuery<IncidentChecksQueryType>(incidentChecksRelayQuery, scopeInput(scope), {
     fetchPolicy: 'store-and-network',
-    fetchKey: `${retryKey}:${writes}`,
+    fetchKey: retryKey,
   });
   const checks = toIncidentChecks(data.insightChecks);
   const admin = useAdminGate();
   const canEdit = admin === 'admin';
-  const { save, reset, isSaving, isPending } = useIncidentCheckMutations(scope, () => setWrites(count => count + 1));
+  const { save, reset, isSaving, isPending } = useIncidentCheckMutations(scope);
   const [editing, setEditing] = useState<IncidentCheck | null>(null);
 
   const write = (check: IncidentCheck, draft: CheckSettingDraft, successDescription: string, onSaved?: () => void) =>

@@ -8034,10 +8034,30 @@ enum InsightCheckParameterUnit {
   COUNT
 }
 
+"""Which side of a threshold the measured value has to be on for the check to open an insight."""
+enum InsightThresholdDirection {
+  """Opens when the measured value drops below the threshold, e.g. free disk space."""
+  BELOW
+
+  """Opens when the measured value rises above the threshold, e.g. days since restart."""
+  ABOVE
+}
+
 """A built-in check: one osquery query and the insight kind it opens."""
 type InsightCheck {
+  """
+  Opaque Relay global id of this check as read at the scope asked about, so the answer of a
+  mutation at that scope replaces the cached query result. Not accepted by any query.
+  """
+  id: ID!
+
   """The check's stable key, e.g. `resource-win-disk-low`."""
   check: String!
+
+  """
+  The check's display name, e.g. `Disk is almost full`. An insight's own title may also carry the measured value.
+  """
+  title: String!
 
   """The insight kind this check opens."""
   kind: InsightKind!
@@ -8045,6 +8065,18 @@ type InsightCheck {
 
   """What the check looks for and why it matters."""
   description: String!
+
+  """The severity an insight of this check opens with."""
+  severity: InsightSeverity!
+
+  """
+  The harshest severity the check opens with when the measured value is far past the threshold,
+  e.g. CRITICAL for a disk with under 5% free. Null for a check that always opens at `severity`.
+  """
+  escalatedSeverity: InsightSeverity
+
+  """How often the check runs on each device, in seconds."""
+  intervalSeconds: Int!
   enabled: Boolean!
 
   """The scope `enabled` was taken from."""
@@ -8052,6 +8084,12 @@ type InsightCheck {
 
   """The organization id, `Tag.id` or machine id of that scope; null for DEFAULT and GLOBAL."""
   enabledScopeId: String
+
+  """
+  What that scope is called: the organization's name, the tag's key or the device's nickname
+  (else hostname). Null for DEFAULT and GLOBAL. Batched per request, no N+1.
+  """
+  enabledScopeName: String
 
   """True when the scope asked about stores its own setting, so there is something to reset."""
   customized: Boolean!
@@ -8063,7 +8101,13 @@ type InsightCheck {
 type InsightCheckParameter {
   """The parameter's key within its check, e.g. `freePercent`."""
   parameter: String!
+
+  """Display name of the measured value, e.g. `Free disk space`."""
+  label: String!
   unit: InsightCheckParameterUnit!
+
+  """Which side of `value` the measured value has to be on to open an insight."""
+  firesWhen: InsightThresholdDirection!
   value: Int!
   defaultValue: Int!
 
@@ -8076,8 +8120,20 @@ type InsightCheckParameter {
 
   """The organization id, `Tag.id` or machine id of that scope; null for DEFAULT and GLOBAL."""
   scopeId: String
+
+  """
+  What that scope is called: the organization's name, the tag's key or the device's nickname
+  (else hostname). Null for DEFAULT and GLOBAL. Batched per request, no N+1.
+  """
+  scopeName: String
 }
 
+"""
+What one scope stores for one check. An update REPLACES what the scope stored before; it does not
+merge into it: an omitted `enabled` and every parameter left out of `parameters` stop being set at
+this scope and inherit from the less specific scope again. To keep a value, send it again. To clear
+everything the scope stores for the check, use `resetInsightCheckSetting`.
+"""
 input UpdateInsightCheckSettingInput {
   """The check's key, as `InsightCheck.check` returns it."""
   check: String!
@@ -8117,4 +8173,19 @@ type InsightThreshold {
 
   """The organization id, `Tag.id` or machine id of that scope; null for DEFAULT and GLOBAL."""
   scopeId: String
+
+  """
+  Display name of the measured value, e.g. `Free disk space`, as of the detection. For insights
+  detected before it was kept it comes from the current catalog; null when the insight's kind no
+  longer names a single check with this parameter.
+  """
+  label: String
+
+  """Unit of `value`; null under the same condition as `label`."""
+  unit: InsightCheckParameterUnit
+
+  """
+  Which side of `value` the measured value was on to open the insight; null under the same condition as `label`.
+  """
+  firesWhen: InsightThresholdDirection
 }

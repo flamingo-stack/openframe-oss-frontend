@@ -15,6 +15,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
+import { InsightThresholdDirection } from '@/generated/schema-enums';
 import { formatThreshold, parameterUnitSuffix } from '../../utils/incident-check-labels';
 import {
   type CheckScope,
@@ -68,7 +69,7 @@ function defaultValues(check: IncidentCheck, scope: CheckScope): EditCheckFormVa
 
 /** "Opens an incident below this value. From 1 to 50, default 10." */
 function parameterHint(parameter: IncidentCheckParameter): string {
-  const side = parameter.comparison ? `Opens an incident ${parameter.comparison} this value. ` : '';
+  const side = `Opens an incident ${parameter.firesWhen === InsightThresholdDirection.BELOW ? 'below' : 'above'} this value. `;
   return `${side}From ${parameter.min} to ${parameter.max}, default ${parameter.defaultValue}.`;
 }
 
@@ -160,7 +161,7 @@ export function EditCheckModal({ check, scope, scopeName, isSaving, onClose, onS
           const setHere = parameters[index]?.setHere ?? false;
           const inheritedFrom = isSetHere(parameter.source, scope)
             ? null
-            : `${formatThreshold(parameter.value, parameter.unit, parameter.comparison)}, ${sourceLabel(parameter.source, scope).toLowerCase()}`;
+            : `${formatThreshold(parameter.value, parameter.unit, parameter.firesWhen)}, ${sourceLabel(parameter.source, scope).toLowerCase()}`;
           const error = form.formState.errors.parameters?.[index]?.value?.message;
           return (
             <div key={parameter.parameter} className="flex flex-col gap-[var(--spacing-system-xs)]">

@@ -17,7 +17,6 @@ import { toUserSummary } from '@/graphql/users/user-summary-fields';
 import { knownValues } from '@/lib/exhaustive-map';
 import { getFullImageUrl } from '@/lib/image-url';
 import { rawIdOf } from '@/lib/relay-id';
-import { parameterPresentation, type ThresholdComparison } from './incident-check-labels';
 
 /**
  * A row of the Incidents table. The enum fields keep the artifact's own union
@@ -98,9 +97,10 @@ export function toIncidentUser(rawId: string, ref: userSummaryFields_user$key | 
 /** A threshold the finding was made against, and the scope that set it. */
 export interface IncidentThreshold {
   parameter: string;
+  /** The parameter's key when the API cannot name it (an old incident whose kind no longer names one check). */
   label: string;
-  comparison: ThresholdComparison | null;
-  /** From this build's names: `InsightThreshold` carries no unit. */
+  /** Null under the same condition, so the value shows as a bare number. */
+  firesWhen: string | null;
   unit: string | null;
   value: number;
   /** DEFAULT (the built-in value), GLOBAL, TAG, CUSTOMER or DEVICE; the artifact's union. */
@@ -143,18 +143,15 @@ export function toIncident(ref: insightFields_insight$key): Incident {
     interval: node.interval ?? null,
     queryResult: node.queryResult ? node.queryResult.map(toQueryResultRow) : null,
     thresholds: node.thresholds
-      ? node.thresholds.map(threshold => {
-          const presentation = parameterPresentation(threshold.parameter);
-          return {
-            parameter: threshold.parameter,
-            label: presentation.label,
-            comparison: presentation.comparison,
-            unit: presentation.unit,
-            value: threshold.value,
-            scopeType: threshold.scopeType,
-            scopeId: threshold.scopeId ?? null,
-          };
-        })
+      ? node.thresholds.map(threshold => ({
+          parameter: threshold.parameter,
+          label: threshold.label ?? threshold.parameter,
+          firesWhen: threshold.firesWhen ?? null,
+          unit: threshold.unit ?? null,
+          value: threshold.value,
+          scopeType: threshold.scopeType,
+          scopeId: threshold.scopeId ?? null,
+        }))
       : null,
     organizationImageUrl: getFullImageUrl(node.organization?.image?.imageUrl, node.organization?.image?.hash),
   };

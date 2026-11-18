@@ -15,6 +15,9 @@ export const insightFieldsFragment = graphql`
     queryResult
     thresholds {
       parameter
+      label
+      unit
+      firesWhen
       value
       scopeType
       scopeId
