@@ -190,6 +190,15 @@ test('the login error page keeps the stored referral: its ?ref= is the error nam
   }
 });
 
+test('the login error page stores nothing for a visitor without a referral', () => {
+  for (const page of ['/auth/error', '/auth/error/']) {
+    browseTo(`https://openframe.ai${page}?ref=SSO_LOGIN_FAILED`);
+    R.captureReferralFromUrl();
+    assert.equal(R.readReferralCode(), undefined, `${page} must not store its error name as a referral`);
+  }
+  assert.equal(writes, 0);
+});
+
 test('a hand-edited cookie value is re-validated on read', () => {
   jar.push({ name: 'of_ref', value: 'evil value', domain: '.openframe.ai', host: 'openframe.ai', attrs: {} });
   assert.equal(R.readReferralCode(), undefined);
