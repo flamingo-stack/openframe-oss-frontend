@@ -4,6 +4,7 @@ import { Refresh02VrIcon } from '@flamingo-stack/openframe-frontend-core/compone
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { paidAiTokensCard_subscription$key } from '@/__generated__/paidAiTokensCard_subscription.graphql';
+import { useAiBalanceLowTokens } from '@/app/hooks/use-ai-balance-low-tokens';
 import { formatCurrency } from '@/lib/format-currency';
 import { formatCompactCount } from '@/lib/format-number';
 import type { AutoTopUpStatus } from '../ai-balance/auto-top-up-status';
@@ -31,9 +32,10 @@ interface PaidAiTokensCardProps {
 /** The prepaid balance AI draws from once the grant is spent, and what it is worth. */
 export function PaidAiTokensCard({ subscription, autoTopUp }: PaidAiTokensCardProps) {
   const data = useFragment(paidAiTokensCardFragment, subscription);
+  const lowTokens = useAiBalanceLowTokens();
   // One card, both forms: while the balance is on its way the figure and caption are bars; the rates trigger is a
   // static control, drawn for real.
-  const ai = useLoadingScope() || data == null ? null : aiBalanceState(data);
+  const ai = useLoadingScope() || data == null ? null : aiBalanceState(data, lowTokens);
 
   return (
     <UsageStatCard
