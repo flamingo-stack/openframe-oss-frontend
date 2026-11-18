@@ -1,0 +1,83 @@
+'use client';
+
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { graphql, useLazyLoadQuery } from 'react-relay';
+import type { softwareAdoptionBannerQuery as SoftwareAdoptionBannerQueryType } from '@/__generated__/softwareAdoptionBannerQuery.graphql';
+import { ContentErrorBoundary, useRetryKey } from '@/app/components/shared';
+import { pluralNoun } from '@/lib/pluralize';
+import { routes } from '@/lib/routes';
+import { SoftwareNoticeBanner } from '../shared/software-notice-banner';
+import { ADOPTABLE_DEVICES_FILTER } from './adoptable-devices';
+import { adoptionPackageManagerLabel } from './adoption-package-manager';
+
+/**
+ * The title's adoption package, and how many of its devices no package manager manages. `adoptionCount` is the
+ * server's own count of them; while it is not filled (null), the size of the list the Adopt page picks from stands in,
+ * so the banner and the page never disagree.
+ */
+const softwareAdoptionBannerQuery = graphql`
+  query softwareAdoptionBannerQuery($id: ID!, $filter: SoftwareOnDeviceFilterInput!) {
+    software(id: $id) {
+      id
+      name
+      adoptionCount
+      adoptionPackage {
+        packageManager
+      }
+    }
+    softwareDevices(softwareId: $id, filter: $filter, first: 1) {
+      filteredCount
+    }
+  }
+`;
+
+/**
+ * "N devices have <software> installed manually" over the Devices list (design 1100:444, 1239:1238, 1239:20729), with
+ * Adopt: the page that reinstalls the title on them with its adoption package. Only for a title that has one and has
+ * devices to adopt; otherwise nothing, and nothing while it is read or when the read fails: it is a hint over the list,
+ * not part of it.
+ */
+export function SoftwareAdoptionBanner({ softwareId, loading = false }: { softwareId: string; loading?: boolean }) {
+  return (
+    <ContentErrorBoundary label="software-adoption-banner" fallback={() => <></>}>
+      <SoftwareAdoptionBannerBoundary softwareId={softwareId} loading={loading} />
+    </ContentErrorBoundary>
+  );
+}
+
+function SoftwareAdoptionBannerBoundary({ softwareId, loading }: { softwareId: string; loading: boolean }) {
+  return (
+    <LoadingSuspense live gated={loading} label="Loading adoption">
+      <SoftwareAdoptionBannerReader softwareId={softwareId} />
+    </LoadingSuspense>
+  );
+}
+
+function SoftwareAdoptionBannerReader({ softwareId }: { softwareId: string }) {
+  if (useLoadingScope()) return null;
+  return <SoftwareAdoptionBannerQuery softwareId={softwareId} />;
+}
+
+function SoftwareAdoptionBannerQuery({ softwareId }: { softwareId: string }) {
+  const retryKey = useRetryKey();
+  const { software, softwareDevices } = useLazyLoadQuery<SoftwareAdoptionBannerQueryType>(
+    softwareAdoptionBannerQuery,
+    { id: softwareId, filter: ADOPTABLE_DEVICES_FILTER },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
+  );
+  const manager = software?.adoptionPackage?.packageManager;
+  const count = software?.adoptionCount ?? softwareDevices.filteredCount;
+  if (!software || !manager || count <= 0) return null;
+
+  const devices = `${count} ${pluralNoun(count, 'device')}`;
+  return (
+    <SoftwareNoticeBanner
+      title={`${devices} ${count === 1 ? 'has' : 'have'} ${software.name} installed manually`}
+      description={`OpenFrame can update it only when a package manager installed it. Click Adopt to reinstall it on ${count === 1 ? 'this device' : 'these devices'} with ${adoptionPackageManagerLabel(manager)}, so it can be updated.`}
+      actionLabel="Adopt"
+      actionHref={routes.software.adopt(software.id)}
+      className="mb-[var(--spacing-system-l)]"
+    />
+  );
+}
