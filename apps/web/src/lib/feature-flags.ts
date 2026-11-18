@@ -82,6 +82,10 @@ export const FEATURE_FLAG_NAMES = [
   // context on demand. Off = the action is absent; auto-compaction is
   // unaffected either way.
   'mingo-compact-memory',
+  // The Usage panel behind the Mingo composer's token counter: the company's
+  // tokens and this chat's context. The backend reads the same key. Off = the
+  // counter keeps its hover card. On for dev / qa, false elsewhere.
+  'mingo-chat-usage',
   // AI-first onboarding: the full-screen `/setup` wizard in place of the
   // dashboard's Initial Setup card, and the Getting Started tour in Mingo (the
   // block above the docked composer, in the tour's conversation) in place of

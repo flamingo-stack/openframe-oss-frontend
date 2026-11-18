@@ -422,13 +422,15 @@ export function useMingoUnifiedChatState({ onScreen }: { onScreen: boolean }): M
     readDialogAgain: mingoDialogs.fetchDialog,
   });
 
-  // The composer's token counter opens the Usage panel (Mingo only): the company's tokens and this chat's context.
-  // The company rows come from `MingoUsageHydrator` (the provider mounts it beside this state).
+  // The composer's token counter opens the Usage panel (Mingo only, behind `mingo-chat-usage`): the company's tokens
+  // and this chat's context. The company rows come from `MingoUsageHydrator` (the provider mounts it beside this
+  // state). Off = no panel, and the counter keeps its hover card.
+  const usagePanelEnabled = useFeatureFlag('mingo-chat-usage');
   const company = useMingoUsageStore(s => s.company);
   const { dialogTokenUsage = null } = state;
   const stateWithUsage = useMemo<UnifiedChatState>(
-    () => ({ ...state, usagePanel: buildUsagePanel(company, dialogTokenUsage) }),
-    [state, company, dialogTokenUsage],
+    () => ({ ...state, usagePanel: usagePanelEnabled ? buildUsagePanel(company, dialogTokenUsage) : null }),
+    [state, usagePanelEnabled, company, dialogTokenUsage],
   );
 
   return {
