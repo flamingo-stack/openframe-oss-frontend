@@ -6,6 +6,7 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { CSSProperties } from 'react';
 import { RevealTogether } from '@/app/components/shared/reveal-together';
 import { routes } from '@/lib/routes';
+import { useWhatToAskLabel } from '../hooks/use-what-to-ask-label';
 import { GreetingText, useGreeting } from './mingo-home-greeting';
 import { NeedsYouCard, NeedsYouPanel } from './needs-you/needs-you-card';
 
@@ -55,6 +56,7 @@ export function ManhattanStartWork({
   const column = variant === 'column';
   const Heading = column ? 'h2' : 'h1';
   const greeting = useGreeting();
+  const whatToAsk = useWhatToAskLabel();
   return (
     <div
       className={cn(
@@ -74,15 +76,17 @@ export function ManhattanStartWork({
           <p className="mt-[var(--spacing-system-xs)] text-ods-text-secondary text-h6">
             What needs doing across your fleet today?
           </p>
-          <Button
-            variant="outline"
-            href={column && onWhatToAsk ? undefined : routes.mingo.whatToAsk}
-            onClick={column ? onWhatToAsk : undefined}
-            leftIcon={<AgentMark agent="mingo" className="size-5" />}
-            className="mt-[var(--spacing-system-m)]"
-          >
-            What to ask Mingo?
-          </Button>
+          {whatToAsk && (
+            <Button
+              variant="outline"
+              href={column && onWhatToAsk ? undefined : routes.mingo.whatToAsk}
+              onClick={column ? onWhatToAsk : undefined}
+              leftIcon={<AgentMark agent="mingo" className="size-5" />}
+              className="mt-[var(--spacing-system-m)]"
+            >
+              {whatToAsk}
+            </Button>
+          )}
         </div>
         {live ? (
           <RevealTogether>

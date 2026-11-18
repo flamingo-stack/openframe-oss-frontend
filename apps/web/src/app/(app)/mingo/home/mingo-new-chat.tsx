@@ -6,6 +6,7 @@ import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMingoSheetStore } from '@/app/components/mingo-shell/mingo-sheet-store';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
+import { useWhatToAskLabel } from '../hooks/use-what-to-ask-label';
 import { GreetingText, useGreeting } from './mingo-home-greeting';
 
 /**
@@ -26,6 +27,7 @@ import { GreetingText, useGreeting } from './mingo-home-greeting';
  */
 export function MingoNewChat() {
   const greeting = useGreeting();
+  const whatToAsk = useWhatToAskLabel();
   const phone = useMdUp() === false;
   const newChatPage = useMingoSheetStore(s => s.newChatPage);
   const showListAfterNavigation = useMingoSheetStore(s => s.showListAfterNavigation);
@@ -52,14 +54,16 @@ export function MingoNewChat() {
       <p className="mt-[var(--spacing-system-xs)] max-w-[560px] text-ods-text-secondary text-h6">
         Start with a quick action, or tell Mingo what needs to happen across your devices.
       </p>
-      <Button
-        variant="outline"
-        href={routes.mingo.whatToAsk}
-        leftIcon={<AgentMark agent="mingo" className="size-5" />}
-        className="mt-[var(--spacing-system-l)]"
-      >
-        What to ask Mingo?
-      </Button>
+      {whatToAsk && (
+        <Button
+          variant="outline"
+          href={routes.mingo.whatToAsk}
+          leftIcon={<AgentMark agent="mingo" className="size-5" />}
+          className="mt-[var(--spacing-system-l)]"
+        >
+          {whatToAsk}
+        </Button>
+      )}
     </div>
   );
 }

@@ -222,9 +222,6 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
         // consumed by the "Meet Mingo" onboarding step to show the `agent-mingo`
         // agent's quick actions.
         aiAgentConfigUrl: (slug: string) => content(`/api/ai-agents/${encodeURIComponent(slug)}`),
-        // "What to ask Mingo?": Mingo's quick actions under Mingo's groups, edited in MPH (Chat config → Mingo →
-        // Groups). The lib reads it on each click of the entry; no prompt lives in this app.
-        whatToAskUrl: content(`/api/ai-agents/${encodeURIComponent(ASSISTANT_AGENT_SLUG)}/what-to-ask`),
         // RAG doc-search + relative-link resolver, read automatically by the
         // lib's doc-search surfaces (Help Center onboarding-guides catalog,
         // `<DocsHubPage>`). Without these the lib's fall-back chain lands on

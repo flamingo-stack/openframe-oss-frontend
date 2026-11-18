@@ -1,5 +1,5 @@
 /**
- * Mingo's home, a new chat: the greeting, and "What to ask Mingo?" under it, which leads
+ * Mingo's home, a new chat: the greeting, and "What to ask?" (the hub's `/what-can-you-do`) under it, which leads
  * to the full chat with the suggestions (`routes.mingo.whatToAsk`), both in Mingo's colours.
  * On a phone reached from a page, "Back" leads back to it, the chat list open over it as it was left.
  */
@@ -15,6 +15,9 @@ const { router, viewport } = vi.hoisted(() => ({
   router: { back: vi.fn(), push: vi.fn() },
   viewport: { mdUp: true as boolean | undefined },
 }));
+/** "What to ask?"'s label as the hub's command catalog names it; null: the hub lists no such command. */
+let whatToAskLabel: string | null = 'What can you do?';
+vi.mock('../hooks/use-what-to-ask-label', () => ({ useWhatToAskLabel: () => whatToAskLabel }));
 vi.mock('next/navigation', () => ({ useRouter: () => router }));
 // The agent's mark, as the identity draws it: which agent, and where.
 vi.mock('@flamingo-stack/openframe-frontend-core/components', async importOriginal => ({
@@ -49,23 +52,30 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  whatToAskLabel = 'What can you do?';
   act(() => root.unmount());
   container.remove();
 });
 
 describe('MingoNewChat', () => {
-  it('greets, and leads to "What to ask Mingo?" as the full chat', () => {
+  it('draws no "What to ask?" when the hub lists no such command', () => {
+    whatToAskLabel = null;
+    act(() => root.render(<MingoNewChat />));
+    expect([...container.querySelectorAll('a, button')].some(el => el.textContent === 'What can you do?')).toBe(false);
+  });
+
+  it('greets, and leads to "What to ask?" under the label the hub names it as the full chat', () => {
     act(() => root.render(<MingoNewChat />));
     expect(container.querySelector('h1')?.textContent).toBe('Morning, Ann');
 
-    const link = [...container.querySelectorAll('a')].find(a => a.textContent === 'What to ask Mingo?');
+    const link = [...container.querySelectorAll('a')].find(a => a.textContent === 'What can you do?');
     expect(link?.getAttribute('href')).toBe(routes.mingo.whatToAsk);
   });
 
   it("marks the greeting and the button with Mingo's identity, as every Mingo icon", () => {
     act(() => root.render(<MingoNewChat />));
     const heading = container.querySelector('h1')?.parentElement;
-    const link = [...container.querySelectorAll('a')].find(a => a.textContent === 'What to ask Mingo?');
+    const link = [...container.querySelectorAll('a')].find(a => a.textContent === 'What can you do?');
     expect(heading?.querySelector('[data-agent-mark="mingo"]')).not.toBeNull();
     expect(link?.querySelector('[data-agent-mark="mingo"]')).not.toBeNull();
     // No glyph of its own: the identity is the one icon.
