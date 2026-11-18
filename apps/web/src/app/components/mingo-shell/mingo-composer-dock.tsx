@@ -17,7 +17,8 @@
  *   told of the panel's sends through `onMessageSent`. Launcher requests: `useComposerLauncherDrain`.
  * - The Getting Started tour (onboarding v2): `useMingoTour` — Mingo's greeting at the
  *   head of the tour's conversation and its step block above the composer, on every
- *   page while that conversation is the open one, until its × sets the conversation
+ *   page while that conversation is the open one (not on Mingo's home with the sheet
+ *   down, which hands the chat to its page: `followsToChatPage`), until its × sets the conversation
  *   aside as any other chat. A step chip sends into it and opens
  *   its section; it does not follow to the chat page, the block stays over the dock.
  *   "Reset Onboarding" in the chat's ⋯ once the tour is over.
@@ -82,7 +83,7 @@ import {
 import { isSheetUp, useMingoSheetStore } from './mingo-sheet-store';
 import { useChatBehindPage } from './use-chat-behind-page';
 import { useComposerLauncherDrain, usePublishComposerDock } from './use-composer-launcher-drain';
-import { useComposerTarget } from './use-composer-target';
+import { followsToChatPage, useComposerTarget } from './use-composer-target';
 import { useDockComposerInset } from './use-dock-composer-inset';
 import { useOpenframeChatProps } from './use-openframe-chat-props';
 import { usePageChip } from './use-page-chip';
@@ -555,8 +556,10 @@ function DockChat({ route, chat }: DockChatProps) {
           // A send from the panel: over the page into the chat it goes to, or followed into the one it creates.
           onMessageSent={target.onMessageSent}
           // The Getting Started tour: its block above the composer while its
-          // conversation is open.
-          aboveComposer={tour.aboveComposer}
+          // conversation is open. Not on Mingo's home with the sheet down: a chat that becomes
+          // active there leaves for its page (`followsToChatPage`), and home would draw the tall
+          // block until the chat page replaces it (CU-17tkuw66yf1).
+          aboveComposer={followsToChatPage(route, sheetOpen) ? null : tour.aboveComposer}
           chatMenuExtraItems={chatMenuExtraItems}
           contextMemory={view.showContextMemory ? chatProps.contextMemory : undefined}
           // An element or `null` — never `undefined`, which switches the chat back to its

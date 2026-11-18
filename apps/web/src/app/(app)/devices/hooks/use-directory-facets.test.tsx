@@ -39,7 +39,7 @@ function Probe({ enabled, statuses, userLinks }: { enabled: boolean; statuses: s
   return null;
 }
 
-async function render(enabled: boolean, statuses = ['ONLINE'], userLinks?: string[]) {
+async function render(enabled: boolean, statuses = ['PENDING'], userLinks?: string[]) {
   await act(async () => {
     root.render(
       <RelayEnvironmentProvider environment={environment}>
@@ -75,7 +75,7 @@ describe('useDirectoryFacets', () => {
     fetchFn.mockResolvedValue({ data: { deviceFilters: OPTIONS } });
     await render(true);
     expect(latest).toEqual(OPTIONS);
-    expect(fetchFn.mock.calls[0][1]).toMatchObject({ filter: { statuses: ['ONLINE'] }, list: true });
+    expect(fetchFn.mock.calls[0][1]).toMatchObject({ filter: { statuses: ['PENDING'] }, list: true });
   });
 
   it('offers nothing when the query fails, and does not throw', async () => {
@@ -90,9 +90,9 @@ describe('useDirectoryFacets', () => {
 
     let answerNext: (value: unknown) => void = () => undefined;
     fetchFn.mockReturnValueOnce(new Promise(resolve => (answerNext = resolve)));
-    await render(true, ['OFFLINE']);
+    await render(true, ['PENDING_DELETION']);
     expect(fetchFn).toHaveBeenCalledTimes(2);
-    expect(fetchFn.mock.calls[1][1]).toMatchObject({ filter: { statuses: ['OFFLINE'] } });
+    expect(fetchFn.mock.calls[1][1]).toMatchObject({ filter: { statuses: ['PENDING_DELETION'] } });
     expect(latest).toEqual(OPTIONS);
 
     const next = { directorySources: [], userLinks: [{ value: 'PRIMARY', count: 2 }] };
@@ -105,19 +105,19 @@ describe('useDirectoryFacets', () => {
 
   it('keeps a value the list is narrowed by on offer when the query fails, so it can be cleared', async () => {
     fetchFn.mockRejectedValue(new Error('PINOT_QUERY_ERROR'));
-    await render(true, ['ONLINE'], ['SHARED']);
+    await render(true, ['PENDING'], ['SHARED']);
     expect(latest).toEqual({ directorySources: [], userLinks: [{ value: 'SHARED', count: 0 }] });
   });
 
   it('does not repeat a selected value the server already offers', async () => {
     fetchFn.mockResolvedValue({ data: { deviceFilters: OPTIONS } });
-    await render(true, ['ONLINE'], ['SHARED']);
+    await render(true, ['PENDING'], ['SHARED']);
     expect(latest).toEqual(OPTIONS);
   });
 
   it('offers a selected value the query no longer sends, so its funnel can untick it', async () => {
     fetchFn.mockResolvedValue({ data: { deviceFilters: OPTIONS } });
-    await render(true, ['ONLINE'], ['RETIRED']);
+    await render(true, ['PENDING'], ['RETIRED']);
     expect(fetchFn.mock.calls[0][1]).toMatchObject({ filter: { userLinks: [] } });
     expect(latest).toEqual({ ...OPTIONS, userLinks: [...OPTIONS.userLinks, { value: 'RETIRED', count: 0 }] });
   });

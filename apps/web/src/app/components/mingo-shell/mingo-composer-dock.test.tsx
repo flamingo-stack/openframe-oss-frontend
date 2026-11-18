@@ -59,7 +59,11 @@ const {
   /** `useMdUp()`: false on a phone. */
   viewport: { mdUp: true as boolean | undefined },
   /** What the dock handed the tour: where its conversation is on screen, and the block's ×. */
-  tour: { input: null as { onScreen?: boolean; onClose?: () => void } | null },
+  tour: {
+    input: null as { onScreen?: boolean; onClose?: () => void } | null,
+    /** What the tour returns as its block (`aboveComposer`): null unless a test sets it. */
+    block: null as ReactNode,
+  },
   CONTEXT_MEMORY: { items: [{ type: 'DEVICE', id: 'm-1', label: 'web-01' }], onRemove: () => {} },
   RENDER_MENTION: () => null,
   RENDER_CONTEXT_ITEM: () => null,
@@ -160,7 +164,7 @@ vi.mock('./mingo-dock-quick-actions', () => ({
 vi.mock('@/app/(app)/mingo/tour/use-mingo-tour', () => ({
   useMingoTour: (input: { state: unknown; onScreen?: boolean; onClose?: () => void }) => {
     tour.input = input;
-    return { state: input.state, aboveComposer: null };
+    return { state: input.state, aboveComposer: tour.block };
   },
 }));
 vi.mock('../reset-onboarding-dialog', () => ({
@@ -295,6 +299,7 @@ describe('MingoComposerDock', () => {
     });
     viewport.mdUp = true;
     tour.input = null;
+    tour.block = null;
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -567,6 +572,43 @@ describe('MingoComposerDock', () => {
     });
   });
 
+  // CU-17tkuw66yf1: "Start with Mingo" lands on home, where the dock creates the tour's chat and
+  // home then leaves for its page; the tall block must not cover home for that moment.
+  describe('the Getting Started block on Mingo home', () => {
+    const BLOCK = 'getting-started-block';
+    beforeEach(() => {
+      tour.block = BLOCK;
+    });
+
+    it('is not drawn on home with the sheet down, where the chat leaves for its page', () => {
+      setSurface({ activeDialogId: 'tour' });
+      render(routes.mingo.home);
+      expect(props().aboveComposer).toBeNull();
+    });
+
+    it('is drawn on the chat page the chat lands on', () => {
+      setSurface({ activeDialogId: 'tour' });
+      render('/mingo/chat/');
+      expect(props().aboveComposer).toBe(BLOCK);
+    });
+
+    it('is drawn behind a page and over it in the sheet', () => {
+      setSurface({ activeDialogId: 'tour' });
+      render('/devices/');
+      expect(props().aboveComposer).toBe(BLOCK);
+
+      act(() => useMingoSheetStore.setState({ open: true, node: document.createElement('div') }));
+      expect(props().aboveComposer).toBe(BLOCK);
+    });
+
+    it('is drawn over home in the sheet, where the chat stays', () => {
+      setSurface({ activeDialogId: 'tour' });
+      useMingoSheetStore.setState({ open: true, node: document.createElement('div') });
+      render(routes.mingo.home);
+      expect(props().aboveComposer).toBe(BLOCK);
+    });
+  });
+
   describe('a chat behind the page', () => {
     it('offers "Continue" at the start of the context strip, and says the reply continues it', () => {
       setSurface({ activeDialogId: 'a' });
@@ -751,6 +793,16 @@ describe('MingoComposerDock', () => {
       expect(props().threadContainer).toBeNull();
       expect(props().composerPlaceholder).toBe(dockViewOf('home').placeholder);
       expect(chips.onSend).not.toBeNull();
+    });
+
+    it("draws no Getting Started block on Start Work, and the tour's block beside a page", () => {
+      tour.block = 'getting-started-block';
+      setSurface({ activeDialogId: 'tour' });
+      renderV2(routes.mingo.home);
+      expect(props().aboveComposer).toBeNull();
+
+      renderV2('/devices/');
+      expect(props().aboveComposer).toBe('getting-started-block');
     });
 
     it('a full-height page has the chat beside it too', () => {

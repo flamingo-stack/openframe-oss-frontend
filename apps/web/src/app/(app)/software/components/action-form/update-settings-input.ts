@@ -19,7 +19,8 @@ export interface SoftwareAutoUpdateInput {
   settings: PackageUpdateSettingsInput | null;
 }
 
-function toPolicyInput(policy: SoftwareUpdatePolicy): PackageUpdateSettingsInput {
+/** One policy as `PackageUpdateSettingsInput`: the update's, or a title's auto-update (`turnOnSoftwareAutoUpdate`). */
+export function toPolicyInput(policy: SoftwareUpdatePolicy): PackageUpdateSettingsInput {
   const waits = policy.mode === 'WAIT';
   return {
     mode: waits ? PackageUpdateMode.WAIT : PackageUpdateMode.FORCE,
@@ -40,5 +41,19 @@ export function toUpdateSettingsInputs(settings: SoftwareUpdateSettingsValues): 
       enabled: settings.autoUpdate,
       settings: settings.autoUpdate && !settings.sameForAutoUpdate ? toPolicyInput(settings.autoUpdatePolicy) : null,
     },
+  };
+}
+
+/** A saved `PackageUpdateSettings` as the fields draw it; `fallback` fills a deadline the policy does not have. */
+export function fromPolicySettings(
+  settings: { readonly mode: string; readonly deadlineSeconds?: number | null; readonly countdownSeconds: number },
+  fallback: SoftwareUpdatePolicy,
+): SoftwareUpdatePolicy {
+  const waits = settings.mode === PackageUpdateMode.WAIT;
+  return {
+    mode: waits ? 'WAIT' : 'FORCE',
+    deadlineEnabled: waits && settings.deadlineSeconds != null,
+    deadlineSeconds: settings.deadlineSeconds ?? fallback.deadlineSeconds,
+    countdownSeconds: settings.countdownSeconds,
   };
 }

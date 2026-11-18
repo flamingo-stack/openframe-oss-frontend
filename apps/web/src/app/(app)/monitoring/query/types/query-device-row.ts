@@ -18,8 +18,10 @@ export interface QueryDeviceRow {
   organizationImageUrl: string | null | undefined;
   organizationImageHash: string | null | undefined;
   osType: string | undefined;
-  /** Device connection status (e.g. ONLINE / OFFLINE) — drives the Status tag. */
+  /** The status the STATUS funnel filters on (`queryRowStatus`): MANAGED, PENDING, ...; ONLINE / OFFLINE in the legacy display. */
   status: string;
+  /** ONLINE / OFFLINE right now; null when never reported or when the host has no device record. */
+  connectivity: string | null;
   lastSeen: string | undefined;
   machineId: string | undefined;
   fleetHostId: number;

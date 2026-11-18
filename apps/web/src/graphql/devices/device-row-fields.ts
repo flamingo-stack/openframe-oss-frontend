@@ -30,7 +30,9 @@ export const deviceRowFieldsFragment = graphql`
     # type picks the DEVICE column's row icon; lastSeen is the line under the
     # status tag.
     osType
+    # status is the lifecycle tag; connectivity is the DEVICE column's icon (online / offline right now).
     status
+    connectivity
     lastSeen
     type
     # The CUSTOMER column: logo + name. A per-machine fan-out, and the reason

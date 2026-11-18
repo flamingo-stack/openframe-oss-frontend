@@ -5,7 +5,6 @@ import { Refresh02HrIcon } from '@flamingo-stack/openframe-frontend-core/compone
 import {
   type ColumnDef,
   type Row,
-  TruncateText,
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -37,6 +36,7 @@ import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { multiColumnFilter } from '../shared/column-filters';
 import { SoftwareActionEngineCell } from './software-action-engine-cell';
+import { SoftwareActionNameCell } from './software-action-name-cell';
 import { SoftwareActionProcessedCell } from './software-action-processed-cell';
 import { SoftwareActionStatusCell } from './software-action-status-cell';
 import { SoftwareActionTypeCell } from './software-action-type-cell';
@@ -75,9 +75,10 @@ const softwareActionsTableFragment = graphql`
           # What the funnels narrow the rows on screen by, while the refetch
           # they triggered is still in flight. status also says whether a row
           # has anything to open yet (see detailsHref).
-          action
+          kind
           engine
           status
+          ...softwareActionNameCell_action
           ...softwareActionTypeCell_action
           ...softwareActionEngineCell_action
           ...softwareActionStatusCell_action
@@ -116,14 +117,14 @@ function buildColumns(options: SoftwareActionFilterOptions): ColumnDef<SoftwareA
     {
       id: SOFTWARE_ACTION_COLUMNS.software.id,
       header: SOFTWARE_ACTION_COLUMNS.software.header,
-      cell: ({ row }: { row: Row<SoftwareActionRow> }) => <TruncateText>{row.original.software}</TruncateText>,
+      cell: ({ row }: { row: Row<SoftwareActionRow> }) => <SoftwareActionNameCell action={row.original} />,
       enableSorting: false,
       meta: liveColumnMeta(SOFTWARE_ACTION_COLUMNS.software),
     },
     {
       id: SOFTWARE_ACTION_COLUMNS.action.id,
       header: SOFTWARE_ACTION_COLUMNS.action.header,
-      accessorFn: (row: SoftwareActionRow) => row.action,
+      accessorFn: (row: SoftwareActionRow) => row.kind,
       cell: ({ row }: { row: Row<SoftwareActionRow> }) => <SoftwareActionTypeCell action={row.original} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,

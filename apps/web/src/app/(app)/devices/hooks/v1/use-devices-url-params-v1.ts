@@ -3,12 +3,18 @@
 
 import {
   DEFAULT_DEVICES_LIST_STATUSES,
+  DEVICE_CONNECTIVITY_FILTER_SECTION,
+  deviceStatusFilterGroups,
   type DeviceFilterInput,
+  splitStatusFilterValue,
+  useDeviceStatusDisplay,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { TagSearchOption } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo } from 'react';
 import { useSearchParam } from '@/app/hooks/use-search-param';
+import { type DeviceListSort, parseDeviceListSort, splitOutdatedStatus } from '../../utils/outdated-client-list';
+import { translateLegacyDeviceStatuses } from '../use-devices-url-params';
 
 interface UseDevicesUrlParamsOptions {
   /**
@@ -24,14 +30,17 @@ interface UseDevicesUrlParamsOptions {
 
 export function useDevicesUrlParamsV1(options: UseDevicesUrlParamsOptions = {}) {
   const defaultStatuses = options.defaultStatuses ?? DEFAULT_DEVICES_LIST_STATUSES;
+  const statusDisplay = useDeviceStatusDisplay();
 
   const { params, setParam, setParams } = useApiParams({
     search: { type: 'string', default: '' },
     statuses: { type: 'array', default: [] },
+    connectivity: { type: 'array', default: [] },
     osTypes: { type: 'array', default: [] },
     organizationIds: { type: 'array', default: [] },
     tags: { type: 'array', default: [] },
     viewMode: { type: 'string', default: 'table' },
+    sort: { type: 'string', default: '' },
   });
 
   // Local search keeps typing responsive; the shared hook debounces it to the
@@ -62,9 +71,17 @@ export function useDevicesUrlParamsV1(options: UseDevicesUrlParamsOptions = {}) 
     [defaultStatuses],
   );
 
-  const selectedStatuses = useMemo(() => normalizeStatuses(params.statuses), [params.statuses, normalizeStatuses]);
+  const legacy = useMemo(
+    () => translateLegacyDeviceStatuses(params.statuses, params.connectivity ?? []),
+    [params.statuses, params.connectivity],
+  );
+  const selectedStatuses = useMemo(() => normalizeStatuses(legacy.statuses), [legacy.statuses, normalizeStatuses]);
+  const selectedConnectivity = legacy.connectivity;
 
-  const normalizedParams = useMemo(() => ({ ...params, statuses: selectedStatuses }), [params, selectedStatuses]);
+  const normalizedParams = useMemo(
+    () => ({ ...params, statuses: selectedStatuses, connectivity: selectedConnectivity }),
+    [params, selectedStatuses, selectedConnectivity],
+  );
 
   const setParamsNormalized = useCallback(
     (next: Record<string, string[]>) =>
@@ -76,28 +93,41 @@ export function useDevicesUrlParamsV1(options: UseDevicesUrlParamsOptions = {}) 
   // defaults (online/offline). This is query-only: the filter UI shows just the
   // explicit selection (`selectedStatuses`), so nothing looks checked in the
   // default state.
-  const effectiveStatuses = useMemo(
-    () => (selectedStatuses.length > 0 ? selectedStatuses : defaultStatuses),
-    [selectedStatuses, defaultStatuses],
+  //
+  // OUTDATED is the outdated-client flag, not a status: it leaves `statuses` and goes out as
+  // `clientOutdated: true`. With nothing else ticked the defaults still apply, so OUTDATED alone
+  // lists the outdated devices of the default view, never archived or deleted ones.
+  const { statuses: selectedDeviceStatuses, clientOutdated } = useMemo(
+    () => splitOutdatedStatus(selectedStatuses),
+    [selectedStatuses],
   );
+  const effectiveStatuses = useMemo(
+    () => (selectedDeviceStatuses.length > 0 ? selectedDeviceStatuses : defaultStatuses),
+    [selectedDeviceStatuses, defaultStatuses],
+  );
+
+  // Outdated first only when the address asks for it (the outdated-client bar's Manage Devices).
+  const sort: DeviceListSort = useMemo(() => parseDeviceListSort(params.sort), [params.sort]);
 
   const filters: DeviceFilterInput = useMemo(
     () => ({
       ...(effectiveStatuses.length > 0 && { statuses: effectiveStatuses }),
+      ...(selectedConnectivity.length > 0 && { connectivity: selectedConnectivity }),
+      ...(clientOutdated && { clientOutdated: true }),
       osTypes: params.osTypes,
       organizationIds: params.organizationIds,
       ...(tagValues.length > 0 && { tagValues }),
     }),
-    [effectiveStatuses, params.osTypes, params.organizationIds, tagValues],
+    [effectiveStatuses, selectedConnectivity, clientOutdated, params.osTypes, params.organizationIds, tagValues],
   );
 
   const tableFilters = useMemo(
     () => ({
-      status: selectedStatuses,
+      ...deviceStatusFilterGroups(selectedStatuses, selectedConnectivity, statusDisplay),
       os: params.osTypes,
       organization: params.organizationIds,
     }),
-    [selectedStatuses, params.osTypes, params.organizationIds],
+    [selectedStatuses, selectedConnectivity, params.osTypes, params.organizationIds, statusDisplay],
   );
 
   const tagOptions: TagSearchOption<string>[] = useMemo(
@@ -107,8 +137,10 @@ export function useDevicesUrlParamsV1(options: UseDevicesUrlParamsOptions = {}) 
 
   const handleFilterChange = useCallback(
     (columnFilters: Record<string, string[]>) => {
+      const status = splitStatusFilterValue(columnFilters.status);
       setParamsNormalized({
-        statuses: columnFilters.status || [],
+        statuses: status.statuses,
+        connectivity: [...status.connectivity, ...(columnFilters[DEVICE_CONNECTIVITY_FILTER_SECTION] ?? [])],
         osTypes: columnFilters.os || [],
         organizationIds: columnFilters.organization || [],
       });
@@ -140,6 +172,7 @@ export function useDevicesUrlParamsV1(options: UseDevicesUrlParamsOptions = {}) 
     setLocalSearch,
     debouncedSearch,
     filters,
+    sort,
     tableFilters,
     tagOptions,
     handleFilterChange,
