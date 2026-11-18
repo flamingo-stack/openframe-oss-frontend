@@ -55,6 +55,8 @@ interface CreateOrganizationSectionProps {
    */
   onSsoLogin?: (provider: AuthSsoProvider) => void;
   isLoading?: boolean;
+  /** The email field's first value (`/auth?email=`, `signup-email-prefill.ts`). */
+  initialEmail?: string;
 }
 
 /**
@@ -72,10 +74,11 @@ export function CreateOrganizationSection({
   ssoProvidersLoading,
   onSsoLogin,
   isLoading,
+  initialEmail = '',
 }: CreateOrganizationSectionProps) {
   const isSharedAuth = isSharedAuthUi();
 
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail);
   const [organizationName, setOrganizationName] = useState('');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [firstName, setFirstName] = useState('');
