@@ -51,6 +51,10 @@ export function useOutdatedClientCount(enabled: boolean): number {
   return data.deviceFilters?.clientOutdated.find(option => option.value === 'true')?.count ?? 0;
 }
 
+export const OUTDATED_CLIENT_MESSAGE = 'Some devices run an outdated agent. Reinstall it to keep them connected.';
+/** What the bar says on a phone, where the full message is cut off. */
+export const OUTDATED_CLIENT_SHORT_MESSAGE = 'Some devices need the agent reinstalled.';
+
 /**
  * App-wide bar for devices whose OpenFrame client is too old to update itself: it stays stuck until it is
  * reinstalled. Manage Devices opens the Devices list with those devices first.
@@ -61,6 +65,10 @@ export function useOutdatedClientCount(enabled: boolean): number {
  *
  * Height, type scale and CTA size are `AnnouncementBarView`'s and are not negotiable (its freeze notice); only the
  * surface colour and the slots are ours, as for the billing bars.
+ *
+ * The bar is one truncating line, and the full message does not fit a phone (CU-17tkuw67m8q): below `sm` it says
+ * the short version, agreed with the PM, and from `sm` up, where the full one fits, the full one. Only the shown
+ * one is read out: the other is `display: none`.
  */
 export function OutdatedClientBar({ onManage }: { onManage: () => void }) {
   return (
@@ -69,7 +77,12 @@ export function OutdatedClientBar({ onManage }: { onManage: () => void }) {
       contentClassName="cursor-pointer md:cursor-default"
       onContentClick={onManage}
       startAdornment={<AlertTriangleIcon className="size-[var(--icon-size-icon-size)] shrink-0" />}
-      title="Some devices run an outdated agent. Reinstall it to keep them connected."
+      title={
+        <p className="mb-0 truncate text-h6">
+          <span className="sm:hidden">{OUTDATED_CLIENT_SHORT_MESSAGE}</span>
+          <span className="hidden sm:inline">{OUTDATED_CLIENT_MESSAGE}</span>
+        </p>
+      }
       actionBlock={
         <Button variant="outline" size="small" onClick={onManage}>
           Manage Devices
