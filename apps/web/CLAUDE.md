@@ -332,7 +332,9 @@ paint, so nothing waits for a flag and no page shows a loader on the way.
   (`mingo-launcher-store.ts`), which the dock drains; a draft fills the composer of the page it
   was raised on. "What to ask Mingo?" is the full chat at once (`routes.mingo.whatToAsk`,
   `/mingo/chat?view=what-to-ask`): its suggestions in a new chat on the chat page, shown on every
-  arrival (a reload included), and the page becomes `?id=` of the chat a pick creates.
+  arrival (a reload included), and the page becomes `?id=` of the chat a pick creates. Its prompts are the
+  hub's, never this app's: Mingo's quick actions under Mingo's groups, read through the runtime's `whatToAskUrl`
+  (`/content/api/ai-agents/mingo/what-to-ask`) and edited in Product Hub (Chat config, Mingo, Groups).
 - **One chat state per session: `MingoChatProvider`** (`(app)/mingo/providers/`, mounted by
   `AppShell`) runs the dialog list, the open dialog, its live tail and the compaction
   watchers. A component that shows the chat calls `useMingoChatSurface()` (the state runs while one is
