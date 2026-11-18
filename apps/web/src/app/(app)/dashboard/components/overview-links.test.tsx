@@ -92,8 +92,9 @@ describe('DevicesOverviewSection', () => {
   it('opens the list filtered by each status, and the archive', () => {
     act(() => root.render(<DevicesOverviewSection />));
     expect(hrefs()).toEqual([
-      routes.devices.filtered({ statuses: ['ONLINE'] }),
-      routes.devices.filtered({ statuses: ['OFFLINE'] }),
+      // Online / Offline: the managed devices online or offline right now.
+      routes.devices.filtered({ statuses: ['MANAGED'], connectivity: ['ONLINE'] }),
+      routes.devices.filtered({ statuses: ['MANAGED'], connectivity: ['OFFLINE'] }),
       routes.devices.filtered({ statuses: ['PENDING'] }),
       routes.devices.archive(),
     ]);

@@ -2,7 +2,6 @@
 
 import { InfoCard, type InfoCardData, Tag } from '@flamingo-stack/openframe-frontend-core';
 import { ToolBadge } from '@flamingo-stack/openframe-frontend-core/components';
-import { getDeviceStatusConfig } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { TerminalBrowserIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { LoadingItems, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { formatRelativeTime, normalizeToolTypeWithFallback } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -179,10 +178,25 @@ function combineAgents(device: Device): CombinedAgent[] {
   return combinedAgents;
 }
 
+/**
+ * An agent's status as its tag: the tool connection's own display status (online / offline / pending), not the
+ * device's lifecycle, so it has its own mapper rather than the device's.
+ */
+export function getAgentStatusTag(status: string | null | undefined): {
+  label: string;
+  variant: 'success' | 'error' | 'warning' | 'grey';
+} {
+  const value = (status ?? 'offline').toLowerCase();
+  if (value === 'online') return { label: 'ONLINE', variant: 'success' };
+  if (value === 'offline') return { label: 'OFFLINE', variant: 'error' };
+  if (value === 'pending') return { label: 'PENDING', variant: 'warning' };
+  return { label: value.toUpperCase(), variant: 'grey' };
+}
+
 /** The rows and footer one agent's card shows. */
 function agentCardData(agent: CombinedAgent): InfoCardData {
   const toolType = normalizeToolTypeWithFallback(agent.toolType);
-  const statusConfig = getDeviceStatusConfig(agent.status ?? 'offline');
+  const statusConfig = getAgentStatusTag(agent.status);
   // A placeholder shows its pending status whatever the agent: openframe-chat
   // has no live status once installed, but it is still installing here.
   const showStatusBlock =

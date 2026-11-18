@@ -1,6 +1,7 @@
 'use client';
 
 import { Chevron02LeftIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { useHandColumnBack } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { Button, type PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
@@ -21,6 +22,9 @@ interface AiSettingsLayoutProps {
 
 export function AiSettingsLayout({ children, actions, selector, mobileBottomActions = false }: AiSettingsLayoutProps) {
   const handleBack = useSafeBack(routes.settings.root());
+  // Beside the chat the page column's header draws this Back (CU-17tkuw67ep4), as it does a
+  // `PageLayout` title's; the page draws its own only where no header takes it (one column).
+  const backInHeader = useHandColumnBack({ label: 'Back', onClick: handleBack });
   const hasActions = !!actions && actions.length > 0;
   const useMobileBottomBar = mobileBottomActions && hasActions;
 
@@ -43,14 +47,16 @@ export function AiSettingsLayout({ children, actions, selector, mobileBottomActi
     >
       <header className="mb-[var(--spacing-system-l)] flex items-end justify-between gap-[var(--spacing-system-m)] pt-[var(--spacing-system-l)]">
         <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-xs)]">
-          <button
-            type="button"
-            onClick={handleBack}
-            className="group hidden items-center justify-center gap-[var(--spacing-system-xsf)] self-start rounded-md py-[var(--spacing-system-sf)] text-ods-text-secondary transition-colors duration-200 hover:text-ods-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus md:inline-flex"
-          >
-            <Chevron02LeftIcon className="size-6 shrink-0" />
-            <span className="text-h4">Back</span>
-          </button>
+          {!backInHeader && (
+            <button
+              type="button"
+              onClick={handleBack}
+              className="group hidden items-center justify-center gap-[var(--spacing-system-xsf)] self-start rounded-md py-[var(--spacing-system-sf)] text-ods-text-secondary transition-colors duration-200 hover:text-ods-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus md:inline-flex"
+            >
+              <Chevron02LeftIcon className="size-6 shrink-0" />
+              <span className="text-h4">Back</span>
+            </button>
+          )}
           <h1 className="truncate text-ods-text-primary text-h2">
             <span className="hidden md:inline">Guardrails &amp; </span>AI Settings
           </h1>

@@ -391,7 +391,9 @@ paint, so nothing waits for a flag and no page shows a loader on the way.
   skeleton until the answer); "Start with Mingo" goes home, where the dock creates the
   tour's conversation and follows it. The dock runs `useMingoTour` UNDER
   `useComposerTarget`: its Getting Started block stays above the composer on every page
-  while the tour's chat is open, and a step chip opens its section with Mingo's answer in the
+  while the tour's chat is open, except on home with the sheet down (`followsToChatPage`: home
+  hands the chat to its page, and drawing the tall block there flashed it over Start Work for
+  the moment the chat page takes to load), and a step chip opens its section with Mingo's answer in the
   sheet over it (`onStepOpened`). "Reset Onboarding" is in the chat's ⋯; the dashboard shows the intro
   banner above its sections.
 - **New shell UI lives in `src/app/components/mingo-shell/`** (chrome, dock, sidebar rows and

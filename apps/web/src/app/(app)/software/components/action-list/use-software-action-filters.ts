@@ -1,11 +1,12 @@
 'use client';
 
-import { PACKAGE_MANAGER_LABEL, softwareActionCopy } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { PACKAGE_MANAGER_LABEL } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { DataTableFilterOption } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { useSoftwareActionFiltersQuery as SoftwareActionFiltersQueryType } from '@/__generated__/useSoftwareActionFiltersQuery.graphql';
 import { useRetryKey } from '@/app/components/shared';
 import { presentationFor } from '@/lib/exhaustive-map';
+import { softwareActionKindLabel } from './software-action-kind';
 import { softwareActionStatusLabel } from './software-action-status-tag';
 
 /**
@@ -21,7 +22,7 @@ import { softwareActionStatusLabel } from './software-action-status-tag';
 const softwareActionFiltersQuery = graphql`
   query useSoftwareActionFiltersQuery {
     softwareActionFilters {
-      actions {
+      kinds {
         value
         label
         count
@@ -77,7 +78,7 @@ export function useSoftwareActionFilters(): SoftwareActionFilterOptions {
   const facets = data.softwareActionFilters;
 
   return {
-    actions: toOptions(facets.actions, value => softwareActionCopy(value)?.verb),
+    actions: toOptions(facets.kinds, softwareActionKindLabel),
     // Chocolatey is not a manager the forms offer, so the label map has no word
     // for it; the server's own fills in, since the inventory lists what ran.
     engines: toOptions(facets.engines, value => presentationFor(PACKAGE_MANAGER_LABEL, value)),

@@ -70,6 +70,22 @@ function openChat(
 }
 
 /**
+ * Whether a chat that becomes active on `route` without a send leaves for its own page
+ * (`routes.mingo.chat(id)`) instead of showing where it is: Mingo's home with the sheet down.
+ * The Getting Started tour's chat is the one this happens to (the dock creates it on home),
+ * and the dock keeps the tour's block off home on the same rule, so home does not draw the
+ * block for the moment it takes the chat page to replace it. In v2 the sheet is never up on
+ * home (its work area is the page alone), so there this is every visit to home.
+ *
+ * The other way home hands a chat to its page is a send that creates one, through
+ * `openChat` with `phone` (the dock sets it on v2's home): this rule does not read `phone`,
+ * so a change to it there must keep both in step.
+ */
+export function followsToChatPage(route: ComposerRoute, sheetOpen: boolean): boolean {
+  return route === 'home' && !sheetOpen;
+}
+
+/**
  * A send that will create a chat; `from` is the chat open when it started. A panel send (`settlesWithCreate`) is told
  * only that it went out, so it ends when the engine's create does (`isDialogsLoading` rises and falls): `creating` is
  * set once it has risen.
@@ -119,7 +135,7 @@ export function useComposerTarget({
     // The chat page follows its selection itself (`use-chat-page-selection.ts`).
     if (route === 'chat') return;
     if (created) openChat(activeDialogId, { phone, navigate, openSheet });
-    else if (route === 'home' && !sheetOpen) navigate(routes.mingo.chat(activeDialogId));
+    else if (followsToChatPage(route, sheetOpen)) navigate(routes.mingo.chat(activeDialogId));
   }, [activeDialogId, route, sheetOpen, phone, navigate, openSheet]);
 
   // A panel send that created nothing (the create failed) disarms once the engine's create is over, so a later

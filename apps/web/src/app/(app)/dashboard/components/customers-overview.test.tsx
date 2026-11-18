@@ -68,8 +68,8 @@ describe('CustomersOverviewSection links', () => {
     });
     expect(Array.from(container.querySelectorAll('a')).map(a => a.getAttribute('href'))).toEqual([
       routes.customers.details('org-1'),
-      '/devices?organizationIds=org-1&statuses=ONLINE',
-      '/devices?organizationIds=org-1&statuses=OFFLINE',
+      '/devices?organizationIds=org-1&statuses=MANAGED&connectivity=ONLINE',
+      '/devices?organizationIds=org-1&statuses=MANAGED&connectivity=OFFLINE',
       routes.customers.details('org-2'),
       '/devices?organizationIds=org-2',
       '/devices?organizationIds=org-2',

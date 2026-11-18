@@ -5,7 +5,11 @@ import './globals.css';
 import { PublicEnvScript } from 'next-runtime-env';
 import { DevTicketObserver } from '@/app/(auth)/auth/components/dev-ticket-observer';
 import { NatsAppProvider } from '@/lib/nats/nats-app-provider';
-import { MANHATTAN_WORK_AREA_STORAGE_KEY, sidebarWidthFoucScript } from '@/lib/navigation-sidebar-state';
+import {
+  MANHATTAN_WORK_AREA_STORAGE_KEY,
+  manhattanChatClosedSeedScript,
+  sidebarWidthFoucScript,
+} from '@/lib/navigation-sidebar-state';
 import { Toaster } from '@/lib/openframe-core-ui';
 import { PostHogAnalyticsBridge } from '@/lib/posthog/posthog-analytics-bridge';
 import { runtimeEnv } from '@/lib/runtime-config';
@@ -125,12 +129,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* React's dangerouslySetInnerHTML requires the __html key */}
         <script
           dangerouslySetInnerHTML={{
-            // The Manhattan v2 divider's place too, so the first paint draws the split where the user left it.
+            // The Manhattan v2 divider's place too, so the first paint draws the split where the user left it,
+            // and the chat column the user closed, so the first paint draws the page alone (CU-17tkuw66xzn).
             // The super user strip's room (`super-user-seed.ts`) in every mode, as the strip mounts in every
             // shell; it marks nothing unless the stored session was a super user's.
             __html:
               sidebarWidthFoucScript(isSaasTenantMode()) +
-              (isSaasTenantMode() ? workAreaShareSeedScript(MANHATTAN_WORK_AREA_STORAGE_KEY) : '') +
+              (isSaasTenantMode()
+                ? workAreaShareSeedScript(MANHATTAN_WORK_AREA_STORAGE_KEY) + manhattanChatClosedSeedScript()
+                : '') +
               superUserSeedScript(),
           }}
         />

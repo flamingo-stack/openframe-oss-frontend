@@ -3,13 +3,16 @@
 import type { AppLayoutWorkAreaMode } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { create } from 'zustand';
 import type { ComposerRoute } from '@/app/components/mingo-shell/mingo-dock-route';
+import { writeManhattanChatClosed } from '@/lib/navigation-sidebar-state';
 
 /**
  * How the open chat sits beside a page in the Manhattan v2 centre (plan D5, table T):
  * - `split`: the chat column beside the page column (where a chat opens);
  * - `full`: the chat takes the centre, the page is hidden behind it ("chat full screen");
  * - `hidden`: the page takes the centre, the chat waits behind it ("page full screen"), or the chat was closed.
- * The user's choice holds across pages until a reload, which starts at `split` (in memory only, nothing stored).
+ * The user's choice holds across pages. A reload starts at `split`, except a `hidden` chosen on a window wide enough
+ * for two columns: that one is stored (`MANHATTAN_CHAT_CLOSED_STORAGE_KEY`) and comes back after a reload (CU-17tkuw66xzn).
+ * One column's own `hidden` (compact: a new page shown, the chat behind it) is the layout's and stores nothing.
  */
 export type ManhattanChatView = 'split' | 'full' | 'hidden';
 
@@ -18,7 +21,14 @@ interface ManhattanCentreStore {
   threadNode: HTMLElement | null;
   setThreadNode: (node: HTMLElement | null) => void;
   chatView: ManhattanChatView;
+  /** Sets the view; on two columns (not `compact`) also stores `hidden` or forgets it. */
   setChatView: (view: ManhattanChatView) => void;
+  /**
+   * The chat the tab had behind its pages, selected again after a reload (`useChatBehindPage`): coming back is not a
+   * chat opened, so a closed column stays closed. Cleared once the centre has seen it.
+   */
+  restoredDialogId: string | null;
+  setRestoredDialogId: (id: string | null) => void;
   /** Below the two rails + 800px (`ManhattanSqueeze.compact`): one column, the sidebars as drawers. */
   compact: boolean;
   setCompact: (compact: boolean) => void;
@@ -44,11 +54,16 @@ interface ManhattanCentreStore {
   requestLinkedPage: () => void;
 }
 
-export const useManhattanCentreStore = create<ManhattanCentreStore>()(set => ({
+export const useManhattanCentreStore = create<ManhattanCentreStore>()((set, get) => ({
   threadNode: null,
   setThreadNode: threadNode => set({ threadNode }),
   chatView: 'split',
-  setChatView: chatView => set({ chatView }),
+  setChatView: chatView => {
+    if (!get().compact) writeManhattanChatClosed(chatView === 'hidden');
+    set({ chatView });
+  },
+  restoredDialogId: null,
+  setRestoredDialogId: restoredDialogId => set({ restoredDialogId }),
   compact: false,
   setCompact: compact => set({ compact }),
   chatsDismiss: 0,

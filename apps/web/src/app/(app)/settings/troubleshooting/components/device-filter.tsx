@@ -1,6 +1,9 @@
 'use client';
 
-import { DEFAULT_DEVICES_LIST_STATUSES } from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
+  DEFAULT_DEVICES_LIST_STATUSES,
+  useDeviceStatusDisplay,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Autocomplete, type AutocompleteOption } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -44,7 +47,11 @@ export function DeviceFilter({ value, onChange, organizationIds, disabled, class
     queryFn: () => fetchDevicesPage({ filter, search: debouncedSearch, first: OPTIONS_LIMIT }),
     placeholderData: keepPreviousData,
   });
-  const fetched = useMemo(() => sortDevicesLiveFirst(query.data?.devices ?? []).map(toDeviceOption), [query.data]);
+  const statusDisplay = useDeviceStatusDisplay();
+  const fetched = useMemo(
+    () => sortDevicesLiveFirst(query.data?.devices ?? []).map(device => toDeviceOption(device, statusDisplay)),
+    [query.data, statusDisplay],
+  );
 
   // The options a chip was picked from, so it keeps its name after the search moves
   // on. A device restored from a shared link that no search has returned yet shows

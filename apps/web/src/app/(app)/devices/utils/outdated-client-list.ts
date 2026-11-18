@@ -11,8 +11,12 @@ export interface DeviceListSort {
   direction: 'ASC' | 'DESC';
 }
 
-/** Online first: the order every device list has unless the address asks for outdated first. */
-export const DEFAULT_DEVICE_LIST_SORT: DeviceListSort = { field: 'status', direction: 'DESC' };
+/**
+ * Online first: the order every device list has unless the address asks for outdated first. By `connectivity`, not
+ * `status`: on a backend that writes MANAGED every managed device has the same status, and whether it is online is
+ * its connectivity.
+ */
+export const DEFAULT_DEVICE_LIST_SORT: DeviceListSort = { field: 'connectivity', direction: 'DESC' };
 
 const OUTDATED_FIRST_SORT: DeviceListSort = { field: 'clientOutdated', direction: 'DESC' };
 
