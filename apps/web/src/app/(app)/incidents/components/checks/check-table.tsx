@@ -16,7 +16,7 @@ import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { formatInterval } from '../../utils/format-interval';
 import { formatThreshold, INSIGHT_CHECK_PLATFORM_LABELS } from '../../utils/incident-check-labels';
 import type { CheckScope, IncidentCheck } from '../../utils/incident-check-transform';
-import { labelOf } from '../../utils/incident-labels';
+import { INCIDENT_SEVERITY_LABELS, labelOf } from '../../utils/incident-labels';
 import { IncidentSeverityTag } from '../incident-tags';
 import { settingSummary } from './check-source';
 import { CHECK_COLUMNS } from './check-table-columns';
@@ -49,7 +49,7 @@ function CheckCell({ check }: { check?: IncidentCheck }) {
   return (
     <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
       <TruncateText>{check?.name ?? ''}</TruncateText>
-      {/* The Threshold column is hidden below md; its value moves under the name. */}
+      {/* Severity and Threshold are hidden below md; their values move under the name. */}
       <div className="hidden min-w-0 content-md:block">
         <TruncateText variant="h6" tone="secondary">
           {check ? `${platform} · Every ${formatInterval(check.intervalSeconds)}` : ''}
@@ -57,7 +57,9 @@ function CheckCell({ check }: { check?: IncidentCheck }) {
       </div>
       <div className="min-w-0 content-md:hidden">
         <TruncateText variant="h6" tone="secondary">
-          {check ? [platform, ...thresholdValues(check)].join(' · ') : ''}
+          {check
+            ? [platform, labelOf(INCIDENT_SEVERITY_LABELS, check.severity), ...thresholdValues(check)].join(' · ')
+            : ''}
         </TruncateText>
       </div>
     </div>

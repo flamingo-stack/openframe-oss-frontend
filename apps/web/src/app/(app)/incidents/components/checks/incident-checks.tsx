@@ -70,7 +70,8 @@ export function IncidentChecks() {
         <ScopeBar scope={scope} onChange={next => setParams({ scope: next.type, scopeId: next.id ?? '' })} />
         <PrecedenceBanner />
         {isCompleteScope(scope) ? (
-          <ContentErrorBoundary title="Incident Checks" message="Couldn't load the checks." resetKey={scopeKey(scope)}>
+          // No title: the page's own header stays above the card.
+          <ContentErrorBoundary message="Couldn't load the checks." resetKey={scopeKey(scope)}>
             <CheckList scope={scope} />
           </ContentErrorBoundary>
         ) : (
