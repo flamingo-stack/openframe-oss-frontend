@@ -61,7 +61,9 @@ export interface MingoTour {
  * every device of this user finds the same conversation. In it Mingo's
  * greeting heads the thread (a local message, re-added on every load, and kept
  * once the tour is over) and the Getting Started block sits above the composer,
- * on every page while that conversation is the open one. A chip sends its
+ * on every page while that conversation is the open one (the dock leaves it off
+ * Mingo's home with the sheet down, which hands the conversation to its own page
+ * the moment it is created there: `followsToChatPage`). A chip sends its
  * prompt there through the state it was given, opens its section beside the
  * chat and marks its step done on the server. "Finish tour" completes the
  * user's onboarding and "Skip Onboarding" (once confirmed) skips it, either of

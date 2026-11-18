@@ -4,6 +4,7 @@ import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/compo
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { graphql, useFragment } from 'react-relay';
 import type { aiBalanceAlert_subscription$key } from '@/__generated__/aiBalanceAlert_subscription.graphql';
+import { useAiBalanceLowTokens } from '@/app/hooks/use-ai-balance-low-tokens';
 import { formatDate } from '@/lib/format-date';
 import { type AiAlert, aiBalanceState } from '../shared/ai-balance-state';
 
@@ -43,7 +44,8 @@ const AI_ALERT_COPY: Record<NonNullable<AiAlert>, { title: string; description: 
  */
 export function AiBalanceAlert({ subscription }: { subscription: aiBalanceAlert_subscription$key }) {
   const data = useFragment(aiBalanceAlertFragment, subscription);
-  const ai = aiBalanceState(data);
+  const lowTokens = useAiBalanceLowTokens();
+  const ai = aiBalanceState(data, lowTokens);
 
   if (!ai.alert) return null;
 
