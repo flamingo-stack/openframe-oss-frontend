@@ -8,6 +8,7 @@ import { routes } from '@/lib/routes';
 import { deviceQueryKeys } from '../utils/query-keys';
 import { useRemoteSessionWatchGate } from './use-remote-session-watch-gate';
 import { readLiveSessions } from './use-tenant-live-sessions';
+import { isWatchableSession } from './use-watch-live-session';
 
 /**
  * A device another technician is in: with Watch live on, Remote Control on it becomes watching that session. Once the
@@ -30,7 +31,7 @@ export function useBusyDeviceLiveSession(deviceId: string, busy: boolean): { loo
     staleTime: 0,
   });
 
-  const target = enabled ? (data?.find(row => row.live && row.technicianId !== userId)?.id ?? null) : null;
+  const target = enabled ? (data?.find(row => isWatchableSession(row, userId))?.id ?? null) : null;
   useEffect(() => {
     if (target) router.replace(routes.devices.liveSession(target));
   }, [target, router]);

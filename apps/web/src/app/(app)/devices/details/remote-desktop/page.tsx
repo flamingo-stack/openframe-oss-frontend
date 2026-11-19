@@ -63,6 +63,14 @@ import {
 import { SessionToolbar } from './session-toolbar';
 import { ShortcutsSettingsModal } from './shortcuts-settings-modal';
 import { REMOTE_TOOLBAR_AUTO_HIDE_STORAGE_KEY, useAutoHideToolbar } from './use-auto-hide-toolbar';
+import { leaveDocumentFullscreen, useDocumentFullscreen } from './use-document-fullscreen';
+
+/**
+ * The lib's `WORK_AREA_RAISE_ATTRIBUTE` (openframe-oss-lib#3121): on an element in the work area's page column, it
+ * raises the column over the divider handle and the right navigation. Spelled here because the lib version the app
+ * pins does not export it yet; until the app's lib bump carries it the attribute is inert. Import the constant then.
+ */
+const WORK_AREA_RAISE_ATTRIBUTE = 'data-work-area-raise';
 
 interface LegacyDeviceData {
   id: string;
@@ -251,7 +259,7 @@ function RemoteDesktopSession() {
   // why the stream is late.
   const [agentMessage, setAgentMessage] = useState<string | null>(null);
   const [clipboardEnabled, setClipboardEnabled] = useState(true);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const isFullscreen = useDocumentFullscreen();
   const [shortcuts, setShortcuts] = useLocalStorage<RemoteShortcut[]>(
     REMOTE_SHORTCUTS_STORAGE_KEY,
     DEFAULT_REMOTE_SHORTCUTS,
@@ -329,15 +337,6 @@ function RemoteDesktopSession() {
   // value never fires, leaving the page permanently not ready - no tunnel, no
   // stream, black screen.
   if (meshcentralAgentId && !isPageReady) setIsPageReady(true);
-
-  useEffect(() => {
-    const onFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-    onFullscreenChange();
-    document.addEventListener('fullscreenchange', onFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
-  }, []);
 
   useEffect(() => {
     if (isFullscreen) canvasRef.current?.focus();
@@ -577,6 +576,8 @@ function RemoteDesktopSession() {
   const handleBack = () => {
     endSession();
     tunnelRef.current?.stop();
+    // Before navigating, so the device page's first frame is not drawn fullscreen (unmount leaves it as well).
+    leaveDocumentFullscreen();
     safeBackToDevice();
   };
 
@@ -919,7 +920,13 @@ function RemoteDesktopSession() {
         backButton={{ label: 'Back', onClick: handleBack }}
         showHeader={!isFullscreen}
       >
-        <div className={isFullscreen ? 'fixed inset-0 z-50 flex flex-col bg-black' : 'contents'}>
+        {/* Fullscreen, the overlay covers the window from inside the page column, whose stacking context would
+            leave the shell's divider handle and right navigation painted over it: the raise attribute lifts the
+            column above them for exactly as long as the overlay is up. */}
+        <div
+          className={isFullscreen ? 'fixed inset-0 z-50 flex flex-col bg-black' : 'contents'}
+          {...(isFullscreen ? { [WORK_AREA_RAISE_ATTRIBUTE]: '' } : {})}
+        >
           {!overlayToolbar && controlsBar}
           {/* Figma 2328-20570: the session started while recording storage was full. Windowed only, as drawn. */}
           {!isFullscreen && remoteSession?.recordingSuppressed === 'storage_full' && (
