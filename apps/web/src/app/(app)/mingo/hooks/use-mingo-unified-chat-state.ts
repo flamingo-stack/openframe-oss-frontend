@@ -31,6 +31,7 @@ import {
   type DialogItem,
   jetStreamLiveTail,
   type MingoDialogStatus,
+  MingoGraphqlError,
   type MingoGraphqlPost,
   type UnifiedChatState,
   type UnifiedSendMessageOptions,
@@ -80,6 +81,7 @@ import {
 } from '../stores/mingo-dialog-rows-store';
 import { mingoThreadStore } from '../stores/mingo-thread-store';
 import { useMingoUsageStore } from '../stores/mingo-usage-store';
+import { isRefusedQuery } from '../utils/refused-query';
 import { retryingRead } from '../utils/retrying-read';
 import { buildUsagePanel } from './mingo-usage-panel-data';
 import { useMingoDialogAutoRead } from './use-mingo-dialog-read';
@@ -134,6 +136,9 @@ const avatarUrlOf = (stored: string) => getFullImageUrl(stored);
  *
  * An answer with data beside a failed sub-resolver is still the answer: only a field the server could not resolve at
  * all (null, with errors) rejects. Otherwise a flaky sub-resolver would read as "this dialog does not exist".
+ *
+ * A rejection is a `MingoGraphqlError` that says whether the server refused to run the query at all (`isRefusedQuery`):
+ * the lib then stops asking for what this backend does not have, and treats anything else as temporary.
  */
 export const postMingoGraphql: MingoGraphqlPost = async <T>(
   query: string,
@@ -144,10 +149,15 @@ export const postMingoGraphql: MingoGraphqlPost = async <T>(
     query,
     variables,
   });
-  if (!response.ok) throw new Error(response.error || `Request failed with status ${response.status}`);
+  const refused = isRefusedQuery(response.data);
+  if (!response.ok) {
+    throw new MingoGraphqlError(response.error || `Request failed with status ${response.status}`, { refused });
+  }
   const { data, errors } = response.data ?? {};
   const unresolved = !data || Object.values(data).some(value => value == null);
-  if (errors?.length && unresolved) throw new Error(errors[0].message || 'GraphQL error occurred');
+  if (errors?.length && unresolved) {
+    throw new MingoGraphqlError(errors[0].message || 'GraphQL error occurred', { refused });
+  }
   if (!data) throw new Error('No data received from server');
   noteMingoDialogResponse(data, askedAt);
   return data as T;
