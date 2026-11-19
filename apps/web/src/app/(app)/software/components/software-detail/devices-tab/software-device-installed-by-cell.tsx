@@ -6,6 +6,7 @@ import { graphql, useFragment } from 'react-relay';
 import type { softwareDeviceInstalledByCell_softwareOnDevice$key } from '@/__generated__/softwareDeviceInstalledByCell_softwareOnDevice.graphql';
 import { ValueText } from '@/app/components/shared';
 import { presentationFor } from '@/lib/exhaustive-map';
+import { useSoftwareAdoptGate } from '../../adopt/use-software-adopt-gate';
 import { SoftwareDeviceAdoptionTag } from './software-device-adoption-tag';
 
 const softwareDeviceInstalledByCellFragment = graphql`
@@ -23,16 +24,18 @@ const softwareDeviceInstalledByCellFragment = graphql`
  * installed by hand; the empty mark when it is not known. The design's "Manageable" (installed by hand, can be adopted)
  * is not drawn: whether a copy can be adopted is known per title (`Software.adoptionPackage`), not per device.
  *
- * While an adoption runs, or after it failed, its chip takes the installer's place (design 1227:45730).
+ * While an adoption runs, or after it failed, its chip takes the installer's place (design 1227:45730), when Adopt is on.
  */
 export function SoftwareDeviceInstalledByCell({
   softwareOnDevice,
 }: {
   softwareOnDevice: softwareDeviceInstalledByCell_softwareOnDevice$key;
 }) {
+  const adoptOn = useSoftwareAdoptGate() === 'on';
   // A row still being read (a loading scope) has no fragment to read: `ValueText` draws its bar.
   const data = useFragment(softwareDeviceInstalledByCellFragment, useLoadingScope() ? null : softwareOnDevice);
-  if (data?.adoption) return <SoftwareDeviceAdoptionTag softwareOnDevice={data} />;
+  // Without Adopt the column is the installer, as it was before it.
+  if (adoptOn && data?.adoption) return <SoftwareDeviceAdoptionTag softwareOnDevice={data} />;
 
   const source = data?.installedBy;
   return (
