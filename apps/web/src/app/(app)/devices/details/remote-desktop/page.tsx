@@ -24,7 +24,7 @@ import {
   ScanXmarkIcon,
   Settings01Icon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { UnreadDot } from '@flamingo-stack/openframe-frontend-core/components/navigation';
+import { UnreadDot, WORK_AREA_RAISE_ATTRIBUTE } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { LIVE_PULSE_CLASS, LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useLocalStorage, useMediaQuery, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -64,13 +64,6 @@ import { SessionToolbar } from './session-toolbar';
 import { ShortcutsSettingsModal } from './shortcuts-settings-modal';
 import { REMOTE_TOOLBAR_AUTO_HIDE_STORAGE_KEY, useAutoHideToolbar } from './use-auto-hide-toolbar';
 import { leaveDocumentFullscreen, useDocumentFullscreen } from './use-document-fullscreen';
-
-/**
- * The lib's `WORK_AREA_RAISE_ATTRIBUTE` (openframe-oss-lib#3121): on an element in the work area's page column, it
- * raises the column over the divider handle and the right navigation. Spelled here because the lib version the app
- * pins does not export it yet; until the app's lib bump carries it the attribute is inert. Import the constant then.
- */
-const WORK_AREA_RAISE_ATTRIBUTE = 'data-work-area-raise';
 
 interface LegacyDeviceData {
   id: string;
