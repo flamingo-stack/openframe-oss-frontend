@@ -3,6 +3,7 @@
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { BracketSquareCheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  type AutoRefreshControlProps,
   type ColumnDef,
   type DataTableSortState,
   type Row,
@@ -10,28 +11,25 @@ import {
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useEffect, useMemo } from 'react';
-import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type {
-  softwareVulnerabilitiesTable_query$data,
-  softwareVulnerabilitiesTable_query$key,
-} from '@/__generated__/softwareVulnerabilitiesTable_query.graphql';
-import type { softwareVulnerabilitiesTablePaginationQuery as SoftwareVulnerabilitiesTablePaginationQueryType } from '@/__generated__/softwareVulnerabilitiesTablePaginationQuery.graphql';
+  CursorPagerFooterProps,
+  CursorPagerVariables,
+  UseCursorPagerReturn,
+} from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useEffect, useMemo } from 'react';
+import { graphql, useLazyLoadQuery } from 'react-relay';
 import type {
   softwareVulnerabilitiesTableQuery as SoftwareVulnerabilitiesTableQueryType,
+  softwareVulnerabilitiesTableQuery$data,
   SortInput,
 } from '@/__generated__/softwareVulnerabilitiesTableQuery.graphql';
-import {
-  EmptyState,
-  type InfiniteScroll,
-  liveColumnMeta,
-  NO_ITEMS,
-  NO_NEXT_PAGE,
-  oneLineEmptyState,
-  useRetryKey,
-} from '@/app/components/shared';
+import { EmptyState, liveColumnMeta, NO_ITEMS, oneLineEmptyState, useRetryKey } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { OpenRowButton } from '@/app/components/shared/open-row-button';
+import { StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
+import { forwardPage } from '@/app/hooks/forward-page';
+import { usePagedTable } from '@/app/hooks/use-paged-table';
+import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { SOFTWARE_VULNERABILITIES_PAGE_SIZE, SOFTWARE_VULNERABILITY_COLUMNS } from './software-vulnerabilities-columns';
@@ -44,6 +42,8 @@ import { SoftwareVulnerabilityVersionCell } from './software-vulnerability-versi
  * listed once per version — with when Fleet first found it. Search and the
  * Discovered sort only; no severity, which the scanner does not rate. A row
  * opens the CVE's own page; NVD is one click further, its "More Details".
+ * One page at a time, its cursor in the URL (`cveCursor`; no `@connection`: a
+ * cursor from a link must read exactly its page).
  */
 const softwareVulnerabilitiesTableQuery = graphql`
   query softwareVulnerabilitiesTableQuery(
@@ -53,23 +53,7 @@ const softwareVulnerabilitiesTableQuery = graphql`
     $first: Int!
     $after: String
   ) {
-    ...softwareVulnerabilitiesTable_query
-      @arguments(softwareId: $softwareId, search: $search, sort: $sort, first: $first, after: $after)
-  }
-`;
-
-const softwareVulnerabilitiesTableFragment = graphql`
-  fragment softwareVulnerabilitiesTable_query on Query
-  @refetchable(queryName: "softwareVulnerabilitiesTablePaginationQuery")
-  @argumentDefinitions(
-    softwareId: { type: "ID!" }
-    search: { type: "String" }
-    sort: { type: "SortInput" }
-    first: { type: "Int", defaultValue: 20 }
-    after: { type: "String" }
-  ) {
-    softwareVulnerabilities(softwareId: $softwareId, search: $search, sort: $sort, first: $first, after: $after)
-      @connection(key: "softwareVulnerabilitiesTable_softwareVulnerabilities") {
+    softwareVulnerabilities(softwareId: $softwareId, search: $search, sort: $sort, first: $first, after: $after) {
       filteredCount
       edges {
         node {
@@ -84,6 +68,8 @@ const softwareVulnerabilitiesTableFragment = graphql`
       }
       pageInfo {
         hasNextPage
+        hasPreviousPage
+        startCursor
         endCursor
       }
     }
@@ -91,7 +77,7 @@ const softwareVulnerabilitiesTableFragment = graphql`
 `;
 
 type SoftwareVulnerabilityRow = NonNullable<
-  softwareVulnerabilitiesTable_query$data['softwareVulnerabilities']
+  softwareVulnerabilitiesTableQuery$data['softwareVulnerabilities']
 >['edges'][number]['node'];
 
 const COLUMNS: ColumnDef<SoftwareVulnerabilityRow>[] = [
@@ -153,6 +139,12 @@ interface SoftwareVulnerabilitiesTableProps {
   /** Nothing matched to this title at all (not a search miss) — the tab drops its toolbar. */
   onEmptyChange: (isEmpty: boolean) => void;
   stickyHeaderOffset: string;
+  /** The list's position in the URL: footer props, the stale check, the cursor drop. */
+  pager: UseCursorPagerReturn;
+  /** Deferred — the page variables to spread into the query (lag the URL while the next page is read). */
+  pageVariables: CursorPagerVariables;
+  /** The URL prefix of the tab's params (its auto-refresh interval sits beside them). */
+  paramPrefix: string;
 }
 
 /**
@@ -162,61 +154,76 @@ interface SoftwareVulnerabilitiesTableProps {
  */
 export function SoftwareVulnerabilitiesTable(props: SoftwareVulnerabilitiesTableProps) {
   return (
-    <LoadingSuspense label="Loading vulnerabilities">
-      <SoftwareVulnerabilitiesTableReader {...props} />
-    </LoadingSuspense>
+    <StaleCursorBoundary cursor={props.pager.cursor} onStaleCursor={props.pager.dropCursor}>
+      <LoadingSuspense label="Loading vulnerabilities">
+        <SoftwareVulnerabilitiesTableReader {...props} />
+      </LoadingSuspense>
+    </StaleCursorBoundary>
   );
 }
 
 function SoftwareVulnerabilitiesTableReader(props: SoftwareVulnerabilitiesTableProps) {
   if (useLoadingScope()) {
-    return <SoftwareVulnerabilitiesTableRows {...props} rows={NO_ITEMS} totalCount={0} infiniteScroll={NO_NEXT_PAGE} />;
+    return <SoftwareVulnerabilitiesTableRows {...props} rows={NO_ITEMS} totalCount={0} pager={null} />;
   }
   return <SoftwareVulnerabilitiesTableQuery {...props} />;
 }
 
 function SoftwareVulnerabilitiesTableQuery(props: SoftwareVulnerabilitiesTableProps) {
-  const { softwareId, debouncedSearch, sort } = props;
+  const { softwareId, debouncedSearch, sort, isPending, pager, pageVariables, paramPrefix } = props;
   const retryKey = useRetryKey();
-  const queryData = useLazyLoadQuery<SoftwareVulnerabilitiesTableQueryType>(
-    softwareVulnerabilitiesTableQuery,
-    { softwareId, search: debouncedSearch || null, sort, first: SOFTWARE_VULNERABILITIES_PAGE_SIZE, after: null },
-    { fetchPolicy: 'store-or-network', fetchKey: retryKey },
-  );
-
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
-    SoftwareVulnerabilitiesTablePaginationQueryType,
-    softwareVulnerabilitiesTable_query$key
-  >(softwareVulnerabilitiesTableFragment, queryData);
+  const variables = {
+    softwareId,
+    search: debouncedSearch || null,
+    sort,
+    ...forwardPage(pageVariables, SOFTWARE_VULNERABILITIES_PAGE_SIZE),
+  };
+  const data = useLazyLoadQuery<SoftwareVulnerabilitiesTableQueryType>(softwareVulnerabilitiesTableQuery, variables, {
+    fetchPolicy: 'store-or-network',
+    fetchKey: retryKey,
+  });
+  const refetch = useRefetchPage<SoftwareVulnerabilitiesTableQueryType>(softwareVulnerabilitiesTableQuery, variables);
 
   const rows = (data.softwareVulnerabilities?.edges ?? []).map(edge => edge.node);
   const totalCount = data.softwareVulnerabilities?.filteredCount ?? rows.length;
-
-  const fetchNextPage = () => {
-    if (hasNext && !isLoadingNext) loadNext(SOFTWARE_VULNERABILITIES_PAGE_SIZE);
-  };
+  const paged = usePagedTable({
+    pager,
+    pageInfo: data.softwareVulnerabilities?.pageInfo,
+    rowCount: rows.length,
+    prefix: paramPrefix,
+    refetch,
+    isPending,
+  });
 
   return (
     <SoftwareVulnerabilitiesTableRows
       {...props}
       rows={rows}
       totalCount={totalCount}
-      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+      pager={paged.pager}
+      refresh={paged.refresh}
     />
   );
 }
 
-interface SoftwareVulnerabilitiesTableRowsProps extends SoftwareVulnerabilitiesTableProps {
+interface SoftwareVulnerabilitiesTableRowsProps extends Omit<
+  SoftwareVulnerabilitiesTableProps,
+  'pager' | 'pageVariables' | 'paramPrefix'
+> {
   rows: readonly SoftwareVulnerabilityRow[];
   totalCount: number;
-  infiniteScroll: InfiniteScroll;
+  /** The First · Prev · Next footer (`usePagedTable`); `null` while the first page is read. */
+  pager: CursorPagerFooterProps | null;
+  /** The auto-refresh picker in the header (`usePagedTable`). */
+  refresh?: AutoRefreshControlProps;
 }
 
 /** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
 function SoftwareVulnerabilitiesTableRows({
   rows,
   totalCount,
-  infiniteScroll,
+  pager,
+  refresh,
   debouncedSearch,
   sortState,
   onSortChange,
@@ -240,8 +247,10 @@ function SoftwareVulnerabilitiesTableRows({
   });
 
   // A search that finds nothing keeps the table (its own "no match" row); a
-  // title with no CVEs at all gets the section's empty state instead.
-  const showEmptyState = !loading && !debouncedSearch && !isPending && rows.length === 0;
+  // title with no CVEs at all gets the section's empty state instead. An empty LATER page keeps the table, so First
+  // stays reachable.
+  const showEmptyState =
+    !loading && !debouncedSearch && !isPending && rows.length === 0 && (pager?.isFirstPage ?? true);
 
   useEffect(() => {
     onEmptyChange(showEmptyState);
@@ -272,8 +281,8 @@ function SoftwareVulnerabilitiesTableRows({
         `No vulnerabilities found matching "${debouncedSearch}". Try adjusting your search.`,
       )}
       rowHref={rowHref}
-      // Zero rows plus a next page: see vulnerability-table.tsx.
-      footer={rows.length > 0 ? infiniteScroll : null}
+      pager={pager}
+      refresh={refresh}
     />
   );
 }
