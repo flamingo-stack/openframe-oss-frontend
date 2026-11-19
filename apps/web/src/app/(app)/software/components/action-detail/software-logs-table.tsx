@@ -10,7 +10,7 @@ import {
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useEffect, useMemo } from 'react';
+import { useDeferredValue, useEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type {
   softwareLogsTableQuery as SoftwareLogsTableQueryType,
@@ -18,11 +18,12 @@ import type {
 } from '@/__generated__/softwareLogsTableQuery.graphql';
 import type { ExecutionsTabState } from '@/app/(app)/scripts/shared/components/executions-table';
 import type { FacetOption } from '@/app/(app)/scripts/shared/utils/facet-options';
-import { liveColumnMeta, useRetryKey } from '@/app/components/shared';
+import { liveColumnMeta, NO_ITEMS, useRetryKey } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import type { SoftwareActionStatus } from '@/generated/schema-enums';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { softwareActionStatusLabel } from '../action-list/software-action-status-tag';
-import { singleColumnFilter } from '../shared/column-filters';
+import { multiColumnFilter } from '../shared/column-filters';
 import { SoftwareLogCustomerCell } from './software-log-customer-cell';
 import { SoftwareLogDeviceCell } from './software-log-device-cell';
 import { SoftwareLogResultPanel } from './software-log-result-panel';
@@ -31,31 +32,43 @@ import { matchesSoftwareLog } from './software-log-search';
 import { SoftwareLogStatusCell } from './software-log-status-cell';
 import { SOFTWARE_LOG_COLUMNS } from './software-logs-columns';
 import { ResultPhasesContext, useResultPhases } from './use-result-phases';
+import { useSoftwareLogParams } from './use-software-log-params';
 
 /**
  * Every target device of one run with its result — `softwareActionExecutions(actionId)`. Unlike the run's execution
  * history, it also lists the devices the run has not reached yet (offline, or a schedule still to fire) as SCHEDULED,
  * and a device whose update is on hold there (the app is open) as WAITING.
  *
- * The list comes whole (a run targets at most 100 devices), so the status funnel and the search narrow it here: a
- * tick or a keystroke lands at once, with no refetch.
+ * The Status and Customer funnels and Device Tags narrow it on the server (`filter`). Their options and counts come
+ * from the same list unfiltered (`facets`): the run's devices, at most 100, until the backend answers facets of its own.
+ * The search box stays on the page: it matches what a row shows (its output and customer too), and the server's
+ * `search` reads the hostname only.
  */
 const softwareLogsTableQuery = graphql`
-  query softwareLogsTableQuery($actionId: String!) {
-    softwareActionExecutions(actionId: $actionId) {
+  query softwareLogsTableQuery($actionId: String!, $filter: SoftwareActionDeviceFilterInput) {
+    softwareActionExecutions(actionId: $actionId, filter: $filter) {
       machineId
-      # What the status funnel narrows the rows by.
+      # The ticks the funnel headers draw against each row.
       status
+      organizationId
       ...softwareLogDeviceCell_device
       ...softwareLogCustomerCell_device
       ...softwareLogStatusCell_device
       ...softwareLogResultPanel_device
       ...softwareLogSearch_device
     }
+    facets: softwareActionExecutions(actionId: $actionId) {
+      # The Status and Customer funnels' options: the values the run's devices have, and the customers' words.
+      machineId
+      status
+      organizationId
+      organizationName
+    }
   }
 `;
 
 type LogRow = softwareLogsTableQuery$data['softwareActionExecutions'][number];
+type FacetRow = softwareLogsTableQuery$data['facets'][number];
 
 const EMPTY_STATE: NoDataProps = {
   icon: <ClipboardListIcon />,
@@ -81,16 +94,32 @@ interface SoftwareLogsTableProps {
  */
 export function SoftwareLogsTable({ actionId, state }: SoftwareLogsTableProps) {
   const retryKey = useRetryKey();
+  const { status, customer, deviceTags } = useSoftwareLogParams();
+  // The rows on screen stay while the narrowed list is read. Deferred as a string: the URL hands back fresh arrays every
+  // render, and a deferred value that never settles never stops re-rendering.
+  const filterKey = useDeferredValue(JSON.stringify([status, customer, deviceTags]));
+  const [statuses, organizationIds, deviceTagIds] = JSON.parse(filterKey) as [string[], string[], string[]];
+  const filter =
+    statuses.length + organizationIds.length + deviceTagIds.length === 0
+      ? null
+      : {
+          ...(statuses.length > 0 && { statuses: statuses as SoftwareActionStatus[] }),
+          ...(organizationIds.length > 0 && { organizationIds }),
+          ...(deviceTagIds.length > 0 && { deviceTagIds }),
+        };
   const data = useLazyLoadQuery<SoftwareLogsTableQueryType>(
     softwareLogsTableQuery,
-    { actionId },
+    { actionId, filter },
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
-  return <SoftwareLogsRows allRows={data.softwareActionExecutions} state={state} />;
+  return <SoftwareLogsRows allRows={data.softwareActionExecutions} facetRows={data.facets} state={state} />;
 }
 
 interface SoftwareLogsRowsProps {
+  /** The run's devices the funnels and Device Tags leave, from the server. */
   allRows: readonly LogRow[];
+  /** The run's devices unfiltered: the funnels' options. None while the run is read. */
+  facetRows?: readonly FacetRow[];
   state: ExecutionsTabState;
 }
 
@@ -99,12 +128,11 @@ interface SoftwareLogsRowsProps {
  * header is real and the body is one page of placeholder rows with their real cells (`ActionDetailLogs` renders it
  * so before the run answers).
  */
-export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
+export function SoftwareLogsRows({ allRows, facetRows = NO_ITEMS, state }: SoftwareLogsRowsProps) {
   const {
     narrowSearch,
     isPending,
     tableFilters,
-    onFilterChange,
     mobileFilterOpen,
     onMobileFilterClose,
     stickyHeaderOffset,
@@ -112,19 +140,34 @@ export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
   } = state;
   const loading = useLoadingScope();
   const { phases, toggle, collapsed } = useResultPhases();
+  const { customer: tickedCustomers, deviceTags, setFunnels } = useSoftwareLogParams();
 
-  // The statuses the run's devices are in, and how many each: the list is whole, so these are the facets. The labels
-  // read the way the tags do ("Success", not "Completed").
+  // The statuses the run's devices are in, and how many each, over the run unfiltered. The labels read the way the tags
+  // do ("Success", not "Completed").
   const statusOptions = useMemo<FacetOption[]>(() => {
     const counts = new Map<string, number>();
-    for (const row of allRows) counts.set(row.status, (counts.get(row.status) ?? 0) + 1);
+    for (const row of facetRows) counts.set(row.status, (counts.get(row.status) ?? 0) + 1);
     return [...counts].map(([value, count]) => ({
       id: value,
       label: softwareActionStatusLabel(value) ?? value,
       value,
       count,
     }));
-  }, [allRows]);
+  }, [facetRows]);
+
+  // The customers of the run's devices, and how many devices each: the same unfiltered run as the statuses.
+  const customerOptions = useMemo<FacetOption[]>(() => {
+    const byId = new Map<string, { label: string; count: number }>();
+    for (const row of facetRows) {
+      if (!row.organizationId) continue;
+      const seen = byId.get(row.organizationId);
+      byId.set(row.organizationId, {
+        label: row.organizationName || row.organizationId,
+        count: (seen?.count ?? 0) + 1,
+      });
+    }
+    return [...byId].map(([value, { label, count }]) => ({ id: value, label, value, count }));
+  }, [facetRows]);
 
   // While the run is read the table holds one page of placeholder rows, drawn with their real cells (never narrowed:
   // a placeholder has nothing to match).
@@ -134,11 +177,8 @@ export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
   );
   const needle = narrowSearch.trim().toLowerCase();
   const ticked = tableFilters.status ?? [];
-  const logs =
-    placeholderRows ??
-    allRows.filter(
-      row => (ticked.length === 0 || ticked.includes(row.status)) && (!needle || matchesSoftwareLog(row, needle)),
-    );
+  // The funnels came back narrowed from the server; the search box narrows what is left.
+  const logs = placeholderRows ?? (needle ? allRows.filter(row => matchesSoftwareLog(row, needle)) : allRows);
 
   // Memoized by hand on purpose: TanStack keys its column model on this array's
   // identity and `flexRender` mounts each `cell` function as a component, so a
@@ -156,9 +196,11 @@ export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
       {
         id: SOFTWARE_LOG_COLUMNS.customer.id,
         header: SOFTWARE_LOG_COLUMNS.customer.header,
+        accessorFn: (row: LogRow) => row.organizationId ?? '',
         cell: ({ row }: { row: Row<LogRow> }) => <SoftwareLogCustomerCell device={row.original} />,
         enableSorting: false,
-        meta: liveColumnMeta(SOFTWARE_LOG_COLUMNS.customer),
+        filterFn: multiSelectFilterFn,
+        meta: liveColumnMeta(SOFTWARE_LOG_COLUMNS.customer, { filter: { options: customerOptions } }),
       },
       {
         id: SOFTWARE_LOG_COLUMNS.status.id,
@@ -176,15 +218,17 @@ export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
         meta: liveColumnMeta(SOFTWARE_LOG_COLUMNS.result),
       },
     ],
-    [statusOptions],
+    [statusOptions, customerOptions],
   );
 
-  const { columnFilters, onColumnFiltersChange } = singleColumnFilter(SOFTWARE_LOG_COLUMNS.status.id, ticked, status =>
-    onFilterChange({ status }),
+  const { columnFilters, onColumnFiltersChange } = multiColumnFilter(
+    { [SOFTWARE_LOG_COLUMNS.status.id]: ticked, [SOFTWARE_LOG_COLUMNS.customer.id]: tickedCustomers },
+    next => setFunnels({ status: next.status ?? [], customer: next.customer ?? [] }),
   );
 
   const table = useDataTable<LogRow>({
-    data: logs,
+    // The table only ever reads the rows it is handed.
+    data: logs as LogRow[],
     columns,
     getRowId,
     enableSorting: false,
@@ -209,7 +253,8 @@ export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
 
   // Header, empty copy and the toolbar hand-off follow the script Execution
   // History table (`executions-table.tsx`), which reasons through each case.
-  const hasActiveFilter = columnFilters.length > 0;
+  // Device Tags narrow on the server: a run with no tagged device is a filter miss, not an empty run.
+  const hasActiveFilter = columnFilters.length > 0 || deviceTags.length > 0;
   const showHeader = loading || logs.length > 0 || hasActiveFilter || isPending;
 
   const resolvedEmptyState: NoDataProps =
@@ -248,9 +293,21 @@ export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
       <FilterModal
         isOpen={mobileFilterOpen}
         onClose={onMobileFilterClose}
-        filterGroups={[{ id: SOFTWARE_LOG_COLUMNS.status.id, title: 'Status', options: statusOptions }]}
-        onFilterChange={onFilterChange}
-        currentFilters={{ status: ticked }}
+        filterGroups={[
+          {
+            id: SOFTWARE_LOG_COLUMNS.customer.id,
+            title: SOFTWARE_LOG_COLUMNS.customer.header,
+            options: customerOptions,
+          },
+          { id: SOFTWARE_LOG_COLUMNS.status.id, title: 'Status', options: statusOptions },
+        ]}
+        onFilterChange={filters =>
+          setFunnels({
+            status: (filters.status as string[] | undefined) ?? [],
+            customer: (filters.customer as string[] | undefined) ?? [],
+          })
+        }
+        currentFilters={{ status: ticked, customer: tickedCustomers }}
       />
     </ResultPhasesContext.Provider>
   );

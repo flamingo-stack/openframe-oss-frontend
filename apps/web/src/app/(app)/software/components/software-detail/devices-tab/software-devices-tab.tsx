@@ -3,20 +3,23 @@
 import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { memo, useMemo, useState } from 'react';
-import type { SoftwareOnDeviceFilterInput } from '@/__generated__/softwareDevicesTableQuery.graphql';
 import { SearchToolbar } from '@/app/components/shared/search-toolbar';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
-import { FLEET_SEARCH_DEBOUNCE_MS } from '../../shared/fleet-list-paging';
+import { DeviceTagsFilter } from '../../shared/device-tags-filter';
+import { FilterWindowButton } from '../../shared/filter-window-button';
+import type { ListSelections } from '../../shared/software-list-frame';
 import { useServerSort } from '../../shared/use-server-sort';
+import { toSoftwareOnDeviceFilter } from './software-device-filters';
 import { SOFTWARE_DEVICES_SORTABLE_COLUMN_IDS } from './software-devices-columns';
 import { SoftwareDevicesTable } from './software-devices-table';
 
 /**
  * Software → Devices: every machine carrying this title, with its own installed
- * version and lifecycle status. Owns the tab's URL state and search toolbar;
- * the rows suspend below it.
+ * version and lifecycle status. Owns the tab's URL state (search, sort, the
+ * four funnels and the Device Tags window) and its toolbar; the rows suspend
+ * below it.
  */
 export const SoftwareDevicesTab = memo(function SoftwareDevicesTabImpl({
   softwareId,
@@ -28,7 +31,11 @@ export const SoftwareDevicesTab = memo(function SoftwareDevicesTabImpl({
 }) {
   const { params, setParam, setParams } = useApiParams({
     deviceSearch: { type: 'string', default: '' },
+    deviceLifecycle: { type: 'array', default: [] },
     deviceStatus: { type: 'array', default: [] },
+    deviceInstalledBy: { type: 'array', default: [] },
+    deviceAutoUpdate: { type: 'array', default: [] },
+    deviceTags: { type: 'array', default: [] },
     deviceSortBy: { type: 'string', default: '' },
     deviceSortDir: { type: 'string', default: 'desc' },
   });
@@ -37,9 +44,10 @@ export const SoftwareDevicesTab = memo(function SoftwareDevicesTabImpl({
     search: searchInput,
     setSearch: setSearchInput,
     debouncedSearch,
-  } = useSearchParam(params.deviceSearch, value => setParam('deviceSearch', value), FLEET_SEARCH_DEBOUNCE_MS);
+  } = useSearchParam(params.deviceSearch, value => setParam('deviceSearch', value));
 
   const [isEmpty, setIsEmpty] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
 
   const { sort, sortState, onSortChange } = useServerSort({
@@ -51,13 +59,19 @@ export const SoftwareDevicesTab = memo(function SoftwareDevicesTabImpl({
 
   // Memoized for its identity, not for speed: `useDeferredQuery` tells a pending
   // refetch by comparing references.
-  const queryVars = useMemo(() => {
-    const filter: SoftwareOnDeviceFilterInput | null =
-      params.deviceStatus.length > 0
-        ? { statuses: params.deviceStatus as SoftwareOnDeviceFilterInput['statuses'] }
-        : null;
-    return { filter, sort };
-  }, [params.deviceStatus, sort]);
+  const selections = useMemo<ListSelections>(
+    () => ({
+      device: params.deviceLifecycle,
+      softwareVersion: params.deviceStatus,
+      installedBy: params.deviceInstalledBy,
+      autoUpdate: params.deviceAutoUpdate,
+    }),
+    [params.deviceLifecycle, params.deviceStatus, params.deviceInstalledBy, params.deviceAutoUpdate],
+  );
+  const queryVars = useMemo(
+    () => ({ filter: toSoftwareOnDeviceFilter(selections, params.deviceTags), sort }),
+    [selections, params.deviceTags, sort],
+  );
   const { deferredFilters: deferredVars, deferredSearch, isPending } = useDeferredQuery(queryVars, debouncedSearch);
 
   const rows = (
@@ -68,16 +82,27 @@ export const SoftwareDevicesTab = memo(function SoftwareDevicesTabImpl({
       sort={deferredVars.sort}
       sortState={sortState}
       onSortChange={onSortChange}
-      statusFilter={params.deviceStatus}
-      onStatusFilterChange={values => setParam('deviceStatus', values)}
+      selections={selections}
+      onSelectionsChange={next =>
+        setParams({
+          deviceLifecycle: next.device ?? [],
+          deviceStatus: next.softwareVersion ?? [],
+          deviceInstalledBy: next.installedBy ?? [],
+          deviceAutoUpdate: next.autoUpdate ?? [],
+        })
+      }
       isPending={isPending}
       onEmptyChange={setIsEmpty}
       stickyHeaderOffset={stickyHeaderOffset}
+      filtersOpen={filtersOpen}
+      onFiltersClose={() => setFiltersOpen(false)}
     />
   );
 
   return (
     <div className="flex flex-col pt-[var(--spacing-system-l)]" style={containerStyle}>
+      {/* The section's own heading under the tabs (1100:444, 1239:125, 1239:20463). */}
+      <h2 className="pb-[var(--spacing-system-l)] text-ods-text-primary text-h2">Devices</h2>
       {!isEmpty && (
         <SearchToolbar
           toolbarRef={toolbarRef}
@@ -85,6 +110,16 @@ export const SoftwareDevicesTab = memo(function SoftwareDevicesTabImpl({
           value={searchInput}
           onChange={setSearchInput}
           disabled={loading}
+          actions={
+            <>
+              <DeviceTagsFilter
+                value={params.deviceTags}
+                onChange={tagIds => setParam('deviceTags', tagIds)}
+                disabled={loading}
+              />
+              <FilterWindowButton onClick={() => setFiltersOpen(true)} disabled={loading} />
+            </>
+          }
         />
       )}
 

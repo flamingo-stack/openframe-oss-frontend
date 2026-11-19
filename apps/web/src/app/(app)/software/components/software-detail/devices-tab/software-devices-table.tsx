@@ -5,6 +5,7 @@ import { MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/
 import {
   type ColumnDef,
   type DataTableSortState,
+  FilterModal,
   type Row,
   useDataTable,
   useLoadingScope,
@@ -35,19 +36,26 @@ import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import { singleColumnFilter } from '../../shared/column-filters';
+import { multiColumnFilter } from '../../shared/column-filters';
+import { filterWindowGroups, filterWindowSelections } from '../../shared/facet-options';
+import type { ListSelections } from '../../shared/software-list-frame';
 import { SoftwareDeviceAutoUpdateCell } from './software-device-auto-update-cell';
 import { SoftwareDeviceCell } from './software-device-cell';
+import {
+  NO_SOFTWARE_DEVICE_FILTER_OPTIONS,
+  SOFTWARE_DEVICE_FILTER_KEYS,
+  type SoftwareDeviceFilterOptions,
+} from './software-device-filters';
 import { SoftwareDeviceInstalledByCell } from './software-device-installed-by-cell';
 import { SoftwareDeviceVersionCell } from './software-device-version-cell';
 import { SOFTWARE_DEVICE_COLUMNS, SOFTWARE_DEVICES_PAGE_SIZE } from './software-devices-columns';
-import { SOFTWARE_ON_DEVICE_STATUS_OPTIONS } from './software-on-device-status';
+import { useSoftwareDeviceFilters } from './use-software-device-filters';
 
 /**
  * Software → Devices: the machines carrying this title, each with its OWN
  * installed version and per-device status (OUTDATED / SCHEDULED_UPDATE / …).
- * The Status funnel offers the states the backend can report — a fixed list,
- * see `SOFTWARE_ON_DEVICE_STATUS_OPTIONS`.
+ * The Device, Status, Installed By and Auto-update funnels offer what occurs on this
+ * title's devices (`useSoftwareDeviceFilters`).
  */
 const softwareDevicesTableQuery = graphql`
   query softwareDevicesTableQuery(
@@ -85,9 +93,11 @@ const softwareDevicesTableFragment = graphql`
       filteredCount
       edges {
         node {
-          # What the status funnel narrows the rows on screen by, while the
-          # refetch it triggered is still in flight.
+          # What the funnels narrow the rows on screen by, while the refetch
+          # they triggered is still in flight.
           status
+          installedBy
+          autoUpdate
           device {
             id
             machineId
@@ -117,15 +127,18 @@ function deviceHref(row: SoftwareDeviceRow): string | null {
   return device ? routes.devices.details(device.machineId || device.id) : null;
 }
 
-/** The columns, with the Status funnel over the states the backend reports. */
-function buildColumns(): ColumnDef<SoftwareDeviceRow>[] {
+/** The columns, with the funnels over the values that occur on this title's devices. */
+function buildColumns(filterOptions: SoftwareDeviceFilterOptions): ColumnDef<SoftwareDeviceRow>[] {
   return [
     {
       id: SOFTWARE_DEVICE_COLUMNS.device.id,
       header: SOFTWARE_DEVICE_COLUMNS.device.header,
-      cell: ({ row }: { row: Row<SoftwareDeviceRow> }) => <SoftwareDeviceCell machine={row.original.device} />,
+      cell: ({ row }: { row: Row<SoftwareDeviceRow> }) => (
+        <SoftwareDeviceCell machine={row.original.device} installedBy={row.original.installedBy} />
+      ),
       enableSorting: false,
-      meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.device),
+      filterFn: multiSelectFilterFn,
+      meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.device, { filter: { options: filterOptions.device } }),
     },
     {
       // Column id is the backend sort field, as everywhere else in the app.
@@ -138,26 +151,30 @@ function buildColumns(): ColumnDef<SoftwareDeviceRow>[] {
       meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.softwareVersion, {
         // The column stretches to the row's end, so an end-anchored popover would
         // hang off the far right, nowhere near the header it belongs to.
-        filter: { options: SOFTWARE_ON_DEVICE_STATUS_OPTIONS },
+        filter: { options: filterOptions.softwareVersion },
       }),
     },
     {
       id: SOFTWARE_DEVICE_COLUMNS.installedBy.id,
       header: SOFTWARE_DEVICE_COLUMNS.installedBy.header,
+      accessorFn: (row: SoftwareDeviceRow) => row.installedBy ?? '',
       cell: ({ row }: { row: Row<SoftwareDeviceRow> }) => (
         <SoftwareDeviceInstalledByCell softwareOnDevice={row.original} />
       ),
       enableSorting: false,
-      meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.installedBy),
+      filterFn: multiSelectFilterFn,
+      meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.installedBy, { filter: { options: filterOptions.installedBy } }),
     },
     {
       id: SOFTWARE_DEVICE_COLUMNS.autoUpdate.id,
       header: SOFTWARE_DEVICE_COLUMNS.autoUpdate.header,
+      accessorFn: (row: SoftwareDeviceRow) => row.autoUpdate ?? '',
       cell: ({ row }: { row: Row<SoftwareDeviceRow> }) => (
         <SoftwareDeviceAutoUpdateCell softwareOnDevice={row.original} />
       ),
       enableSorting: false,
-      meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.autoUpdate),
+      filterFn: multiSelectFilterFn,
+      meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.autoUpdate, { filter: { options: filterOptions.autoUpdate } }),
     },
     {
       id: SOFTWARE_DEVICE_COLUMNS.open.id,
@@ -192,13 +209,17 @@ interface SoftwareDevicesTableProps {
   sort: SortInput | null;
   sortState: DataTableSortState | null;
   onSortChange: (columnId: string) => void;
-  statusFilter: string[];
-  onStatusFilterChange: (values: string[]) => void;
+  /** Live — what the funnels draw as ticked, keyed by column id (`SOFTWARE_DEVICE_FILTER_KEYS`). */
+  selections: ListSelections;
+  onSelectionsChange: (next: Record<string, string[]>) => void;
   /** True while a refetch is in flight — guards the empty state so it never flashes on stale data. */
   isPending: boolean;
   /** No device carries this title at all (not a search or funnel miss) — the tab drops its toolbar. */
   onEmptyChange: (isEmpty: boolean) => void;
   stickyHeaderOffset: string;
+  /** The narrow content area's filter window is open: the table draws it, with the options it read. */
+  filtersOpen: boolean;
+  onFiltersClose: () => void;
 }
 
 /**
@@ -234,7 +255,7 @@ function SoftwareDevicesTableQuery(props: SoftwareDevicesTableProps) {
       first: SOFTWARE_DEVICES_PAGE_SIZE,
       after: null,
     },
-    { fetchPolicy: 'store-or-network', fetchKey: retryKey },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
@@ -244,6 +265,8 @@ function SoftwareDevicesTableQuery(props: SoftwareDevicesTableProps) {
 
   const rows = (data.softwareDevices?.edges ?? []).map(edge => edge.node);
   const totalCount = data.softwareDevices?.filteredCount ?? rows.length;
+  // The funnels' options: what occurs on this title's devices, from the server, over the search and the other funnels.
+  const filterOptions = useSoftwareDeviceFilters(softwareId, backendFilters, debouncedSearch || null);
 
   const fetchNextPage = () => {
     if (hasNext && !isLoadingNext) loadNext(SOFTWARE_DEVICES_PAGE_SIZE);
@@ -254,6 +277,7 @@ function SoftwareDevicesTableQuery(props: SoftwareDevicesTableProps) {
       {...props}
       rows={rows}
       totalCount={totalCount}
+      filterOptions={filterOptions}
       infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
     />
   );
@@ -261,6 +285,8 @@ function SoftwareDevicesTableQuery(props: SoftwareDevicesTableProps) {
 
 interface SoftwareDevicesTableRowsProps extends SoftwareDevicesTableProps {
   rows: readonly SoftwareDeviceRow[];
+  /** The funnels' options; none while the rows load. */
+  filterOptions?: SoftwareDeviceFilterOptions;
   totalCount: number;
   infiniteScroll: InfiniteScroll;
 }
@@ -274,18 +300,20 @@ function SoftwareDevicesTableRows({
   debouncedSearch,
   sortState,
   onSortChange,
-  statusFilter,
-  onStatusFilterChange,
+  selections,
+  onSelectionsChange,
+  filterOptions = NO_SOFTWARE_DEVICE_FILTER_OPTIONS,
   isPending,
   onEmptyChange,
   stickyHeaderOffset,
+  filtersOpen,
+  onFiltersClose,
 }: SoftwareDevicesTableRowsProps) {
   const loading = useLoadingScope();
 
-  const { columnFilters, onColumnFiltersChange } = singleColumnFilter(
-    SOFTWARE_DEVICE_COLUMNS.softwareVersion.id,
-    statusFilter,
-    onStatusFilterChange,
+  const { columnFilters, onColumnFiltersChange } = multiColumnFilter(
+    Object.fromEntries(SOFTWARE_DEVICE_FILTER_KEYS.map(key => [key, selections[key] ?? NO_ITEMS])),
+    onSelectionsChange,
   );
 
   // While the page is read the table holds one page of placeholder rows, drawn with their real cells.
@@ -297,7 +325,7 @@ function SoftwareDevicesTableRows({
   const table = useDataTable<SoftwareDeviceRow>({
     // The table only ever reads the page it is handed.
     data: placeholderRows ?? (rows as SoftwareDeviceRow[]),
-    columns: buildColumns(),
+    columns: buildColumns(filterOptions),
     getRowId,
     enableSorting: false,
     state: { columnFilters },
@@ -323,24 +351,38 @@ function SoftwareDevicesTableRows({
   }
 
   return (
-    <LiveTable
-      table={table}
-      pageSize={SOFTWARE_DEVICES_PAGE_SIZE}
-      loadingCells={loading}
-      stickyHeaderOffset={stickyHeaderOffset}
-      itemName="result"
-      totalCount={totalCount}
-      sort={sortState}
-      onSortChange={onSortChange}
-      isPending={isPending}
-      emptyState={oneLineEmptyState(
-        debouncedSearch
-          ? `No devices found matching "${debouncedSearch}". Try adjusting your search.`
-          : 'No devices with the selected status. Try adjusting your filter.',
-      )}
-      rowHref={deviceHref}
-      // Zero rows plus a next page: see vulnerability-table.tsx.
-      footer={rows.length > 0 ? infiniteScroll : null}
-    />
+    <>
+      <LiveTable
+        table={table}
+        pageSize={SOFTWARE_DEVICES_PAGE_SIZE}
+        loadingCells={loading}
+        stickyHeaderOffset={stickyHeaderOffset}
+        itemName="result"
+        totalCount={totalCount}
+        sort={sortState}
+        onSortChange={onSortChange}
+        isPending={isPending}
+        emptyState={oneLineEmptyState(
+          debouncedSearch
+            ? `No devices found matching "${debouncedSearch}". Try adjusting your search.`
+            : 'No devices match these filters.',
+        )}
+        rowHref={deviceHref}
+        // Zero rows plus a next page: see vulnerability-table.tsx.
+        footer={rows.length > 0 ? infiniteScroll : null}
+      />
+      <FilterModal
+        isOpen={filtersOpen}
+        onClose={onFiltersClose}
+        filterGroups={filterWindowGroups([
+          [SOFTWARE_DEVICE_COLUMNS.device, filterOptions.device],
+          [SOFTWARE_DEVICE_COLUMNS.softwareVersion, filterOptions.softwareVersion],
+          [SOFTWARE_DEVICE_COLUMNS.installedBy, filterOptions.installedBy],
+          [SOFTWARE_DEVICE_COLUMNS.autoUpdate, filterOptions.autoUpdate],
+        ])}
+        currentFilters={Object.fromEntries(SOFTWARE_DEVICE_FILTER_KEYS.map(key => [key, [...(selections[key] ?? [])]]))}
+        onFilterChange={filters => onSelectionsChange(filterWindowSelections(SOFTWARE_DEVICE_FILTER_KEYS, filters))}
+      />
+    </>
   );
 }

@@ -4,6 +4,7 @@ import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/compone
 import { Refresh02HrIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
+  FilterModal,
   type Row,
   useDataTable,
   useLoadingScope,
@@ -35,6 +36,7 @@ import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { multiColumnFilter } from '../shared/column-filters';
+import { filterWindowGroups, filterWindowSelections } from '../shared/facet-options';
 import { SoftwareActionEngineCell } from './software-action-engine-cell';
 import { SoftwareActionNameCell } from './software-action-name-cell';
 import { SoftwareActionProcessedCell } from './software-action-processed-cell';
@@ -94,6 +96,9 @@ const softwareActionsTableFragment = graphql`
 `;
 
 type SoftwareActionRow = NonNullable<softwareActionsTable_query$data['softwareActions']>['edges'][number]['node'];
+
+/** The funnels' keys, as the URL keeps them. */
+const SOFTWARE_ACTION_FILTER_KEYS = ['action', 'engine', 'status'] as const;
 
 /** The selection of each funnel, keyed by its column id — the shape the URL keeps. */
 export interface SoftwareActionSelections {
@@ -170,6 +175,15 @@ function buildColumns(options: SoftwareActionFilterOptions): ColumnDef<SoftwareA
 
 const getRowId = (row: SoftwareActionRow) => row.id;
 
+/** The same three funnels for a narrow content area, where their columns are hidden: the filter window's groups. */
+function softwareActionFilterGroups(options: SoftwareActionFilterOptions) {
+  return filterWindowGroups([
+    [SOFTWARE_ACTION_COLUMNS.action, options.actions],
+    [SOFTWARE_ACTION_COLUMNS.engine, options.engines],
+    [SOFTWARE_ACTION_COLUMNS.status, options.statuses],
+  ]);
+}
+
 interface SoftwareActionsTableProps {
   /** Deferred funnel selection — feeds the query (lags the live funnels during a refetch). */
   backendFilters: SoftwareActionFilterInput | null;
@@ -182,6 +196,9 @@ interface SoftwareActionsTableProps {
   /** No run at all (not a search or funnel miss) — the view drops its toolbar. */
   onEmptyChange: (isEmpty: boolean) => void;
   stickyHeaderOffset: string;
+  /** The narrow content area's filter window is open: the table draws it, with the options it read. */
+  filtersOpen: boolean;
+  onFiltersClose: () => void;
 }
 
 /** The filter options before the query has read them (the loading state's): none known yet. */
@@ -238,7 +255,7 @@ function SoftwareActionsTableQuery(props: SoftwareActionsTableProps) {
 
   // The funnels' options: what actually occurs across the tenant's runs, from
   // the server, so a value no run has is never offered.
-  const filterOptions = useSoftwareActionFilters();
+  const filterOptions = useSoftwareActionFilters(backendFilters, debouncedSearch || null);
 
   return (
     <SoftwareActionsRows
@@ -271,6 +288,8 @@ function SoftwareActionsRows({
   isPending,
   onEmptyChange,
   stickyHeaderOffset,
+  filtersOpen,
+  onFiltersClose,
 }: SoftwareActionsRowsProps) {
   const loading = useLoadingScope();
   const { columnFilters, onColumnFiltersChange } = multiColumnFilter(selections, onSelectionsChange);
@@ -309,22 +328,35 @@ function SoftwareActionsRows({
   }
 
   return (
-    <LiveTable
-      table={table}
-      pageSize={SOFTWARE_ACTIONS_PAGE_SIZE}
-      loadingCells={loading}
-      stickyHeaderOffset={stickyHeaderOffset}
-      itemName="result"
-      totalCount={totalCount}
-      isPending={isPending}
-      emptyState={oneLineEmptyState(
-        debouncedSearch
-          ? `No software actions found matching "${debouncedSearch}". Try adjusting your search.`
-          : 'No software actions match the selected filters. Try adjusting your filters.',
-      )}
-      rowHref={detailsHref}
-      // Zero rows plus a next page: see vulnerability-table.tsx.
-      footer={rows.length > 0 ? infiniteScroll : null}
-    />
+    <>
+      <LiveTable
+        table={table}
+        pageSize={SOFTWARE_ACTIONS_PAGE_SIZE}
+        loadingCells={loading}
+        stickyHeaderOffset={stickyHeaderOffset}
+        itemName="result"
+        totalCount={totalCount}
+        isPending={isPending}
+        emptyState={oneLineEmptyState(
+          debouncedSearch
+            ? `No software actions found matching "${debouncedSearch}". Try adjusting your search.`
+            : 'No software actions match the selected filters. Try adjusting your filters.',
+        )}
+        rowHref={detailsHref}
+        // Zero rows plus a next page: see vulnerability-table.tsx.
+        footer={rows.length > 0 ? infiniteScroll : null}
+      />
+      <FilterModal
+        isOpen={filtersOpen}
+        onClose={onFiltersClose}
+        filterGroups={softwareActionFilterGroups(filterOptions)}
+        currentFilters={{
+          action: [...selections.action],
+          engine: [...selections.engine],
+          status: [...selections.status],
+        }}
+        onFilterChange={filters => onSelectionsChange(filterWindowSelections(SOFTWARE_ACTION_FILTER_KEYS, filters))}
+      />
+    </>
   );
 }

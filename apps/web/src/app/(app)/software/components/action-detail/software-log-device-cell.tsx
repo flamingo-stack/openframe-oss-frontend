@@ -29,7 +29,8 @@ export function SoftwareLogDeviceCell({ device }: { device: softwareLogDeviceCel
 
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-mf)]">
-      {/* Whether the device is online right now (Figma 3324-6819); its lifecycle is the tag beside the name. The run
+      {/* Whether the device is online right now (Figma 3324-6819); its lifecycle is the tag beside the name
+          from tablet width up (the phone frame 1059:18100 draws none, so the name keeps the row). The run
           does not know the device's type, so the legacy display draws no icon here. */}
       <DeviceConnectivityIcon connectivity={data?.connectivity} lastSeen={data?.lastSeen} />
       <div className="flex min-w-0 flex-1 flex-col justify-center">
@@ -39,7 +40,12 @@ export function SoftwareLogDeviceCell({ device }: { device: softwareLogDeviceCel
             <ValueText value={data ? data.hostname || data.machineId : undefined} />
           </div>
           {data?.deviceStatus && (
-            <DeviceLifecycleTag status={data.deviceStatus} connectivity={data.connectivity} data-loading-optional />
+            <DeviceLifecycleTag
+              status={data.deviceStatus}
+              connectivity={data.connectivity}
+              className="hidden shrink-0 content-md:inline-flex"
+              data-loading-optional
+            />
           )}
         </div>
         <TruncateText variant="h6" tone="secondary" loading={loading}>

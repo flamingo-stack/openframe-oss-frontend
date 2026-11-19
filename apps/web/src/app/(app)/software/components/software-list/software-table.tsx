@@ -2,6 +2,7 @@
 
 import {
   type ColumnDef,
+  type DataTableSortState,
   FilterModal,
   type Row,
   useDataTable,
@@ -19,6 +20,7 @@ import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiColumnFilter } from '../shared/column-filters';
+import { filterWindowSelections } from '../shared/facet-options';
 import type { ListSelections } from '../shared/software-list-frame';
 import { SoftwareAutoUpdateCell } from './software-auto-update-cell';
 import { SoftwareEngineCell } from './software-engine-cell';
@@ -63,6 +65,12 @@ const NAME_COLUMN: ColumnDef<SoftwareRow> = {
   meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.name),
 };
 
+/** The fleet's name column: its OS column shows on desktop only, so below that the name carries the logo. */
+const FLEET_NAME_COLUMN: ColumnDef<SoftwareRow> = {
+  ...NAME_COLUMN,
+  cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareNameCell software={row.original} withOs />,
+};
+
 const VERSION_COLUMN: ColumnDef<SoftwareRow> = {
   id: SOFTWARE_LIST_COLUMNS.currentVersion.id,
   header: SOFTWARE_LIST_COLUMNS.currentVersion.header,
@@ -105,7 +113,7 @@ const DEVICE_COLUMNS: ColumnDef<SoftwareRow>[] = [
 function columnsFor(surface: SoftwareTableSurface, filterOptions: SoftwareListFilterOptions): ColumnDef<SoftwareRow>[] {
   if (surface === 'device') return DEVICE_COLUMNS;
   return [
-    NAME_COLUMN,
+    FLEET_NAME_COLUMN,
     VERSION_COLUMN,
     {
       id: SOFTWARE_LIST_COLUMNS.os.id,
@@ -155,6 +163,9 @@ export interface SoftwareTableProps {
   onSelectionsChange?: (next: Partial<Record<string, string[]>>) => void;
   /** The fleet's funnel options, from the backend's facets. */
   filterOptions?: SoftwareListFilterOptions;
+  /** A device's Vulns sort (the header's toggle); the fleet's list is not sorted. */
+  sortState?: DataTableSortState | null;
+  onSortChange?: (columnId: string) => void;
   /** The fleet's filter window for a narrow content area (the frame's button opens it), with the same options. */
   filtersOpen?: boolean;
   onFiltersClose?: () => void;
@@ -178,6 +189,8 @@ function LoadedSoftwareTable({
   filterOptions = NO_SOFTWARE_LIST_FILTER_OPTIONS,
   filtersOpen = false,
   onFiltersClose = IGNORE_SELECTIONS,
+  sortState = null,
+  onSortChange,
 }: SoftwareTableProps) {
   // The rows have not answered yet: the table draws its own loading state, never the empty one.
   const loading = useLoadingScope();
@@ -215,6 +228,8 @@ function LoadedSoftwareTable({
         stickyHeaderOffset={stickyHeaderOffset}
         itemName="result"
         totalCount={totalCount}
+        sort={sortState}
+        onSortChange={onSortChange}
         isPending={isPending}
         emptyState={oneLineEmptyState(
           debouncedSearch
@@ -233,13 +248,7 @@ function LoadedSoftwareTable({
           onClose={onFiltersClose}
           filterGroups={softwareListFilterGroups(filterOptions)}
           currentFilters={Object.fromEntries(Object.entries(selections).map(([key, values]) => [key, [...values]]))}
-          onFilterChange={filters =>
-            onSelectionsChange(
-              Object.fromEntries(
-                SOFTWARE_LIST_FILTER_KEYS.map(key => [key, (filters[key] as string[] | undefined) ?? []]),
-              ),
-            )
-          }
+          onFilterChange={filters => onSelectionsChange(filterWindowSelections(SOFTWARE_LIST_FILTER_KEYS, filters))}
         />
       )}
     </>

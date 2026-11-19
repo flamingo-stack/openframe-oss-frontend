@@ -181,7 +181,7 @@ function SoftwareVulnerabilitiesTableQuery(props: SoftwareVulnerabilitiesTablePr
   const queryData = useLazyLoadQuery<SoftwareVulnerabilitiesTableQueryType>(
     softwareVulnerabilitiesTableQuery,
     { softwareId, search: debouncedSearch || null, sort, first: SOFTWARE_VULNERABILITIES_PAGE_SIZE, after: null },
-    { fetchPolicy: 'store-or-network', fetchKey: retryKey },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
