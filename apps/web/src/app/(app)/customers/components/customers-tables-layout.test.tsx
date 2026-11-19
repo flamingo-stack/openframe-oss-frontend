@@ -18,6 +18,7 @@ import {
   gridBodyText,
   gridColumns,
   gridRoot,
+  loadingHeaderCells,
   mountInScope,
   setTableGridFlag,
   settingsGear,
@@ -275,7 +276,8 @@ describe('Customers list', () => {
     expect(container.querySelectorAll('[data-grid-body] span.text-h4')).toHaveLength(60);
     expect(container.querySelectorAll('[data-grid-body] [data-part="leading"]')).toHaveLength(20);
     // A loading table names no column and offers no control.
-    expect(gridColumns(container)).toEqual([null, null, null]);
+    expect(gridColumns(container)).toEqual([]);
+    expect(loadingHeaderCells(container)).toHaveLength(3);
     expect(dateHeaderControl(container)).toBeUndefined();
     const open = [...container.querySelectorAll<HTMLButtonElement>('[data-grid-body] button')];
     expect(open).toHaveLength(20);
