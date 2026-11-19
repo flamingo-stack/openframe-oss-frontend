@@ -2,6 +2,7 @@
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { SoftwareListFrame } from '../shared/software-list-frame';
+import { SOFTWARE_LIST_PAGE_SIZE } from './software-list-columns';
 import { SOFTWARE_LIST_FILTER_KEYS } from './software-list-filters';
 import { SoftwareListTable } from './software-list-table';
 
@@ -25,6 +26,8 @@ export function SoftwareListView({ title, emptyTitle, emptyDescription, loading 
     // boundary, so a thrown query keeps the title indented.
     <PageLayout title={title}>
       <SoftwareListFrame
+        pageSize={SOFTWARE_LIST_PAGE_SIZE}
+        pagedList="softwares"
         placeholder="Search for Software"
         filterKeys={SOFTWARE_LIST_FILTER_KEYS}
         filterModal

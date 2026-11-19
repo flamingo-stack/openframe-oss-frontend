@@ -1,19 +1,21 @@
 'use client';
 
 import {
+  type AutoRefreshControlProps,
   type ColumnDef,
   FilterModal,
   type Row,
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import type { CursorPagerFooterProps } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type ReactNode, useEffect } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type {
   softwareTable_software$data,
   softwareTable_software$key,
 } from '@/__generated__/softwareTable_software.graphql';
-import { type InfiniteScroll, liveColumnMeta, oneLineEmptyState } from '@/app/components/shared';
+import { liveColumnMeta, oneLineEmptyState } from '@/app/components/shared';
 import { LiveTable } from '@/app/components/shared/live-table';
 import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { openInNewTab } from '@/lib/open-in-new-tab';
@@ -149,7 +151,10 @@ export interface SoftwareTableProps {
   /** Nothing in the list at all — the caller drops its toolbar. */
   onEmptyChange: (isEmpty: boolean) => void;
   stickyHeaderOffset: string;
-  infiniteScroll: InfiniteScroll;
+  /** The First · Prev · Next footer (`usePagedTable`). */
+  pager: CursorPagerFooterProps;
+  /** The auto-refresh picker in the header (`usePagedTable`). */
+  refresh?: AutoRefreshControlProps;
   /** The fleet's funnels: what they draw as ticked, and their changes out. A surface without funnels leaves them out. */
   selections?: ListSelections;
   onSelectionsChange?: (next: Partial<Record<string, string[]>>) => void;
@@ -172,7 +177,8 @@ function LoadedSoftwareTable({
   emptyState,
   onEmptyChange,
   stickyHeaderOffset,
-  infiniteScroll,
+  pager,
+  refresh,
   selections = NO_SELECTIONS,
   onSelectionsChange = IGNORE_SELECTIONS,
   filterOptions = NO_SOFTWARE_LIST_FILTER_OPTIONS,
@@ -197,7 +203,8 @@ function LoadedSoftwareTable({
 
   // A search or a funnel that finds nothing keeps the table (its own "no match"
   // row); a list with nothing in it at all gets the surface's empty state instead.
-  const showEmptyState = !loading && !debouncedSearch && !filtered && !isPending && rows.length === 0;
+  const showEmptyState =
+    !loading && !debouncedSearch && !filtered && !isPending && rows.length === 0 && pager.isFirstPage;
 
   useEffect(() => {
     onEmptyChange(showEmptyState);
@@ -224,8 +231,8 @@ function LoadedSoftwareTable({
               : 'No software found.',
         )}
         rowHref={rowHref}
-        // Zero rows plus a next page: see vulnerability-table.tsx.
-        footer={rows.length > 0 ? infiniteScroll : null}
+        pager={pager}
+        refresh={refresh}
       />
       {surface === 'fleet' && (
         <FilterModal

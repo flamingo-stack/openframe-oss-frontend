@@ -3,37 +3,26 @@
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
-import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
-import type { deviceVulnerabilitiesTable_query$key } from '@/__generated__/deviceVulnerabilitiesTable_query.graphql';
-import type { deviceVulnerabilitiesTablePaginationQuery as DeviceVulnerabilitiesTablePaginationQueryType } from '@/__generated__/deviceVulnerabilitiesTablePaginationQuery.graphql';
+import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { deviceVulnerabilitiesTableQuery as DeviceVulnerabilitiesTableQueryType } from '@/__generated__/deviceVulnerabilitiesTableQuery.graphql';
+import type { SoftwareListFrameRenderProps } from '@/app/(app)/software/components/shared/software-list-frame';
 import { VULNERABILITY_LIST_PAGE_SIZE } from '@/app/(app)/software/components/vulnerability-list/vulnerability-list-columns';
 import { VulnerabilityTable } from '@/app/(app)/software/components/vulnerability-list/vulnerability-table';
 import { useRetryKey } from '@/app/components/shared';
+import { StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
+import { forwardPage } from '@/app/hooks/forward-page';
+import { usePagedTable } from '@/app/hooks/use-paged-table';
+import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 
 /**
  * Device → Vulnerabilities: the CVEs present on this machine, one row per CVE —
  * the same `Vulnerability` node the fleet-wide list shows, drawn by the same
- * table. Search only, as on the page — no sort and no funnels; the pagination
- * fragment drives infinite scroll.
+ * table. Search only, as on the page — no sort and no funnels; one page at a time, its cursor in the URL
+ * (`cveCursor`).
  */
 const deviceVulnerabilitiesTableQuery = graphql`
   query deviceVulnerabilitiesTableQuery($machineId: String!, $search: String, $first: Int!, $after: String) {
-    ...deviceVulnerabilitiesTable_query @arguments(machineId: $machineId, search: $search, first: $first, after: $after)
-  }
-`;
-
-const deviceVulnerabilitiesTableFragment = graphql`
-  fragment deviceVulnerabilitiesTable_query on Query
-  @refetchable(queryName: "deviceVulnerabilitiesTablePaginationQuery")
-  @argumentDefinitions(
-    machineId: { type: "String!" }
-    search: { type: "String" }
-    first: { type: "Int", defaultValue: 20 }
-    after: { type: "String" }
-  ) {
-    deviceVulnerabilities(machineId: $machineId, search: $search, first: $first, after: $after)
-      @connection(key: "deviceVulnerabilitiesTable_deviceVulnerabilities") {
+    deviceVulnerabilities(machineId: $machineId, search: $search, first: $first, after: $after) {
       filteredCount
       edges {
         node {
@@ -42,13 +31,18 @@ const deviceVulnerabilitiesTableFragment = graphql`
       }
       pageInfo {
         hasNextPage
+        hasPreviousPage
+        startCursor
         endCursor
       }
     }
   }
 `;
 
-interface DeviceVulnerabilitiesTableProps {
+interface DeviceVulnerabilitiesTableProps extends Pick<
+  SoftwareListFrameRenderProps,
+  'pager' | 'pageVariables' | 'paramPrefix'
+> {
   machineId: string;
   debouncedSearch: string;
   /** True while a refetch is in flight — guards the empty state so it never flashes on stale data. */
@@ -63,9 +57,11 @@ interface DeviceVulnerabilitiesTableProps {
 /** The Vulnerabilities tab's rows, with their own boundary: in its scope the reader draws its own loading form. */
 export function DeviceVulnerabilitiesTable(props: DeviceVulnerabilitiesTableProps) {
   return (
-    <LoadingSuspense label="Loading vulnerabilities">
-      <DeviceVulnerabilitiesTableReader {...props} />
-    </LoadingSuspense>
+    <StaleCursorBoundary cursor={props.pager.cursor} onStaleCursor={props.pager.dropCursor}>
+      <LoadingSuspense label="Loading vulnerabilities">
+        <DeviceVulnerabilitiesTableReader {...props} />
+      </LoadingSuspense>
+    </StaleCursorBoundary>
   );
 }
 
@@ -86,24 +82,30 @@ function DeviceVulnerabilitiesTableQuery({
   emptyState,
   onEmptyChange,
   stickyHeaderOffset,
+  pager,
+  pageVariables,
+  paramPrefix,
 }: DeviceVulnerabilitiesTableProps) {
   const retryKey = useRetryKey();
-  const queryData = useLazyLoadQuery<DeviceVulnerabilitiesTableQueryType>(
-    deviceVulnerabilitiesTableQuery,
-    { machineId, search: debouncedSearch || null, first: VULNERABILITY_LIST_PAGE_SIZE, after: null },
-    { fetchPolicy: 'store-or-network', fetchKey: retryKey },
-  );
-
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
-    DeviceVulnerabilitiesTablePaginationQueryType,
-    deviceVulnerabilitiesTable_query$key
-  >(deviceVulnerabilitiesTableFragment, queryData);
+  const variables = {
+    machineId,
+    search: debouncedSearch || null,
+    ...forwardPage(pageVariables, VULNERABILITY_LIST_PAGE_SIZE),
+  };
+  const data = useLazyLoadQuery<DeviceVulnerabilitiesTableQueryType>(deviceVulnerabilitiesTableQuery, variables, {
+    fetchPolicy: 'store-or-network',
+    fetchKey: retryKey,
+  });
+  const refetch = useRefetchPage<DeviceVulnerabilitiesTableQueryType>(deviceVulnerabilitiesTableQuery, variables);
 
   const rows = data.deviceVulnerabilities.edges.map(edge => edge.node);
-
-  const fetchNextPage = () => {
-    if (hasNext && !isLoadingNext) loadNext(VULNERABILITY_LIST_PAGE_SIZE);
-  };
+  const paged = usePagedTable({
+    pager,
+    pageInfo: data.deviceVulnerabilities.pageInfo,
+    rowCount: rows.length,
+    prefix: paramPrefix,
+    refetch,
+  });
 
   return (
     <VulnerabilityTable
@@ -114,7 +116,8 @@ function DeviceVulnerabilitiesTableQuery({
       emptyState={emptyState}
       onEmptyChange={onEmptyChange}
       stickyHeaderOffset={stickyHeaderOffset}
-      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+      pager={paged.pager}
+      refresh={paged.refresh}
     />
   );
 }

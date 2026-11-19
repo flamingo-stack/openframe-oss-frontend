@@ -3,6 +3,7 @@
 import { WebDesignIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { SoftwareListFrame } from '@/app/(app)/software/components/shared/software-list-frame';
+import { SOFTWARE_LIST_PAGE_SIZE } from '@/app/(app)/software/components/software-list/software-list-columns';
 import { ContentErrorBoundary } from '@/app/components/shared';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import type { TableLayout } from '@/app/hooks/use-table-layout';
@@ -87,7 +88,13 @@ function ModuleSoftwareTab({ device, loading }: SoftwareTabProps & { loading: bo
   }
 
   return (
-    <SoftwareListFrame paramPrefix="software" placeholder={SEARCH_PLACEHOLDER} loading={scoped}>
+    <SoftwareListFrame
+      paramPrefix="software"
+      pageSize={SOFTWARE_LIST_PAGE_SIZE}
+      pagedList="deviceSoftware"
+      placeholder={SEARCH_PLACEHOLDER}
+      loading={scoped}
+    >
       {list => (
         <ContentErrorBoundary label="SoftwareTab" message="Couldn't load this device's software.">
           <DeviceSoftwareTable
