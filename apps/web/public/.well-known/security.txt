@@ -1,0 +1,5 @@
+Contact: mailto:security@flamingo.run
+Expires: 2027-11-19T00:00:00Z
+Policy: https://www.flamingo.run/security-policy
+Preferred-Languages: en
+Canonical: https://openframe.ai/.well-known/security.txt

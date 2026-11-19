@@ -45,6 +45,16 @@ describe('the mode rules in the Edge proxy', () => {
     expect(redirectedTo('/account-deletion', 'saas-shared')).toBeNull();
   });
 
+  it('serves the RFC 9116 security.txt signed out in every mode', () => {
+    for (const mode of ['saas-shared', 'saas-tenant', 'oss-tenant']) {
+      expect(redirectedTo('/.well-known/security.txt', mode)).toBeNull();
+    }
+  });
+
+  it('opens only security.txt under /.well-known in saas-shared', () => {
+    expect(redirectedTo('/.well-known/other.txt', 'saas-shared')).toContain('/auth');
+  });
+
   it('preserves the query string when it does redirect', () => {
     process.env.NEXT_PUBLIC_APP_MODE = 'saas-shared';
     const response = proxy(new NextRequest(new URL('https://openframe.ai/mobiles?fbclid=abc&utm_source=qr')));

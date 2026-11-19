@@ -21,6 +21,13 @@ function isAllowed(pathname: string): boolean {
     return true;
   }
 
+  // RFC 9116 security contact (public/.well-known/security.txt): scanners and
+  // researchers fetch it signed out, on any host, so it is open in every mode —
+  // saas-shared would otherwise send it to `/auth`.
+  if (pathname === '/.well-known/security.txt') {
+    return true;
+  }
+
   // Account-deletion instructions: reachable in every mode, signed out. Both app
   // stores require a deletion URL that resolves in a browser with no app install
   // and no account, and the canonical one is on the saas-shared host — the only
