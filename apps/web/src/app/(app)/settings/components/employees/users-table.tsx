@@ -1,9 +1,9 @@
 'use client';
 
 import {
-  actionColumn,
   type ColumnDef,
   type DataTableSettings,
+  GRID_ACTION_COLUMN_SIZE,
   GRID_MIN_WIDTH,
   type Row,
   useDataTable,
@@ -18,6 +18,7 @@ import { type InfiniteScroll, liveColumnMeta } from '@/app/components/shared';
 import { oneLineEmptyState } from '@/app/components/shared/empty-state';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { OpenRowButton } from '@/app/components/shared/open-row-button';
+import type { TableLayout } from '@/app/hooks/use-table-layout';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { rawIdOf } from '@/lib/relay-id';
 import type { EmployeeFilterOptions, EmployeeSelections } from './employee-filters';
@@ -54,7 +55,7 @@ const USERS_TABLE_SETTINGS: DataTableSettings = { storageKey: 'employees-users' 
 /**
  * The columns. Each data column states what the grid layout reads beside the card layout's `meta.width`: a `size`
  * (its designed width), a `minSize` where the cell holds more than text, a one-line `gridCell` and a `label` for the
- * settings menu. The table is the grid at every width; `cell` is what a column without a `gridCell` draws.
+ * settings menu. `cell` is the card row's cell, and what a grid column without a `gridCell` draws.
  */
 function buildColumns(filterOptions: EmployeeFilterOptions): ColumnDef<UserRow>[] {
   return [
@@ -88,12 +89,24 @@ function buildColumns(filterOptions: EmployeeFilterOptions): ColumnDef<UserRow>[
         gridCell: ({ row }: { row: Row<UserRow> }) => <EmployeeStatusGridCell user={row.original} />,
       }),
     },
-    actionColumn<UserRow>({
+    {
+      // The card row's open button, hidden below md as before; the grid's action column beside it, kept by hand
+      // because `actionColumn()` would replace the card layout's `meta` (its `hideAt`).
       id: EMPLOYEES_COLUMNS.open.id,
-      cell: ({ row }) => (
-        <OpenRowButton grid label="Open in new tab" onClick={openInNewTab(detailHref(row.original))} />
+      cell: ({ row }: { row: Row<UserRow> }) => (
+        <OpenRowButton label="Open in new tab" onClick={openInNewTab(detailHref(row.original))} />
       ),
-    }),
+      // As `actionColumn()` states them: an action column is never sorted and never hidden.
+      enableSorting: false,
+      enableHiding: false,
+      size: GRID_ACTION_COLUMN_SIZE,
+      meta: liveColumnMeta(EMPLOYEES_COLUMNS.open, {
+        gridKind: 'action',
+        gridCell: ({ row }: { row: Row<UserRow> }) => (
+          <OpenRowButton grid label="Open in new tab" onClick={openInNewTab(detailHref(row.original))} />
+        ),
+      }),
+    },
   ];
 }
 
@@ -122,6 +135,8 @@ interface UsersTableProps {
   isPending: boolean;
   stickyHeaderOffset: string;
   infiniteScroll: InfiniteScroll;
+  /** Card rows, or the grid table where the app's table flag is on. */
+  layout: TableLayout;
 }
 
 /** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
@@ -136,6 +151,7 @@ export function UsersTable({
   isPending,
   stickyHeaderOffset,
   infiniteScroll,
+  layout,
 }: UsersTableProps) {
   const loading = useLoadingScope();
   const rows = useFragment(usersTableFragment, rowRefs);
@@ -160,8 +176,9 @@ export function UsersTable({
       pageSize={USERS_PAGE_SIZE}
       loadingCells={loading}
       stickyHeaderOffset={stickyHeaderOffset}
-      // The grid table, as the page's scroll area: it fills the height under the toolbar, and the page does not scroll.
-      layout="grid"
+      // The grid table is the page's scroll area: it fills the height under the toolbar, and the page does not scroll.
+      // Card rows read neither the height nor the settings.
+      layout={layout}
       maxHeight="fill"
       settings={USERS_TABLE_SETTINGS}
       itemName="result"

@@ -7,7 +7,7 @@ import {
   PlusCircleIcon,
   SearchIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Input, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Input, LoadingWhen, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
@@ -22,9 +22,11 @@ import {
 } from '@/app/components/shared';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { ConfirmDeleteMonitoringModal } from '../../components/confirm-delete-monitoring-modal';
+import { QUERIES_TABLE_SETTINGS } from '../../components/monitoring-table-settings';
 import { useQueries } from '../../hooks/use-queries';
 import type { Query } from '../../types/queries.types';
 
@@ -43,6 +45,8 @@ export function Queries() {
 
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
+  // The table the `data-table-grid` flag picks. Until the flag answers the table is in a loading scope.
+  const tableGate = useTableGridGate();
 
   // Local search keeps typing responsive; the shared hook debounces the write to
   // the URL param so we don't navigate the router (and re-filter) on every keystroke.
@@ -163,30 +167,36 @@ export function Queries() {
             />
           </div>
 
-          <QueriesTable
-            rows={rows}
-            isLoading={isLoading}
-            rowAsLink
-            stickyHeaderOffset={stickyHeaderOffset}
-            showRowCount
-            pageSize={PAGE_SIZE}
-            // The table has its own emptiness claim, and zero rows after a failed
-            // or offline load would print "No queries found." under the strip
-            // above. Same rule, one component down.
-            emptyState={oneLineEmptyState(
-              canClaimEmpty
-                ? debouncedSearch
-                  ? `No queries found matching "${debouncedSearch}". Try adjusting your search.`
-                  : 'No queries found.'
-                : loadErrorProps(isOffline, LOAD_ERROR_MESSAGE).message,
-            )}
-            infiniteScroll={{
-              hasNextPage: visibleCount < filteredQueries.length,
-              // The next page is revealed from the rows in hand: nothing is fetched.
-              isFetchingNextPage: false,
-              onLoadMore: handleLoadMore,
-            }}
-          />
+          <LoadingWhen loading={tableGate === 'loading'}>
+            <QueriesTable
+              rows={rows}
+              isLoading={isLoading}
+              rowAsLink
+              stickyHeaderOffset={stickyHeaderOffset}
+              showRowCount
+              pageSize={PAGE_SIZE}
+              // The table has its own emptiness claim, and zero rows after a failed
+              // or offline load would print "No queries found." under the strip
+              // above. Same rule, one component down.
+              emptyState={oneLineEmptyState(
+                canClaimEmpty
+                  ? debouncedSearch
+                    ? `No queries found matching "${debouncedSearch}". Try adjusting your search.`
+                    : 'No queries found.'
+                  : loadErrorProps(isOffline, LOAD_ERROR_MESSAGE).message,
+              )}
+              // The grid table is the page's scroll area: it fills the height under the search.
+              layout={tableLayoutFor(tableGate)}
+              maxHeight="fill"
+              settings={QUERIES_TABLE_SETTINGS}
+              infiniteScroll={{
+                hasNextPage: visibleCount < filteredQueries.length,
+                // The next page is revealed from the rows in hand: nothing is fetched.
+                isFetchingNextPage: false,
+                onLoadMore: handleLoadMore,
+              }}
+            />
+          </LoadingWhen>
         </div>
       )}
       <ConfirmDeleteMonitoringModal

@@ -1,7 +1,11 @@
 'use client';
 
 import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
-import { DeviceTypeTile, OSTypeBadge } from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
+  DeviceTypeTile,
+  GRID_ACTION_BUTTON_CLASS,
+  OSTypeBadge,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
   BracketCurlyEllipsisVrIcon,
@@ -13,6 +17,9 @@ import {
   type ColumnDef,
   DataTable,
   EntityImage,
+  GRID_ACTION_COLUMN_SIZE,
+  GRID_MIN_WIDTH,
+  LoadingWhen,
   type Row,
   Tag,
   TruncateText,
@@ -21,12 +28,19 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback, useMemo, useState } from 'react';
 import { NO_ITEMS } from '@/app/components/shared';
+import { DeviceGridCell } from '@/app/components/shared/device-grid-cell';
 import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
+import { type TableLayout, tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
-import { MONITORING_DEVICES_SKELETON_ROWS, POLICY_DEVICE_COLUMNS } from '../../components/monitoring-table-columns';
+import {
+  MONITORING_DEVICE_GRID_SIZES,
+  MONITORING_DEVICES_SKELETON_ROWS,
+  POLICY_DEVICE_COLUMNS,
+} from '../../components/monitoring-table-columns';
+import { POLICY_DEVICES_TABLE_SETTINGS } from '../../components/monitoring-table-settings';
 import { usePolicyDevicesTable } from '../hooks/use-policy-devices-table';
 import type { PolicyDeviceRow } from '../types/policy-device-row';
 import { QuickQueryPanel } from './quick-query-panel';
@@ -39,26 +53,60 @@ interface PolicyDevicesTableProps {
 }
 
 /**
- * The policy's devices. In a loading scope (the policy itself still loading) it reads nothing and draws the table's
- * own loading rows; otherwise it reads the devices and draws them.
+ * The policy's devices, as the table the `data-table-grid` flag picks. Until the flag answers the table is in a
+ * loading scope: it reads nothing and draws loading rows.
  */
 export function PolicyDevicesTable(props: PolicyDevicesTableProps) {
-  if (useLoadingScope()) return <PolicyDevicesTableView rows={NO_ITEMS} isLoading policyQuery={props.policyQuery} />;
+  const tableGate = useTableGridGate();
+  return (
+    <LoadingWhen loading={tableGate === 'loading'}>
+      <PolicyDevicesTableReader {...props} tableLayout={tableLayoutFor(tableGate)} />
+    </LoadingWhen>
+  );
+}
+
+interface PolicyDevicesTableReaderProps extends PolicyDevicesTableProps {
+  tableLayout: TableLayout;
+}
+
+/**
+ * In a loading scope (the policy itself still loading, or the table's flag) it reads nothing and draws the table's
+ * own loading rows; otherwise it reads the devices and draws them.
+ */
+function PolicyDevicesTableReader(props: PolicyDevicesTableReaderProps) {
+  if (useLoadingScope()) {
+    return (
+      <PolicyDevicesTableView
+        rows={NO_ITEMS}
+        isLoading
+        policyQuery={props.policyQuery}
+        tableLayout={props.tableLayout}
+      />
+    );
+  }
   return <PolicyDevicesTableContent {...props} />;
 }
 
-function PolicyDevicesTableContent({ policyId, assignedHostIds, policyQuery }: PolicyDevicesTableProps) {
+function PolicyDevicesTableContent({
+  policyId,
+  assignedHostIds,
+  policyQuery,
+  tableLayout,
+}: PolicyDevicesTableReaderProps) {
   const { rows, isLoading } = usePolicyDevicesTable(policyId, assignedHostIds);
-  return <PolicyDevicesTableView rows={rows} isLoading={isLoading} policyQuery={policyQuery} />;
+  return (
+    <PolicyDevicesTableView rows={rows} isLoading={isLoading} policyQuery={policyQuery} tableLayout={tableLayout} />
+  );
 }
 
 interface PolicyDevicesTableViewProps {
   rows: PolicyDeviceRow[];
   isLoading: boolean;
   policyQuery?: string;
+  tableLayout: TableLayout;
 }
 
-function PolicyDevicesTableView({ rows, isLoading, policyQuery }: PolicyDevicesTableViewProps) {
+function PolicyDevicesTableView({ rows, isLoading, policyQuery, tableLayout }: PolicyDevicesTableViewProps) {
   const [quickQueryIds, setQuickQueryIds] = useState<Set<string>>(new Set());
 
   const hasQuery = Boolean(policyQuery?.trim());
@@ -92,7 +140,14 @@ function PolicyDevicesTableView({ rows, isLoading, policyQuery }: PolicyDevicesT
             </div>
           );
         },
-        meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.device),
+        size: MONITORING_DEVICE_GRID_SIZES.device,
+        minSize: GRID_MIN_WIDTH.icon,
+        meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.device, {
+          label: 'Device',
+          gridCell: ({ row }: { row: Row<PolicyDeviceRow> }) => (
+            <DeviceGridCell name={row.original.name} deviceType={row.original.deviceType} />
+          ),
+        }),
       },
       {
         id: POLICY_DEVICE_COLUMNS.organization.id,
@@ -105,7 +160,18 @@ function PolicyDevicesTableView({ rows, isLoading, policyQuery }: PolicyDevicesT
             imageHash={row.original.organizationImageHash}
           />
         ),
-        meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.organization),
+        size: MONITORING_DEVICE_GRID_SIZES.organization,
+        minSize: GRID_MIN_WIDTH.media,
+        meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.organization, {
+          label: 'Customer',
+          gridCell: ({ row }: { row: Row<PolicyDeviceRow> }) => (
+            <DeviceCustomerGridCell
+              organization={row.original.organization}
+              imageUrl={row.original.organizationImageUrl}
+              imageHash={row.original.organizationImageHash}
+            />
+          ),
+        }),
       },
       {
         id: POLICY_DEVICE_COLUMNS.os.id,
@@ -116,20 +182,32 @@ function PolicyDevicesTableView({ rows, isLoading, policyQuery }: PolicyDevicesT
             <OSTypeBadge osType={row.original.osType} />
           </div>
         ),
-        meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.os),
+        size: MONITORING_DEVICE_GRID_SIZES.os,
+        minSize: GRID_MIN_WIDTH.icon,
+        meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.os, {
+          label: 'OS',
+          gridCell: ({ row }: { row: Row<PolicyDeviceRow> }) => <DeviceOsGridCell osType={row.original.osType} />,
+        }),
       },
       {
         id: POLICY_DEVICE_COLUMNS.compliance.id,
         accessorKey: 'complianceStatus',
         header: POLICY_DEVICE_COLUMNS.compliance.header,
         cell: ({ row }: { row: Row<PolicyDeviceRow> }) => <ComplianceCell status={row.original.complianceStatus} />,
-        meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.compliance),
+        size: MONITORING_DEVICE_GRID_SIZES.status,
+        meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.compliance, { label: 'Status' }),
       },
       {
         id: POLICY_DEVICE_COLUMNS.open.id,
         cell: ({ row }: { row: Row<PolicyDeviceRow> }) => <DeviceOpenCell machineId={row.original.machineId} />,
         enableSorting: false,
-        meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.open),
+        size: GRID_ACTION_COLUMN_SIZE,
+        meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.open, {
+          gridKind: 'action',
+          gridCell: ({ row }: { row: Row<PolicyDeviceRow> }) => (
+            <DeviceOpenCell machineId={row.original.machineId} grid />
+          ),
+        }),
       },
       {
         id: POLICY_DEVICE_COLUMNS.quickQuery.id,
@@ -141,10 +219,21 @@ function PolicyDevicesTableView({ rows, isLoading, policyQuery }: PolicyDevicesT
           />
         ),
         enableSorting: false,
+        size: GRID_ACTION_COLUMN_SIZE,
         // Fixed column width (matching the header's empty cell) so the flex
         // columns before it stretch identically in the header and the rows;
         // the w-full button inside also keeps Quick Query / Close equal width.
-        meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.quickQuery),
+        meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.quickQuery, {
+          gridKind: 'action',
+          gridCell: ({ row }: { row: Row<PolicyDeviceRow> }) => (
+            <QuickQueryToggle
+              isOpen={quickQueryIds.has(String(row.original.id))}
+              hasQuery={hasQuery}
+              onToggle={() => toggleQuickQuery(String(row.original.id))}
+              grid
+            />
+          ),
+        }),
       },
     ],
     [quickQueryIds, toggleQuickQuery, hasQuery],
@@ -182,9 +271,18 @@ function PolicyDevicesTableView({ rows, isLoading, policyQuery }: PolicyDevicesT
   // Per the design, the empty state replaces the whole table - headers hidden.
   const showHeader = isLoading || rows.length > 0;
 
+  const grid = tableLayout === 'grid';
+
   return (
-    <DataTable table={table}>
-      {showHeader && <DataTable.Header rightSlot={<DataTable.RowCount loading={isLoading} />} />}
+    // No height of its own: the table is a section of the policy's page, which scrolls.
+    <DataTable table={table} layout={tableLayout} settings={grid ? POLICY_DEVICES_TABLE_SETTINGS : undefined}>
+      {/* The grid's results count sits above the table; the card header carries its own (`rightSlot`). */}
+      {showHeader && grid && (
+        <DataTable.Meta>
+          <DataTable.RowCount loading={isLoading} />
+        </DataTable.Meta>
+      )}
+      {showHeader && <DataTable.Header rightSlot={<DataTable.RowCount loading={isLoading} />} loading={isLoading} />}
       <DataTable.Body
         loading={isLoading}
         loadingCells={isLoading}
@@ -230,44 +328,97 @@ export function DeviceCustomerCell({
   );
 }
 
-/** Opens the device's page in a new tab. Static chrome: drawn real while the row is read, and inert. */
-export function DeviceOpenCell({ machineId }: { machineId: string | null | undefined }) {
+/* ───────────── grid-table cells: one 48px line each (the card cells above stay for the cards table) ───────────── */
+
+/** A device's customer: its logo and its name on one line. */
+export function DeviceCustomerGridCell({
+  organization,
+  imageUrl,
+  imageHash,
+}: {
+  organization: string | null | undefined;
+  imageUrl: string | null | undefined;
+  imageHash: string | null | undefined;
+}) {
+  return (
+    <DataTable.Cell
+      leading={{ type: 'image', src: getFullImageUrl(imageUrl, imageHash), alt: organization || 'Customer' }}
+      text={organization ?? ''}
+    />
+  );
+}
+
+/** The device's OS: its mark and its name, the name cut when the column is narrow. */
+export function DeviceOsGridCell({ osType }: { osType: string | null | undefined }) {
+  return <OSTypeBadge osType={osType ?? undefined} iconSize="w-5 h-5" className="min-w-0 truncate" />;
+}
+
+/**
+ * Opens the device's page in a new tab. Static chrome: drawn real while the row is read, and inert. `grid` is the grid
+ * table's form: a bare 40px icon button, the action cell being its frame.
+ */
+export function DeviceOpenCell({ machineId, grid = false }: { machineId: string | null | undefined; grid?: boolean }) {
   const loading = useLoadingScope();
   if (!loading && !machineId) return null;
   return (
     <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
       <Button
         onClick={loading || !machineId ? undefined : openInNewTab(routes.devices.details(machineId))}
-        variant="outline"
+        variant={grid ? 'transparent' : 'outline'}
         size="icon"
         leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
         aria-label="Open in new tab"
-        className="bg-ods-card"
+        className={grid ? GRID_ACTION_BUTTON_CLASS : 'bg-ods-card'}
         disabled={loading}
       />
     </div>
   );
 }
 
-/** The row's Quick Query / Close toggle. Static chrome: drawn real while the row is read, and inert. */
+/**
+ * The row's Quick Query / Close toggle. Static chrome: drawn real while the row is read, and inert. `grid` is the grid
+ * table's form: the icon alone in a 56px action column, named by its `aria-label` (a card row prints the label from
+ * `md` up).
+ */
 export function QuickQueryToggle({
   isOpen,
   hasQuery,
   onToggle,
+  grid = false,
 }: {
   isOpen: boolean;
   hasQuery: boolean;
   onToggle: () => void;
+  grid?: boolean;
 }) {
   const loading = useLoadingScope();
+  const icon = isOpen ? <XmarkCircleIcon className="h-5 w-5" /> : <BracketCurlyEllipsisVrIcon className="h-5 w-5" />;
+  const label = isOpen ? 'Close quick query' : 'Open quick query';
+  const disabled = loading || (!isOpen && !hasQuery);
+  if (grid) {
+    return (
+      <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
+        <Button
+          onClick={onToggle}
+          variant="transparent"
+          size="icon"
+          disabled={disabled}
+          leftIcon={icon}
+          aria-label={label}
+          aria-expanded={isOpen}
+          className={GRID_ACTION_BUTTON_CLASS}
+        />
+      </div>
+    );
+  }
   return (
     <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
       <Button
         onClick={onToggle}
         variant="outline"
-        disabled={loading || (!isOpen && !hasQuery)}
-        leftIcon={isOpen ? <XmarkCircleIcon className="h-5 w-5" /> : <BracketCurlyEllipsisVrIcon className="h-5 w-5" />}
-        aria-label={isOpen ? 'Close quick query' : 'Open quick query'}
+        disabled={disabled}
+        leftIcon={icon}
+        aria-label={label}
         aria-expanded={isOpen}
         className="w-full bg-ods-card"
       >
