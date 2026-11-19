@@ -18,6 +18,11 @@ interface UsePagedTableOptions {
   prefix?: string;
   /** Refetch the page on screen silently (`useRefetchPage`): the auto-refresh tick. */
   refetch: () => Promise<unknown>;
+  /**
+   * The rows on screen are the previous variables' (a deferred refetch is in flight): they say nothing about the
+   * URL's cursor yet, so the stale check waits.
+   */
+  isPending?: boolean;
 }
 
 interface UsePagedTableReturn {
@@ -39,8 +44,9 @@ export function usePagedTable({
   rowCount,
   prefix,
   refetch,
+  isPending = false,
 }: UsePagedTableOptions): UsePagedTableReturn {
-  const stale = pager.isStale(pageInfo, rowCount);
+  const stale = !isPending && pager.isStale(pageInfo, rowCount);
   const { dropCursor } = pager;
   useEffect(() => {
     if (stale) dropCursor();

@@ -105,6 +105,7 @@ function DeviceVulnerabilitiesTableQuery({
     rowCount: rows.length,
     prefix: paramPrefix,
     refetch,
+    isPending,
   });
 
   return (

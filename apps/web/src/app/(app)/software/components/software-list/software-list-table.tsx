@@ -120,6 +120,7 @@ function SoftwareListTableQuery({
     rowCount: rows.length,
     prefix: paramPrefix,
     refetch,
+    isPending,
   });
   // The funnels' options: what occurs across the tenant's titles, from the server.
   const filterOptions = useSoftwareListFilters();

@@ -7,7 +7,8 @@
  *   cursors, `PageCursors`), and where `before` is accepted but the NEXT page comes back (devices, assignedDevices,
  *   availableDevices, logs: `before` must never be sent there until the backend fix).
  * - `reliableHasPrev`: `hasPreviousPage` is false on a forward page 2+ only when the server ignored the cursor and
- *   answered page 1, so the pager can catch that silent fallback (`isStaleCursorPage`). Off until checked per list.
+ *   answered page 1, so the pager can catch that silent fallback (`isStaleCursorPage`). On where the backend code was
+ *   read to set it from the page index; off elsewhere until checked.
  *
  * The pager pages back through browser history everywhere; these only decide Prev on a shared link.
  */
@@ -19,6 +20,12 @@ export interface PagedListCaps {
 
 const FORWARD_ONLY: PagedListCaps = { serverPrev: false, reliableHasPrev: false };
 const SERVER_PREV: PagedListCaps = { serverPrev: true, reliableHasPrev: false };
+/**
+ * Page-index cursors (`PageCursors`): a cursor the server cannot read decodes to page 0 and answers page 1, and
+ * `hasPreviousPage` is `page > 0` (`SoftwareInventoryService`, `VulnerabilityInventoryService`,
+ * `TenantSoftwareReadModelQuery`, `SoftwareActionService`), so page 2+ saying "nothing before" is that fallback.
+ */
+const PAGE_INDEX: PagedListCaps = { serverPrev: false, reliableHasPrev: true };
 
 export const PAGED_LISTS = {
   // Group A: last/before works.
@@ -26,14 +33,14 @@ export const PAGED_LISTS = {
   scheduleExecutions: SERVER_PREV,
   scheduleRuns: SERVER_PREV,
   // Group B: page-index cursors; `before: startCursor` reloads the same page until the backend fix.
-  softwares: FORWARD_ONLY,
-  vulnerabilities: FORWARD_ONLY,
-  softwareActions: FORWARD_ONLY,
-  softwareDevices: FORWARD_ONLY,
-  softwareVulnerabilities: FORWARD_ONLY,
-  vulnerabilityDevices: FORWARD_ONLY,
-  deviceSoftware: FORWARD_ONLY,
-  deviceVulnerabilities: FORWARD_ONLY,
+  softwares: PAGE_INDEX,
+  vulnerabilities: PAGE_INDEX,
+  softwareActions: PAGE_INDEX,
+  softwareDevices: PAGE_INDEX,
+  softwareVulnerabilities: PAGE_INDEX,
+  vulnerabilityDevices: PAGE_INDEX,
+  deviceSoftware: PAGE_INDEX,
+  deviceVulnerabilities: PAGE_INDEX,
   // Group C: `before` returns the NEXT page. Never send it.
   assignedDevices: FORWARD_ONLY,
   // Group D: forward only in the schema.

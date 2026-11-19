@@ -105,6 +105,7 @@ function DeviceSoftwareTableQuery({
     rowCount: rows.length,
     prefix: paramPrefix,
     refetch,
+    isPending,
   });
 
   return (

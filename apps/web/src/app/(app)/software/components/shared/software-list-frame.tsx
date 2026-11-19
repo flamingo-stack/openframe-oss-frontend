@@ -152,11 +152,11 @@ export function SoftwareListFrame({
 
   // Local search input keeps typing responsive; the shared hook debounces it to
   // the URL param and guards the back/forward sync-down against clobbering typing.
-  const {
-    search: searchInput,
-    setSearch: setSearchInput,
-    debouncedSearch,
-  } = useSearchParam(readString(params, searchKey), value => setParam(searchKey, value), FLEET_SEARCH_DEBOUNCE_MS);
+  const { search: searchInput, setSearch: setSearchInput } = useSearchParam(
+    readString(params, searchKey),
+    value => setParam(searchKey, value),
+    FLEET_SEARCH_DEBOUNCE_MS,
+  );
 
   const [isEmpty, setIsEmpty] = useState(false);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
@@ -181,14 +181,16 @@ export function SoftwareListFrame({
     setParams(Object.fromEntries(filterKeys.map(key => [key, next[key] ?? [...(selections[key] ?? [])]])));
 
   // Sort and the funnels travel as one deferred object so the query lags in
-  // lockstep with the search and `isPending` covers all three.
+  // lockstep with the search and `isPending` covers all three. The query reads the search from the URL, not the
+  // box's debounced value: the URL write that carries a new search drops the cursor in the same navigation, so the two
+  // can never meet in one request (the box's value runs ahead of the URL by one commit).
   const narrowing = useMemo(() => ({ sort, selections }), [sort, selections]);
   const {
     deferredFilters: deferredNarrowing,
     deferredSearch,
     deferredPage,
     isPending,
-  } = useDeferredQuery(narrowing, debouncedSearch, pager.variables);
+  } = useDeferredQuery(narrowing, readString(params, searchKey), pager.variables);
 
   const list: SoftwareListFrameRenderProps = {
     debouncedSearch: deferredSearch,

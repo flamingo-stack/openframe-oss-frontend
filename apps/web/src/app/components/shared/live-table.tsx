@@ -207,18 +207,12 @@ function LiveTableShell<T>({
 }: LiveTableShellProps<T> & LiveTableRows & { table: DataTableInstance<T> }) {
   const rows = pageSize ?? skeletonRows;
   const grid = layout === 'grid';
-  const count = showRowCount && (
+  const rowCount = showRowCount && (
     <DataTable.RowCount itemName={itemName} totalCount={totalCount} loading={loadingCells} />
   );
-  const rowCount =
-    refresh && (count || grid) ? (
-      <div className="flex items-center gap-[var(--spacing-system-xsf)]">
-        <AutoRefreshControl {...refresh} />
-        {count}
-      </div>
-    ) : (
-      count || (refresh && <AutoRefreshControl {...refresh} />)
-    );
+  // The card header's right slot is drawn OVER the column titles: it fits the short count, not a control. A table
+  // with auto-refresh moves its count, with the control, into the row above the table, as a grid table keeps it.
+  const metaRow = showHeader && (grid || refresh) && (rowCount || refresh);
   return (
     <PendingDim isPending={isPending}>
       {/* The height and the settings belong to the grid: a list left on cards passes neither. */}
@@ -230,12 +224,17 @@ function LiveTableShell<T>({
       >
         {/* The grid's results count sits above the table (a direct child: the table keeps it out of its scroll area);
             the card header carries its own in `rightSlot`, which the grid header does not draw. */}
-        {grid && showHeader && rowCount && <DataTable.Meta>{rowCount}</DataTable.Meta>}
+        {metaRow && (
+          <DataTable.Meta>
+            {rowCount}
+            {refresh && <AutoRefreshControl {...refresh} className="ml-auto" />}
+          </DataTable.Meta>
+        )}
         {showHeader && (
           <DataTable.Header
             stickyHeader={stickyHeader}
             stickyHeaderOffset={stickyHeaderOffset}
-            rightSlot={rowCount}
+            rightSlot={refresh ? undefined : rowCount}
             sort={sort}
             onSortChange={onSortChange}
             // What the body gets: a loading grid table names no column (the card header does not read it).
@@ -254,7 +253,14 @@ function LiveTableShell<T>({
           rowHeightClassName={rowHeightClassName}
         />
         {pager ? (
-          <DataTable.CursorFooter {...pager} itemName={itemName} totalCount={totalCount} loading={loadingCells} />
+          <DataTable.CursorFooter
+            {...pager}
+            // The footer's noun follows the total ("21–40 of 340 results", "1–1 of 1 result"); the row count
+            // pluralizes its own.
+            itemName={totalCount === 1 ? (itemName ?? 'result') : `${itemName ?? 'result'}s`}
+            totalCount={totalCount}
+            loading={loadingCells}
+          />
         ) : (
           footer && <DataTable.InfiniteFooter {...footer} skeletonRows={rows} />
         )}
