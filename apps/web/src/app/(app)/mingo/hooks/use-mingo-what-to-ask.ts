@@ -1,5 +1,6 @@
 'use client';
 
+import type { WhatToAskContent } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { DEVICE_CONNECTIVITY, DEVICE_STATUS } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useCallback } from 'react';
 import { fetchQuery, useRelayEnvironment } from 'react-relay';
@@ -16,7 +17,7 @@ const DEVICES_LOOKED_AT = 20;
  * online devices, read fresh on each click (so a name is one online now), go
  * into the prompts. Never rejects: a failed read gives the prompts without names.
  */
-export function useMingoWhatToAsk() {
+export function useMingoWhatToAsk(): () => Promise<WhatToAskContent> {
   const environment = useRelayEnvironment();
   return useCallback(async () => {
     try {

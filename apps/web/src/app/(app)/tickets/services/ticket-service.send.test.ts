@@ -44,26 +44,3 @@ describe('ticketService.sendMessage', () => {
     expect(sentInput()).toEqual({ dialogId: 'd-1', content: 'hi', chatType: 'CLIENT_CHAT' });
   });
 });
-
-describe('ticketService.createDialog model input', () => {
-  beforeEach(() => {
-    spies.post.mockReset();
-    spies.post.mockResolvedValue({
-      ok: true,
-      data: { data: { createDialog: { dialog: { id: 'relay-created', dialogId: 'created' }, userErrors: [] } } },
-    });
-  });
-  it('carries the chosen model through the actual shared command document and request body', async () => {
-    const model = { provider: 'OPENAI', modelName: 'gpt-test' } as const;
-    expect(await ticketService.createDialog({ agentType: 'ADMIN', model })).toBe('created');
-    expect(sentInput()).toEqual({ agentType: 'ADMIN', model });
-    const [endpoint, body] = spies.post.mock.calls[0];
-    expect(endpoint).toBe('/chat/graphql');
-    expect(body.query).toContain('CreateDialogInput!');
-    expect(body.query).toContain('createDialog(input: $input)');
-  });
-  it('leaves the legacy creation payload unchanged when no model is chosen', async () => {
-    await ticketService.createDialog({ agentType: 'ADMIN' });
-    expect(sentInput()).toEqual({ agentType: 'ADMIN' });
-  });
-});

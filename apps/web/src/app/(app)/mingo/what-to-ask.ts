@@ -3,7 +3,7 @@ import {
   recordLinkMarkdown,
   OPENFRAME_RECORD_TYPE,
 } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
-import { getAgentAccent } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { getAgentAccent, type WhatToAskContent } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { whatToAskDevicesRelayQuery$data } from '@/__generated__/whatToAskDevicesRelayQuery.graphql';
 import { decodeGlobalId } from '@/lib/relay-id';
@@ -49,7 +49,7 @@ const aboutDevice = (
  * that fits, the prompt asks without a name. A picked prompt is sent in that
  * chat, like a quick action, and its chip is drawn as one (`mingoIcon`).
  */
-export function buildMingoWhatToAsk(devices: readonly WhatToAskDevice[]) {
+export function buildMingoWhatToAsk(devices: readonly WhatToAskDevice[]): WhatToAskContent {
   const named = devices.filter(device => getDeviceName(device));
   const used = new Set<string>();
   // The most particular pick goes first, so a looser one cannot take its only fit.

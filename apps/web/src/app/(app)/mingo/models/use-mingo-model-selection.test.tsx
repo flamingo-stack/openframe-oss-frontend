@@ -1,293 +1,177 @@
-import type { ChatMessage } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+/**
+ * A Mingo chat's model: a new chat keeps its pick in a draft, a saved chat reads and changes its own, and the ⋯ entry
+ * is locked while the server would refuse the change.
+ */
+import type { ActionsMenuItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, useLayoutEffect, useState } from 'react';
+import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
-import type { DialogModelInput, MingoModelRecord } from './mingo-model.types';
-import { useMingoModelSelection } from './use-mingo-model-selection';
+import type { DialogModelState } from './dialog-model-api';
+import { useMingoModelDraftStore } from './mingo-model-draft-store';
+import {
+  type MingoModelChatState,
+  type MingoModelSelection,
+  useMingoModelSelection,
+} from './use-mingo-model-selection';
 
-const { read, update, toast, catalog } = vi.hoisted(() => ({
-  read: vi.fn(),
-  update: vi.fn(),
+const env = vi.hoisted(() => ({
+  gate: 'on' as 'on' | 'off' | 'loading',
+  fetchDialogModel: vi.fn(),
+  updateDialogModel: vi.fn(),
   toast: vi.fn(),
-  catalog: { error: null as Error | null, refetch: vi.fn() },
 }));
-vi.mock('./mingo-model-api-service', () => ({ readDialogModel: read, updateDialogModel: update }));
-vi.mock('@flamingo-stack/openframe-frontend-core/hooks', () => ({ useToast: () => ({ toast }) }));
-vi.mock('@/app/hooks/use-ai-model', () => ({
-  useAiModelStatus: () => ({
-    aiModel: { provider: 'ANTHROPIC', modelName: 'claude-default', displayName: 'Default Claude' },
-  }),
-}));
+
+vi.mock('@/app/hooks/use-feature-flag', () => ({ useFeatureFlagGate: () => env.gate }));
+vi.mock('@flamingo-stack/openframe-frontend-core/hooks', () => ({ useToast: () => ({ toast: env.toast }) }));
 vi.mock('@/app/(app)/settings/ai-settings/hooks/use-supported-models', () => ({
   useSupportedModels: () => ({
     modelsByProvider: {
-      ANTHROPIC: [{ value: 'claude-default', label: 'Default Claude' }],
-      OPENAI: [{ value: 'gpt-test', label: 'GPT Test' }],
+      ANTHROPIC: [{ value: 'claude-sonnet-5', label: 'Claude Sonnet 5' }],
+      OPENAI: [{ value: 'gpt-5.5', label: 'GPT-5.5' }],
     },
-    isLoading: false,
-    error: catalog.error,
-    refetch: catalog.refetch,
   }),
 }));
+vi.mock('./dialog-model-api', async importOriginal => ({
+  ...(await importOriginal<object>()),
+  fetchDialogModel: env.fetchDialogModel,
+  updateDialogModel: env.updateDialogModel,
+}));
 
-const CLAUDE = { provider: 'ANTHROPIC', modelName: 'claude-default', displayName: 'Default Claude' } as const;
-const GPT = { provider: 'OPENAI', modelName: 'gpt-test', displayName: 'GPT Test' } as const;
-const record = (overrides: Partial<MingoModelRecord> = {}): MingoModelRecord => ({
-  id: 'relay-a',
-  dialogId: 'a',
-  agentType: 'ADMIN',
-  contextSize: 200_000,
-  model: null,
-  effectiveModel: CLAUDE,
-  status: 'ACTIVE',
-  streamState: 'IDLE',
-  pendingApproval: null,
-  ...overrides,
-});
-let root: Root;
+const GPT = { provider: 'OPENAI' as const, modelName: 'gpt-5.5', displayName: 'GPT-5.5' };
+const SONNET = { provider: 'ANTHROPIC' as const, modelName: 'claude-sonnet-5', displayName: 'Claude Sonnet 5' };
+const IDLE: MingoModelChatState = {
+  activeDialogId: null,
+  streamingPhase: 'idle',
+  messages: [],
+  archived: false,
+  isCompacting: false,
+};
+
+let selection: MingoModelSelection;
 let container: HTMLDivElement;
+let root: Root;
 let client: QueryClient;
-let activeDialogId: string | null;
-let streamingPhase: 'idle' | 'thinking';
-let messages: ChatMessage[];
-let compacting: boolean;
-let seen: ReturnType<typeof useMingoModelSelection>;
 
-function Probe() {
-  const [draftModel, onDraftChange] = useState<DialogModelInput | null>(null);
-  const selection = useMingoModelSelection(
-    { activeDialogId, streamingPhase, messages, isCompacting: compacting, isLoading: false, activeDialog: null },
-    { draftModel, onDraftChange },
-  );
-  useLayoutEffect(() => {
-    seen = selection;
+function Probe({ chat }: { chat: MingoModelChatState }) {
+  const next = useMingoModelSelection(chat);
+  useEffect(() => {
+    selection = next;
   });
   return null;
 }
-async function render() {
-  await act(async () => {
+
+async function render(chat: Partial<MingoModelChatState> = {}) {
+  await act(async () =>
     root.render(
       <QueryClientProvider client={client}>
-        <Probe />
+        <Probe chat={{ ...IDLE, ...chat }} />
       </QueryClientProvider>,
-    );
-    await new Promise(resolve => setTimeout(resolve, 5));
-  });
+    ),
+  );
 }
-async function settle() {
-  await act(async () => {
-    await new Promise(resolve => setTimeout(resolve, 5));
-  });
-}
+
+const entry = () => selection.menuItems[0];
+const choice = (id: string): ActionsMenuItem => {
+  const all = (entry().submenu ?? []).flatMap(item => [item, ...(item.submenu ?? [])]);
+  const found = all.find(item => item.id === id);
+  if (!found) throw new Error(`no menu item ${id}`);
+  return found;
+};
 
 beforeEach(() => {
-  vi.clearAllMocks();
-  catalog.error = null;
-  catalog.refetch.mockResolvedValue({});
-  read.mockResolvedValue(record());
-  update.mockImplementation(async (_id: string, model: DialogModelInput | null) =>
-    record({ model: model ? GPT : null, effectiveModel: model ? GPT : CLAUDE, contextSize: model ? 150_000 : 200_000 }),
-  );
-  useFeatureFlagsStore.setState({ flags: { 'ai-mingo-chat-model-selection': true }, isLoaded: true });
-  activeDialogId = null;
-  streamingPhase = 'idle';
-  messages = [];
-  compacting = false;
-  client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  env.gate = 'on';
+  env.fetchDialogModel.mockReset();
+  env.updateDialogModel.mockReset();
+  env.toast.mockReset();
+  useMingoModelDraftStore.setState({ draft: null });
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   container = document.createElement('div');
-  document.body.appendChild(container);
   root = createRoot(container);
 });
+
 afterEach(() => {
   act(() => root.unmount());
-  client.clear();
-  container.remove();
-  useFeatureFlagsStore.getState().reset();
 });
 
-describe('Mingo per-chat model selection', () => {
-  it.each([false, undefined])('does not ask an older backend for new fields when the flag is %s', async enabled => {
-    useFeatureFlagsStore.setState({
-      flags: enabled === undefined ? {} : { 'ai-mingo-chat-model-selection': enabled },
-      isLoaded: true,
-    });
-    activeDialogId = 'a';
-    await render();
-    expect(seen.gate).toBe('off');
-    expect(seen.menuItems).toEqual([]);
-    expect(read).not.toHaveBeenCalled();
+describe('useMingoModelSelection', () => {
+  it('offers nothing and reads nothing while the flag is off', async () => {
+    env.gate = 'off';
+    await render({ activeDialogId: 'd-1' });
+
+    expect(selection.menuItems).toEqual([]);
+    expect(selection.current).toBeNull();
+    expect(env.fetchDialogModel).not.toHaveBeenCalled();
   });
-  it('shows neither version of the selection controls while the flag loads', async () => {
-    useFeatureFlagsStore.setState({ flags: {}, isLoaded: false });
+
+  it("keeps a new chat's pick in the draft and names it", async () => {
     await render();
-    expect(seen.gate).toBe('loading');
-    expect(seen.menuItems).toEqual([]);
-    expect(read).not.toHaveBeenCalled();
+    expect(choice('chat-model-default').checked).toBe(true);
+
+    await act(async () => choice('chat-model-OPENAI-gpt-5.5').onClick?.());
+    await render();
+
+    expect(useMingoModelDraftStore.getState().draft).toEqual(GPT);
+    expect(selection.current).toEqual(GPT);
+    expect(entry().label).toBe('GPT-5.5');
+    expect(choice('chat-model-OPENAI-gpt-5.5').checked).toBe(true);
+    expect(env.updateDialogModel).not.toHaveBeenCalled();
   });
-  it('keeps a draft selection local until its chat is created and does not reuse it in another chat', async () => {
-    await render();
-    await act(async () => {
-      await seen.selectModel(GPT);
-    });
-    expect(update).not.toHaveBeenCalled();
-    expect(seen.effectiveModel).toEqual(GPT);
-    activeDialogId = 'a';
-    await render();
-    await settle();
-    expect(seen.effectiveModel).toEqual(CLAUDE);
-    activeDialogId = null;
-    await render();
-    expect(seen.effectiveModel).toEqual(CLAUDE);
+
+  it("reads a saved chat's model and changes it on the server", async () => {
+    const saved: DialogModelState = { model: null, effectiveModel: GPT, modelTokenBudget: 150_000 };
+    env.fetchDialogModel.mockResolvedValue(saved);
+    env.updateDialogModel.mockResolvedValue({ model: SONNET, effectiveModel: SONNET, modelTokenBudget: 200_000 });
+    await render({ activeDialogId: 'd-1' });
+    await vi.waitFor(() => expect(selection.current).toEqual(GPT));
+
+    expect(env.fetchDialogModel).toHaveBeenCalledWith('d-1');
+    expect(selection.contextSize).toBe(150_000);
+    expect(choice('chat-model-default').checked).toBe(true);
+
+    await act(async () => choice('chat-model-ANTHROPIC-claude-sonnet-5').onClick?.());
+    await vi.waitFor(() => expect(selection.current).toEqual(SONNET));
+
+    expect(env.updateDialogModel).toHaveBeenCalledWith('d-1', SONNET);
+    expect(selection.contextSize).toBe(200_000);
+    expect(choice('chat-model-ANTHROPIC-claude-sonnet-5').checked).toBe(true);
   });
-  it('hydrates the saved selection, updates only the active dialog and resets explicitly to its default', async () => {
-    activeDialogId = 'a';
-    read.mockResolvedValue(record({ model: GPT, effectiveModel: GPT }));
-    await render();
-    await settle();
-    expect(seen.effectiveModel).toEqual(GPT);
-    await act(async () => {
-      await seen.selectModel(null);
-    });
-    expect(update).toHaveBeenCalledWith('relay-a', null);
-    await settle();
-    expect(seen.effectiveModel).toEqual(CLAUDE);
-    expect(seen.contextSize).toBe(200_000);
-    expect(seen.menuItems[0].submenu?.[0].checked).toBe(true);
+
+  it('puts a saved chat back on the default', async () => {
+    env.fetchDialogModel.mockResolvedValue({ model: SONNET, effectiveModel: SONNET, modelTokenBudget: 200_000 });
+    env.updateDialogModel.mockResolvedValue({ model: null, effectiveModel: GPT, modelTokenBudget: 150_000 });
+    await render({ activeDialogId: 'd-1' });
+    await vi.waitFor(() => expect(selection.current).toEqual(SONNET));
+
+    await act(async () => choice('chat-model-default').onClick?.());
+
+    expect(env.updateDialogModel).toHaveBeenCalledWith('d-1', null);
   });
-  it('preserves the displayed selection when a mutation fails and reports the backend reason', async () => {
-    activeDialogId = 'a';
-    await render();
-    await settle();
-    update.mockRejectedValue(new Error('The chat is being processed'));
-    await act(async () => {
-      await seen.selectModel(GPT);
-    });
-    expect(seen.effectiveModel).toEqual(CLAUDE);
-    expect(toast).toHaveBeenCalledWith(
-      expect.objectContaining({ description: 'The chat is being processed', variant: 'destructive' }),
+
+  it('says why a change failed', async () => {
+    env.fetchDialogModel.mockResolvedValue({ model: null, effectiveModel: GPT, modelTokenBudget: 150_000 });
+    env.updateDialogModel.mockRejectedValue(new Error('This chat is waiting for an approval'));
+    await render({ activeDialogId: 'd-1' });
+    await vi.waitFor(() => expect(selection.current).toEqual(GPT));
+
+    await act(async () => choice('chat-model-ANTHROPIC-claude-sonnet-5').onClick?.());
+
+    await vi.waitFor(() =>
+      expect(env.toast).toHaveBeenCalledWith(
+        expect.objectContaining({ description: 'This chat is waiting for an approval', variant: 'destructive' }),
+      ),
     );
   });
+
   it.each([
-    { agentType: 'CLIENT' },
-    { status: 'ARCHIVED' },
-    { status: 'RESOLVED' },
-    { streamState: 'STREAMING' },
-    { pendingApproval: { id: 'approval-a' } },
-  ] satisfies Partial<MingoModelRecord>[])('disables selection for a backend-protected state %j', async state => {
-    activeDialogId = 'a';
-    read.mockResolvedValue(record(state));
-    await render();
-    await settle();
-    expect(seen.disabled).toBe(true);
-    await act(async () => {
-      await seen.selectModel(GPT);
-    });
-    expect(update).not.toHaveBeenCalled();
-  });
-  it('disables selection immediately while the engine is writing, before the next backend poll', async () => {
-    activeDialogId = 'a';
-    streamingPhase = 'thinking';
-    await render();
-    await settle();
-    expect(seen.disabled).toBe(true);
-    expect(seen.menuItems[0].disabled).toBe(true);
-    expect(seen.menuItems[0].submenu?.every(item => item.disabled)).toBe(true);
-  });
-  it('disables selection immediately for a pending approval in the live thread', async () => {
-    activeDialogId = 'a';
-    messages = [
-      {
-        id: 'reply',
-        role: 'assistant',
-        parts: [
-          {
-            type: 'dynamic-tool',
-            toolName: 'read_note',
-            toolCallId: 'call-a',
-            state: 'approval-requested',
-            input: {},
-            approval: { id: 'approval-a' },
-          },
-        ],
-      },
-    ];
-    await render();
-    await settle();
-    expect(seen.disabled).toBe(true);
-    await act(async () => {
-      await seen.selectModel(GPT);
-    });
-    expect(update).not.toHaveBeenCalled();
-  });
-  it('disables model changes while local compaction is running', async () => {
-    compacting = true;
-    await render();
-    expect(seen.disabled).toBe(true);
-  });
-  it('shows unavailable on an incompatible backend instead of claiming the tenant default is selected', async () => {
-    activeDialogId = 'a';
-    read.mockRejectedValue(new Error('Cannot query field effectiveModel'));
-    await render();
-    await settle();
-    expect(seen.unavailable).toBe(true);
-    expect(seen.effectiveModel).toBeNull();
-    expect(seen.disabled).toBe(true);
-  });
-  it('recovers a failed model read in place without sending a selection mutation', async () => {
-    activeDialogId = 'a';
-    read.mockRejectedValue(new Error('Temporary connection failure'));
-    await render();
-    await settle();
-    expect(seen.unavailable).toBe(true);
+    ['mid-reply', { streamingPhase: 'streaming' }],
+    ['archived', { archived: true }],
+    ['compacting', { isCompacting: true }],
+  ])('locks the entry while the chat is %s', async (_, chat) => {
+    env.fetchDialogModel.mockResolvedValue({ model: null, effectiveModel: GPT, modelTokenBudget: 150_000 });
+    await render({ activeDialogId: 'd-1', ...chat });
+    await vi.waitFor(() => expect(selection.current).toEqual(GPT));
 
-    read.mockResolvedValue(record({ model: GPT, effectiveModel: GPT, contextSize: 150_000 }));
-    const retry = seen.menuItems[0].submenu?.find(item => item.label === 'Retry loading models');
-    expect(retry).toBeDefined();
-    await act(async () => retry?.onClick?.());
-    await settle();
-
-    expect(seen.unavailable).toBe(false);
-    expect(seen.disabled).toBe(false);
-    expect(seen.effectiveModel).toEqual(GPT);
-    expect(seen.contextSize).toBe(150_000);
-    expect(catalog.refetch).toHaveBeenCalledTimes(1);
-    expect(update).not.toHaveBeenCalled();
-  });
-  it('retries the catalog for a fresh draft without querying a nonexistent dialog', async () => {
-    catalog.error = new Error('Catalog unavailable');
-    catalog.refetch.mockImplementation(async () => {
-      catalog.error = null;
-      return {};
-    });
-    await render();
-    expect(seen.unavailable).toBe(true);
-    const retry = seen.menuItems[0].submenu?.find(item => item.label === 'Retry loading models');
-    expect(retry).toBeDefined();
-    await act(async () => retry?.onClick?.());
-    await render();
-
-    expect(seen.unavailable).toBe(false);
-    expect(read).not.toHaveBeenCalled();
-    expect(update).not.toHaveBeenCalled();
-  });
-  it('recovers a failed read while a reply is running without allowing a model change', async () => {
-    activeDialogId = 'a';
-    streamingPhase = 'thinking';
-    read.mockRejectedValue(new Error('Temporary connection failure'));
-    await render();
-    await settle();
-
-    expect(seen.disabled).toBe(true);
-    const retry = seen.menuItems[0].submenu?.find(item => item.label === 'Retry loading models');
-    expect(retry?.disabled).toBe(false);
-    read.mockResolvedValue(record({ streamState: 'STREAMING' }));
-    await act(async () => retry?.onClick?.());
-    await settle();
-    expect(seen.unavailable).toBe(false);
-    expect(seen.disabled).toBe(true);
-    await act(async () => seen.selectModel(GPT));
-    expect(update).not.toHaveBeenCalled();
+    expect(entry().disabled).toBe(true);
   });
 });

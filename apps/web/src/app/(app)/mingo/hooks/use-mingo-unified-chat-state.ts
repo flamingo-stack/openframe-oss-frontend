@@ -39,7 +39,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useChatRuntime } from '@flamingo-stack/openframe-frontend-core/contexts';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useMingoSheetStore } from '@/app/components/mingo-shell/mingo-sheet-store';
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
@@ -62,8 +62,12 @@ import type { MessageListRef, MessagePageRef } from '../../tickets/services/tick
 import type { GraphQlResponse } from '../../tickets/utils/graphql';
 import { CONTEXT_ITEMS_MAX, RECENT_VIEWS_MAX } from '../context/context-types';
 import { pageContextHref, resolvePageContext } from '../context/page-context';
-import type { DialogModelInput } from '../models/mingo-model.types';
-import { useMingoModelSelection } from '../models/use-mingo-model-selection';
+import { adoptDraftModel, draftModelChoice } from '../models/mingo-model-draft-store';
+import {
+  MINGO_MODEL_FLAG,
+  type MingoModelSelection,
+  useMingoModelSelection,
+} from '../models/use-mingo-model-selection';
 import { useMingoCompactionStore } from '../stores/mingo-compaction-store';
 import { useMingoContextStore } from '../stores/mingo-context-store';
 import { noteMingoToolExecuted } from '../stores/mingo-created-entities-store';
@@ -218,7 +222,8 @@ export interface MingoUnifiedChat {
   dialogNotFound: boolean;
   /** When the open dialog was created (its record), or null until read. */
   dialogCreatedAt: string | null;
-  modelSelection?: ReturnType<typeof useMingoModelSelection>;
+  /** The chat's model and the ⋯ menu entry that changes it (behind `ai-mingo-chat-model-selection`). */
+  modelSelection?: MingoModelSelection;
 }
 
 /** The ai-agent's commands, for the dialog the engine names. */
@@ -266,15 +271,11 @@ function invalidateDialogLookups(): void {
 }
 
 /** Mingo's dialog list and dialogs, with the toasts a person sees for each command. */
-function useMingoHistory(
-  draftModel: DialogModelInput | null,
-  clearDraft: () => void,
-  onCreatingChange: (creating: boolean) => void,
-): ChatHistoryBackend {
+function useMingoHistory(): ChatHistoryBackend {
   const { toast } = useToast();
   // "Compact Chat Memory" while its flag is on; the compaction watchers report how it ended.
   const compactMemoryEnabled = useFeatureFlag('mingo-compact-memory');
-  const modelSelectionEnabled = useFeatureFlag('ai-mingo-chat-model-selection');
+  const modelSelectionEnabled = useFeatureFlag(MINGO_MODEL_FLAG);
   const startCompaction = useMingoCompactionStore(s => s.startCompaction);
   // A title the app gives a dialog it creates (the Getting Started tour) is not the person's rename: no toast.
   const [appNamed] = useState(() => new Set<string>());
@@ -289,23 +290,21 @@ function useMingoHistory(
       fetchDialog: fetchMingoDialog,
       fetchDialogMessages: fetchMingoHistory,
       createDialog: async ({ title, intent, sendOptions, firstMessage }) => {
-        onCreatingChange(true);
         try {
           const insightId = insightIdOf(sendOptions, firstMessage);
+          const model = modelSelectionEnabled ? draftModelChoice() : null;
           const dialogId = await ticketService.createDialog({
             agentType: 'ADMIN',
             ...(insightId ? { insightId } : {}),
             ...(intent ? { intent: intent as DialogIntent } : {}),
-            ...(modelSelectionEnabled && draftModel ? { model: draftModel } : {}),
+            ...(model ? { model } : {}),
           });
-          clearDraft();
+          if (model) adoptDraftModel(dialogId);
           if (title) appNamed.add(dialogId);
           invalidateDialogLookups();
           return { dialogId };
         } catch (error) {
           return failed('Failed to start conversation', 'Could not create a new chat')(error);
-        } finally {
-          onCreatingChange(false);
         }
       },
       renameDialog: async (dialogId, title) => {
@@ -332,16 +331,7 @@ function useMingoHistory(
           }
         : {}),
     };
-  }, [
-    toast,
-    appNamed,
-    compactMemoryEnabled,
-    startCompaction,
-    modelSelectionEnabled,
-    draftModel,
-    clearDraft,
-    onCreatingChange,
-  ]);
+  }, [toast, appNamed, compactMemoryEnabled, modelSelectionEnabled, startCompaction]);
 }
 
 /**
@@ -385,18 +375,7 @@ export function useMingoUnifiedChatState({ onScreen }: { onScreen: boolean }): M
   const expecting = useMingoDialogRowsStore(s => awaitsOwnReply(s.rows, currentUserId));
   const refresh = useMemo<ChatEngineRefresh>(() => ({ ...MINGO_REFRESH, expecting }), [expecting]);
   const transport = useMingoTransport();
-  const [draftModel, setDraftModel] = useState<DialogModelInput | null>(null);
-  const clearDraftModel = useCallback(() => setDraftModel(null), []);
-  const creatingDialogs = useRef(0);
-  const [isCreatingDialog, setIsCreatingDialog] = useState(false);
-  const onCreatingChange = useCallback((creating: boolean) => {
-    creatingDialogs.current += creating ? 1 : -1;
-    setIsCreatingDialog(creatingDialogs.current > 0);
-  }, []);
-  const changeDraftModel = useCallback((model: DialogModelInput | null) => {
-    if (creatingDialogs.current === 0) setDraftModel(model);
-  }, []);
-  const history = useMingoHistory(draftModel, clearDraftModel, onCreatingChange);
+  const history = useMingoHistory();
   const copyDialogLink = useCopyDialogLink();
   // The slash-command catalog (the same react-query entry `EmbeddableChat` reads): what a card's Display runs.
   const commandsUrl = useChatRuntime()?.endpoints.commandsUrl ?? '';
@@ -435,16 +414,6 @@ export function useMingoUnifiedChatState({ onScreen }: { onScreen: boolean }): M
       }),
   });
 
-  const { clearMessages: clearEngineMessages } = state;
-  const clearMessages = useCallback(() => {
-    clearDraftModel();
-    clearEngineMessages();
-  }, [clearDraftModel, clearEngineMessages]);
-  const modelSelection = useMingoModelSelection(state, {
-    draftModel,
-    onDraftChange: changeDraftModel,
-    isCreatingDialog,
-  });
   const { activeDialogId, messages, streamingPhase, isMessagesLoading } = state;
   const rows = useMingoDialogRowsStore(s => s.rows);
   const missing = useMingoDialogRowsStore(s => s.missing);
@@ -476,20 +445,25 @@ export function useMingoUnifiedChatState({ onScreen }: { onScreen: boolean }): M
     [state, usagePanelEnabled, company, dialogTokenUsage],
   );
 
+  // The chat's own model (or a new chat's pick) names the footer and sizes its context bar.
+  const modelSelection = useMingoModelSelection({
+    activeDialogId,
+    streamingPhase,
+    messages,
+    archived: !!state.activeDialog?.archived,
+    isCompacting: !!state.isCompacting,
+  });
+  const { current: model, contextSize } = modelSelection;
+
   return {
-    state:
-      modelSelection.gate === 'on'
-        ? {
-            ...stateWithUsage,
-            clearMessages,
-            currentProvider: modelSelection.effectiveModel?.provider ?? null,
-            currentContextWindowMaxTokens: modelSelection.contextSize ?? state.currentContextWindowMaxTokens,
-            currentModelLabel:
-              modelSelection.effectiveModel?.displayName ??
-              modelSelection.effectiveModel?.modelName ??
-              (modelSelection.unavailable ? 'Model unavailable' : 'Loading model…'),
-          }
-        : stateWithUsage,
+    state: model
+      ? {
+          ...stateWithUsage,
+          currentProvider: model.provider,
+          currentModelLabel: model.displayName ?? model.modelName,
+          currentContextWindowMaxTokens: contextSize ?? state.currentContextWindowMaxTokens,
+        }
+      : stateWithUsage,
     modelSelection,
     dialogStatusOf,
     dialogNotFound: !!activeDialogId && missing.has(activeDialogId) && !!state.dialogError,

@@ -213,14 +213,15 @@ function setSurface({
   enabled = true,
   error = null as Error | null,
   identityEnabled = true,
-  modelSelection = undefined as
-    { gate: 'on'; disabled: boolean; unavailable: boolean; menuItems: ActionsMenuItem[] } | undefined,
+  modelMenuItems = null as ActionsMenuItem[] | null,
 } = {}) {
   surface.value = {
     chat: error
       ? null
       : {
-          modelSelection,
+          ...(modelMenuItems
+            ? { modelSelection: { gate: 'on', current: null, contextSize: null, menuItems: modelMenuItems } }
+            : {}),
           state: {
             activeDialogId,
             dialogs: [],
@@ -898,18 +899,13 @@ describe('MingoComposerDock', () => {
     expect(props().composerMenuItems).toBeUndefined();
   });
 
-  it('keeps model selection in the three-dot menus and makes the footer label display-only', () => {
-    const choices: ActionsMenuItem[] = [{ id: 'default-model', label: 'Use Default Model', type: 'radio' }];
-    const menuItems: ActionsMenuItem[] = [
-      { id: 'chat-model', label: 'GPT Test', description: 'Chat Model', type: 'submenu', submenu: choices },
-    ];
-    setSurface({ activeDialogId: 'a', modelSelection: { gate: 'on', disabled: false, unavailable: false, menuItems } });
+  it("puts the chat's model in both ⋯ menus and leaves the footer name display-only", () => {
+    const menuItems: ActionsMenuItem[] = [{ id: 'chat-model', label: 'GPT-5.5', type: 'submenu', submenu: [] }];
+    setSurface({ activeDialogId: 'a', modelMenuItems: menuItems });
     render('/mingo/chat/');
 
-    expect(props().composerFooterActions).toBeUndefined();
     expect(props().chatMenuExtraItems).toEqual(expect.arrayContaining(menuItems));
     expect(props().composerMenuItems).toEqual(menuItems);
-    expect(props().modelMenuItems).toBeUndefined();
     expect(props().onModelClick).toBeUndefined();
     expect(props().modelTooltip).toBeUndefined();
   });

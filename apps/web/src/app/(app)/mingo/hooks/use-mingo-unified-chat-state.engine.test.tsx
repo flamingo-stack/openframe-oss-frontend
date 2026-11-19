@@ -8,7 +8,11 @@ import type { UseChatEngineConfig } from '@flamingo-stack/openframe-frontend-cor
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getQueryClient } from '@/lib/query-client';
 import { mingoDialogLink } from '@/lib/routes';
+import { ticketService } from '../../tickets/services';
+import { dialogModelQueryKey } from '../models/dialog-model-api';
+import { useMingoModelDraftStore } from '../models/mingo-model-draft-store';
 import { useMingoCompactionStore } from '../stores/mingo-compaction-store';
 import { useMingoUnifiedChatState } from './use-mingo-unified-chat-state';
 
@@ -34,14 +38,15 @@ vi.mock('@flamingo-stack/openframe-frontend-core/contexts', () => ({
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', () => ({ useToast: () => ({ toast, dismiss: vi.fn() }) }));
 vi.mock('@/app/hooks/use-feature-flag', () => ({ useFeatureFlag: (name: string) => flags.get(name) ?? false }));
 vi.mock('@/app/hooks/use-ai-model', () => ({ useAiModelStatus: () => ({ aiModel: null }) }));
-vi.mock('../models/use-mingo-model-selection', () => ({
-  useMingoModelSelection: () => ({ gate: 'off', menuItems: [] }),
-}));
 vi.mock('@/lib/nats/nats-app-config', () => ({
   useNatsAppConfig: () => ({ getWsUrl: () => 'wss://nats.test', onBeforeReconnect: undefined }),
 }));
 vi.mock('@/lib/runtime-config', () => ({ runtimeEnv: { tenantHostUrl: () => tenantHost.url } }));
 vi.mock('./use-mingo-dialog-row-status', () => ({ useMingoDialogRowStatus: () => () => undefined }));
+vi.mock('../models/use-mingo-model-selection', () => ({
+  MINGO_MODEL_FLAG: 'ai-mingo-chat-model-selection',
+  useMingoModelSelection: () => ({ gate: 'off', current: null, contextSize: null, menuItems: [] }),
+}));
 
 let container: HTMLDivElement;
 let root: Root;
@@ -108,6 +113,31 @@ describe('useMingoUnifiedChatState: the engine config', () => {
     expect(toast).toHaveBeenCalledWith(
       expect.objectContaining({ title: 'Rejection Failed', description: 'Unable to resolve request' }),
     );
+  });
+
+  it("creates a new chat on the draft's model behind its flag, then lets the draft go", async () => {
+    const createDialog = vi.spyOn(ticketService, 'createDialog').mockResolvedValue('d-new');
+    const gpt = { provider: 'OPENAI' as const, modelName: 'gpt-5.5', displayName: 'GPT-5.5' };
+    useMingoModelDraftStore.setState({ draft: gpt });
+
+    render();
+    await act(async () => {
+      await config().history?.createDialog?.({});
+    });
+    expect(createDialog).toHaveBeenLastCalledWith({ agentType: 'ADMIN' });
+    expect(useMingoModelDraftStore.getState().draft).toEqual(gpt);
+
+    flags.set('ai-mingo-chat-model-selection', true);
+    render();
+    await act(async () => {
+      await config().history?.createDialog?.({});
+    });
+    expect(createDialog).toHaveBeenLastCalledWith({
+      agentType: 'ADMIN',
+      model: { provider: 'OPENAI', modelName: 'gpt-5.5' },
+    });
+    expect(useMingoModelDraftStore.getState().draft).toBeNull();
+    expect(getQueryClient().getQueryData(dialogModelQueryKey('d-new'))).toMatchObject({ effectiveModel: gpt });
   });
 
   it('offers Compact behind its flag, and says when one is already running', async () => {

@@ -9,13 +9,11 @@ coverage
 # Code generators own these — reformatting them produces a diff on every
 # regeneration, in a file nobody edits by hand.
 src/__generated__
-src/chat/__generated__
 src/generated
 
 # Tool-owned.
 package-lock.json
 schema.graphql
-schema.chat.graphql
 
 # Not formatted by anything today; including them would bury the code diff.
 *.md

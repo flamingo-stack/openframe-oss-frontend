@@ -5,6 +5,7 @@ import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { FormEvent } from 'react';
 import { type UseFormReturn, useForm } from 'react-hook-form';
+import { MINGO_MODEL_FLAG } from '@/app/(app)/mingo/models/use-mingo-model-selection';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { useHubDefaultQuickActions } from '../hooks/use-hub-default-quick-actions';
 import { getProviderModelLabel, useSupportedModels } from '../hooks/use-supported-models';
@@ -63,8 +64,8 @@ function MingoAiChatOverview({
 }
 
 export function MingoAiChatTab({ aiConfig, ...props }: MingoAiChatTabProps) {
-  const modelGate = useFeatureFlagGate('ai-mingo-chat-model-selection');
-  const showModelControls = modelGate === 'off';
+  // With the per-chat model on, each chat picks its own model in Mingo; until the flag answers the fields stay.
+  const showModelControls = useFeatureFlagGate(MINGO_MODEL_FLAG) !== 'on';
   // The form below is seeded once from the configuration, so it mounts only when that is in hand. Until then the tab
   // the user asked for (the editor on an edit deep link, else the overview) draws itself in a loading scope.
   if (useLoadingScope() || aiConfig == null) {

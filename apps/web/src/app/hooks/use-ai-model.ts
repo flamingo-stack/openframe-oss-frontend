@@ -5,7 +5,6 @@ import { getProviderModelLabel, useSupportedModels } from '@/app/(app)/settings/
 
 export interface AiModel {
   provider: string;
-  modelName?: string;
   displayName: string;
 }
 
@@ -23,7 +22,6 @@ export function useAiModelStatus() {
   const aiModel: AiModel | null = config?.providerModel
     ? {
         provider: config.llmProvider,
-        modelName: config.providerModel,
         displayName: getProviderModelLabel(modelsByProvider, config.llmProvider, config.providerModel),
       }
     : null;

@@ -51,13 +51,7 @@ export function useSupportedModels() {
     },
   });
 
-  return {
-    modelsByProvider: query.data,
-    isLoading: query.isLoading,
-    error: query.error,
-    isFetching: query.isFetching,
-    refetch: query.refetch,
-  };
+  return { modelsByProvider: query.data, isLoading: query.isLoading, error: query.error };
 }
 
 /** Resolves a stored model name to its display name; falls back to the raw value. */

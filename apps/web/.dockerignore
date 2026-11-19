@@ -10,7 +10,6 @@
 !postcss.config.js
 !relay.config.json
 !schema.graphql
-!schema.chat.graphql
 !src
 !scripts
 !public

@@ -1,6 +1,6 @@
 /**
  * What OpenFrame's chat can do, as the dock hands it to `EmbeddableChat`: the row status
- * glyphs and quick actions whose instructions go into the
+ * glyphs and "What to ask Mingo?", and quick actions whose instructions go into the
  * composer. The session's engine and its dialog actions reach the panel through
  * `ChatEngineProvider`, not as props.
  */
@@ -10,6 +10,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeFakeChat } from '@/app/(app)/mingo/providers/__tests__/fake-mingo-chat';
 import { type OpenframeChatProps, useOpenframeChatProps } from './use-openframe-chat-props';
+
+const { whatToAsk } = vi.hoisted(() => ({ whatToAsk: async () => [] }));
 
 vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({
   getAgentAccent: () => 'mingo',
@@ -30,6 +32,7 @@ vi.mock('@/app/(app)/mingo/hooks/use-mingo-quick-actions', () => ({
     loading: false,
   }),
 }));
+vi.mock('@/app/(app)/mingo/hooks/use-mingo-what-to-ask', () => ({ useMingoWhatToAsk: () => whatToAsk }));
 vi.mock('@/app/(auth)/auth/stores/auth-store', () => ({
   useAuthStore: (select: (state: { user: { firstName: string; lastName: string } }) => unknown) =>
     select({ user: { firstName: 'Ann', lastName: 'Lee' } }),
@@ -64,13 +67,13 @@ afterEach(() => {
 });
 
 describe('useOpenframeChatProps', () => {
-  it('hands the chat the row status and identity without removed or engine-owned props', () => {
+  it('hands the chat the row status and What to ask Mingo, and no engine of its own', () => {
     expect(seen.props).toMatchObject({
       dialogStatusOf: chat.dialogStatusOf,
+      whatToAsk,
       modes: {},
       userDisplayName: 'Ann Lee',
     });
-    expect(seen.props).not.toHaveProperty('whatToAsk');
     expect(seen.props).not.toHaveProperty('mingoState');
     expect(seen.props).not.toHaveProperty('mingoDialogCapabilities');
   });
