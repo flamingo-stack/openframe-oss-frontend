@@ -361,6 +361,18 @@ describe('the grid layout', () => {
     expectOneLineCells();
   });
 
+  it('Device > Vulnerabilities (Fleet): the open action follows the details link in a new tab', () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    render(<FleetVulnerabilitiesTab device={DEVICE} tableLayout="grid" />);
+    act(() => button('Open CVE-2026-1001 details')?.click());
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open.mock.calls[0]?.slice(0, 2)).toEqual(['https://nvd.nist.gov/vuln/detail/CVE-2026-1001', '_blank']);
+    // No link, nothing to follow.
+    act(() => button('Open CVE-2026-1002 details')?.click());
+    expect(open).toHaveBeenCalledTimes(1);
+    open.mockRestore();
+  });
+
   it('Device > Remote sessions: Delete and Open are a column each, each cell one line', () => {
     render(<DeviceSessionsTable layout="grid" />);
     expect(gridColumns()).toEqual(['session', 'employee', 'duration', 'expires']);

@@ -33,6 +33,7 @@ import { ValueGridCell } from '@/app/components/shared/value-grid-cell';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import type { TableLayout } from '@/app/hooks/use-table-layout';
 import { formatDate, toValidDate } from '@/lib/format-date';
+import { openInNewTab } from '@/lib/open-in-new-tab';
 import { pluralize } from '@/lib/pluralize';
 import type { Device, Software, Vulnerability } from '../../types/device.types';
 import { deviceQueryKeys } from '../../utils/query-keys';
@@ -305,7 +306,7 @@ export function FleetVulnerabilitiesTab({ device, tableLayout = 'cards' }: Fleet
               grid
               label={`Open ${row.original.cve} details`}
               disabled={!row.original.details_link}
-              onClick={() => window.open(row.original.details_link, '_blank', 'noopener,noreferrer')}
+              onClick={openInNewTab(row.original.details_link)}
             />
           ),
         }),
