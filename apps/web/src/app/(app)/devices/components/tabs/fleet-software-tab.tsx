@@ -13,6 +13,8 @@ import {
 import {
   type ColumnDef,
   DataTable,
+  type DataTableSettings,
+  GRID_MIN_WIDTH,
   type Row,
   SearchInput,
   type SortingState,
@@ -26,8 +28,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { type ComponentType, useMemo, useState } from 'react';
 import { LIVE_ROW_GAP_CLASS, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
+import { ValueGridCell } from '@/app/components/shared/value-grid-cell';
 import { ValueText } from '@/app/components/shared/value-text';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import type { TableLayout } from '@/app/hooks/use-table-layout';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { toValidDate } from '@/lib/format-date';
 import type { Device, Software } from '../../types/device.types';
@@ -44,8 +48,19 @@ const FLEET_SOFTWARE_COLUMNS = {
   lastUsed: { id: 'last_opened_at', header: 'LAST USED', width: 'w-[140px] shrink-0', hideAt: 'md' },
 } satisfies Record<string, TableSkeletonColumn>;
 
+/**
+ * The grid table's settings: the gear's menu of columns, with the viewer's layout kept in the browser under this
+ * table's own key (the module's software table on the same tab has another).
+ */
+const FLEET_SOFTWARE_TABLE_SETTINGS: DataTableSettings = { storageKey: 'device-fleet-software' };
+
 interface FleetSoftwareTabProps {
   device: Device | null;
+  /**
+   * The table's layout. `grid` draws the lib's grid table (48px one-line rows, the software column pinned, the gear
+   * menu), at the tab's natural height: the page scrolls. Default `cards`.
+   */
+  tableLayout?: TableLayout;
 }
 
 const EMPTY_SOFTWARE: Software[] = [];
@@ -91,6 +106,23 @@ function SoftwareNameCell({ name, version }: { name: string; version: string | u
   );
 }
 
+/** The grid's one line: the title with its version after it. */
+function SoftwareNameGridCell({ name, version }: { name: string | undefined; version: string | undefined }) {
+  return <DataTable.Cell text={name ?? ''} secondary={version || undefined} />;
+}
+
+/** The grid's one line: the source's glyph and label; a bar of the glyph's size while the row is read. */
+function SourceGridCell({ source }: { source: string | undefined }) {
+  const loading = useLoadingScope();
+  const { Icon: SourceGlyph, label } = getSourceIcon(source ?? '');
+  return (
+    <DataTable.Cell
+      leading={{ type: 'icon', icon: loading ? <MediaSkeleton.Icon size="sm" /> : <SourceGlyph className="size-5" /> }}
+      text={loading ? '' : label}
+    />
+  );
+}
+
 /** Where the title came from, glyph and label; on a loading row the glyph is a bar of its size and the label a bar. */
 function SourceCell({ source }: { source: string | undefined }) {
   const loading = useLoadingScope();
@@ -132,7 +164,7 @@ function LastUsedCell({ date }: { date: string | undefined }) {
  * whole list. What `SoftwareTab` draws while `software-management` is off; with
  * the module on it draws the module's table instead (`software-tab.tsx`).
  */
-export function FleetSoftwareTab({ device }: FleetSoftwareTabProps) {
+export function FleetSoftwareTab({ device, tableLayout = 'cards' }: FleetSoftwareTabProps) {
   const loading = useLoadingScope();
   const queryClient = useQueryClient();
   const allSoftware = device?.software || EMPTY_SOFTWARE;
@@ -158,14 +190,25 @@ export function FleetSoftwareTab({ device }: FleetSoftwareTabProps) {
           <SoftwareNameCell name={row.original.name} version={row.original.version} />
         ),
         enableSorting: true,
-        meta: liveColumnMeta(FLEET_SOFTWARE_COLUMNS.name),
+        size: 320,
+        meta: liveColumnMeta(FLEET_SOFTWARE_COLUMNS.name, {
+          label: 'Software',
+          gridCell: ({ row }: { row: Row<Software> }) => (
+            <SoftwareNameGridCell name={row.original.name} version={row.original.version} />
+          ),
+        }),
       },
       {
         accessorKey: 'source',
         header: FLEET_SOFTWARE_COLUMNS.source.header,
         cell: ({ row }: { row: Row<Software> }) => <SourceCell source={row.original.source} />,
         enableSorting: true,
-        meta: liveColumnMeta(FLEET_SOFTWARE_COLUMNS.source),
+        size: 200,
+        minSize: GRID_MIN_WIDTH.icon,
+        meta: liveColumnMeta(FLEET_SOFTWARE_COLUMNS.source, {
+          label: 'Source',
+          gridCell: ({ row }: { row: Row<Software> }) => <SourceGridCell source={row.original.source} />,
+        }),
       },
       {
         id: FLEET_SOFTWARE_COLUMNS.vulnerabilities.id,
@@ -181,7 +224,9 @@ export function FleetSoftwareTab({ device }: FleetSoftwareTabProps) {
           if (a === b) return 0;
           return a > b ? 1 : -1;
         },
-        meta: liveColumnMeta(FLEET_SOFTWARE_COLUMNS.vulnerabilities),
+        size: 160,
+        // One line already (a tag): the grid draws the same cell.
+        meta: liveColumnMeta(FLEET_SOFTWARE_COLUMNS.vulnerabilities, { label: 'Vulnerabilities' }),
       },
       {
         id: FLEET_SOFTWARE_COLUMNS.filePath.id,
@@ -192,14 +237,24 @@ export function FleetSoftwareTab({ device }: FleetSoftwareTabProps) {
           return path ? <TruncateText>{path}</TruncateText> : <ValueText value={null} />;
         },
         enableSorting: false,
-        meta: liveColumnMeta(FLEET_SOFTWARE_COLUMNS.filePath),
+        size: 320,
+        meta: liveColumnMeta(FLEET_SOFTWARE_COLUMNS.filePath, {
+          label: 'File path',
+          gridCell: ({ row }: { row: Row<Software> }) => <ValueGridCell value={row.original.installed_paths?.[0]} />,
+        }),
       },
       {
         accessorKey: 'last_opened_at',
         header: FLEET_SOFTWARE_COLUMNS.lastUsed.header,
         cell: ({ row }: { row: Row<Software> }) => <LastUsedCell date={row.original.last_opened_at} />,
         enableSorting: true,
-        meta: liveColumnMeta(FLEET_SOFTWARE_COLUMNS.lastUsed),
+        size: 160,
+        meta: liveColumnMeta(FLEET_SOFTWARE_COLUMNS.lastUsed, {
+          label: 'Last used',
+          gridCell: ({ row }: { row: Row<Software> }) => (
+            <ValueGridCell value={formatLastUsed(row.original.last_opened_at)} />
+          ),
+        }),
       },
     ],
     [],
@@ -300,8 +355,13 @@ export function FleetSoftwareTab({ device }: FleetSoftwareTabProps) {
         </div>
       )}
 
-      <DataTable table={table}>
-        {!isEmpty && <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />}
+      {/* The settings belong to the grid; the table keeps its natural height in both layouts (the page scrolls). */}
+      <DataTable
+        table={table}
+        layout={tableLayout}
+        settings={tableLayout === 'grid' ? FLEET_SOFTWARE_TABLE_SETTINGS : undefined}
+      >
+        {!isEmpty && <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} loading={loading} />}
         <DataTable.Body
           loadingCells={loading}
           skeletonRows={FLEET_SOFTWARE_SKELETON_ROWS}

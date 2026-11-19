@@ -6,6 +6,7 @@ import {
   type ColumnDef,
   type ColumnFiltersState,
   DataTable,
+  type DataTableSettings,
   type DateFilterResult,
   type DateRange,
   FilterModal,
@@ -23,6 +24,7 @@ import type { TableDateFilter } from '@/app/components/shared/date-column-header
 import { LIVE_ROW_GAP_CLASS, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { useNow } from '@/app/hooks/use-now';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import type { TableLayout } from '@/app/hooks/use-table-layout';
 import { dateRangeToInstantBounds } from '@/lib/date-filter-params';
 import { formatDateTime } from '@/lib/format-date';
 import { useLiveRows } from '../../hooks/use-remote-session-watch-gate';
@@ -35,8 +37,19 @@ import { liveSessionRowClass, remoteSessionColumns } from '../remote-sessions/re
 import { EXPIRES_FILTER_OPTIONS, sessionHref } from '../remote-sessions/session-status';
 import { TabEmptyState } from './tab-empty-state';
 
+/**
+ * The grid table's settings: the gear's menu of columns, with the viewer's layout (hidden columns, their order, resized
+ * widths) kept in the browser under this table's own key.
+ */
+const REMOTE_SESSIONS_TABLE_SETTINGS: DataTableSettings = { storageKey: 'device-remote-sessions' };
+
 interface RemoteSessionsTabProps {
   device: Device | null;
+  /**
+   * The table's layout. `grid` draws the lib's grid table (48px one-line rows, the session column pinned, Delete and
+   * Open as action columns, the gear menu), at the tab's natural height: the page scrolls. Default `cards`.
+   */
+  tableLayout?: TableLayout;
 }
 
 const EMPTY_RECORDINGS: RecordingSummary[] = [];
@@ -75,7 +88,7 @@ export function emptyDescription({
 const MODAL_FILTER_IDS = [REMOTE_SESSION_COLUMNS.employee.id, REMOTE_SESSION_COLUMNS.expires.id];
 
 /** Remote sessions of this device, one row per session, each opening the recording it produced. */
-export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
+export function RemoteSessionsTab({ device, tableLayout = 'cards' }: RemoteSessionsTabProps) {
   const router = useRouter();
   const deviceId = device?.machineId ?? null;
   // The device or the recordings gate has not answered (a loading scope): nothing is asked for until both have, so a
@@ -198,8 +211,9 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
           if (href) router.push(href);
         },
         onDelete: setDeleteTarget,
+        layout: tableLayout,
       }),
-    [dateFilter, employeeOptions, now, liveRows, router],
+    [dateFilter, employeeOptions, now, liveRows, router, tableLayout],
   );
   const rowHref = (row: RecordingSummary) => sessionHref(row, liveRows);
   const rowClassName = (row: RecordingSummary) => cn(LIVE_ROW_GAP_CLASS, liveSessionRowClass(row, liveRows));
@@ -260,6 +274,8 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
   const hasSearch = debouncedSearch.trim().length > 0;
   const isNarrowed = hasSearch || dateRange !== undefined;
   const isEmpty = recordings.length === 0;
+  // The header's calendar is the only way to clear an applied date range, so the header stays with one.
+  const showHeader = isLoading || !isEmpty || dateRange !== undefined;
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]" style={containerStyle}>
@@ -293,8 +309,20 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
         </div>
       )}
 
-      <DataTable table={table}>
-        {(isLoading || !isEmpty || dateRange !== undefined) && (
+      {/* The settings belong to the grid; the table keeps its natural height in both layouts (the page scrolls). */}
+      <DataTable
+        table={table}
+        layout={tableLayout}
+        settings={tableLayout === 'grid' ? REMOTE_SESSIONS_TABLE_SETTINGS : undefined}
+      >
+        {/* The grid's results count sits above the table, shown where the header is; the card header carries its own
+            (`rightSlot`), which the grid header does not draw. */}
+        {showHeader && tableLayout === 'grid' && (
+          <DataTable.Meta>
+            <DataTable.RowCount itemName="result" loading={isLoading} />
+          </DataTable.Meta>
+        )}
+        {showHeader && (
           <DataTable.Header
             stickyHeader
             stickyHeaderOffset={stickyHeaderOffset}
@@ -304,6 +332,7 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
             // mockup - counts the table's row model, so search and the
             // employee funnel both narrow it.
             rightSlot={<DataTable.RowCount itemName="result" loading={isLoading} />}
+            loading={isLoading}
           />
         )}
         <DataTable.Body

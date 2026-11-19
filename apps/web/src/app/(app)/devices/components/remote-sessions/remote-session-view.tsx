@@ -28,6 +28,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { useTicketSearchOptions } from '@/app/(app)/tickets/hooks/use-ticket-options';
 import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
+import { tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { formatDate, formatDateTime } from '@/lib/format-date';
 import { loadErrorProps, queryState } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
@@ -85,6 +86,8 @@ interface RemoteSessionViewProps {
  */
 export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   const handleBack = useSafeBack(routes.devices.list);
+  // The new grid table (the assigned tickets), behind the app's one table flag; card rows while it is off.
+  const tableGate = useTableGridGate();
   const { toast } = useToast();
   const recordingQuery = useSessionRecording(recordingId);
   const recording = recordingQuery.data;
@@ -357,10 +360,15 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
             />
           </div>
         )}
-        {/* With no ticket linked the whole section, title included, is left out. */}
-        {!isFullscreen && tickets.length > 0 && (
+        {/* With no ticket linked the whole section, title included, is left out. It also waits for the table flag's
+            answer (it is drawn only once its tickets are read anyway), so its table never draws one layout and swaps. */}
+        {!isFullscreen && tickets.length > 0 && tableGate !== 'loading' && (
           <div data-loading-optional>
-            <RecordingTicketsSection tickets={tickets} onUnassign={setUnassignTarget} />
+            <RecordingTicketsSection
+              tickets={tickets}
+              onUnassign={setUnassignTarget}
+              tableLayout={tableLayoutFor(tableGate)}
+            />
           </div>
         )}
       </div>

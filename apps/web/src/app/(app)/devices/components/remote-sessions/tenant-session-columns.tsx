@@ -3,8 +3,10 @@
 import { MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
+  DataTable,
   type DateRange,
   EntityImage,
+  GRID_MIN_WIDTH,
   type Row,
   TruncateText,
   useLoadingScope,
@@ -14,7 +16,9 @@ import type { tenantRemoteSessionsRelay_row$key as TenantSessionRowKey } from '@
 import type { tenantRemoteSessionsRelayQuery$variables as TenantSessionsVariables } from '@/__generated__/tenantRemoteSessionsRelayQuery.graphql';
 import type { TableDateFilter } from '@/app/components/shared/date-column-header';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
+import { ValueGridCell } from '@/app/components/shared/value-grid-cell';
 import { ValueText } from '@/app/components/shared/value-text';
+import type { TableLayout } from '@/app/hooks/use-table-layout';
 import { RemoteSessionListState, RemoteSessionSortField, SortDirection } from '@/generated/schema-enums';
 import { tenantRemoteSessionsRelayRowFragment } from '@/graphql/remote-sessions/tenant-remote-sessions-relay';
 import { dateRangeToInstantBounds } from '@/lib/date-filter-params';
@@ -22,7 +26,7 @@ import { multiSelectFilterFn } from '@/lib/table-filters';
 import { customerLogoUrl, fromWireSession, readSession } from '../../services/session-recordings-api-service';
 import type { RecordingSummary } from '../../types/session-recording';
 import { REMOTE_SESSION_COLUMNS } from './remote-session-column-layout';
-import { remoteSessionColumns } from './remote-session-columns';
+import { REMOTE_SESSION_GRID_ACTIONS, remoteSessionColumns } from './remote-session-columns';
 import { type ExpiresFilterValue, isRecordingGone, type LiveRows } from './session-status';
 
 // The tenant-wide Remote Sessions page (the Devices page's second tab): the
@@ -144,6 +148,8 @@ export interface TenantSessionColumnsOptions {
   liveRows: LiveRows | null;
   onOpen: (row: TenantSessionRow) => void;
   onDelete: (row: TenantSessionRow) => void;
+  /** The table's layout (the device tab's own option): `grid` gives Delete and Open a column each. Default `cards`. */
+  layout?: TableLayout;
 }
 
 /** The device's icon, name and hostname. On a loading row the icon is drawn real and both lines draw their bars. */
@@ -188,6 +194,35 @@ function CustomerCell({ row }: { row: TenantSessionRow }) {
   );
 }
 
+/** The grid's one line: the device's icon and name, the hostname after it when it differs. */
+function DeviceGridCell({ row }: { row: TenantSessionRow }) {
+  const loading = useLoadingScope() && !row.device;
+  if (!loading && !row.device) return <ValueGridCell value={null} />;
+  const { name = '', hostname = null } = row.device ?? {};
+  return (
+    <DataTable.Cell
+      leading={{ type: 'icon', icon: <MonitorIcon className="size-5" /> }}
+      text={name}
+      tone={isRecordingGone(row) ? 'secondary' : 'primary'}
+      secondary={hostname && hostname !== name ? hostname : undefined}
+    />
+  );
+}
+
+/** The grid's one line: the customer's logo and name. */
+function CustomerGridCell({ row }: { row: TenantSessionRow }) {
+  const loading = useLoadingScope() && !row.customer;
+  if (!loading && !row.customer?.name) return <ValueGridCell value={null} />;
+  const { name = '', logoUrl = null } = row.customer ?? {};
+  return (
+    <DataTable.Cell
+      leading={{ type: 'image', src: logoUrl, alt: name }}
+      text={name}
+      tone={isRecordingGone(row) ? 'secondary' : 'primary'}
+    />
+  );
+}
+
 /**
  * The page's columns: SESSION, EXPIRES and the Delete / Open actions are the
  * device tab's own (same tags, cells and row rules), with DEVICE and CUSTOMER
@@ -203,6 +238,7 @@ export function tenantSessionColumns({
   liveRows,
   onOpen,
   onDelete,
+  layout = 'cards',
 }: TenantSessionColumnsOptions): ColumnDef<TenantSessionRow>[] {
   const shared = remoteSessionColumns<TenantSessionRow>({
     dateFilter,
@@ -211,6 +247,7 @@ export function tenantSessionColumns({
     liveRows,
     onOpen,
     onDelete,
+    layout,
   });
   const pick = (id: string): ColumnDef<TenantSessionRow> => {
     const column = shared.find(candidate => candidate.id === id);
@@ -227,8 +264,12 @@ export function tenantSessionColumns({
       cell: ({ row }: { row: Row<TenantSessionRow> }) => <DeviceCell row={row.original} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,
+      size: 280,
+      minSize: GRID_MIN_WIDTH.icon,
       meta: liveColumnMeta(TENANT_SESSION_COLUMNS.device, {
+        label: 'Device',
         filter: { options: deviceOptions, pending: optionsPending },
+        gridCell: ({ row }: { row: Row<TenantSessionRow> }) => <DeviceGridCell row={row.original} />,
       }),
     },
     {
@@ -238,11 +279,18 @@ export function tenantSessionColumns({
       cell: ({ row }: { row: Row<TenantSessionRow> }) => <CustomerCell row={row.original} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,
+      size: 260,
+      minSize: GRID_MIN_WIDTH.media,
       meta: liveColumnMeta(TENANT_SESSION_COLUMNS.customer, {
+        label: 'Customer',
         filter: { options: customerOptions, pending: optionsPending },
+        gridCell: ({ row }: { row: Row<TenantSessionRow> }) => <CustomerGridCell row={row.original} />,
       }),
     },
     pick(TENANT_SESSION_COLUMNS.expires.id),
-    pick(TENANT_SESSION_COLUMNS.actions.id),
+    // The card rows' one actions column, or the grid's Delete and Open columns.
+    ...(layout === 'grid'
+      ? [pick(REMOTE_SESSION_GRID_ACTIONS.delete), pick(REMOTE_SESSION_GRID_ACTIONS.open)]
+      : [pick(TENANT_SESSION_COLUMNS.actions.id)]),
   ];
 }
