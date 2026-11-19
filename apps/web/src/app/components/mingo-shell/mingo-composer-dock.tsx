@@ -596,15 +596,12 @@ function DockChat({ route, chat }: DockChatProps) {
           }
           modelTooltip={
             modelSelection?.gate === 'on'
-              ? modelSelection.unavailable
-                ? 'Could not load chat models. Retry from the model menu.'
-                : 'Change the model for this chat'
+              ? undefined
               : modelSelection?.gate === 'loading'
                 ? 'Loading model settings'
                 : 'Change in Settings → AI Settings'
           }
           composerMenuItems={modelSelection?.gate === 'on' ? modelMenuItems : undefined}
-          modelMenuItems={modelSelection?.gate === 'on' ? modelMenuItems[0]?.submenu : undefined}
           // Over the page the thread is the chat's: its prompt; behind it, "continue or ask anew".
           composerPlaceholder={
             startWorkColumn

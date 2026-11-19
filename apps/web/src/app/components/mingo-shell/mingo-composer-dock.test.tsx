@@ -898,7 +898,7 @@ describe('MingoComposerDock', () => {
     expect(props().composerMenuItems).toBeUndefined();
   });
 
-  it('uses the current-model submenu in header and composer without an extra footer control', () => {
+  it('keeps model selection in the three-dot menus and makes the footer label display-only', () => {
     const choices: ActionsMenuItem[] = [{ id: 'default-model', label: 'Use Default Model', type: 'radio' }];
     const menuItems: ActionsMenuItem[] = [
       { id: 'chat-model', label: 'GPT Test', description: 'Chat Model', type: 'submenu', submenu: choices },
@@ -909,8 +909,9 @@ describe('MingoComposerDock', () => {
     expect(props().composerFooterActions).toBeUndefined();
     expect(props().chatMenuExtraItems).toEqual(expect.arrayContaining(menuItems));
     expect(props().composerMenuItems).toEqual(menuItems);
-    expect(props().modelMenuItems).toEqual(choices);
+    expect(props().modelMenuItems).toBeUndefined();
     expect(props().onModelClick).toBeUndefined();
+    expect(props().modelTooltip).toBeUndefined();
   });
 
   // MISSING 3.6-3.8: the thread on the chat page is the session's, with everything the
