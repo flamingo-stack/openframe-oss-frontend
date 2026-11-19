@@ -468,14 +468,12 @@ describe('Users tables, the grid', () => {
     expect(body).toContain('Acme Corp+1Acme tenant');
     expect(body).toContain('OLIVIA-LAPTOP+1');
     expect(body).toContain('ActiveLast sign-in: 5 min');
-    // A person no account explains: every cell has its empty form, and the open button is drawn inert.
+    // A person no account explains: every cell has its empty form, and there is no open button, as in the card row.
     expect(body).toContain('Sam Reed—');
     expect(body).toContain('—Added in OpenFrame');
     expect(body).toContain('SuspendedLast sign-in: Never');
     expect(bodyButtons(container, 'Open Olivia Grant in new tab')).toHaveLength(1);
-    const inert = bodyButtons(container, 'Open Sam Reed in new tab');
-    expect(inert).toHaveLength(1);
-    expect((inert[0] as HTMLButtonElement).disabled).toBe(true);
+    expect(bodyButtons(container, 'Open Sam Reed in new tab')).toHaveLength(0);
     // The row still links to the user's page.
     expect(container.querySelector('[data-grid-body] a[href*="acc-1"]')).not.toBeNull();
   });

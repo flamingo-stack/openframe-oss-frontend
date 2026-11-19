@@ -534,6 +534,22 @@ describe('Software tables, grid layout (the flag on)', () => {
     expect(gridBodyText(container)).toContain('Front desk');
   });
 
+  it.each([
+    ['a software title’s vulnerabilities', softwareVulnerabilitiesTable],
+    ['the vulnerability list', vulnerabilityTable],
+  ] as const)(
+    '%s draws a vulnerability with no discovery date as the grid cell with the empty mark',
+    (_name, table) => {
+      const { container } = mountInScope(table());
+      const [dated, empty] = container.querySelectorAll('[data-grid-body] [data-grid-col="discoveredAt"]');
+
+      expect(dated.textContent).toContain('10 days');
+      expect(empty.textContent).toBe('—');
+      // The same cell as the dated row's (the lib's grid cell), not the card rows' empty text.
+      expect(empty.firstElementChild?.className).toBe(dated.firstElementChild?.className);
+    },
+  );
+
   it('a list page’s table is the page’s scroll area', () => {
     for (const table of [vulnerabilityTable, softwareActionsTable]) {
       const { container } = mountInScope(table(), { fill: true });

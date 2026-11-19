@@ -33,12 +33,10 @@ import {
   useRetryKey,
 } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
-import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { openRowColumn } from '@/app/components/shared/open-row-column';
 import { useTableGrid } from '@/app/components/shared/table-layout-scope';
 import { DirectoryReadability, TopAdminState } from '@/generated/schema-enums';
 import { toClaimingCustomer } from '@/graphql/directory/customer-claim-fields';
-import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { multiColumnFilter } from '../../../software/components/shared/column-filters';
@@ -258,19 +256,10 @@ function buildColumns(options: UserFilterOptions, customerScoped: boolean): Colu
           },
         ]
       : []),
-    {
-      // The grid's form of the column: an action column, its button inert on a row with nothing to open. The card cell
-      // stays its own: a person no account explains has no button there.
-      ...openRowColumn<UserRow>(layout.open, row => ({
-        label: `Open ${row.name ?? 'user'} in new tab`,
-        href: row.href,
-      })),
-      cell: ({ row }: { row: Row<UserRow> }) => {
-        const { href, name } = row.original;
-        if (!href) return null;
-        return <OpenRowButton label={`Open ${name ?? 'user'} in new tab`} onClick={openInNewTab(href)} />;
-      },
-    },
+    // A person no account explains has nothing to open: no button, in either layout.
+    openRowColumn<UserRow>(layout.open, row =>
+      row.href ? { label: `Open ${row.name ?? 'user'} in new tab`, href: row.href } : null,
+    ),
   ];
 }
 
