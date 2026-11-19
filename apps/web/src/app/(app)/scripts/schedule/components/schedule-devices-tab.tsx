@@ -5,34 +5,48 @@ import {
   type DeviceFilters,
   DevicesList,
   type DevicesListNarrowing,
-  EMPTY_DEVICES_NARROWING,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { MonitorOffIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { memo, useCallback, useMemo, useState } from 'react';
-import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
+import {
+  CURSOR_PAGER_KEYS,
+  type CursorPagerVariables,
+  useApiParams,
+  useCursorPager,
+  type UseCursorPagerReturn,
+} from '@flamingo-stack/openframe-frontend-core/hooks';
+import { memo, useMemo } from 'react';
+import { useLazyLoadQuery } from 'react-relay';
 import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
-import type { scriptScheduleDevicesRelay_schedule$key as ScheduleDevicesFragmentKey } from '@/__generated__/scriptScheduleDevicesRelay_schedule.graphql';
-import type { scriptScheduleDevicesRelayPaginationQuery as ScheduleDevicesPaginationQueryType } from '@/__generated__/scriptScheduleDevicesRelayPaginationQuery.graphql';
 import type { scriptScheduleDevicesRelayQuery as ScheduleDevicesQueryType } from '@/__generated__/scriptScheduleDevicesRelayQuery.graphql';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { machineRowToDevice } from '@/app/(app)/devices/utils/device-transform';
 import { ContentErrorBoundary, NO_ITEMS, useRetryKey } from '@/app/components/shared';
+import { StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
+import { forwardPage } from '@/app/hooks/forward-page';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
+import { usePagedTable } from '@/app/hooks/use-paged-table';
+import { useRefetchPage } from '@/app/hooks/use-refetch-page';
+import { useSearchParam } from '@/app/hooks/use-search-param';
 import { type DeviceConnectivity, type DeviceStatus, ScheduleDeviceSelectionMode } from '@/generated/schema-enums';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
 import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedule-detail-relay';
-import {
-  scriptScheduleDevicesRelayFragment,
-  scriptScheduleDevicesRelayQuery,
-} from '@/graphql/scripts/script-schedule-devices-relay';
+import { scriptScheduleDevicesRelayQuery } from '@/graphql/scripts/script-schedule-devices-relay';
+import { PAGED_LISTS } from '@/lib/paged-lists';
 import { criteriaFromStored } from '../utils/schedule-criteria';
 import { ScheduleCriteriaSummary } from './schedule-criteria-fields';
 import { ScheduleDeviceFacets } from './schedule-device-facets';
 
-/** How many assigned devices load per page. */
+/** How many assigned devices a page holds. */
 const PAGE_SIZE = 20;
+
+/**
+ * The tab's params live under this prefix (`deviceSearch`, `deviceStatuses`, `deviceConnectivity`, `deviceOsTypes`,
+ * `deviceOrganizationIds`, `deviceTags`, `deviceCursor`, `devicePage`, `deviceRefresh`): the Schedule Runs and
+ * Execution History tabs on the same page keep theirs under `run…` and `exec…`, and a shared key would carry one
+ * table's narrowing into another on a tab switch.
+ */
+const PARAM_PREFIX = 'device';
 
 /** Design 1:48865 — the placeholder for a schedule nothing is assigned to. */
 const EMPTY_STATE = {
@@ -78,6 +92,23 @@ function toDeviceFilter(narrowing: Omit<DevicesListNarrowing, 'search'>): Assign
   };
 }
 
+interface ScheduleDevicesTabContentProps {
+  scheduleId: string;
+  /** What the list draws as narrowed: the URL's funnels and tag chips, the box's typed search. */
+  narrowing: DevicesListNarrowing;
+  onNarrowingChange: (next: DevicesListNarrowing) => void;
+  /** Deferred — the URL's funnels and tag chips, as `assignedDevices(filter:)` takes them. */
+  filter: AssignedDevicesFilter;
+  /** Deferred — the URL's search (never the box's: see the tab). */
+  search: string;
+  /** A deferred value lags the URL: the rows on screen are the previous result. */
+  isPending: boolean;
+  /** The list's position in the URL: footer props, the stale check, the cursor drop. */
+  pager: UseCursorPagerReturn;
+  /** Deferred — the page variables to spread into the query (lag the URL while the next page is read). */
+  pageVariables: CursorPagerVariables;
+}
+
 /**
  * The part that reads the assignment, and therefore the part that suspends.
  *
@@ -87,7 +118,7 @@ function toDeviceFilter(narrowing: Omit<DevicesListNarrowing, 'search'>): Assign
  * because no `DeviceFilterInput` field can express "assigned to this schedule".
  * Everything else is the fleet page's contract: the narrowing goes to the SERVER
  * (that connection takes the same `filter` / `search` as the top-level query), so
- * it applies to the whole assignment rather than to the pages loaded so far.
+ * it applies to the whole assignment rather than to the page on screen.
  *
  * That includes the column funnels, which this tab used to go without: their
  * options would have had to come from the TENANT-wide `deviceFilters`, offering
@@ -97,7 +128,16 @@ function toDeviceFilter(narrowing: Omit<DevicesListNarrowing, 'search'>): Assign
  * every option in them narrows something. Tag chips are the one exception, still
  * fleet-fed; see `useScheduleDeviceFilters`.
  */
-function ScheduleDevicesTabContent({ scheduleId }: { scheduleId: string }) {
+function ScheduleDevicesTabContent({
+  scheduleId,
+  narrowing,
+  onNarrowingChange,
+  filter,
+  search,
+  isPending,
+  pager,
+  pageVariables,
+}: ScheduleDevicesTabContentProps) {
   const retryKey = useRetryKey();
   const detail = useLazyLoadQuery<ScheduleDetailQueryType>(
     scriptScheduleDetailRelayQuery,
@@ -105,48 +145,26 @@ function ScheduleDevicesTabContent({ scheduleId }: { scheduleId: string }) {
     { fetchPolicy: 'store-or-network', fetchKey: retryKey },
   );
 
-  const [narrowing, setNarrowing] = useState<DevicesListNarrowing>(EMPTY_DEVICES_NARROWING);
+  // One page per request, its cursor in the URL (`deviceCursor`); forward only (see the query).
+  const variables = { id: scheduleId, filter, search: search || null, ...forwardPage(pageVariables, PAGE_SIZE) };
+  const queryData = useLazyLoadQuery<ScheduleDevicesQueryType>(scriptScheduleDevicesRelayQuery, variables, {
+    fetchPolicy: 'store-and-network',
+    fetchKey: retryKey,
+  });
+  const refetch = useRefetchPage<ScheduleDevicesQueryType>(scriptScheduleDevicesRelayQuery, variables);
 
-  // Memoized on the individual selections, NOT on `narrowing`: every keystroke
-  // in the search box replaces that object, and rebuilding the filter with it
-  // would hand `useDeferredQuery` a new identity per character — dimming the
-  // table on each one for a filter that never changed.
-  const { statuses, connectivity, osTypes, organizationIds, tags } = narrowing;
-  const filter = useMemo(
-    () => toDeviceFilter({ statuses, connectivity, osTypes, organizationIds, tags }),
-    [statuses, connectivity, osTypes, organizationIds, tags],
-  );
-
-  // Typing is a keystroke; a query is not. The fleet page debounces the same
-  // 500ms before its search reaches the API.
-  const debouncedSearch = useDebounce(narrowing.search, 500);
-
-  // Deferred variables: a filter or search change keeps the rows (and the search
-  // box, and its focus) on screen while the refetch is in flight, instead of
-  // dropping the whole list to the tab's Suspense fallback.
-  const { deferredFilters, deferredSearch, isPending } = useDeferredQuery(filter, debouncedSearch);
-
-  const queryData = useLazyLoadQuery<ScheduleDevicesQueryType>(
-    scriptScheduleDevicesRelayQuery,
-    { id: scheduleId, first: PAGE_SIZE, after: null, filter: deferredFilters, search: deferredSearch || null },
-    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
-  );
-
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
-    ScheduleDevicesPaginationQueryType,
-    ScheduleDevicesFragmentKey
-  >(scriptScheduleDevicesRelayFragment, queryData.scriptSchedule ?? null);
-
-  const devices = useMemo<Device[]>(() => {
-    const edges = data?.assignedDevices?.edges ?? [];
-    // Defensive null-node guard: skip any dangling edge instead of crashing the
-    // tab on a store-evicted record.
-    return edges.flatMap(edge => (edge?.node ? [machineRowToDevice(edge.node)] : []));
-  }, [data?.assignedDevices?.edges]);
-
-  const fetchNextPage = useCallback(() => {
-    if (hasNext && !isLoadingNext) loadNext(PAGE_SIZE);
-  }, [hasNext, isLoadingNext, loadNext]);
+  const assigned = queryData.scriptSchedule?.assignedDevices;
+  const edges = assigned?.edges ?? NO_ITEMS;
+  // Defensive null-node guard: skip any dangling edge instead of crashing the tab on a store-evicted record.
+  const devices: Device[] = edges.flatMap(edge => (edge?.node ? [machineRowToDevice(edge.node)] : []));
+  const paged = usePagedTable({
+    pager,
+    pageInfo: assigned?.pageInfo,
+    rowCount: edges.length,
+    prefix: PARAM_PREFIX,
+    refetch,
+    isPending,
+  });
 
   const schedule = detail.scriptSchedule;
   const criteria = useMemo(() => criteriaFromStored(schedule?.deviceCriteria), [schedule?.deviceCriteria]);
@@ -156,19 +174,16 @@ function ScheduleDevicesTabContent({ scheduleId }: { scheduleId: string }) {
       devices={devices}
       deviceFilters={deviceFilters}
       narrowing={narrowing}
-      onNarrowingChange={setNarrowing}
+      onNarrowingChange={onNarrowingChange}
       isPending={isPending}
       // The server's count for the CURRENT narrowing: honest whether or not
       // anything is narrowed, since the narrowing is the server's too.
-      totalCount={data?.assignedDevices?.filteredCount ?? undefined}
-      emptyState={EMPTY_STATE}
+      totalCount={assigned?.filteredCount ?? undefined}
+      // "Nothing is assigned" is page 1's to say: an empty LATER page is a cursor about to be dropped.
+      emptyState={pager.isFirstPage ? EMPTY_STATE : undefined}
       skeletonRows={PAGE_SIZE}
-      infiniteScroll={{
-        hasNextPage: hasNext,
-        isFetchingNextPage: isLoadingNext,
-        onLoadMore: fetchNextPage,
-        skeletonRows: PAGE_SIZE,
-      }}
+      pager={paged.pager}
+      refresh={paged.refresh}
     />
   );
 
@@ -199,35 +214,136 @@ function ScheduleDevicesTabContent({ scheduleId }: { scheduleId: string }) {
   );
 }
 
-/** The tab before its devices: the same list in its loading state. */
-function ScheduleDevicesTabLoading() {
+/**
+ * The tab's rows under the stale-cursor boundary: a cursor the server refuses drops to the first page; any other
+ * error goes up unchanged.
+ */
+function ScheduleDevicesTabBody(props: ScheduleDevicesTabContentProps) {
   return (
-    <div className="pt-[var(--spacing-system-l)]">
-      <DevicesList devices={NO_ITEMS} isLoading emptyState={EMPTY_STATE} skeletonRows={PAGE_SIZE} />
-    </div>
+    <StaleCursorBoundary cursor={props.pager.cursor} onStaleCursor={props.pager.dropCursor}>
+      <ScheduleDevicesTabLoading {...props} />
+    </StaleCursorBoundary>
   );
 }
 
 /**
- * "Assigned Devices" tab — the machines this schedule runs on.
- *
- * Carries its own boundary: a tab that suspends is the tab's business, not the
- * page's, so switching to it draws the tab's loading state and leaves the header, the
+ * The tab's loading boundary, the whole output of its own component (the loading standard): a tab that suspends is
+ * the tab's business, not the page's, so switching to it draws the tab's loading state and leaves the header, the
  * timing bar and the tab strip untouched.
+ */
+function ScheduleDevicesTabLoading(props: ScheduleDevicesTabContentProps) {
+  return (
+    <LoadingSuspense label="Loading devices">
+      <ScheduleDevicesTabReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function ScheduleDevicesTabReader(props: ScheduleDevicesTabContentProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws the same list in its loading
+  // state, the typed narrowing kept, and runs no read.
+  if (useLoadingScope()) {
+    return (
+      <div className="pt-[var(--spacing-system-l)]">
+        <DevicesList
+          devices={NO_ITEMS}
+          isLoading
+          narrowing={props.narrowing}
+          onNarrowingChange={props.onNarrowingChange}
+          emptyState={EMPTY_STATE}
+          skeletonRows={PAGE_SIZE}
+        />
+      </div>
+    );
+  }
+  return <ScheduleDevicesTabContent {...props} />;
+}
+
+/**
+ * "Assigned Devices" tab — the machines this schedule runs on, one page at a time with First · Prev · Next.
+ *
+ * The narrowing lives in the URL under the `device` prefix (see `PARAM_PREFIX`), with the pager beside it: a change to
+ * the search, a funnel or a tag chip drops the cursor in the SAME URL write (one history entry on page 2+, so Back
+ * returns to the old view). The box keeps the typed search locally; the query reads the URL's, so a search and a
+ * cursor from another narrowing never meet in one request.
  *
  * `memo` for the reason given in `schedule-detail-tabs.ts`.
  */
 export const ScheduleDevicesTab = memo(function ScheduleDevicesTabImpl({ scheduleId }: { scheduleId: string }) {
+  const { params, setParam, setParams } = useApiParams(
+    {
+      search: { type: 'string', default: '' },
+      statuses: { type: 'array', default: [] },
+      connectivity: { type: 'array', default: [] },
+      osTypes: { type: 'array', default: [] },
+      organizationIds: { type: 'array', default: [] },
+      tags: { type: 'array', default: [] },
+    },
+    { prefix: PARAM_PREFIX, resetKeys: CURSOR_PAGER_KEYS, resetHistory: 'push' },
+  );
+  const pager = useCursorPager({
+    prefix: PARAM_PREFIX,
+    pageSize: PAGE_SIZE,
+    ...PAGED_LISTS.assignedDevices,
+    resetOn: JSON.stringify(params),
+  });
+
+  // Typing is a keystroke; a query is not. The box keeps the typed value and the shared hook debounces it into the
+  // URL, the same 500ms the fleet page waits before its search reaches the API.
+  const { search: searchInput, setSearch: setSearchInput } = useSearchParam(
+    params.search,
+    value => setParam('search', value),
+    500,
+  );
+
+  // Memoized on the individual selections for its identity: `useDeferredQuery` tells a pending refetch by comparing
+  // references, and a keystroke in the box must not dim the table for a filter that never changed.
+  const { statuses, connectivity, osTypes, organizationIds, tags } = params;
+  const filter = useMemo(
+    () => toDeviceFilter({ statuses, connectivity, osTypes, organizationIds, tags }),
+    [statuses, connectivity, osTypes, organizationIds, tags],
+  );
+
+  // Deferred variables, page included: a filter, search or page change keeps the rows (and the search box, and its
+  // focus) on screen, dimmed, while the next ones are read, instead of dropping the list to the tab's fallback.
+  const { deferredFilters, deferredSearch, deferredPage, isPending } = useDeferredQuery(
+    filter,
+    params.search,
+    pager.variables,
+  );
+
+  const narrowing: DevicesListNarrowing = {
+    search: searchInput,
+    statuses,
+    connectivity,
+    osTypes,
+    organizationIds,
+    tags,
+  };
+  // The list reports the whole narrowing on every change: the search goes to the box, the rest to the URL (a write
+  // that changes nothing is dropped by `useApiParams`).
+  const handleNarrowingChange = (next: DevicesListNarrowing) => {
+    if (next.search !== searchInput) setSearchInput(next.search);
+    setParams({
+      statuses: next.statuses,
+      connectivity: next.connectivity ?? [],
+      osTypes: next.osTypes,
+      organizationIds: next.organizationIds,
+      tags: next.tags,
+    });
+  };
+
   return (
-    <LoadingSuspense label="Loading devices">
-      <ScheduleDevicesTabReader scheduleId={scheduleId} />
-    </LoadingSuspense>
+    <ScheduleDevicesTabBody
+      scheduleId={scheduleId}
+      narrowing={narrowing}
+      onNarrowingChange={handleNarrowingChange}
+      filter={deferredFilters}
+      search={deferredSearch}
+      isPending={isPending}
+      pager={pager}
+      pageVariables={deferredPage}
+    />
   );
 });
 ScheduleDevicesTab.displayName = 'ScheduleDevicesTab';
-
-function ScheduleDevicesTabReader({ scheduleId }: { scheduleId: string }) {
-  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
-  if (useLoadingScope()) return <ScheduleDevicesTabLoading />;
-  return <ScheduleDevicesTabContent scheduleId={scheduleId} />;
-}
