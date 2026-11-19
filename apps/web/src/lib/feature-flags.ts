@@ -121,6 +121,11 @@ export const FEATURE_FLAG_NAMES = [
   // (`openframe.features.devices.managed-status.enabled`) on or off. On for
   // dev / qa, absent elsewhere, which reads as off.
   'device-managed-status',
+  // The dashboard's GraphQL (`/api/graphql` and `/chat/graphql`, Relay and raw
+  // POST) goes through the federation router at `/api/router/graphql`
+  // (`graphql-router.ts`). On where the router runs (dev), absent elsewhere,
+  // which reads as off: the router path fails there.
+  'graphql-router',
 ] as const;
 
 export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[number];
@@ -259,6 +264,16 @@ export const featureFlags = {
   softwareManagement: {
     enabled(): boolean {
       return getFlagValue('software-management', () => false);
+    },
+  },
+  /**
+   * GraphQL through the federation router, read per request by
+   * `graphqlPath()`. Not answered yet reads as off: the subgraphs' own paths
+   * work wherever the router does.
+   */
+  graphqlRouter: {
+    enabled(): boolean {
+      return getFlagValue('graphql-router', () => false);
     },
   },
 } as const;
