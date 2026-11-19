@@ -184,9 +184,9 @@ describe('the incidents table and the table flag', () => {
       expect(markup).toContain('--data-table-max-height');
       expect(markup.indexOf('data-grid-meta')).toBeLessThan(markup.indexOf('data-grid-header'));
       expect(gridColumns(markup)).toEqual(['type', 'organizationId', 'severity', 'status', 'assigneeId']);
-      // Incident 400, Device 280, Severity 140, Status 240, Assigned 240, then the menu, Mingo and open, 56 each.
+      // Incident 400, Device 320, Severity 140, Status 240, Assigned 240, then the menu, Mingo and open, 56 each.
       expect([0, 1, 2, 3, 4, 5, 6, 7].map(index => columnWidth(markup, index))).toEqual([
-        400, 280, 140, 240, 240, 56, 56, 56,
+        400, 320, 140, 240, 240, 56, 56, 56,
       ]);
       expect(container.textContent).toContain('1 result');
     });

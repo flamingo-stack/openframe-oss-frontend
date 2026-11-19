@@ -9,7 +9,6 @@ import {
   ArrowRightUpIcon,
   Ellipsis01Icon,
   Filter02Icon,
-  MonitorIcon,
   SearchIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { UnreadNotificationsIndicator } from '@flamingo-stack/openframe-frontend-core/components/navigation';
@@ -50,6 +49,7 @@ import type {
 import type { insightFacets_filters$key as InsightFacetsKey } from '@/__generated__/insightFacets_filters.graphql';
 import { EmptyState, liveColumnMeta, NO_ITEMS, oneLineEmptyState, useRetryKey } from '@/app/components/shared';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
+import { DeviceGridCell } from '@/app/components/shared/device-grid-cell';
 import { LiveTable } from '@/app/components/shared/live-table';
 import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
@@ -397,18 +397,13 @@ function IncidentTitleGridCell({ row }: { row: IncidentTableRow }) {
   );
 }
 
-/** The Device column in the grid: the device's type icon and its name, then its customer on the same line. */
+/**
+ * The Device column in the grid: the device's type icon and its name, then its customer on the same line (the part a
+ * narrow column cuts).
+ */
 function IncidentDeviceGridCell({ row }: { row: IncidentTableRow }) {
   return (
-    <DataTable.Cell
-      leading={{
-        type: 'icon',
-        icon: renderDeviceTypeIcon(row.deviceType ?? undefined, 'size-5') ?? <MonitorIcon className="size-5" />,
-      }}
-      text={row.deviceName ?? ''}
-      // A device with no customer on record has no second part to draw.
-      secondary={row.organizationName || undefined}
-    />
+    <DeviceGridCell name={row.deviceName} deviceType={row.deviceType} detail={row.organizationName || undefined} />
   );
 }
 

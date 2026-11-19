@@ -24,4 +24,4 @@ export const INCIDENT_COLUMNS = {
  * The data columns' widths in the grid table, in px (the `width` classes above are the card rows'). The last one,
  * Assigned, takes the width the others leave.
  */
-export const INCIDENT_GRID_SIZES = { incident: 400, device: 280, severity: 140, status: 240, assignee: 240 } as const;
+export const INCIDENT_GRID_SIZES = { incident: 400, device: 320, severity: 140, status: 240, assignee: 240 } as const;

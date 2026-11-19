@@ -29,6 +29,7 @@ import {
 import { useContentMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo, useState } from 'react';
 import { NO_ITEMS, noop } from '@/app/components/shared';
+import { DeviceGridCell } from '@/app/components/shared/device-grid-cell';
 import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { type TableLayout, tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
@@ -43,7 +44,6 @@ import { QUERY_DEVICES_TABLE_SETTINGS } from '../../components/monitoring-table-
 import {
   DeviceCustomerCell,
   DeviceCustomerGridCell,
-  DeviceNameGridCell,
   DeviceOpenCell,
   DeviceOsGridCell,
   QuickQueryToggle,
@@ -429,11 +429,11 @@ function DeviceLastOnline({ lastSeen }: { lastSeen: QueryDeviceRow['lastSeen'] |
 function QueryDeviceNameGridCell({ device }: { device: QueryDeviceRow }) {
   const loading = useLoadingScope();
   return (
-    <DeviceNameGridCell
+    <DeviceGridCell
       name={device.name}
       deviceType={device.deviceType}
       // While the row is read there is nothing to print after the name's bar.
-      secondary={loading && !device.lastSeen ? undefined : formatLastOnline(device.lastSeen)}
+      detail={loading && !device.lastSeen ? undefined : formatLastOnline(device.lastSeen)}
     />
   );
 }

@@ -5,7 +5,6 @@ import {
   DeviceTypeTile,
   GRID_ACTION_BUTTON_CLASS,
   OSTypeBadge,
-  renderDeviceTypeIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
@@ -29,6 +28,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback, useMemo, useState } from 'react';
 import { NO_ITEMS } from '@/app/components/shared';
+import { DeviceGridCell } from '@/app/components/shared/device-grid-cell';
 import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { type TableLayout, tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
@@ -145,7 +145,7 @@ function PolicyDevicesTableView({ rows, isLoading, policyQuery, tableLayout }: P
         meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.device, {
           label: 'Device',
           gridCell: ({ row }: { row: Row<PolicyDeviceRow> }) => (
-            <DeviceNameGridCell name={row.original.name} deviceType={row.original.deviceType} />
+            <DeviceGridCell name={row.original.name} deviceType={row.original.deviceType} />
           ),
         }),
       },
@@ -329,28 +329,6 @@ export function DeviceCustomerCell({
 }
 
 /* ───────────── grid-table cells: one 48px line each (the card cells above stay for the cards table) ───────────── */
-
-/** The device's type icon and its name, with a short text after it (when it was last online). */
-export function DeviceNameGridCell({
-  name,
-  deviceType,
-  secondary,
-}: {
-  name: string | undefined;
-  deviceType: string | null | undefined;
-  secondary?: string;
-}) {
-  return (
-    <DataTable.Cell
-      leading={{
-        type: 'icon',
-        icon: renderDeviceTypeIcon(deviceType ?? undefined, 'size-5') ?? <MonitorIcon className="size-5" />,
-      }}
-      text={name ?? ''}
-      secondary={secondary}
-    />
-  );
-}
 
 /** A device's customer: its logo and its name on one line. */
 export function DeviceCustomerGridCell({
