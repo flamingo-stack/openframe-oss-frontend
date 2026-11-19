@@ -92,6 +92,25 @@ describe('MingoModelPicker', () => {
     expect(button.getAttribute('aria-expanded')).toBe('false');
   });
 
+  it('switches the open submenu when the pointer enters another provider', () => {
+    const { button } = render();
+    key(button, 'Enter');
+    const anthropic = menuItem('menuitem', 'Anthropic');
+    const openai = menuItem('menuitem', 'OpenAI');
+
+    act(() => anthropic.dispatchEvent(new PointerEvent('pointerover', { pointerType: 'mouse', bubbles: true })));
+    expect(anthropic.getAttribute('aria-expanded')).toBe('true');
+
+    act(() =>
+      anthropic.dispatchEvent(
+        new PointerEvent('pointerout', { pointerType: 'mouse', bubbles: true, relatedTarget: openai }),
+      ),
+    );
+    expect(openai.getAttribute('aria-expanded')).toBe('true');
+    expect(anthropic.getAttribute('aria-expanded')).toBe('false');
+    expect(menuItem('menuitemradio', 'GPT 13')).toBeTruthy();
+  });
+
   it('can restore the default from the same menu', () => {
     const { button, chooseDefault } = render();
     key(button, 'Enter');

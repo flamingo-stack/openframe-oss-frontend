@@ -25,8 +25,12 @@ import type { MingoModelPickerState } from './use-mingo-model-selection';
 
 type ProviderSelection = MingoModelPickerState['providers'][number];
 
-const menuClassName = 'rounded-md border-ods-border bg-ods-menu p-0 shadow-none';
+// Close immediately so a previous menu cannot restore focus into a newly opened one.
+const menuClassName = 'rounded-md border-ods-border bg-ods-menu p-0 shadow-none data-[state=closed]:hidden';
 const menuTopInset = 64;
+const menuEdgePadding = 12;
+const submenuGap = 4;
+const initialPlacement = { alignOffset: 0, maxHeight: 0, maxWidth: 440 };
 
 function ModelProviderLogo({ provider }: { provider: string | undefined }) {
   switch (provider?.toLowerCase()) {
@@ -48,12 +52,15 @@ function ModelProviderLogo({ provider }: { provider: string | undefined }) {
 function ProviderModels({
   selection,
   providerMenu,
+  open,
+  onOpenChange,
 }: {
   selection: ProviderSelection;
   providerMenu: RefObject<HTMLDivElement | null>;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [placement, setPlacement] = useState({ alignOffset: 0, maxHeight: 0 });
+  const [placement, setPlacement] = useState(initialPlacement);
   const trigger = useRef<HTMLDivElement>(null);
   const [submenu, setSubmenu] = useState<HTMLDivElement | null>(null);
 
@@ -69,11 +76,14 @@ function ProviderModels({
       const bottom = menu.getBoundingClientRect().bottom;
       const maxHeight = Math.max(0, Math.floor(bottom - menuTopInset));
       const height = Math.min(content.offsetHeight, maxHeight);
-      const alignOffset = Math.round(bottom - row.getBoundingClientRect().top - height);
+      const rowBounds = row.getBoundingClientRect();
+      const alignOffset = Math.round(bottom - rowBounds.top - height);
+      const availableSide = Math.max(rowBounds.left, document.documentElement.clientWidth - rowBounds.right);
+      const maxWidth = Math.max(0, Math.floor(availableSide - menuEdgePadding - submenuGap));
       setPlacement(previous =>
-        previous.alignOffset === alignOffset && previous.maxHeight === maxHeight
+        previous.alignOffset === alignOffset && previous.maxHeight === maxHeight && previous.maxWidth === maxWidth
           ? previous
-          : { alignOffset, maxHeight },
+          : { alignOffset, maxHeight, maxWidth },
       );
     };
 
@@ -90,24 +100,30 @@ function ProviderModels({
 
   const { provider, current, models } = selection;
   return (
-    <DropdownMenuSub open={open} onOpenChange={setOpen}>
+    <DropdownMenuSub open={open} onOpenChange={onOpenChange}>
       <DropdownMenuSubTrigger
         ref={trigger}
         aria-current={current || undefined}
-        className="min-h-10 gap-2 rounded-none px-3 normal-case text-h5 data-[state=open]:bg-[var(--ods-backgrounds-openframe-background-action)] [&_svg]:size-5"
+        onPointerEnter={event => {
+          // A direct hover on another provider switches menus even when
+          // Radix is keeping the previous submenu open for diagonal movement.
+          if (event.pointerType === 'mouse') onOpenChange(true);
+        }}
+        className="min-h-10 gap-2 rounded-none px-3 font-body text-base font-medium hover:bg-ods-menu-hover focus:bg-ods-menu-hover data-[state=open]:bg-ods-menu-hover [&_svg]:size-5"
       >
         <NamedIcon icon={LLM_PROVIDER_ICON[provider]} className="size-5" />
-        <span className="flex-1">{LLM_PROVIDER_LABEL[provider]}</span>
+        <span className="min-w-0 flex-1 break-words">{LLM_PROVIDER_LABEL[provider]}</span>
         {current && <CheckFillIcon aria-hidden className="text-ods-accent" />}
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent
         ref={setSubmenu}
-        sideOffset={4}
+        sideOffset={submenuGap}
         alignOffset={placement.alignOffset}
         collisionBoundary={[]}
-        collisionPadding={{ top: menuTopInset, right: 12, bottom: 12, left: 12 }}
-        className={`${menuClassName} flex w-[440px] max-w-[calc(100vw-24px)] flex-col overflow-hidden`}
+        collisionPadding={{ top: menuTopInset, right: menuEdgePadding, bottom: menuEdgePadding, left: menuEdgePadding }}
+        className={`${menuClassName} flex w-[440px] min-w-0 flex-col overflow-hidden`}
         style={{
+          maxWidth: placement.maxWidth,
           maxHeight:
             placement.maxHeight > 0
               ? `min(${placement.maxHeight}px, var(--radix-popper-available-height))`
@@ -120,15 +136,15 @@ function ProviderModels({
               key={model.id}
               role="menuitemradio"
               aria-checked={model.current}
-              className="min-h-12 justify-between rounded-none border-b border-ods-border px-4 py-2 normal-case text-h5 last:border-b-0"
+              className="min-h-12 justify-between rounded-none border-b border-ods-border px-4 py-2 font-body text-base font-medium last:border-b-0 hover:bg-ods-menu-hover focus:bg-ods-menu-hover"
               onSelect={model.choose}
             >
-              <span>{model.label}</span>
+              <span className="min-w-0 break-words">{model.label}</span>
               {model.current && <CheckFillIcon aria-hidden className="text-ods-accent" />}
             </DropdownMenuItem>
           ))}
         </div>
-        <div className="flex shrink-0 items-start gap-2 border-t border-ods-border px-4 py-3 text-xs text-ods-text-secondary">
+        <div className="flex shrink-0 items-start gap-2 border-t border-ods-border px-4 py-3 font-body text-xs text-ods-text-secondary">
           <ShieldCheckIcon aria-hidden size={16} className="shrink-0" />
           <p>
             Your chats aren’t used to train AI models. Model providers keep requests for up to 30 days, then delete
@@ -150,6 +166,7 @@ export function MingoModelPicker({
   selection: MingoModelPickerState;
 }) {
   const providerMenu = useRef<HTMLDivElement>(null);
+  const [openProvider, setOpenProvider] = useState<ProviderSelection['provider'] | null>(null);
   const label = name ?? 'Chat Model';
   const trigger = (
     <button
@@ -166,14 +183,14 @@ export function MingoModelPicker({
 
   if (selection.disabled) return trigger;
   return (
-    <DropdownMenu modal={false}>
+    <DropdownMenu modal={false} onOpenChange={() => setOpenProvider(null)}>
       <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
       <DropdownMenuContent
         ref={providerMenu}
         align="start"
         side="top"
         sideOffset={4}
-        className={`${menuClassName} w-60`}
+        className={`${menuClassName} w-60 max-w-[calc((100vw-40px)/2)]`}
       >
         <DropdownMenuItem
           role="menuitemradio"
@@ -186,7 +203,18 @@ export function MingoModelPicker({
         </DropdownMenuItem>
         {selection.providers.length > 0 && <DropdownMenuSeparator className="m-0" />}
         {selection.providers.map(option => (
-          <ProviderModels key={option.provider} selection={option} providerMenu={providerMenu} />
+          <ProviderModels
+            key={option.provider}
+            selection={option}
+            providerMenu={providerMenu}
+            open={openProvider === option.provider}
+            onOpenChange={open =>
+              setOpenProvider(previous => {
+                if (open) return option.provider;
+                return previous === option.provider ? null : previous;
+              })
+            }
+          />
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
