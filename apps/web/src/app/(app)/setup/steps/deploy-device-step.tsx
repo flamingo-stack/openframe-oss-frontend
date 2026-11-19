@@ -10,15 +10,18 @@ import {
 import { Button, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn, type OSPlatformId } from '@flamingo-stack/openframe-frontend-core/utils';
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDeviceOrganizations } from '@/app/(app)/devices/hooks/use-device-organizations';
 import { useInstallCommand } from '@/app/(app)/devices/hooks/use-install-command';
 import { noop } from '@/app/components/shared/no-next-page';
 import { OsPlatformSelector } from '@/app/components/shared/os-platform-selector';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
+import { useNow } from '@/app/hooks/use-now';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { type AgentInstallError, canInstallAgentLocally } from '@/lib/native-shell';
 import { AVAILABLE_PLATFORMS, DISABLED_PLATFORMS } from '@/lib/platforms';
+import { AgentNotConnectedNotice } from '../components/agent-not-connected-notice';
+import { CommandBox } from '../components/command-box';
 import { InstallLog } from '../components/install-log';
 import { SetupHeading } from '../components/setup-heading';
 import { type FirstDevice, useFirstDeviceEnrollment } from '../hooks/use-first-device-enrollment';
@@ -26,10 +29,20 @@ import { useLocalAgentInstall } from '../hooks/use-local-agent-install';
 
 /** The column the step's controls stack in, at the design's 600px. */
 const BODY_CLASS = 'flex w-full max-w-[600px] flex-col gap-[var(--spacing-system-m)]';
-/** The box the install command sits in; the loading form draws the same box. */
-const COMMAND_BOX_CLASS =
-  'flex w-full items-start gap-[var(--spacing-system-s)] rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] py-[var(--spacing-system-sf)]';
 const PLATFORM_OPTIONS = AVAILABLE_PLATFORMS.map(option => ({ platformId: option.id }));
+
+/**
+ * How long the step waits for the agent to reach the platform before it says
+ * something is wrong: well past the 2-3 minutes an install takes, far short of
+ * the 20+ minute silent hang a blocked agent caused. Pending the client team's
+ * confirmation (CU-17tkuw650zm).
+ */
+export const AGENT_CONNECT_TIMEOUT_MS = 10 * 60_000;
+/** How often the deadline is checked against the clock. */
+const DEADLINE_TICK_MS = 5_000;
+
+const HINT_USUAL = 'Deployment may take 2-3 minutes to install all agents';
+const HINT_LONGER = 'This is taking longer than usual. Still waiting for the device to connect…';
 
 /** The platform the admin is most likely enrolling first: the one they are on. */
 function detectPlatform(): OSPlatformId {
@@ -38,17 +51,24 @@ function detectPlatform(): OSPlatformId {
 }
 
 /**
- * The checklist's lines, oldest first. "Workspace resolved" has no server
+ * The checklist's lines, oldest first. "Workspace found" has no server
  * signal - the agent resolves the tenant before it registers - so it is the
  * command having been handed over; the rest are the machine's own stages.
  */
 function checklistLines(handedOver: boolean, device: FirstDevice | null): string[] {
   const lines: string[] = [];
-  if (handedOver || device) lines.push('workspace resolved');
-  if (device) lines.push('device enrolled');
-  if (device?.stages.inventoryReceived) lines.push('inventory received');
-  if (device?.stages.aiReady) lines.push('mingo unlocked');
+  if (handedOver || device) lines.push('Workspace found');
+  if (device) lines.push('Device registered');
+  if (device?.stages.inventoryReceived) lines.push('Inventory received');
+  if (device?.stages.aiReady) lines.push('Mingo unlocked');
   return lines;
+}
+
+/** The earlier of two moments, either of which may not have happened. */
+function earliest(a: number | null, b: number | null): number | null {
+  if (a == null) return b;
+  if (b == null) return a;
+  return Math.min(a, b);
 }
 
 /** The toast for a local install that did not go through. */
@@ -137,6 +157,7 @@ function DeployActions({
   deploying,
   continueReady,
   continuing,
+  hint,
   onCopy,
   onDeploy,
   onContinue,
@@ -149,6 +170,8 @@ function DeployActions({
   continueReady: boolean;
   /** "Continue" was pressed and the step is being persisted. */
   continuing: boolean;
+  /** The line under the controls: the usual install time, or that it is taking longer. */
+  hint: string;
   onCopy: () => void;
   onDeploy: () => void;
   onContinue: () => void;
@@ -187,13 +210,9 @@ function DeployActions({
           )}
         </div>
       )}
-      <p className="text-ods-text-secondary text-h6">Deployment may take 2-3 minutes to install all agents</p>
+      <p className="text-center text-ods-text-secondary text-h6">{hint}</p>
     </div>
   );
-}
-
-function CommandBox({ children }: { children: ReactNode }) {
-  return <div className={COMMAND_BOX_CLASS}>{children}</div>;
 }
 
 /** The step while its reads are out: the platform it will open on, a bar for the command, the actions inert. */
@@ -217,6 +236,7 @@ function DeployDeviceLoading() {
         deploying={false}
         continueReady={false}
         continuing={false}
+        hint={HINT_USUAL}
         onCopy={noop}
         onDeploy={noop}
         onContinue={noop}
@@ -239,6 +259,8 @@ function DeployDeviceForm({ organizationId, onContinue, persisting }: DeployDevi
   const [platform, setPlatform] = useState<OSPlatformId>(hostPlatform);
   const [expanded, setExpanded] = useState(false);
   const [handedOver, setHandedOver] = useState(false);
+  // The first copy only: copying again does not restart the wait.
+  const [copiedAt, setCopiedAt] = useState<number | null>(null);
   const local = useLocalAgentInstall();
   const { command, initialKey, installRequest } = useInstallCommand({
     organizationId: effectiveOrganizationId,
@@ -250,8 +272,18 @@ function DeployDeviceForm({ organizationId, onContinue, persisting }: DeployDevi
   });
 
   const device = useFirstDeviceEnrollment(true);
+  const now = useNow(DEADLINE_TICK_MS);
   const lines = checklistLines(handedOver, device);
   const enrolled = device?.stages.aiReady ?? false;
+
+  // The wait for the agent to reach the platform runs from the machine's
+  // registration (a server stamp, so a reload does not restart it); before the
+  // machine registers, from the hand-over: the command copied, or a local
+  // install that went through - a failed or declined run starts nothing.
+  const installedAt = local.status === 'succeeded' ? local.settledAt : null;
+  const waitingSince = device?.registeredAt ?? earliest(copiedAt, installedAt);
+  const connected = device?.stages.connected ?? false;
+  const timedOut = !connected && waitingSince != null && now >= waitingSince + AGENT_CONNECT_TIMEOUT_MS;
 
   // A failed local run says so once, when it settles; the log keeps the detail.
   const reportedFailureRef = useRef<AgentInstallError | null>(null);
@@ -279,6 +311,7 @@ function DeployDeviceForm({ organizationId, onContinue, persisting }: DeployDevi
     trackDashboardActivity(EVENT_SUBTYPE.ADD_DEVICE);
     void copy(command);
     setHandedOver(true);
+    setCopiedAt(at => at ?? Date.now());
   };
 
   // The shell installs for the OS it is on; the selector may be
@@ -334,6 +367,7 @@ function DeployDeviceForm({ organizationId, onContinue, persisting }: DeployDevi
             deploying={deploying}
             continueReady={enrolled}
             continuing={persisting}
+            hint={timedOut ? HINT_LONGER : HINT_USUAL}
             onCopy={handleCopy}
             onDeploy={handleDeploy}
             onContinue={handleContinue}
@@ -346,9 +380,9 @@ function DeployDeviceForm({ organizationId, onContinue, persisting }: DeployDevi
           {/* Newest on top: the list grows upwards as the agent reports in, so the
               stage still to come shows where it will land, until the last one has. */}
           {!enrolled && (
-            <li className="flex h-5 items-center">
-              <DotsLoaderIcon aria-hidden className="size-6 text-ods-text-secondary" />
-              <span className="sr-only">Waiting for the next stage</span>
+            <li className="flex items-center gap-[var(--spacing-system-xxs)] text-ods-text-primary text-h6">
+              <DotsLoaderIcon aria-hidden className="size-4 text-ods-text-secondary" />
+              Waiting for device to connect
             </li>
           )}
           {[...lines].reverse().map(line => (
@@ -362,6 +396,7 @@ function DeployDeviceForm({ organizationId, onContinue, persisting }: DeployDevi
           ))}
         </ol>
       )}
+      {timedOut && <AgentNotConnectedNotice platform={platform} />}
     </>
   );
 }
