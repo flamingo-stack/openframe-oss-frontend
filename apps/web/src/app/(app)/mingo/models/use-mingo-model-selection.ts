@@ -32,7 +32,13 @@ export function useMingoModelSelection(
 ) {
   const gate = useFeatureFlagGate(MINGO_MODEL_FLAG);
   const { aiModel } = useAiModelStatus();
-  const { modelsByProvider, isLoading: catalogLoading, error: catalogError } = useSupportedModels();
+  const {
+    modelsByProvider,
+    isLoading: catalogLoading,
+    isFetching: catalogFetching,
+    error: catalogError,
+    refetch: refetchCatalog,
+  } = useSupportedModels();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { activeDialogId } = state;
@@ -81,10 +87,7 @@ export function useMingoModelSelection(
       query.data.pendingApproval !== null ||
       ['ARCHIVED', 'RESOLVED'].includes(query.data.status));
   const livePendingApproval = liveRowState(state.streamingPhase, state.messages ?? []).awaitingApproval;
-  const disabled =
-    gate !== 'on' ||
-    isLoading ||
-    unavailable ||
+  const protectedInteraction =
     mutation.isPending ||
     isCreatingDialog ||
     state.isLoading ||
@@ -93,6 +96,7 @@ export function useMingoModelSelection(
     !!protectedState ||
     !!state.isCompacting ||
     livePendingApproval;
+  const disabled = gate !== 'on' || isLoading || unavailable || protectedInteraction;
 
   const saveSelectedModel = useCallback(
     async (dialogId: string, model: DialogModelInput | null) => {
@@ -129,13 +133,40 @@ export function useMingoModelSelection(
     [disabled, activeDialogId, onDraftChange, saveSelectedModel, reportModelChangeError],
   );
   const { refetch } = query;
+  const retryLoadingModels = useCallback(async () => {
+    if (gate !== 'on') return;
+    await Promise.allSettled([refetchCatalog(), ...(activeDialogId ? [refetch()] : [])]);
+  }, [gate, refetchCatalog, activeDialogId, refetch]);
   useEffect(() => {
     if (gate === 'on' && activeDialogId && state.streamingPhase === 'idle') void refetch();
   }, [gate, activeDialogId, state.streamingPhase, refetch]);
   const selected = activeDialogId ? (query.data?.model ?? null) : draftModel;
   const menuItems = useMemo(
-    () => (gate === 'on' ? mingoModelMenu({ modelsByProvider, selected, disabled, select: selectModel }) : []),
-    [gate, modelsByProvider, selected, disabled, selectModel],
+    () =>
+      gate === 'on'
+        ? mingoModelMenu({
+            modelsByProvider,
+            selected,
+            currentModel: effectiveModel,
+            disabled,
+            select: selectModel,
+            unavailable,
+            retry: retryLoadingModels,
+            retryDisabled: query.isFetching || !!catalogFetching,
+          })
+        : [],
+    [
+      gate,
+      modelsByProvider,
+      selected,
+      effectiveModel,
+      disabled,
+      selectModel,
+      unavailable,
+      retryLoadingModels,
+      query.isFetching,
+      catalogFetching,
+    ],
   );
   return {
     gate,

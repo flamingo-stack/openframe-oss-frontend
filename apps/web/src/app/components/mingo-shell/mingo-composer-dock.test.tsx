@@ -6,6 +6,7 @@
  * holds its place while the chat loads, and its own crash fallback.
  */
 
+import type { ActionsMenuItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { act, forwardRef, type ReactNode, useEffect, useImperativeHandle } from 'react';
 import { createPortal } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
@@ -212,11 +213,14 @@ function setSurface({
   enabled = true,
   error = null as Error | null,
   identityEnabled = true,
+  modelSelection = undefined as
+    { gate: 'on'; disabled: boolean; unavailable: boolean; menuItems: ActionsMenuItem[] } | undefined,
 } = {}) {
   surface.value = {
     chat: error
       ? null
       : {
+          modelSelection,
           state: {
             activeDialogId,
             dialogs: [],
@@ -892,6 +896,21 @@ describe('MingoComposerDock', () => {
     render('/mingo/chat/');
     expect(props().composerFooterActions).toBeUndefined();
     expect(props().composerMenuItems).toBeUndefined();
+  });
+
+  it('uses the current-model submenu in header and composer without an extra footer control', () => {
+    const choices: ActionsMenuItem[] = [{ id: 'default-model', label: 'Use Default Model', type: 'radio' }];
+    const menuItems: ActionsMenuItem[] = [
+      { id: 'chat-model', label: 'GPT Test', description: 'Chat Model', type: 'submenu', submenu: choices },
+    ];
+    setSurface({ activeDialogId: 'a', modelSelection: { gate: 'on', disabled: false, unavailable: false, menuItems } });
+    render('/mingo/chat/');
+
+    expect(props().composerFooterActions).toBeUndefined();
+    expect(props().chatMenuExtraItems).toEqual(expect.arrayContaining(menuItems));
+    expect(props().composerMenuItems).toEqual(menuItems);
+    expect(props().modelMenuItems).toEqual(choices);
+    expect(props().onModelClick).toBeUndefined();
   });
 
   // MISSING 3.6-3.8: the thread on the chat page is the session's, with everything the

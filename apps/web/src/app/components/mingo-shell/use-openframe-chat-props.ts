@@ -11,7 +11,6 @@ import { renderMingoContextItem, renderMingoRecordChip } from '@/app/(app)/mingo
 import { renderMingoContextItems } from '@/app/(app)/mingo/context/render-context-items';
 import { useMingoContextMemory } from '@/app/(app)/mingo/context/use-context-memory';
 import { MINGO_DIALOGS_PAGE_SIZE, type MingoUnifiedChat } from '@/app/(app)/mingo/hooks/use-mingo-unified-chat-state';
-import { useMingoWhatToAsk } from '@/app/(app)/mingo/hooks/use-mingo-what-to-ask';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { getFullImageUrl } from '@/lib/image-url';
 import { OPENFRAME_QUICK_ACTION_ACCENT, useMingoQuickActionChips } from './use-mingo-quick-action-chips';
@@ -35,14 +34,12 @@ export type OpenframeChatProps = Pick<
   | 'renderRecordChip'
   | 'userAvatarUrl'
   | 'userDisplayName'
-  | 'whatToAsk'
 >;
 
 /** Builds {@link OpenframeChatProps} from the session's chat state. */
 export function useOpenframeChatProps({
   dialogStatusOf,
 }: Pick<MingoUnifiedChat, 'dialogStatusOf'>): OpenframeChatProps {
-  const loadWhatToAsk = useMingoWhatToAsk();
   // Signed-in user's display name for the chat header sub-line. The lib prefers
   // its server-resolved chat identity; this is the reliable host fallback (the
   // tenant identity route may not return a name) sourced from the auth store.
@@ -84,9 +81,6 @@ export function useOpenframeChatProps({
     dialogStatusOf,
     // One page of the dialog list: the conversation lists' loading state draws this many rows.
     historyPageSize: MINGO_DIALOGS_PAGE_SIZE,
-    // "What to ask Mingo?" answers in a new chat with prompts that go into the
-    // composer, naming online devices.
-    whatToAsk: loadWhatToAsk,
     // Signed-in user's name for the header sub-line under the chat title.
     // Fallback for the lib's server identity when the tenant identity route
     // returns no name — sourced from the host auth store.

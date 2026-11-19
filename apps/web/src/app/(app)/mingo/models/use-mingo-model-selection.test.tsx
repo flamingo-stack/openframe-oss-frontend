@@ -7,7 +7,12 @@ import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 import type { DialogModelInput, MingoModelRecord } from './mingo-model.types';
 import { useMingoModelSelection } from './use-mingo-model-selection';
 
-const { read, update, toast } = vi.hoisted(() => ({ read: vi.fn(), update: vi.fn(), toast: vi.fn() }));
+const { read, update, toast, catalog } = vi.hoisted(() => ({
+  read: vi.fn(),
+  update: vi.fn(),
+  toast: vi.fn(),
+  catalog: { error: null as Error | null, refetch: vi.fn() },
+}));
 vi.mock('./mingo-model-api-service', () => ({ readDialogModel: read, updateDialogModel: update }));
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', () => ({ useToast: () => ({ toast }) }));
 vi.mock('@/app/hooks/use-ai-model', () => ({
@@ -22,6 +27,8 @@ vi.mock('@/app/(app)/settings/ai-settings/hooks/use-supported-models', () => ({
       OPENAI: [{ value: 'gpt-test', label: 'GPT Test' }],
     },
     isLoading: false,
+    error: catalog.error,
+    refetch: catalog.refetch,
   }),
 }));
 
@@ -77,6 +84,8 @@ async function settle() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  catalog.error = null;
+  catalog.refetch.mockResolvedValue({});
   read.mockResolvedValue(record());
   update.mockImplementation(async (_id: string, model: DialogModelInput | null) =>
     record({ model: model ? GPT : null, effectiveModel: model ? GPT : CLAUDE, contextSize: model ? 150_000 : 200_000 }),
@@ -225,5 +234,60 @@ describe('Mingo per-chat model selection', () => {
     expect(seen.unavailable).toBe(true);
     expect(seen.effectiveModel).toBeNull();
     expect(seen.disabled).toBe(true);
+  });
+  it('recovers a failed model read in place without sending a selection mutation', async () => {
+    activeDialogId = 'a';
+    read.mockRejectedValue(new Error('Temporary connection failure'));
+    await render();
+    await settle();
+    expect(seen.unavailable).toBe(true);
+
+    read.mockResolvedValue(record({ model: GPT, effectiveModel: GPT, contextSize: 150_000 }));
+    const retry = seen.menuItems[0].submenu?.find(item => item.label === 'Retry loading models');
+    expect(retry).toBeDefined();
+    await act(async () => retry?.onClick?.());
+    await settle();
+
+    expect(seen.unavailable).toBe(false);
+    expect(seen.disabled).toBe(false);
+    expect(seen.effectiveModel).toEqual(GPT);
+    expect(seen.contextSize).toBe(150_000);
+    expect(catalog.refetch).toHaveBeenCalledTimes(1);
+    expect(update).not.toHaveBeenCalled();
+  });
+  it('retries the catalog for a fresh draft without querying a nonexistent dialog', async () => {
+    catalog.error = new Error('Catalog unavailable');
+    catalog.refetch.mockImplementation(async () => {
+      catalog.error = null;
+      return {};
+    });
+    await render();
+    expect(seen.unavailable).toBe(true);
+    const retry = seen.menuItems[0].submenu?.find(item => item.label === 'Retry loading models');
+    expect(retry).toBeDefined();
+    await act(async () => retry?.onClick?.());
+    await render();
+
+    expect(seen.unavailable).toBe(false);
+    expect(read).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+  });
+  it('recovers a failed read while a reply is running without allowing a model change', async () => {
+    activeDialogId = 'a';
+    streamingPhase = 'thinking';
+    read.mockRejectedValue(new Error('Temporary connection failure'));
+    await render();
+    await settle();
+
+    expect(seen.disabled).toBe(true);
+    const retry = seen.menuItems[0].submenu?.find(item => item.label === 'Retry loading models');
+    expect(retry?.disabled).toBe(false);
+    read.mockResolvedValue(record({ streamState: 'STREAMING' }));
+    await act(async () => retry?.onClick?.());
+    await settle();
+    expect(seen.unavailable).toBe(false);
+    expect(seen.disabled).toBe(true);
+    await act(async () => seen.selectModel(GPT));
+    expect(update).not.toHaveBeenCalled();
   });
 });
