@@ -26,10 +26,12 @@ import type { MingoModelPickerState } from './use-mingo-model-selection';
 type ProviderSelection = MingoModelPickerState['providers'][number];
 
 // Close immediately so a previous menu cannot restore focus into a newly opened one.
-const menuClassName = 'rounded-md border-ods-border bg-ods-menu p-0 shadow-none data-[state=closed]:hidden';
+const menuClassName =
+  'rounded-md border-[color:var(--ods-borders-default)] bg-ods-menu p-0 shadow-[0_8px_32px_rgba(0,0,0,0.5)] data-[state=closed]:hidden';
 const menuTopInset = 64;
 const menuEdgePadding = 12;
-const submenuGap = 4;
+// Popper anchors to the provider row, one pixel inside the menu border.
+const submenuGap = 5;
 const initialPlacement = { alignOffset: 0, maxHeight: 0, maxWidth: 440 };
 
 function ModelProviderLogo({ provider }: { provider: string | undefined }) {
@@ -99,6 +101,10 @@ function ProviderModels({
   }, [open, providerMenu, submenu]);
 
   const { provider, current, models } = selection;
+  const menuMaxHeight =
+    placement.maxHeight > 0
+      ? `min(${placement.maxHeight}px, var(--radix-popper-available-height))`
+      : 'var(--radix-popper-available-height)';
   return (
     <DropdownMenuSub open={open} onOpenChange={onOpenChange}>
       <DropdownMenuSubTrigger
@@ -108,6 +114,11 @@ function ProviderModels({
           // A direct hover on another provider switches menus even when
           // Radix is keeping the previous submenu open for diagonal movement.
           if (event.pointerType === 'mouse') onOpenChange(true);
+        }}
+        onPointerLeave={event => {
+          // The portalled submenu may open to the left in a right-hand dock.
+          // Moving directly into it must not send focus back to the provider menu.
+          if (event.relatedTarget instanceof Node && submenu?.contains(event.relatedTarget)) event.preventDefault();
         }}
         className="min-h-10 gap-1 rounded-none px-2 font-body text-sm font-medium hover:bg-ods-menu-hover focus:bg-ods-menu-hover data-[state=open]:bg-ods-menu-hover sm:gap-2 sm:px-3 sm:text-base [&_svg]:size-4 sm:[&_svg]:size-5"
       >
@@ -124,19 +135,16 @@ function ProviderModels({
         className={`${menuClassName} flex w-[440px] min-w-0 flex-col overflow-hidden`}
         style={{
           maxWidth: placement.maxWidth,
-          maxHeight:
-            placement.maxHeight > 0
-              ? `min(${placement.maxHeight}px, var(--radix-popper-available-height))`
-              : 'var(--radix-popper-available-height)',
+          maxHeight: menuMaxHeight,
         }}
       >
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-width:none]">
+        <div className="min-h-12 flex-1 overflow-y-auto overscroll-contain [scrollbar-width:none] sm:min-h-14">
           {models.map(model => (
             <DropdownMenuItem
               key={model.id}
               role="menuitemradio"
               aria-checked={model.current}
-              className="min-h-12 justify-between rounded-none border-b border-ods-border px-4 py-2 font-body text-base font-medium last:border-b-0 hover:bg-ods-menu-hover focus:bg-ods-menu-hover"
+              className="min-h-12 justify-between rounded-none border-b border-[color:var(--ods-borders-subtle)] px-4 py-2 font-body text-base font-medium last:border-b-0 hover:bg-ods-menu-hover focus:bg-ods-menu-hover sm:min-h-14"
               onSelect={model.choose}
             >
               <span className="min-w-0 break-words">{model.label}</span>
@@ -144,7 +152,11 @@ function ProviderModels({
             </DropdownMenuItem>
           ))}
         </div>
-        <div className="flex shrink-0 items-start gap-2 border-t border-ods-border px-4 py-3 font-body text-xs text-ods-text-secondary">
+        <div
+          className="flex shrink-0 items-start gap-2 overflow-y-auto overscroll-contain border-t border-[color:var(--ods-borders-subtle)] px-4 py-3 font-body text-xs text-ods-text-secondary [scrollbar-width:none]"
+          // Leave room for a model row even when a narrow viewport wraps the note.
+          style={{ maxHeight: `max(0px, calc(${menuMaxHeight} - 4rem - 2px))` }}
+        >
           <ShieldCheckIcon aria-hidden size={16} className="shrink-0" />
           <p>
             Your chats aren’t used to train AI models. Model providers keep requests for up to 30 days, then delete
@@ -189,7 +201,7 @@ export function MingoModelPicker({
         type="button"
         aria-label={`Change chat model: ${label}`}
         aria-disabled={selection.disabled || undefined}
-        className="group inline-flex min-w-0 items-center gap-1.5 rounded-sm py-0.5 pl-1.5 pr-1 text-ods-text-secondary hover:bg-[var(--ods-backgrounds-openframe-background-hover)] hover:text-ods-text-primary focus-visible:outline-2 focus-visible:outline-ods-focus aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-transparent data-[state=open]:bg-[var(--ods-backgrounds-openframe-background-action)] data-[state=open]:text-ods-text-primary"
+        className="group inline-flex h-6 min-w-0 items-center gap-1.5 rounded-sm py-0.5 pl-1.5 pr-1 text-sm font-medium leading-5 text-ods-text-secondary hover:bg-[var(--ods-backgrounds-openframe-background-hover)] hover:text-ods-text-primary focus-visible:outline-2 focus-visible:outline-ods-focus aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-transparent data-[state=open]:bg-[var(--ods-backgrounds-openframe-background-action)] data-[state=open]:text-ods-text-primary"
       >
         <ModelProviderLogo provider={provider} />
         <span className="truncate font-body">{label}</span>
