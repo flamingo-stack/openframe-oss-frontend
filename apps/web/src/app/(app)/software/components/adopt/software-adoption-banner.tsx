@@ -12,9 +12,9 @@ import { ADOPT_DEVICE_LIMIT, ADOPTABLE_DEVICES_FILTER, isAdopting } from './adop
 import { adoptionPackageManagerLabel } from './adoption-package-manager';
 
 /**
- * The title's adoption package, and how many of its devices no package manager manages. `adoptionCount` is the
- * server's own count of them; while it is not filled (null), the list the Adopt page picks from stands in, less the
- * devices whose adoption is already running, so the banner and the page never disagree.
+ * The title's adoption package, `adoptionCount` (the devices an order would reach: an agent new enough, the package
+ * manager present, the app not only in ~/Applications, its cask not installed yet) and the Adopt page's list, whose
+ * running adoptions come off that count. The list's size stands in for a server that does not fill the count.
  */
 const softwareAdoptionBannerQuery = graphql`
   query softwareAdoptionBannerQuery($id: ID!, $filter: SoftwareOnDeviceFilterInput!, $first: Int!) {
@@ -74,9 +74,10 @@ function SoftwareAdoptionBannerQuery({ softwareId }: { softwareId: string }) {
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
   const manager = software?.adoptionPackage?.packageManager;
-  // The page read is as long as one adoption (100): past it, the devices beyond count as adoptable.
+  // The server counts the devices an order would reach, a running adoption's included: those are taken off, from the
+  // page read (as long as one adoption, 100). Without the server's count, the Adopt page's list stands in.
   const adopting = softwareDevices.edges.filter(edge => isAdopting(edge.node.adoption?.status)).length;
-  const count = software?.adoptionCount ?? softwareDevices.filteredCount - adopting;
+  const count = (software?.adoptionCount ?? softwareDevices.filteredCount) - adopting;
   if (!software || !manager || count <= 0) return null;
 
   const devices = `${count} ${pluralNoun(count, 'device')}`;
