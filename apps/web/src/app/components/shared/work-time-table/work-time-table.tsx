@@ -11,16 +11,20 @@ import {
   TrashIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  actionColumn,
   Button,
   type ColumnDef,
   type ColumnFiltersState,
   DashboardInfoCard,
+  DataTable,
   type DataTableFilterOption,
   DatePicker,
   type DateRange,
   EntityImage,
+  GRID_MIN_WIDTH,
   Input,
   LoadError,
+  LoadingWhen,
   type OnChangeFn,
   SquareAvatar,
   TruncateText,
@@ -29,7 +33,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { format, isValid, parseISO } from 'date-fns';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { useLazyLoadQuery, useMutation, usePaginationFragment } from 'react-relay';
 import type { deleteTimeEntryMutation as DeleteTimeEntryMutationType } from '@/__generated__/deleteTimeEntryMutation.graphql';
 import type { employeeWorkTimeRelay_query$key } from '@/__generated__/employeeWorkTimeRelay_query.graphql';
@@ -43,6 +47,7 @@ import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { DeletedUserAvatar, isDeletedUserStatus, isSelfDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { EmptyState, oneLineEmptyState } from '@/app/components/shared/empty-state';
 import { useSearchParam } from '@/app/hooks/use-search-param';
+import { useGridTableProps, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { deleteTimeEntryMutation } from '@/graphql/time-tracker/delete-time-entry-mutation';
 import {
   employeeWorkTimeRelayFragment,
@@ -161,12 +166,49 @@ function EmployeeCell({ row }: { row: WorkTimeRow }) {
   );
 }
 
+/**
+ * The employee cell's grid form, on one line: the avatar, the name, the email beside it. The deleted mark is not one
+ * of the cell's leading kinds, so it sits before the cell.
+ */
+function EmployeeGridCell({ row }: { row: WorkTimeRow }) {
+  if (useLoadingScope()) return <DataTable.Cell leading={{ type: 'avatar', name: '' }} text="" />;
+  const name = row.userName ?? '–';
+  // SELF_DELETED emails are synthetic (`deleted-{id}@deleted.invalid`): hidden, as in the card row.
+  const email = row.userEmail && !isSelfDeletedUserStatus(row.userStatus) ? row.userEmail : undefined;
+  if (isDeletedUserStatus(row.userStatus)) {
+    return (
+      <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xsf)]">
+        <DeletedUserAvatar size="sm" />
+        <DataTable.Cell text={name} secondary={email} />
+      </div>
+    );
+  }
+  return (
+    <DataTable.Cell
+      leading={{ type: 'avatar', src: row.userImageUrl, name: row.userName ?? '?' }}
+      text={name}
+      secondary={email}
+    />
+  );
+}
+
+/*
+ * The data columns. Each states what the grid layout reads beside the card layout's `meta.width`: a `size` (a
+ * proposed width, to be confirmed by design), a `minSize` where the cell holds more than text, a one-line `gridCell`
+ * and a `label` for the settings menu.
+ */
 const employeeColumn: ColumnDef<WorkTimeRow> = {
   id: 'employee',
   header: 'EMPLOYEE',
   cell: ({ row }) => <EmployeeCell row={row.original} />,
   enableSorting: false,
-  meta: { width: 'min-w-0 flex-1' },
+  size: 280,
+  minSize: GRID_MIN_WIDTH.media,
+  meta: {
+    width: 'min-w-0 flex-1',
+    label: 'Employee',
+    gridCell: ({ row }) => <EmployeeGridCell row={row.original} />,
+  },
 };
 
 const timeColumn: ColumnDef<WorkTimeRow> = {
@@ -174,7 +216,12 @@ const timeColumn: ColumnDef<WorkTimeRow> = {
   header: 'TIME',
   cell: ({ row }) => <TimeCell row={row.original} />,
   enableSorting: false,
-  meta: { width: 'w-24 content-md:w-32 shrink-0 flex-none' },
+  size: 200,
+  meta: {
+    width: 'w-24 content-md:w-32 shrink-0 flex-none',
+    label: 'Time',
+    gridCell: ({ row }) => <TimeGridCell row={row.original} />,
+  },
 };
 
 const customerColumn: ColumnDef<WorkTimeRow> = {
@@ -182,7 +229,14 @@ const customerColumn: ColumnDef<WorkTimeRow> = {
   header: 'CUSTOMER',
   cell: ({ row }) => <CustomerCell row={row.original} />,
   enableSorting: false,
-  meta: { width: 'min-w-0 flex-1', hideAt: 'md' },
+  size: 280,
+  minSize: GRID_MIN_WIDTH.media,
+  meta: {
+    width: 'min-w-0 flex-1',
+    hideAt: 'md',
+    label: 'Customer',
+    gridCell: ({ row }) => <CustomerGridCell row={row.original} />,
+  },
 };
 
 const ticketNotesColumn: ColumnDef<WorkTimeRow> = {
@@ -190,7 +244,13 @@ const ticketNotesColumn: ColumnDef<WorkTimeRow> = {
   header: 'TICKET & NOTES',
   cell: ({ row }) => <TicketNotesCell row={row.original} />,
   enableSorting: false,
-  meta: { width: 'min-w-0 flex-1', hideAt: 'md' },
+  size: 360,
+  meta: {
+    width: 'min-w-0 flex-1',
+    hideAt: 'md',
+    label: 'Ticket & notes',
+    gridCell: ({ row }) => <TicketNotesGridCell row={row.original} />,
+  },
 };
 
 /** The duration over the day it was logged; two bars while the row is read. */
@@ -211,6 +271,12 @@ function TimeCell({ row }: { row: WorkTimeRow }) {
   );
 }
 
+/** The time cell's grid form, on one line: the duration, the day it was logged beside it. */
+function TimeGridCell({ row }: { row: WorkTimeRow }) {
+  if (useLoadingScope()) return <DataTable.Cell text="" />;
+  return <DataTable.Cell text={formatDurationLabel(row.durationSeconds)} secondary={formatDate(row.startedAt)} />;
+}
+
 /** The customer's image, name and email; each its own loading form while the row is read. */
 function CustomerCell({ row }: { row: WorkTimeRow }) {
   const loading = useLoadingScope();
@@ -229,6 +295,28 @@ function CustomerCell({ row }: { row: WorkTimeRow }) {
       </div>
     </div>
   );
+}
+
+/** The customer cell's grid form, on one line: the logo, the name, the contact email beside it. */
+function CustomerGridCell({ row }: { row: WorkTimeRow }) {
+  if (useLoadingScope()) return <DataTable.Cell leading={{ type: 'image', alt: '' }} text="" />;
+  const { organizationName, organizationEmail, organizationImageUrl } = row;
+  if (!organizationName) return <DataTable.Cell text="–" />;
+  return (
+    <DataTable.Cell
+      leading={{ type: 'image', src: organizationImageUrl, alt: organizationName }}
+      text={organizationName}
+      secondary={organizationEmail ?? undefined}
+    />
+  );
+}
+
+/** The ticket & notes cell's grid form, on one line: the ticket, the entry's notes beside it. */
+function TicketNotesGridCell({ row }: { row: WorkTimeRow }) {
+  if (useLoadingScope()) return <DataTable.Cell text="" />;
+  const { ticketNumber, ticketTitle, notes } = row;
+  const ticketLabel = ticketTitle ? `${ticketNumber != null ? `${ticketNumber} – ` : ''}${ticketTitle}` : '–';
+  return <DataTable.Cell text={ticketLabel} secondary={notes ?? undefined} />;
 }
 
 /** The ticket over the entry's notes; both draw their bars while the row is read. */
@@ -285,6 +373,27 @@ function EntryActionsCell({
   );
 }
 
+/**
+ * One entry action in the grid's action column: the 40px button with no border or fill of its own (the column is the
+ * box). Static chrome: drawn real while the row is read, and inert.
+ */
+function EntryActionButton({ label, icon, onClick }: { label: string; icon: ReactNode; onClick: () => void }) {
+  const loading = useLoadingScope();
+  return (
+    <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
+      <Button
+        variant="transparent"
+        size="icon"
+        className="size-10 border-0 md:size-10"
+        aria-label={label}
+        leftIcon={icon}
+        onClick={loading ? undefined : onClick}
+        disabled={loading}
+      />
+    </div>
+  );
+}
+
 function buildColumns(
   showEmployee: boolean,
   showCustomer: boolean,
@@ -292,14 +401,41 @@ function buildColumns(
   onDelete: (row: WorkTimeRow) => void,
   employeeFilterOptions: DataTableFilterOption[] = [],
   customerFilterOptions: DataTableFilterOption[] = [],
+  /** The grid layout: each action is a column of its own. Card rows keep the two buttons in one cell. */
+  grid = false,
 ): ColumnDef<WorkTimeRow>[] {
-  const actionsColumn: ColumnDef<WorkTimeRow> = {
-    id: 'actions',
-    header: '',
-    cell: ({ row }) => <EntryActionsCell row={row.original} onEdit={onEdit} onDelete={onDelete} />,
-    enableSorting: false,
-    meta: { width: 'w-24 content-md:w-28 shrink-0 flex-none', align: 'right' },
-  };
+  const actionColumns: ColumnDef<WorkTimeRow>[] = grid
+    ? [
+        actionColumn<WorkTimeRow>({
+          id: 'delete',
+          cell: ({ row }) => (
+            <EntryActionButton
+              label="Delete Entry"
+              icon={<TrashIcon className="h-5 w-5 text-ods-error" />}
+              onClick={() => onDelete(row.original)}
+            />
+          ),
+        }),
+        actionColumn<WorkTimeRow>({
+          id: 'edit',
+          cell: ({ row }) => (
+            <EntryActionButton
+              label="Edit Entry"
+              icon={<PenEditIcon className="h-5 w-5" />}
+              onClick={() => onEdit(row.original)}
+            />
+          ),
+        }),
+      ]
+    : [
+        {
+          id: 'actions',
+          header: '',
+          cell: ({ row }) => <EntryActionsCell row={row.original} onEdit={onEdit} onDelete={onDelete} />,
+          enableSorting: false,
+          meta: { width: 'w-24 content-md:w-28 shrink-0 flex-none', align: 'right' },
+        },
+      ];
 
   return [
     ...(showEmployee
@@ -326,8 +462,20 @@ function buildColumns(
         ]
       : []),
     ticketNotesColumn,
-    actionsColumn,
+    ...actionColumns,
   ];
+}
+
+/**
+ * The key of the viewer's saved column layout. The table draws a different column set in each of its hosts (the
+ * Worktime page, a customer's tab with no customer column, an employee's page with no employee column), so each set
+ * keeps a layout of its own.
+ */
+function workTimeStorageKey(showEmployee: boolean, showCustomer: boolean): string {
+  if (showEmployee && showCustomer) return 'work-time';
+  if (showEmployee) return 'work-time-customer';
+  if (showCustomer) return 'work-time-employee';
+  return 'work-time-entries';
 }
 
 function mapUserName(
@@ -450,9 +598,14 @@ function WorkTimeTableView({
   infiniteScroll: InfiniteScroll;
 }) {
   const loading = useLoadingScope();
+  // The new grid table, behind the app's one table flag; card rows while it is off. The stat cards and the filters
+  // sit above the table and two of its hosts are sections of a longer page, so the page scrolls, not the table.
+  const tableGrid = useGridTableProps(workTimeStorageKey(showEmployee, showCustomer));
+  const grid = tableGrid.layout === 'grid';
   const columns = useMemo(
-    () => buildColumns(showEmployee, showCustomer, onEdit, onDelete, employeeFilterOptions, customerFilterOptions),
-    [showEmployee, showCustomer, onEdit, onDelete, employeeFilterOptions, customerFilterOptions],
+    () =>
+      buildColumns(showEmployee, showCustomer, onEdit, onDelete, employeeFilterOptions, customerFilterOptions, grid),
+    [showEmployee, showCustomer, onEdit, onDelete, employeeFilterOptions, customerFilterOptions, grid],
   );
   // In a loading scope the table holds one page of placeholder rows, drawn with the real cells.
   const loadingRows = useMemo(() => (loading ? loadingPlaceholderRows<WorkTimeRow>(PAGE_SIZE) : null), [loading]);
@@ -505,6 +658,8 @@ function WorkTimeTableView({
           emptyState={oneLineEmptyState('No work time entries for this period.')}
           footer={infiniteScroll}
           loadingCells={loading}
+          layout={tableGrid.layout}
+          settings={tableGrid.settings}
         />
       )}
     </>
@@ -610,8 +765,15 @@ function WorkTimeFilters({
  * own loading state and reads nothing.
  */
 export function WorkTimeTable(props: WorkTimeTableProps) {
-  if (useLoadingScope()) {
-    return <WorkTimeTablePending showEmployee={!!props.showEmployee} showCustomer={!!props.showCustomer} />;
+  const scoped = useLoadingScope();
+  // While the table flag is read the table draws its loading state: it never draws one layout and swaps to the other.
+  const flagLoading = useTableGridGate() === 'loading';
+  if (scoped || flagLoading) {
+    return (
+      <LoadingWhen loading>
+        <WorkTimeTablePending showEmployee={!!props.showEmployee} showCustomer={!!props.showCustomer} />
+      </LoadingWhen>
+    );
   }
   return <LiveWorkTimeTable {...props} />;
 }
