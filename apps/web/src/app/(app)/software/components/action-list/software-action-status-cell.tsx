@@ -1,7 +1,7 @@
 'use client';
 
 import { isDeviceLocalTime } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { DataTable, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { softwareActionStatusCell_action$key } from '@/__generated__/softwareActionStatusCell_action.graphql';
 import { DEVICE_LOCAL_TIME_NOTE, formatScheduleStartAt } from '@/app/(app)/scripts/schedule/utils/schedule-timing';
@@ -53,4 +53,29 @@ function ScheduledAt({
       )}
     </>
   );
+}
+
+/**
+ * STATUS column in the grid layout: one line, the run's state and, for one still waiting on its schedule, when it
+ * fires (named as each device's own clock where it is).
+ */
+export function SoftwareActionStatusGridCell({ action }: { action: softwareActionStatusCell_action$key }) {
+  // A row still being read (a loading scope) has no fragment to read: an empty tag is the tag's skeleton.
+  const data = useFragment(softwareActionStatusCellFragment, useLoadingScope() ? null : action);
+  return (
+    <DataTable.Cell
+      tag={<SoftwareActionStatusTag status={data?.status ?? ''} />}
+      secondary={
+        data?.status === SoftwareActionStatus.SCHEDULED && data.scheduledAt
+          ? scheduledAtLine(data.scheduledAt, data.timeReference)
+          : undefined
+      }
+    />
+  );
+}
+
+/** "20 Nov 2026, 09:30", with the device-local note after it where the run fires on each device's own clock. */
+function scheduledAtLine(scheduledAt: string, timeReference: string | null | undefined): string {
+  const { date, time } = formatScheduleStartAt(scheduledAt, timeReference);
+  return isDeviceLocalTime(timeReference) ? `${date}, ${time}, ${DEVICE_LOCAL_TIME_NOTE}` : `${date}, ${time}`;
 }

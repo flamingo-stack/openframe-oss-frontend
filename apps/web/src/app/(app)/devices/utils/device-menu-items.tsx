@@ -34,7 +34,13 @@ export interface DeviceMenuItemContext {
   isWindows?: boolean;
   /** Adds an "open in new tab" arrow icon-action to each item. */
   withNewTabAction?: boolean;
+  /** The running session another technician holds on the device (`useWatchLiveSessionId`): an enabled Remote
+   *  Control becomes "Watch live", opening that session's live page. A disabled one stays as it is. */
+  watchLiveSessionId?: string | null;
 }
+
+/** The id the Remote Control slot carries while it is "Watch live", for a caller that treats the two apart. */
+export const WATCH_LIVE_ITEM_ID = 'watch-live';
 
 /**
  * Builders for every device-action menu item known to the app. Each builder
@@ -135,6 +141,8 @@ export function buildDeviceMenuItems(ctx: DeviceMenuItemContext): DeviceMenuItem
 
   const remoteControlHref = routes.devices.remoteDesktop(ctx.deviceId);
   const remoteControlDisabled = !ctx.availability?.remoteControlEnabled;
+  const watchLiveHref =
+    ctx.watchLiveSessionId && !remoteControlDisabled ? routes.devices.liveSession(ctx.watchLiveSessionId) : null;
 
   const manageFilesHref = routes.devices.fileManager(ctx.deviceId);
   const manageFilesDisabled = !ctx.availability?.manageFilesEnabled;
@@ -151,14 +159,24 @@ export function buildDeviceMenuItems(ctx: DeviceMenuItemContext): DeviceMenuItem
       ...maybeNewTabAction(ctx, deviceDetailsHref, 'Device Details'),
     },
     remoteShell,
-    remoteControl: {
-      id: 'remote-control',
-      label: 'Remote Control',
-      icon: <ComputerMouseIcon className={iconClass(ctx, remoteControlDisabled)} />,
-      href: remoteControlHref,
-      disabled: remoteControlDisabled,
-      ...maybeNewTabAction(ctx, remoteControlHref, 'Remote Control', remoteControlDisabled),
-    },
+    // Another technician is in the device: opening Remote Control would only be refused as busy and redirected to
+    // the live page, so the action says what it does and goes there directly.
+    remoteControl: watchLiveHref
+      ? {
+          id: WATCH_LIVE_ITEM_ID,
+          label: 'Watch live',
+          icon: <ComputerMouseIcon className={iconClass(ctx)} />,
+          href: watchLiveHref,
+          ...maybeNewTabAction(ctx, watchLiveHref, 'Watch live'),
+        }
+      : {
+          id: 'remote-control',
+          label: 'Remote Control',
+          icon: <ComputerMouseIcon className={iconClass(ctx, remoteControlDisabled)} />,
+          href: remoteControlHref,
+          disabled: remoteControlDisabled,
+          ...maybeNewTabAction(ctx, remoteControlHref, 'Remote Control', remoteControlDisabled),
+        },
     manageFiles: {
       id: 'manage-files',
       label: 'Manage Files',

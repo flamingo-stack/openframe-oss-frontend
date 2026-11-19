@@ -1,5 +1,6 @@
 'use client';
 
+import { TableLayoutScope } from '@/app/components/shared/table-layout-scope';
 import { useRequiredIdParam } from '@/app/hooks/use-required-id-param';
 import { routes } from '@/lib/routes';
 import { SoftwarePageShell } from '../components/shared/software-page-shell';
@@ -17,7 +18,10 @@ export default function SoftwareDetailsPage() {
 
   return (
     <SoftwarePageShell title={SOFTWARE_DETAIL_TITLE} errorMessage="Couldn't load this software.">
-      <SoftwareDetailView softwareId={softwareId} loading={gate === 'loading'} />
+      {/* The tables are sections of a longer page: in the grid layout the page scrolls, not a table. */}
+      <TableLayoutScope>
+        <SoftwareDetailView softwareId={softwareId} loading={gate === 'loading'} />
+      </TableLayoutScope>
     </SoftwarePageShell>
   );
 }

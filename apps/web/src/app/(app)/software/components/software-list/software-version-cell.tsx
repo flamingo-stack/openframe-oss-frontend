@@ -1,11 +1,12 @@
 'use client';
 
 import { Tag } from '@flamingo-stack/openframe-frontend-core';
-import { TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { DataTable, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { softwareVersionCell_software$key } from '@/__generated__/softwareVersionCell_software.graphql';
 import { ValueText } from '@/app/components/shared';
 import { SoftwareVersionStatus } from '@/generated/schema-enums';
+import { displayValue } from '@/lib/empty-value';
 import { pluralize } from '@/lib/pluralize';
 import { OUTDATED_TAG } from '../shared/outdated-tag';
 
@@ -39,5 +40,23 @@ export function SoftwareVersionCell({ software }: { software: softwareVersionCel
         </TruncateText>
       )}
     </div>
+  );
+}
+
+/** CURRENT VERSION column in the grid layout: one line, the version, its Outdated tag, then the older versions' count. */
+export function SoftwareVersionGridCell({ software }: { software: softwareVersionCell_software$key }) {
+  // A row still being read (a loading scope) has no fragment to read: the cell draws the version as a bar.
+  const data = useFragment(softwareVersionCellFragment, useLoadingScope() ? null : software);
+  const olderCount = data?.olderVersionsCount ?? 0;
+  return (
+    <DataTable.Cell
+      text={data ? displayValue(data.currentVersion) : ''}
+      tag={
+        data?.versionStatus === SoftwareVersionStatus.OUTDATED && (
+          <Tag label={OUTDATED_TAG.label} variant={OUTDATED_TAG.variant} />
+        )
+      }
+      secondary={olderCount > 0 ? `+${pluralize(olderCount, 'older version')}` : undefined}
+    />
   );
 }

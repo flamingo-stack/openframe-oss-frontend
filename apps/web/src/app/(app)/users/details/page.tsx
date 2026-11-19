@@ -1,6 +1,7 @@
 'use client';
 
 import { notFound } from 'next/navigation';
+import { TableLayoutScope } from '@/app/components/shared/table-layout-scope';
 import { useRequiredIdParam } from '@/app/hooks/use-required-id-param';
 import { routes } from '@/lib/routes';
 import { TenantPageShell } from '../../cloud-tenant-management/components/shared/tenant-page-shell';
@@ -20,8 +21,11 @@ export default function UserDetailsPage() {
   }
   return (
     <TenantPageShell title={USER_DETAIL_TITLE} errorMessage="Couldn't load this user." resetKey={id}>
-      {/* Keyed by id: the router reuses this segment when only `?id=` changes. */}
-      <UserDetailView key={id} id={id} loading={gate === 'loading'} />
+      {/* The tabs' tables are sections of a longer page: in the grid layout the page scrolls, not a table. */}
+      <TableLayoutScope>
+        {/* Keyed by id: the router reuses this segment when only `?id=` changes. */}
+        <UserDetailView key={id} id={id} loading={gate === 'loading'} />
+      </TableLayoutScope>
     </TenantPageShell>
   );
 }

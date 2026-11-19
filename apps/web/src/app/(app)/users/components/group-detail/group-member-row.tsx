@@ -1,8 +1,15 @@
 'use client';
 
 import { MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { CustomerCell, ProviderMarks, UserCell, type UserRow } from '../users-list/user-row-cells';
+import { DataTable, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  CustomerCell,
+  CustomerGridCell,
+  ProviderMarks,
+  UserCell,
+  UserGridCell,
+  type UserRow,
+} from '../users-list/user-row-cells';
 
 export type MemberKind = 'user' | 'group' | 'device';
 
@@ -43,6 +50,26 @@ export function MemberCell({ row }: { row: MemberRow }) {
   return row.kind === 'group' || row.kind === 'device' ? <RecordCell row={row} /> : <UserCell row={row} />;
 }
 
+/**
+ * MEMBERS column in the grid layout: one line. A user draws as on the Users list; a group or a device has its mark in
+ * the avatar's 32px slot, so the names of a mixed list start in one line, then its second line after the name.
+ */
+export function MemberGridCell({ row }: { row: MemberRow }) {
+  if (row.kind !== 'group' && row.kind !== 'device') return <UserGridCell row={row} />;
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xsf)]">
+      <span className="flex size-8 shrink-0 items-center justify-center">
+        {row.kind === 'device' ? (
+          <MonitorIcon size={24} className="shrink-0 text-ods-text-secondary" />
+        ) : (
+          <ProviderMarks providers={row.providers ?? []} />
+        )}
+      </span>
+      <DataTable.Cell text={row.name ?? ''} secondary={row.detail} />
+    </div>
+  );
+}
+
 export function MemberTypeCell({ row }: { row: MemberRow }) {
   const loading = useLoadingScope();
   return (
@@ -59,6 +86,14 @@ export function MemberTypeCell({ row }: { row: MemberRow }) {
   );
 }
 
+/** TYPE column in the grid layout: one line, the type with the group a nested member comes through after it. */
+export function MemberTypeGridCell({ row }: { row: MemberRow }) {
+  // A row still being read has no type: the cell draws it as a bar.
+  return (
+    <DataTable.Cell text={row.kind ? MEMBER_TYPE[row.kind] : ''} secondary={row.via ? `via ${row.via}` : undefined} />
+  );
+}
+
 /**
  * A user's customers, named by its rules; a device's, the ones that claim its declared owner. A subgroup has none of
  * its own (Figma 733:99325).
@@ -66,4 +101,10 @@ export function MemberTypeCell({ row }: { row: MemberRow }) {
 export function MemberCustomerCell({ row }: { row: MemberRow }) {
   if (row.kind === 'group') return <TruncateText>Counted through its members</TruncateText>;
   return <CustomerCell row={row} showTenant={false} />;
+}
+
+/** CUSTOMER column in the grid layout: one line, the first customer's logo and name with the others behind `+N`. */
+export function MemberCustomerGridCell({ row }: { row: MemberRow }) {
+  if (row.kind === 'group') return <DataTable.Cell text="Counted through its members" />;
+  return <CustomerGridCell row={row} showTenant={false} />;
 }

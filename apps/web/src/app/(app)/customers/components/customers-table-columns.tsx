@@ -5,7 +5,10 @@ import { ArrowRightUpIcon, SearchIcon } from '@flamingo-stack/openframe-frontend
 import {
   Button,
   type ColumnDef,
+  DataTable,
   EntityImage,
+  GRID_ACTION_COLUMN_SIZE,
+  GRID_MIN_WIDTH,
   Input,
   LoadingWhen,
   type Row,
@@ -20,6 +23,8 @@ import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/
 import { oneLineEmptyState } from '@/app/components/shared/empty-state';
 import { EmptyValue } from '@/app/components/shared/empty-value';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { useTableGrid } from '@/app/components/shared/table-layout-scope';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
@@ -61,6 +66,18 @@ export function CustomerNameCell({ org }: { org: UiCustomerEntry }) {
   );
 }
 
+/** NAME column in the grid layout: one line, the logo, the name and the contact email after it. */
+export function CustomerNameGridCell({ org }: { org: UiCustomerEntry }) {
+  // A row still being read has no field: the logo and the name draw their own loading form.
+  return (
+    <DataTable.Cell
+      leading={{ type: 'image', src: getFullImageUrl(org.imageUrl, org.imageHash), alt: org.name ?? '' }}
+      text={org.name ?? ''}
+      secondary={org.email || undefined}
+    />
+  );
+}
+
 export function transformCustomerToEntry(org: Customer, deviceCount: number | null): UiCustomerEntry {
   return {
     id: org.id,
@@ -79,18 +96,34 @@ export function transformCustomerToEntry(org: Customer, deviceCount: number | nu
 /** Last Activity sort + date-range filter wiring (desktop/tablet header popover). */
 export type CustomersDateFilter = TableDateFilter;
 
+/*
+ * The columns. Each data column states what the grid layout reads beside the card layout's `meta.width`: a `size` (its
+ * designed width), a `label` for the settings menu where the header is not its name, and a one-line `gridCell` (every
+ * card cell here has a second line). The open column is kept by hand rather than built with the lib's `actionColumn()`,
+ * which sets no `hideAt` and would show the button in the card rows that hide it.
+ */
 export const buildCustomersColumns = (dateFilter?: CustomersDateFilter): ColumnDef<UiCustomerEntry>[] => [
   {
     accessorKey: 'name',
     header: 'Name',
     cell: ({ row }: { row: Row<UiCustomerEntry> }) => <CustomerNameCell org={row.original} />,
-    meta: { width: 'flex-1 min-w-0' },
+    size: 360,
+    minSize: GRID_MIN_WIDTH.media,
+    meta: {
+      width: 'flex-1 min-w-0',
+      gridCell: ({ row }: { row: Row<UiCustomerEntry> }) => <CustomerNameGridCell org={row.original} />,
+    },
   },
   {
     accessorKey: 'deviceCount',
     header: 'Devices',
     cell: ({ row }: { row: Row<UiCustomerEntry> }) => <CustomerCountsCell org={row.original} />,
-    meta: { width: 'w-[200px] shrink-0', hideAt: 'md' },
+    size: 220,
+    meta: {
+      width: 'w-[200px] shrink-0',
+      hideAt: 'md',
+      gridCell: ({ row }: { row: Row<UiCustomerEntry> }) => <CustomerCountsGridCell org={row.original} />,
+    },
   },
   {
     accessorKey: 'lastActivityDate',
@@ -105,14 +138,37 @@ export const buildCustomersColumns = (dateFilter?: CustomersDateFilter): ColumnD
         </TruncateText>
       </div>
     ),
-    // alwaysShowHeader keeps the date filter reachable on tablet (md–lg)
-    meta: { width: 'w-[200px] shrink-0', hideAt: 'md', alwaysShowHeader: Boolean(dateFilter) },
+    size: 260,
+    meta: {
+      width: 'w-[200px] shrink-0',
+      hideAt: 'md',
+      // alwaysShowHeader keeps the date filter reachable on tablet (md–lg)
+      alwaysShowHeader: Boolean(dateFilter),
+      // The header is a node when it hosts the date filter: the settings menu needs the column's name.
+      label: 'Last activity',
+      // One line: the date, and how long ago after it.
+      gridCell: ({ row }: { row: Row<UiCustomerEntry> }) => (
+        <DataTable.Cell
+          text={row.original.lastActivityDate ?? ''}
+          secondary={row.original.lastActivityRelative || undefined}
+        />
+      ),
+    },
   },
   {
     id: 'open',
     cell: ({ row }: { row: Row<UiCustomerEntry> }) => <OpenCustomerButton org={row.original} />,
     enableSorting: false,
-    meta: { width: 'w-12 shrink-0 flex-none ml-auto', hideAt: 'md', align: 'right' },
+    // In the grid: an action column (56px, pinned right, never hidden, not in the settings menu).
+    size: GRID_ACTION_COLUMN_SIZE,
+    enableHiding: false,
+    meta: {
+      width: 'w-12 shrink-0 flex-none ml-auto',
+      hideAt: 'md',
+      align: 'right',
+      gridKind: 'action',
+      gridCell: ({ row }: { row: Row<UiCustomerEntry> }) => <OpenCustomerButton org={row.original} grid />,
+    },
   },
 ];
 
@@ -137,18 +193,35 @@ function CustomerCountsCell({ org }: { org: UiCustomerEntry }) {
   );
 }
 
-/** Opens the customer's page in a new tab. Static chrome: drawn real while the row is read, and inert. */
-function OpenCustomerButton({ org }: { org: UiCustomerEntry }) {
+/** DEVICES column in the grid layout: one line, the customer's devices and its users after them. */
+function CustomerCountsGridCell({ org }: { org: UiCustomerEntry }) {
+  // A row still being read has no counts: the cell draws its bar.
+  if (useLoadingScope() && org.numberOfEmployees === undefined) return <DataTable.Cell text="" />;
+  const { deviceCount, numberOfEmployees } = org;
+  return (
+    <DataTable.Cell
+      text={deviceCount === null ? EMPTY_VALUE : pluralize(deviceCount, 'device')}
+      secondary={pluralize(numberOfEmployees, 'user')}
+    />
+  );
+}
+
+/**
+ * Opens the customer's page in a new tab. Static chrome: drawn real while the row is read, and inert. `grid`: its form
+ * in a grid table's action column, the 40px button with no border or fill of its own (the shared `OpenRowButton`'s
+ * grid form); default, the outlined button of a card row.
+ */
+function OpenCustomerButton({ org, grid = false }: { org: UiCustomerEntry; grid?: boolean }) {
   const loading = useLoadingScope();
   return (
     <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
       <Button
         onClick={loading ? undefined : openInNewTab(routes.customers.details(org.organizationId))}
-        variant="outline"
+        variant={grid ? 'transparent' : 'outline'}
         size="icon"
         leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
         aria-label="Open in new tab"
-        className="bg-ods-card"
+        className={grid ? 'size-10 border-0 md:size-10' : 'bg-ods-card'}
         disabled={loading}
       />
     </div>
@@ -208,6 +281,8 @@ export function CustomersTableBody({
   dateFilter,
   ...rowCount
 }: CustomersTableBodyProps) {
+  // Active and archived customers draw the same columns: one saved column layout.
+  const tableGrid = useTableGrid('customers');
   const orgIds = useMemo(() => customers.map(c => c.organizationId), [customers]);
   const { deviceCounts } = useCustomerDeviceCounts(orgIds);
 
@@ -242,6 +317,7 @@ export function CustomersTableBody({
     // The first page is a client read: the table draws its own loading state in this scope.
     <LoadingWhen loading={isLoading}>
       <LiveTable
+        {...tableGrid}
         table={table}
         {...rowCount}
         stickyHeader={!!stickyHeaderOffset}
