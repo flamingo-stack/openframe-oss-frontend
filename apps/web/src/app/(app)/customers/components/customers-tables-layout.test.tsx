@@ -318,5 +318,14 @@ describe('A customer’s Tickets tab', () => {
     // A tab is one section of the customer's page: the page scrolls, not the table.
     expect(fixedViewport(container)).toBeNull();
     expect(gridBodyText(container)).toContain('Printer offline');
+    // The open action is the grid's own button on every row: no border or fill of the card row's button.
+    const openButtons = [
+      ...container.querySelectorAll<HTMLButtonElement>('[data-grid-body] button[aria-label="Open in new tab"]'),
+    ];
+    expect(openButtons).toHaveLength(2);
+    for (const button of openButtons) {
+      expect(button.className).toContain('border-0');
+      expect(button.className).not.toContain('bg-ods-card');
+    }
   });
 });

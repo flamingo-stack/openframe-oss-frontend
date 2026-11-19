@@ -10,16 +10,19 @@ import {
   useLoadingScope,
   GRID_ACTION_COLUMN_SIZE,
   GRID_MIN_WIDTH,
+  type Row,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import { oneLineEmptyState } from '@/app/components/shared/empty-state';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { ResponsiveActionButton } from '@/app/components/shared/responsive-action-button';
 import { useTableGrid } from '@/app/components/shared/table-layout-scope';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
+import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import {
   getTicketOpenColumn,
@@ -87,11 +90,23 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
         : source;
     });
     // The open column is the grid's action column kept by hand (pinned right, never hidden), so that the card rows
-    // keep it as it is.
+    // keep it as it is. In the grid it draws the shared open button's grid form (no border or fill of its own), as
+    // every other list's action column does; the card cell stays the shared ticket column's.
     const open = getTicketOpenColumn();
     return [
       ...data,
-      { ...open, size: GRID_ACTION_COLUMN_SIZE, enableHiding: false, meta: { ...open.meta, gridKind: 'action' } },
+      {
+        ...open,
+        size: GRID_ACTION_COLUMN_SIZE,
+        enableHiding: false,
+        meta: {
+          ...open.meta,
+          gridKind: 'action',
+          gridCell: ({ row }: { row: Row<Dialog> }) => (
+            <OpenRowButton grid label="Open in new tab" onClick={openInNewTab(ticketRowHref(row.original))} />
+          ),
+        },
+      },
     ];
   }, [isUserDeleted]);
 
