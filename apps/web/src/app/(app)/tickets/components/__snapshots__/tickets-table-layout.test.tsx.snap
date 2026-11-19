@@ -1,0 +1,2027 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ticket tables, card rows (the flag off) > the /tickets list 1`] = `
+<div>
+  <div
+    class="flex w-full flex-col px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+  >
+    <div
+      class="flex items-end justify-between gap-[var(--spacing-system-m)] content-md:flex-wrap content-md:content-end pt-[var(--spacing-system-l)] mb-[var(--spacing-system-l)]"
+    >
+      <div
+        class="flex min-w-0 flex-1 flex-col justify-center gap-[var(--spacing-system-xs)] content-md:max-w-full content-md:flex-none min-h-11 content-md:min-h-12"
+      >
+        <h1
+          class="text-h2 text-ods-text-primary"
+        >
+          Tickets
+        </h1>
+      </div>
+    </div>
+    <div
+      class="flex-1 gap-[var(--spacing-system-l)] flex flex-col"
+    >
+      <div>
+        <div
+          class="sticky top-0 z-20 -mx-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)] flex flex-col gap-[var(--spacing-system-xxs)] bg-ods-bg px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]"
+        />
+        <div
+          class="transition-opacity duration-200"
+        >
+          <div
+            class="flex w-full flex-col"
+          >
+            <div
+              class="hidden content-md:flex content-md:flex-col sticky z-10 bg-ods-bg top-[72px]"
+            >
+              <div
+                class="relative flex items-stretch gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)]"
+              >
+                <div
+                  class="items-stretch flex w-[60%] content-md:flex-1 min-w-0 content-max-lg:[&&]:w-auto content-max-lg:[&&]:flex-none content-max-lg:[&&]:basis-auto"
+                >
+                  <div
+                    class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left content-max-lg:justify-start group cursor-pointer"
+                  >
+                    <span
+                      class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+                    >
+                      TICKET
+                    </span>
+                    <svg
+                      class="h-4 w-4 text-ods-accent"
+                      fill="none"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      width="24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M10.875 19V5a1.125 1.125 0 0 1 2.25 0v14a1.125 1.125 0 1 1-2.25 0"
+                        fill="currentColor"
+                      />
+                      <path
+                        d="M17.204 12.205a1.125 1.125 0 1 1 1.591 1.59l-6 6c-.439.44-1.151.44-1.59 0l-6-6-.078-.085a1.126 1.126 0 0 1 1.583-1.583l.085.078L12 17.409z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </div>
+                </div>
+                <div
+                  class="items-stretch hidden content-lg:flex min-w-0 flex-1"
+                >
+                  <div
+                    class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left"
+                  >
+                    <span
+                      class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+                    >
+                      SOURCE
+                    </span>
+                  </div>
+                </div>
+                <div
+                  class="items-stretch flex min-w-0 flex-1 content-max-lg:[&&]:w-auto content-max-lg:[&&]:flex-none content-max-lg:[&&]:basis-auto"
+                >
+                  <div
+                    class="block w-full"
+                  >
+                    <div
+                      class="group flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left cursor-default"
+                    >
+                      <span
+                        class="whitespace-nowrap text-ods-text-secondary transition-colors duration-200 text-h5"
+                      >
+                        ASSIGNEE
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  class="items-stretch flex min-w-0 flex-1 content-max-lg:[&&]:w-auto content-max-lg:[&&]:flex-none content-max-lg:[&&]:basis-auto"
+                >
+                  <div
+                    class="block w-full"
+                  >
+                    <div
+                      class="group flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left cursor-default"
+                    >
+                      <span
+                        class="whitespace-nowrap text-ods-text-secondary transition-colors duration-200 text-h5"
+                      >
+                        STATUS
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  class="items-stretch hidden content-lg:flex w-12 flex-none"
+                >
+                  <div
+                    class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-end text-right"
+                  />
+                </div>
+                <div
+                  class="flex items-center absolute inset-y-0 right-[var(--spacing-system-mf)]"
+                >
+                  <span
+                    class="whitespace-nowrap text-ods-text-secondary text-h6"
+                  >
+                    3
+                     
+                    results
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div
+              class="flex w-full flex-col gap-[var(--spacing-system-xsf)]"
+            >
+              <a
+                class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block cursor-pointer transition-colors hover:bg-ods-bg-active mb-1"
+                data-loading-item="true"
+                href="/tickets/dialog?id=t-1"
+              >
+                <div
+                  class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+                >
+                  <div
+                    class="flex flex-col overflow-hidden justify-start text-left w-[60%] content-md:flex-1 min-w-0"
+                  >
+                    <div
+                      class="flex min-w-0 flex-col justify-center"
+                    >
+                      <div
+                        class="min-w-0 max-w-full"
+                      >
+                        <span
+                          class="text-h4 text-ods-text-primary truncate block"
+                        >
+                          Printer on the second floor prints blank pages
+                        </span>
+                      </div>
+                      <div
+                        class="min-w-0"
+                        title="01/15/2026, 12:55 PM"
+                      >
+                        <div
+                          class="min-w-0 max-w-full"
+                        >
+                          <span
+                            class="text-h6 text-ods-text-secondary truncate block"
+                          >
+                            3891 • 5 min ago
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-md:flex"
+                  >
+                    <div
+                      class="flex min-h-[60px] flex-col justify-center gap-1 py-2"
+                    >
+                      <span
+                        class="truncate text-ods-text-primary text-h6"
+                        title="front-desk-pc"
+                      >
+                        front-desk-pc
+                      </span>
+                      <span
+                        class="truncate text-ods-text-secondary text-h6"
+                        title="Acme Corp"
+                      >
+                        Acme Corp
+                      </span>
+                    </div>
+                  </div>
+                  <div
+                    class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-lg:flex"
+                  >
+                    <div
+                      class="flex min-w-0 items-center gap-2"
+                    >
+                      <div
+                        class="relative flex items-center justify-center overflow-hidden border border-ods-border bg-ods-bg h-8 w-8 rounded-full shrink-0"
+                      >
+                        <div
+                          class="flex items-center justify-center text-xs font-medium text-[color:var(--ods-avatar-initials,var(--color-text-primary))]"
+                        >
+                          MC
+                        </div>
+                      </div>
+                      <div
+                        class="min-w-0 max-w-full"
+                      >
+                        <span
+                          class="text-h4 text-ods-text-primary truncate block"
+                        >
+                          Maya Chen
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="flex flex-col overflow-hidden justify-start text-left min-w-0 flex-1"
+                  >
+                    <div
+                      class="inline-flex items-center justify-center rounded-md transition-colors duration-150 h-8 gap-[var(--spacing-system-xs)] p-[var(--spacing-system-xsf)] text-h5 border border-ods-border text-ods-text-primary hover:border-ods-border-hover active:border-ods-border-active w-fit shrink-0 bg-[var(--tag-bg)] hover:bg-[var(--tag-bg-hover)] active:bg-[var(--tag-bg-active)]"
+                      style="--tag-bg: blue; --tag-bg-hover: blue; --tag-bg-active: blue; color: rgb(250, 250, 250);"
+                    >
+                      <span
+                        class="min-w-0 max-w-full"
+                      >
+                        <span
+                          class="block truncate"
+                        >
+                          In progress
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                  <div
+                    class="flex-col overflow-hidden justify-end text-right w-12 flex-none hidden content-md:flex"
+                  >
+                    <span
+                      aria-label="3 unread messages"
+                      class="inline-flex h-12 min-w-12 items-center justify-center rounded-md bg-ods-accent px-[var(--spacing-system-xsf)] font-bold text-ods-text-on-accent text-h3"
+                    >
+                      3
+                    </span>
+                  </div>
+                </div>
+              </a>
+              <a
+                class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block cursor-pointer transition-colors hover:bg-ods-bg-active mb-1"
+                data-loading-item="true"
+                href="/tickets/dialog?id=t-2"
+              >
+                <div
+                  class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+                >
+                  <div
+                    class="flex flex-col overflow-hidden justify-start text-left w-[60%] content-md:flex-1 min-w-0"
+                  >
+                    <div
+                      class="flex min-w-0 flex-col justify-center"
+                    >
+                      <div
+                        class="min-w-0 max-w-full"
+                      >
+                        <span
+                          class="text-h4 text-ods-text-primary truncate block"
+                        >
+                          VPN drops every hour
+                        </span>
+                      </div>
+                      <div
+                        class="min-w-0"
+                        title="01/14/2026, 10:00 AM"
+                      >
+                        <div
+                          class="min-w-0 max-w-full"
+                        >
+                          <span
+                            class="text-h6 text-ods-text-secondary truncate block"
+                          >
+                            3890 • 01/14/2026
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-md:flex"
+                  >
+                    <div
+                      class="flex min-h-[60px] flex-col justify-center gap-1 py-2"
+                    >
+                      <span
+                        class="truncate text-ods-text-primary text-h6"
+                        title="—"
+                      >
+                        —
+                      </span>
+                    </div>
+                  </div>
+                  <div
+                    class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-lg:flex"
+                  >
+                    <span
+                      data-unassigned="pick"
+                    >
+                      Unassigned
+                    </span>
+                  </div>
+                  <div
+                    class="flex flex-col overflow-hidden justify-start text-left min-w-0 flex-1"
+                  >
+                    <div
+                      class="inline-flex items-center justify-center rounded-md transition-colors duration-150 h-8 gap-[var(--spacing-system-xs)] p-[var(--spacing-system-xsf)] text-h5 border border-ods-border text-ods-text-primary hover:border-ods-border-hover active:border-ods-border-active w-fit shrink-0 bg-[var(--tag-bg)] hover:bg-[var(--tag-bg-hover)] active:bg-[var(--tag-bg-active)]"
+                      style="--tag-bg: grey; --tag-bg-hover: grey; --tag-bg-active: grey; color: rgb(250, 250, 250);"
+                    >
+                      <span
+                        class="min-w-0 max-w-full"
+                      >
+                        <span
+                          class="block truncate"
+                        >
+                          New
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                  <div
+                    class="flex-col overflow-hidden justify-end text-right w-12 flex-none hidden content-md:flex"
+                  >
+                    <div
+                      class="pointer-events-auto flex items-center justify-end"
+                      data-no-row-click="true"
+                    >
+                      <button
+                        aria-label="Open in new tab"
+                        class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:bg-ods-card disabled:text-ods-text-disabled aria-disabled:bg-ods-card aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-11 w-11 p-[var(--spacing-system-sf)] md:h-12 md:w-12 [&_svg]:h-4 [&_svg]:w-4 md:[&_svg]:h-6 md:[&_svg]:w-6 bg-ods-card"
+                      >
+                        <span
+                          class="contents"
+                        >
+                          <span
+                            class="inline-flex items-center"
+                          >
+                            <svg
+                              class="h-5 w-5"
+                              fill="none"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              width="24"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="m16.154 6.255.086-.078a1.125 1.125 0 0 1 1.583 1.583l-.078.086-9.9 9.899a1.125 1.125 0 1 1-1.59-1.591z"
+                                fill="currentColor"
+                              />
+                              <path
+                                d="M7.34 7.05c0-.582.442-1.062 1.01-1.12l.115-.005h8.485a1.124 1.124 0 0 1 1.125 1.125v8.485a1.125 1.125 0 1 1-2.25 0v-7.36h-7.36L8.35 8.17a1.125 1.125 0 0 1-1.01-1.12"
+                                fill="currentColor"
+                              />
+                            </svg>
+                          </span>
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </a>
+              <a
+                class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block cursor-pointer transition-colors hover:bg-ods-bg-active mb-1"
+                data-loading-item="true"
+                href="/tickets/dialog?id=t-3"
+              >
+                <div
+                  class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+                >
+                  <div
+                    class="flex flex-col overflow-hidden justify-start text-left w-[60%] content-md:flex-1 min-w-0"
+                  >
+                    <div
+                      class="flex min-w-0 flex-col justify-center"
+                    >
+                      <div
+                        class="min-w-0 max-w-full"
+                      >
+                        <span
+                          class="text-h4 text-ods-text-primary truncate block"
+                        >
+                          Licence renewal
+                        </span>
+                      </div>
+                      <div
+                        class="min-w-0"
+                        title="01/14/2026, 10:00 AM"
+                      >
+                        <div
+                          class="min-w-0 max-w-full"
+                        >
+                          <span
+                            class="text-h6 text-ods-text-secondary truncate block"
+                          >
+                            3889 • 01/14/2026
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-md:flex"
+                  >
+                    <div
+                      class="flex min-h-[60px] flex-col justify-center gap-1 py-2"
+                    >
+                      <span
+                        class="truncate text-ods-text-primary text-h6"
+                        title="—"
+                      >
+                        —
+                      </span>
+                    </div>
+                  </div>
+                  <div
+                    class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-lg:flex"
+                  >
+                    <div
+                      class="flex min-w-0 items-center gap-2"
+                    >
+                      <span
+                        aria-label="Deleted user"
+                        class="flex shrink-0 items-center justify-center rounded-full bg-ods-error/20 h-8 w-8"
+                        role="img"
+                      >
+                        <svg
+                          class="text-ods-error w-4 h-4"
+                          fill="none"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          width="24"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M21.204 15.205a1.125 1.125 0 0 1 1.59 1.59L21.09 18.5l1.705 1.705.078.087a1.124 1.124 0 0 1-1.582 1.582l-.087-.078L19.5 20.09l-1.704 1.705a1.125 1.125 0 1 1-1.59-1.59l1.703-1.706-1.703-1.704-.078-.085a1.125 1.125 0 0 1 1.583-1.583l.085.078 1.704 1.703zm-8.347-1.33q.165 0 .33.009a1.125 1.125 0 1 1-.117 2.247 4 4 0 0 0-.213-.006H7.143a4.014 4.014 0 0 0-4.005 3.75H13l.116.006a1.125 1.125 0 0 1 0 2.238l-.116.006H2.857a1.98 1.98 0 0 1-1.982-1.982 6.27 6.27 0 0 1 6.268-6.268zm.269-6.625a3.126 3.126 0 1 0-6.252.002 3.126 3.126 0 0 0 6.252-.002m2.25 0a5.376 5.376 0 1 1-10.75 0 5.376 5.376 0 0 1 10.75 0"
+                            fill="currentColor"
+                          />
+                        </svg>
+                      </span>
+                      <div
+                        class="min-w-0 max-w-full"
+                      >
+                        <span
+                          class="text-h4 truncate block text-ods-error"
+                        >
+                          Sam Reed
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="flex flex-col overflow-hidden justify-start text-left min-w-0 flex-1"
+                  >
+                    <div
+                      class="inline-flex items-center justify-center rounded-md transition-colors duration-150 h-8 gap-[var(--spacing-system-xs)] p-[var(--spacing-system-xsf)] text-h5 border border-ods-border text-ods-text-primary hover:border-ods-border-hover active:border-ods-border-active w-fit shrink-0 bg-[var(--tag-bg)] hover:bg-[var(--tag-bg-hover)] active:bg-[var(--tag-bg-active)]"
+                      style="--tag-bg: grey; --tag-bg-hover: grey; --tag-bg-active: grey; color: rgb(250, 250, 250);"
+                    >
+                      <span
+                        class="min-w-0 max-w-full"
+                      >
+                        <span
+                          class="block truncate"
+                        >
+                          New
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                  <div
+                    class="flex-col overflow-hidden justify-end text-right w-12 flex-none hidden content-md:flex"
+                  >
+                    <div
+                      class="pointer-events-auto flex items-center justify-end"
+                      data-no-row-click="true"
+                    >
+                      <button
+                        aria-label="Open in new tab"
+                        class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:bg-ods-card disabled:text-ods-text-disabled aria-disabled:bg-ods-card aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-11 w-11 p-[var(--spacing-system-sf)] md:h-12 md:w-12 [&_svg]:h-4 [&_svg]:w-4 md:[&_svg]:h-6 md:[&_svg]:w-6 bg-ods-card"
+                      >
+                        <span
+                          class="contents"
+                        >
+                          <span
+                            class="inline-flex items-center"
+                          >
+                            <svg
+                              class="h-5 w-5"
+                              fill="none"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              width="24"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="m16.154 6.255.086-.078a1.125 1.125 0 0 1 1.583 1.583l-.078.086-9.9 9.899a1.125 1.125 0 1 1-1.59-1.591z"
+                                fill="currentColor"
+                              />
+                              <path
+                                d="M7.34 7.05c0-.582.442-1.062 1.01-1.12l.115-.005h8.485a1.124 1.124 0 0 1 1.125 1.125v8.485a1.125 1.125 0 1 1-2.25 0v-7.36h-7.36L8.35 8.17a1.125 1.125 0 0 1-1.01-1.12"
+                                fill="currentColor"
+                              />
+                            </svg>
+                          </span>
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </a>
+            </div>
+            <div
+              class="sr-only"
+              role="status"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`ticket tables, card rows (the flag off) > the archive 1`] = `
+<div>
+  <div
+    class="flex w-full flex-col px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+  >
+    <div
+      class="flex items-end justify-between gap-[var(--spacing-system-m)] content-md:flex-wrap content-md:content-end pt-[var(--spacing-system-l)] mb-[var(--spacing-system-l)]"
+    >
+      <div
+        class="flex min-w-0 flex-1 flex-col justify-center gap-[var(--spacing-system-xs)] content-md:max-w-full content-md:flex-none min-h-11 content-md:min-h-12"
+      >
+        <h1
+          class="text-h2 text-ods-text-primary"
+        >
+          Archived Tickets
+        </h1>
+      </div>
+    </div>
+    <div
+      class="flex-1 gap-[var(--spacing-system-l)] flex flex-col"
+    >
+      <div>
+        <div
+          class="sticky top-0 z-20 -mx-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)] flex flex-col gap-[var(--spacing-system-xxs)] bg-ods-bg px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]"
+        />
+        <div
+          class="transition-opacity duration-200"
+        >
+          <div
+            class="flex w-full flex-col"
+          >
+            <div
+              class="hidden content-md:flex content-md:flex-col sticky z-10 bg-ods-bg top-[72px]"
+            >
+              <div
+                class="relative flex items-stretch gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)]"
+              >
+                <div
+                  class="items-stretch flex w-[60%] content-md:flex-1 min-w-0 content-max-lg:[&&]:w-auto content-max-lg:[&&]:flex-none content-max-lg:[&&]:basis-auto"
+                >
+                  <div
+                    class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left content-max-lg:justify-start group cursor-pointer"
+                  >
+                    <span
+                      class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+                    >
+                      TICKET
+                    </span>
+                    <svg
+                      class="h-4 w-4 text-ods-accent"
+                      fill="none"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      width="24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M10.875 19V5a1.125 1.125 0 0 1 2.25 0v14a1.125 1.125 0 1 1-2.25 0"
+                        fill="currentColor"
+                      />
+                      <path
+                        d="M17.204 12.205a1.125 1.125 0 1 1 1.591 1.59l-6 6c-.439.44-1.151.44-1.59 0l-6-6-.078-.085a1.126 1.126 0 0 1 1.583-1.583l.085.078L12 17.409z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </div>
+                </div>
+                <div
+                  class="items-stretch hidden content-lg:flex min-w-0 flex-1"
+                >
+                  <div
+                    class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left"
+                  >
+                    <span
+                      class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+                    >
+                      SOURCE
+                    </span>
+                  </div>
+                </div>
+                <div
+                  class="items-stretch hidden content-lg:flex min-w-0 flex-1"
+                >
+                  <div
+                    class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left"
+                  >
+                    <span
+                      class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+                    >
+                      ASSIGNEE
+                    </span>
+                  </div>
+                </div>
+                <div
+                  class="items-stretch hidden content-lg:flex min-w-0 flex-1"
+                >
+                  <div
+                    class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left"
+                  >
+                    <span
+                      class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+                    >
+                      STATUS
+                    </span>
+                  </div>
+                </div>
+                <div
+                  class="items-stretch hidden content-lg:flex w-12 flex-none"
+                >
+                  <div
+                    class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-end text-right"
+                  />
+                </div>
+                <div
+                  class="flex items-center absolute inset-y-0 right-[var(--spacing-system-mf)]"
+                >
+                  <span
+                    class="whitespace-nowrap text-ods-text-secondary text-h6"
+                  >
+                    3
+                     
+                    results
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div
+              class="flex w-full flex-col gap-[var(--spacing-system-xsf)]"
+            >
+              <a
+                class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block cursor-pointer transition-colors hover:bg-ods-bg-active mb-1"
+                data-loading-item="true"
+                href="/tickets/dialog?id=t-1"
+              >
+                <div
+                  class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+                >
+                  <div
+                    class="flex flex-col overflow-hidden justify-start text-left w-[60%] content-md:flex-1 min-w-0"
+                  >
+                    <div
+                      class="flex min-w-0 flex-col justify-center"
+                    >
+                      <div
+                        class="min-w-0 max-w-full"
+                      >
+                        <span
+                          class="text-h4 text-ods-text-primary truncate block"
+                        >
+                          Printer on the second floor prints blank pages
+                        </span>
+                      </div>
+                      <div
+                        class="min-w-0"
+                        title="01/15/2026, 12:55 PM"
+                      >
+                        <div
+                          class="min-w-0 max-w-full"
+                        >
+                          <span
+                            class="text-h6 text-ods-text-secondary truncate block"
+                          >
+                            3891 • 5 min ago
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-md:flex"
+                  >
+                    <div
+                      class="flex min-h-[60px] flex-col justify-center gap-1 py-2"
+                    >
+                      <span
+                        class="truncate text-ods-text-primary text-h6"
+                        title="front-desk-pc"
+                      >
+                        front-desk-pc
+                      </span>
+                      <span
+                        class="truncate text-ods-text-secondary text-h6"
+                        title="Acme Corp"
+                      >
+                        Acme Corp
+                      </span>
+                    </div>
+                  </div>
+                  <div
+                    class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-lg:flex"
+                  >
+                    <div
+                      class="flex min-w-0 items-center gap-2"
+                    >
+                      <div
+                        class="relative flex items-center justify-center overflow-hidden border border-ods-border bg-ods-bg h-8 w-8 rounded-full shrink-0"
+                      >
+                        <div
+                          class="flex items-center justify-center text-xs font-medium text-[color:var(--ods-avatar-initials,var(--color-text-primary))]"
+                        >
+                          MC
+                        </div>
+                      </div>
+                      <div
+                        class="min-w-0 max-w-full"
+                      >
+                        <span
+                          class="text-h4 text-ods-text-primary truncate block"
+                        >
+                          Maya Chen
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="flex flex-col overflow-hidden justify-start text-left min-w-0 flex-1"
+                  >
+                    <div
+                      class="inline-flex items-center justify-center rounded-md transition-colors duration-150 h-8 gap-[var(--spacing-system-xs)] p-[var(--spacing-system-xsf)] text-h5 border border-ods-border text-ods-text-primary hover:border-ods-border-hover active:border-ods-border-active w-fit shrink-0 bg-[var(--tag-bg)] hover:bg-[var(--tag-bg-hover)] active:bg-[var(--tag-bg-active)]"
+                      style="--tag-bg: blue; --tag-bg-hover: blue; --tag-bg-active: blue; color: rgb(250, 250, 250);"
+                    >
+                      <span
+                        class="min-w-0 max-w-full"
+                      >
+                        <span
+                          class="block truncate"
+                        >
+                          In progress
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                  <div
+                    class="flex-col overflow-hidden justify-end text-right w-12 flex-none hidden content-md:flex"
+                  >
+                    <span
+                      aria-label="3 unread messages"
+                      class="inline-flex h-12 min-w-12 items-center justify-center rounded-md bg-ods-accent px-[var(--spacing-system-xsf)] font-bold text-ods-text-on-accent text-h3"
+                    >
+                      3
+                    </span>
+                  </div>
+                </div>
+              </a>
+              <a
+                class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block cursor-pointer transition-colors hover:bg-ods-bg-active mb-1"
+                data-loading-item="true"
+                href="/tickets/dialog?id=t-2"
+              >
+                <div
+                  class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+                >
+                  <div
+                    class="flex flex-col overflow-hidden justify-start text-left w-[60%] content-md:flex-1 min-w-0"
+                  >
+                    <div
+                      class="flex min-w-0 flex-col justify-center"
+                    >
+                      <div
+                        class="min-w-0 max-w-full"
+                      >
+                        <span
+                          class="text-h4 text-ods-text-primary truncate block"
+                        >
+                          VPN drops every hour
+                        </span>
+                      </div>
+                      <div
+                        class="min-w-0"
+                        title="01/14/2026, 10:00 AM"
+                      >
+                        <div
+                          class="min-w-0 max-w-full"
+                        >
+                          <span
+                            class="text-h6 text-ods-text-secondary truncate block"
+                          >
+                            3890 • 01/14/2026
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-md:flex"
+                  >
+                    <div
+                      class="flex min-h-[60px] flex-col justify-center gap-1 py-2"
+                    >
+                      <span
+                        class="truncate text-ods-text-primary text-h6"
+                        title="—"
+                      >
+                        —
+                      </span>
+                    </div>
+                  </div>
+                  <div
+                    class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-lg:flex"
+                  >
+                    <span
+                      data-unassigned="label"
+                    >
+                      Unassigned
+                    </span>
+                  </div>
+                  <div
+                    class="flex flex-col overflow-hidden justify-start text-left min-w-0 flex-1"
+                  >
+                    <div
+                      class="inline-flex items-center justify-center rounded-md transition-colors duration-150 h-8 gap-[var(--spacing-system-xs)] p-[var(--spacing-system-xsf)] text-h5 border border-ods-border text-ods-text-primary hover:border-ods-border-hover active:border-ods-border-active w-fit shrink-0 bg-[var(--tag-bg)] hover:bg-[var(--tag-bg-hover)] active:bg-[var(--tag-bg-active)]"
+                      style="--tag-bg: grey; --tag-bg-hover: grey; --tag-bg-active: grey; color: rgb(250, 250, 250);"
+                    >
+                      <span
+                        class="min-w-0 max-w-full"
+                      >
+                        <span
+                          class="block truncate"
+                        >
+                          New
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                  <div
+                    class="flex-col overflow-hidden justify-end text-right w-12 flex-none hidden content-md:flex"
+                  >
+                    <div
+                      class="pointer-events-auto flex items-center justify-end"
+                      data-no-row-click="true"
+                    >
+                      <button
+                        aria-label="Open in new tab"
+                        class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:bg-ods-card disabled:text-ods-text-disabled aria-disabled:bg-ods-card aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-11 w-11 p-[var(--spacing-system-sf)] md:h-12 md:w-12 [&_svg]:h-4 [&_svg]:w-4 md:[&_svg]:h-6 md:[&_svg]:w-6 bg-ods-card"
+                      >
+                        <span
+                          class="contents"
+                        >
+                          <span
+                            class="inline-flex items-center"
+                          >
+                            <svg
+                              class="h-5 w-5"
+                              fill="none"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              width="24"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="m16.154 6.255.086-.078a1.125 1.125 0 0 1 1.583 1.583l-.078.086-9.9 9.899a1.125 1.125 0 1 1-1.59-1.591z"
+                                fill="currentColor"
+                              />
+                              <path
+                                d="M7.34 7.05c0-.582.442-1.062 1.01-1.12l.115-.005h8.485a1.124 1.124 0 0 1 1.125 1.125v8.485a1.125 1.125 0 1 1-2.25 0v-7.36h-7.36L8.35 8.17a1.125 1.125 0 0 1-1.01-1.12"
+                                fill="currentColor"
+                              />
+                            </svg>
+                          </span>
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </a>
+              <a
+                class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block cursor-pointer transition-colors hover:bg-ods-bg-active mb-1"
+                data-loading-item="true"
+                href="/tickets/dialog?id=t-3"
+              >
+                <div
+                  class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+                >
+                  <div
+                    class="flex flex-col overflow-hidden justify-start text-left w-[60%] content-md:flex-1 min-w-0"
+                  >
+                    <div
+                      class="flex min-w-0 flex-col justify-center"
+                    >
+                      <div
+                        class="min-w-0 max-w-full"
+                      >
+                        <span
+                          class="text-h4 text-ods-text-primary truncate block"
+                        >
+                          Licence renewal
+                        </span>
+                      </div>
+                      <div
+                        class="min-w-0"
+                        title="01/14/2026, 10:00 AM"
+                      >
+                        <div
+                          class="min-w-0 max-w-full"
+                        >
+                          <span
+                            class="text-h6 text-ods-text-secondary truncate block"
+                          >
+                            3889 • 01/14/2026
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-md:flex"
+                  >
+                    <div
+                      class="flex min-h-[60px] flex-col justify-center gap-1 py-2"
+                    >
+                      <span
+                        class="truncate text-ods-text-primary text-h6"
+                        title="—"
+                      >
+                        —
+                      </span>
+                    </div>
+                  </div>
+                  <div
+                    class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-lg:flex"
+                  >
+                    <div
+                      class="flex min-w-0 items-center gap-2"
+                    >
+                      <span
+                        aria-label="Deleted user"
+                        class="flex shrink-0 items-center justify-center rounded-full bg-ods-error/20 h-8 w-8"
+                        role="img"
+                      >
+                        <svg
+                          class="text-ods-error w-4 h-4"
+                          fill="none"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          width="24"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M21.204 15.205a1.125 1.125 0 0 1 1.59 1.59L21.09 18.5l1.705 1.705.078.087a1.124 1.124 0 0 1-1.582 1.582l-.087-.078L19.5 20.09l-1.704 1.705a1.125 1.125 0 1 1-1.59-1.59l1.703-1.706-1.703-1.704-.078-.085a1.125 1.125 0 0 1 1.583-1.583l.085.078 1.704 1.703zm-8.347-1.33q.165 0 .33.009a1.125 1.125 0 1 1-.117 2.247 4 4 0 0 0-.213-.006H7.143a4.014 4.014 0 0 0-4.005 3.75H13l.116.006a1.125 1.125 0 0 1 0 2.238l-.116.006H2.857a1.98 1.98 0 0 1-1.982-1.982 6.27 6.27 0 0 1 6.268-6.268zm.269-6.625a3.126 3.126 0 1 0-6.252.002 3.126 3.126 0 0 0 6.252-.002m2.25 0a5.376 5.376 0 1 1-10.75 0 5.376 5.376 0 0 1 10.75 0"
+                            fill="currentColor"
+                          />
+                        </svg>
+                      </span>
+                      <div
+                        class="min-w-0 max-w-full"
+                      >
+                        <span
+                          class="text-h4 truncate block text-ods-error"
+                        >
+                          Sam Reed
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="flex flex-col overflow-hidden justify-start text-left min-w-0 flex-1"
+                  >
+                    <div
+                      class="inline-flex items-center justify-center rounded-md transition-colors duration-150 h-8 gap-[var(--spacing-system-xs)] p-[var(--spacing-system-xsf)] text-h5 border border-ods-border text-ods-text-primary hover:border-ods-border-hover active:border-ods-border-active w-fit shrink-0 bg-[var(--tag-bg)] hover:bg-[var(--tag-bg-hover)] active:bg-[var(--tag-bg-active)]"
+                      style="--tag-bg: grey; --tag-bg-hover: grey; --tag-bg-active: grey; color: rgb(250, 250, 250);"
+                    >
+                      <span
+                        class="min-w-0 max-w-full"
+                      >
+                        <span
+                          class="block truncate"
+                        >
+                          New
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                  <div
+                    class="flex-col overflow-hidden justify-end text-right w-12 flex-none hidden content-md:flex"
+                  >
+                    <div
+                      class="pointer-events-auto flex items-center justify-end"
+                      data-no-row-click="true"
+                    >
+                      <button
+                        aria-label="Open in new tab"
+                        class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:bg-ods-card disabled:text-ods-text-disabled aria-disabled:bg-ods-card aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-11 w-11 p-[var(--spacing-system-sf)] md:h-12 md:w-12 [&_svg]:h-4 [&_svg]:w-4 md:[&_svg]:h-6 md:[&_svg]:w-6 bg-ods-card"
+                      >
+                        <span
+                          class="contents"
+                        >
+                          <span
+                            class="inline-flex items-center"
+                          >
+                            <svg
+                              class="h-5 w-5"
+                              fill="none"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              width="24"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="m16.154 6.255.086-.078a1.125 1.125 0 0 1 1.583 1.583l-.078.086-9.9 9.899a1.125 1.125 0 1 1-1.59-1.591z"
+                                fill="currentColor"
+                              />
+                              <path
+                                d="M7.34 7.05c0-.582.442-1.062 1.01-1.12l.115-.005h8.485a1.124 1.124 0 0 1 1.125 1.125v8.485a1.125 1.125 0 1 1-2.25 0v-7.36h-7.36L8.35 8.17a1.125 1.125 0 0 1-1.01-1.12"
+                                fill="currentColor"
+                              />
+                            </svg>
+                          </span>
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </a>
+            </div>
+            <div
+              class="sr-only"
+              role="status"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`ticket tables, card rows (the flag off) > the table body: loaded, as a screen that passes no layout draws it 1`] = `
+<div>
+  <div
+    class="transition-opacity duration-200"
+  >
+    <div
+      class="flex w-full flex-col"
+    >
+      <div
+        class="hidden content-md:flex content-md:flex-col"
+      >
+        <div
+          class="relative flex items-stretch gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)]"
+        >
+          <div
+            class="items-stretch hidden content-lg:flex w-[60%] content-md:flex-1 min-w-0"
+          >
+            <div
+              class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left"
+            >
+              <span
+                class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+              >
+                TICKET
+              </span>
+            </div>
+          </div>
+          <div
+            class="items-stretch hidden content-lg:flex min-w-0 flex-1"
+          >
+            <div
+              class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left"
+            >
+              <span
+                class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+              >
+                SOURCE
+              </span>
+            </div>
+          </div>
+          <div
+            class="items-stretch hidden content-lg:flex min-w-0 flex-1"
+          >
+            <div
+              class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left"
+            >
+              <span
+                class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+              >
+                ASSIGNEE
+              </span>
+            </div>
+          </div>
+          <div
+            class="items-stretch flex min-w-0 flex-1 content-max-lg:[&&]:w-auto content-max-lg:[&&]:flex-none content-max-lg:[&&]:basis-auto"
+          >
+            <div
+              class="relative inline-block !block w-full"
+            >
+              <div>
+                <div
+                  aria-label="Filter by STATUS"
+                  class="group flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left cursor-pointer"
+                >
+                  <span
+                    class="whitespace-nowrap text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+                  >
+                    STATUS
+                  </span>
+                  <svg
+                    class="h-4 w-4 transition-colors text-ods-text-secondary group-hover:text-ods-text-primary"
+                    fill="none"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M15 16.875a1.125 1.125 0 0 1 0 2.25H9a1.125 1.125 0 0 1 0-2.25zm3-6a1.125 1.125 0 0 1 0 2.25H6a1.125 1.125 0 0 1 0-2.25zm3-6a1.125 1.125 0 0 1 0 2.25H3a1.125 1.125 0 0 1 0-2.25z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            class="items-stretch hidden content-lg:flex w-12 flex-none"
+          >
+            <div
+              class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-end text-right"
+            />
+          </div>
+          <div
+            class="flex items-center absolute inset-y-0 right-[var(--spacing-system-mf)]"
+          >
+            <span
+              class="whitespace-nowrap text-ods-text-secondary text-h6"
+            >
+              3
+               
+              results
+            </span>
+          </div>
+        </div>
+      </div>
+      <div
+        class="flex w-full flex-col gap-[var(--spacing-system-xsf)]"
+      >
+        <a
+          class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block cursor-pointer transition-colors hover:bg-ods-bg-active mb-1"
+          data-loading-item="true"
+          href="/tickets/dialog?id=t-1"
+        >
+          <div
+            class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+          >
+            <div
+              class="flex flex-col overflow-hidden justify-start text-left w-[60%] content-md:flex-1 min-w-0"
+            >
+              <div
+                class="flex min-w-0 flex-col justify-center"
+              >
+                <div
+                  class="min-w-0 max-w-full"
+                >
+                  <span
+                    class="text-h4 text-ods-text-primary truncate block"
+                  >
+                    Printer on the second floor prints blank pages
+                  </span>
+                </div>
+                <div
+                  class="min-w-0"
+                  title="01/15/2026, 12:55 PM"
+                >
+                  <div
+                    class="min-w-0 max-w-full"
+                  >
+                    <span
+                      class="text-h6 text-ods-text-secondary truncate block"
+                    >
+                      3891 • 5 min ago
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-md:flex"
+            >
+              <div
+                class="flex min-h-[60px] flex-col justify-center gap-1 py-2"
+              >
+                <span
+                  class="truncate text-ods-text-primary text-h6"
+                  title="front-desk-pc"
+                >
+                  front-desk-pc
+                </span>
+                <span
+                  class="truncate text-ods-text-secondary text-h6"
+                  title="Acme Corp"
+                >
+                  Acme Corp
+                </span>
+              </div>
+            </div>
+            <div
+              class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-lg:flex"
+            >
+              <div
+                class="flex min-w-0 items-center gap-2"
+              >
+                <div
+                  class="relative flex items-center justify-center overflow-hidden border border-ods-border bg-ods-bg h-8 w-8 rounded-full shrink-0"
+                >
+                  <div
+                    class="flex items-center justify-center text-xs font-medium text-[color:var(--ods-avatar-initials,var(--color-text-primary))]"
+                  >
+                    MC
+                  </div>
+                </div>
+                <div
+                  class="min-w-0 max-w-full"
+                >
+                  <span
+                    class="text-h4 text-ods-text-primary truncate block"
+                  >
+                    Maya Chen
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div
+              class="flex flex-col overflow-hidden justify-start text-left min-w-0 flex-1"
+            >
+              <div
+                class="inline-flex items-center justify-center rounded-md transition-colors duration-150 h-8 gap-[var(--spacing-system-xs)] p-[var(--spacing-system-xsf)] text-h5 border border-ods-border text-ods-text-primary hover:border-ods-border-hover active:border-ods-border-active w-fit shrink-0 bg-[var(--tag-bg)] hover:bg-[var(--tag-bg-hover)] active:bg-[var(--tag-bg-active)]"
+                style="--tag-bg: blue; --tag-bg-hover: blue; --tag-bg-active: blue; color: rgb(250, 250, 250);"
+              >
+                <span
+                  class="min-w-0 max-w-full"
+                >
+                  <span
+                    class="block truncate"
+                  >
+                    In progress
+                  </span>
+                </span>
+              </div>
+            </div>
+            <div
+              class="flex-col overflow-hidden justify-end text-right w-12 flex-none hidden content-md:flex"
+            >
+              <div
+                class="pointer-events-auto flex items-center justify-end"
+                data-no-row-click="true"
+              >
+                <button
+                  aria-label="Open in new tab"
+                  class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:bg-ods-card disabled:text-ods-text-disabled aria-disabled:bg-ods-card aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-11 w-11 p-[var(--spacing-system-sf)] md:h-12 md:w-12 [&_svg]:h-4 [&_svg]:w-4 md:[&_svg]:h-6 md:[&_svg]:w-6 bg-ods-card"
+                >
+                  <span
+                    class="contents"
+                  >
+                    <span
+                      class="inline-flex items-center"
+                    >
+                      <svg
+                        class="h-5 w-5"
+                        fill="none"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        width="24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="m16.154 6.255.086-.078a1.125 1.125 0 0 1 1.583 1.583l-.078.086-9.9 9.899a1.125 1.125 0 1 1-1.59-1.591z"
+                          fill="currentColor"
+                        />
+                        <path
+                          d="M7.34 7.05c0-.582.442-1.062 1.01-1.12l.115-.005h8.485a1.124 1.124 0 0 1 1.125 1.125v8.485a1.125 1.125 0 1 1-2.25 0v-7.36h-7.36L8.35 8.17a1.125 1.125 0 0 1-1.01-1.12"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </a>
+        <a
+          class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block cursor-pointer transition-colors hover:bg-ods-bg-active mb-1"
+          data-loading-item="true"
+          href="/tickets/dialog?id=t-2"
+        >
+          <div
+            class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+          >
+            <div
+              class="flex flex-col overflow-hidden justify-start text-left w-[60%] content-md:flex-1 min-w-0"
+            >
+              <div
+                class="flex min-w-0 flex-col justify-center"
+              >
+                <div
+                  class="min-w-0 max-w-full"
+                >
+                  <span
+                    class="text-h4 text-ods-text-primary truncate block"
+                  >
+                    VPN drops every hour
+                  </span>
+                </div>
+                <div
+                  class="min-w-0"
+                  title="01/14/2026, 10:00 AM"
+                >
+                  <div
+                    class="min-w-0 max-w-full"
+                  >
+                    <span
+                      class="text-h6 text-ods-text-secondary truncate block"
+                    >
+                      3890 • 01/14/2026
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-md:flex"
+            >
+              <div
+                class="flex min-h-[60px] flex-col justify-center gap-1 py-2"
+              >
+                <span
+                  class="truncate text-ods-text-primary text-h6"
+                  title="—"
+                >
+                  —
+                </span>
+              </div>
+            </div>
+            <div
+              class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-lg:flex"
+            >
+              <span
+                data-unassigned="pick"
+              >
+                Unassigned
+              </span>
+            </div>
+            <div
+              class="flex flex-col overflow-hidden justify-start text-left min-w-0 flex-1"
+            >
+              <div
+                class="inline-flex items-center justify-center rounded-md transition-colors duration-150 h-8 gap-[var(--spacing-system-xs)] p-[var(--spacing-system-xsf)] text-h5 border border-ods-border text-ods-text-primary hover:border-ods-border-hover active:border-ods-border-active w-fit shrink-0 bg-[var(--tag-bg)] hover:bg-[var(--tag-bg-hover)] active:bg-[var(--tag-bg-active)]"
+                style="--tag-bg: grey; --tag-bg-hover: grey; --tag-bg-active: grey; color: rgb(250, 250, 250);"
+              >
+                <span
+                  class="min-w-0 max-w-full"
+                >
+                  <span
+                    class="block truncate"
+                  >
+                    New
+                  </span>
+                </span>
+              </div>
+            </div>
+            <div
+              class="flex-col overflow-hidden justify-end text-right w-12 flex-none hidden content-md:flex"
+            >
+              <div
+                class="pointer-events-auto flex items-center justify-end"
+                data-no-row-click="true"
+              >
+                <button
+                  aria-label="Open in new tab"
+                  class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:bg-ods-card disabled:text-ods-text-disabled aria-disabled:bg-ods-card aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-11 w-11 p-[var(--spacing-system-sf)] md:h-12 md:w-12 [&_svg]:h-4 [&_svg]:w-4 md:[&_svg]:h-6 md:[&_svg]:w-6 bg-ods-card"
+                >
+                  <span
+                    class="contents"
+                  >
+                    <span
+                      class="inline-flex items-center"
+                    >
+                      <svg
+                        class="h-5 w-5"
+                        fill="none"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        width="24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="m16.154 6.255.086-.078a1.125 1.125 0 0 1 1.583 1.583l-.078.086-9.9 9.899a1.125 1.125 0 1 1-1.59-1.591z"
+                          fill="currentColor"
+                        />
+                        <path
+                          d="M7.34 7.05c0-.582.442-1.062 1.01-1.12l.115-.005h8.485a1.124 1.124 0 0 1 1.125 1.125v8.485a1.125 1.125 0 1 1-2.25 0v-7.36h-7.36L8.35 8.17a1.125 1.125 0 0 1-1.01-1.12"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </a>
+        <a
+          class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block cursor-pointer transition-colors hover:bg-ods-bg-active mb-1"
+          data-loading-item="true"
+          href="/tickets/dialog?id=t-3"
+        >
+          <div
+            class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+          >
+            <div
+              class="flex flex-col overflow-hidden justify-start text-left w-[60%] content-md:flex-1 min-w-0"
+            >
+              <div
+                class="flex min-w-0 flex-col justify-center"
+              >
+                <div
+                  class="min-w-0 max-w-full"
+                >
+                  <span
+                    class="text-h4 text-ods-text-primary truncate block"
+                  >
+                    Licence renewal
+                  </span>
+                </div>
+                <div
+                  class="min-w-0"
+                  title="01/14/2026, 10:00 AM"
+                >
+                  <div
+                    class="min-w-0 max-w-full"
+                  >
+                    <span
+                      class="text-h6 text-ods-text-secondary truncate block"
+                    >
+                      3889 • 01/14/2026
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-md:flex"
+            >
+              <div
+                class="flex min-h-[60px] flex-col justify-center gap-1 py-2"
+              >
+                <span
+                  class="truncate text-ods-text-primary text-h6"
+                  title="—"
+                >
+                  —
+                </span>
+              </div>
+            </div>
+            <div
+              class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-lg:flex"
+            >
+              <div
+                class="flex min-w-0 items-center gap-2"
+              >
+                <span
+                  aria-label="Deleted user"
+                  class="flex shrink-0 items-center justify-center rounded-full bg-ods-error/20 h-8 w-8"
+                  role="img"
+                >
+                  <svg
+                    class="text-ods-error w-4 h-4"
+                    fill="none"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M21.204 15.205a1.125 1.125 0 0 1 1.59 1.59L21.09 18.5l1.705 1.705.078.087a1.124 1.124 0 0 1-1.582 1.582l-.087-.078L19.5 20.09l-1.704 1.705a1.125 1.125 0 1 1-1.59-1.59l1.703-1.706-1.703-1.704-.078-.085a1.125 1.125 0 0 1 1.583-1.583l.085.078 1.704 1.703zm-8.347-1.33q.165 0 .33.009a1.125 1.125 0 1 1-.117 2.247 4 4 0 0 0-.213-.006H7.143a4.014 4.014 0 0 0-4.005 3.75H13l.116.006a1.125 1.125 0 0 1 0 2.238l-.116.006H2.857a1.98 1.98 0 0 1-1.982-1.982 6.27 6.27 0 0 1 6.268-6.268zm.269-6.625a3.126 3.126 0 1 0-6.252.002 3.126 3.126 0 0 0 6.252-.002m2.25 0a5.376 5.376 0 1 1-10.75 0 5.376 5.376 0 0 1 10.75 0"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </span>
+                <div
+                  class="min-w-0 max-w-full"
+                >
+                  <span
+                    class="text-h4 truncate block text-ods-error"
+                  >
+                    Sam Reed
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div
+              class="flex flex-col overflow-hidden justify-start text-left min-w-0 flex-1"
+            >
+              <div
+                class="inline-flex items-center justify-center rounded-md transition-colors duration-150 h-8 gap-[var(--spacing-system-xs)] p-[var(--spacing-system-xsf)] text-h5 border border-ods-border text-ods-text-primary hover:border-ods-border-hover active:border-ods-border-active w-fit shrink-0 bg-[var(--tag-bg)] hover:bg-[var(--tag-bg-hover)] active:bg-[var(--tag-bg-active)]"
+                style="--tag-bg: grey; --tag-bg-hover: grey; --tag-bg-active: grey; color: rgb(250, 250, 250);"
+              >
+                <span
+                  class="min-w-0 max-w-full"
+                >
+                  <span
+                    class="block truncate"
+                  >
+                    New
+                  </span>
+                </span>
+              </div>
+            </div>
+            <div
+              class="flex-col overflow-hidden justify-end text-right w-12 flex-none hidden content-md:flex"
+            >
+              <div
+                class="pointer-events-auto flex items-center justify-end"
+                data-no-row-click="true"
+              >
+                <button
+                  aria-label="Open in new tab"
+                  class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:bg-ods-card disabled:text-ods-text-disabled aria-disabled:bg-ods-card aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-11 w-11 p-[var(--spacing-system-sf)] md:h-12 md:w-12 [&_svg]:h-4 [&_svg]:w-4 md:[&_svg]:h-6 md:[&_svg]:w-6 bg-ods-card"
+                >
+                  <span
+                    class="contents"
+                  >
+                    <span
+                      class="inline-flex items-center"
+                    >
+                      <svg
+                        class="h-5 w-5"
+                        fill="none"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        width="24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="m16.154 6.255.086-.078a1.125 1.125 0 0 1 1.583 1.583l-.078.086-9.9 9.899a1.125 1.125 0 1 1-1.59-1.591z"
+                          fill="currentColor"
+                        />
+                        <path
+                          d="M7.34 7.05c0-.582.442-1.062 1.01-1.12l.115-.005h8.485a1.124 1.124 0 0 1 1.125 1.125v8.485a1.125 1.125 0 1 1-2.25 0v-7.36h-7.36L8.35 8.17a1.125 1.125 0 0 1-1.01-1.12"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`ticket tables, card rows (the flag off) > the table body: loading 1`] = `
+<div>
+  <div
+    class="transition-opacity duration-200"
+  >
+    <div
+      class="flex w-full flex-col"
+    >
+      <div
+        class="hidden content-md:flex content-md:flex-col"
+      >
+        <div
+          class="relative flex items-stretch gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)]"
+        >
+          <div
+            class="items-stretch hidden content-lg:flex w-[60%] content-md:flex-1 min-w-0"
+          >
+            <div
+              class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left"
+            >
+              <span
+                class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+              >
+                TICKET
+              </span>
+            </div>
+          </div>
+          <div
+            class="items-stretch hidden content-lg:flex min-w-0 flex-1"
+          >
+            <div
+              class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left"
+            >
+              <span
+                class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+              >
+                SOURCE
+              </span>
+            </div>
+          </div>
+          <div
+            class="items-stretch hidden content-lg:flex min-w-0 flex-1"
+          >
+            <div
+              class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left"
+            >
+              <span
+                class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+              >
+                ASSIGNEE
+              </span>
+            </div>
+          </div>
+          <div
+            class="items-stretch flex min-w-0 flex-1 content-max-lg:[&&]:w-auto content-max-lg:[&&]:flex-none content-max-lg:[&&]:basis-auto"
+          >
+            <div
+              class="relative inline-block !block w-full"
+            >
+              <div>
+                <div
+                  aria-label="Filter by STATUS"
+                  class="group flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left cursor-pointer"
+                >
+                  <span
+                    class="whitespace-nowrap text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+                  >
+                    STATUS
+                  </span>
+                  <svg
+                    class="h-4 w-4 transition-colors text-ods-text-secondary group-hover:text-ods-text-primary"
+                    fill="none"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M15 16.875a1.125 1.125 0 0 1 0 2.25H9a1.125 1.125 0 0 1 0-2.25zm3-6a1.125 1.125 0 0 1 0 2.25H6a1.125 1.125 0 0 1 0-2.25zm3-6a1.125 1.125 0 0 1 0 2.25H3a1.125 1.125 0 0 1 0-2.25z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            class="items-stretch hidden content-lg:flex w-12 flex-none"
+          >
+            <div
+              class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-end text-right"
+            />
+          </div>
+          <div
+            class="flex items-center absolute inset-y-0 right-[var(--spacing-system-mf)]"
+          >
+            <span
+              aria-hidden="true"
+              class="whitespace-nowrap text-ods-text-secondary text-h6"
+            >
+              <span
+                aria-hidden="true"
+                class="flex-col h-[1lh] inline-block w-6 align-top"
+              >
+                <span
+                  class="flex h-[1lh] items-center"
+                >
+                  <span
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </span>
+              </span>
+               
+              results
+            </span>
+          </div>
+        </div>
+      </div>
+      <div
+        aria-hidden="true"
+        class="pointer-events-none select-none flex w-full flex-col gap-[var(--spacing-system-xsf)]"
+        inert=""
+      >
+        <div
+          class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block mb-1"
+          data-loading-item="true"
+        >
+          <div
+            class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+          >
+            <div
+              class="flex flex-col overflow-hidden justify-start text-left w-[60%] content-md:flex-1 min-w-0"
+            >
+              <div
+                class="flex min-w-0 flex-col justify-center"
+              >
+                <div
+                  aria-hidden="true"
+                  class="flex flex-col text-h4 h-[1lh] w-3/4"
+                >
+                  <div
+                    class="flex h-[1lh] items-center"
+                  >
+                    <div
+                      aria-hidden="true"
+                      class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                    />
+                  </div>
+                </div>
+                <div
+                  class="min-w-0"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="flex flex-col text-h6 h-[1lh] w-3/4"
+                  >
+                    <div
+                      class="flex h-[1lh] items-center"
+                    >
+                      <div
+                        aria-hidden="true"
+                        class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-md:flex"
+            >
+              <div
+                class="flex min-h-[60px] flex-col justify-center gap-1 py-2"
+              >
+                <div
+                  aria-hidden="true"
+                  class="flex flex-col text-h6 h-[1lh] w-3/4"
+                >
+                  <div
+                    class="flex h-[1lh] items-center"
+                  >
+                    <div
+                      aria-hidden="true"
+                      class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                    />
+                  </div>
+                </div>
+                <div
+                  aria-hidden="true"
+                  class="flex flex-col text-h6 h-[1lh] w-1/2"
+                >
+                  <div
+                    class="flex h-[1lh] items-center"
+                  >
+                    <div
+                      aria-hidden="true"
+                      class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-lg:flex"
+            >
+              <div
+                class="flex min-w-0 items-center gap-2"
+              >
+                <div
+                  aria-hidden="true"
+                  class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none h-8 w-8 rounded-full shrink-0"
+                />
+                <div
+                  aria-hidden="true"
+                  class="flex flex-col text-h4 h-[1lh] w-3/4"
+                >
+                  <div
+                    class="flex h-[1lh] items-center"
+                  >
+                    <div
+                      aria-hidden="true"
+                      class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="flex flex-col overflow-hidden justify-start text-left min-w-0 flex-1"
+            >
+              <span
+                aria-hidden="true"
+                class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none inline-flex items-center justify-center rounded-md h-8 gap-[var(--spacing-system-xs)] p-[var(--spacing-system-xsf)] text-h5 w-fit shrink-0"
+              />
+            </div>
+            <div
+              class="flex-col overflow-hidden justify-end text-right w-12 flex-none hidden content-md:flex"
+            >
+              <div
+                class="pointer-events-auto flex items-center justify-end"
+                data-no-row-click="true"
+              >
+                <button
+                  aria-label="Open in new tab"
+                  class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:bg-ods-card disabled:text-ods-text-disabled aria-disabled:bg-ods-card aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-11 w-11 p-[var(--spacing-system-sf)] md:h-12 md:w-12 [&_svg]:h-4 [&_svg]:w-4 md:[&_svg]:h-6 md:[&_svg]:w-6 bg-ods-card"
+                  disabled=""
+                >
+                  <span
+                    class="contents"
+                  >
+                    <span
+                      class="inline-flex items-center"
+                    >
+                      <svg
+                        class="h-5 w-5"
+                        fill="none"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        width="24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="m16.154 6.255.086-.078a1.125 1.125 0 0 1 1.583 1.583l-.078.086-9.9 9.899a1.125 1.125 0 1 1-1.59-1.591z"
+                          fill="currentColor"
+                        />
+                        <path
+                          d="M7.34 7.05c0-.582.442-1.062 1.01-1.12l.115-.005h8.485a1.124 1.124 0 0 1 1.125 1.125v8.485a1.125 1.125 0 1 1-2.25 0v-7.36h-7.36L8.35 8.17a1.125 1.125 0 0 1-1.01-1.12"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block mb-1"
+          data-loading-item="true"
+        >
+          <div
+            class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+          >
+            <div
+              class="flex flex-col overflow-hidden justify-start text-left w-[60%] content-md:flex-1 min-w-0"
+            >
+              <div
+                class="flex min-w-0 flex-col justify-center"
+              >
+                <div
+                  aria-hidden="true"
+                  class="flex flex-col text-h4 h-[1lh] w-3/4"
+                >
+                  <div
+                    class="flex h-[1lh] items-center"
+                  >
+                    <div
+                      aria-hidden="true"
+                      class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                    />
+                  </div>
+                </div>
+                <div
+                  class="min-w-0"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="flex flex-col text-h6 h-[1lh] w-3/4"
+                  >
+                    <div
+                      class="flex h-[1lh] items-center"
+                    >
+                      <div
+                        aria-hidden="true"
+                        class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-md:flex"
+            >
+              <div
+                class="flex min-h-[60px] flex-col justify-center gap-1 py-2"
+              >
+                <div
+                  aria-hidden="true"
+                  class="flex flex-col text-h6 h-[1lh] w-3/4"
+                >
+                  <div
+                    class="flex h-[1lh] items-center"
+                  >
+                    <div
+                      aria-hidden="true"
+                      class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                    />
+                  </div>
+                </div>
+                <div
+                  aria-hidden="true"
+                  class="flex flex-col text-h6 h-[1lh] w-1/2"
+                >
+                  <div
+                    class="flex h-[1lh] items-center"
+                  >
+                    <div
+                      aria-hidden="true"
+                      class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-lg:flex"
+            >
+              <div
+                class="flex min-w-0 items-center gap-2"
+              >
+                <div
+                  aria-hidden="true"
+                  class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none h-8 w-8 rounded-full shrink-0"
+                />
+                <div
+                  aria-hidden="true"
+                  class="flex flex-col text-h4 h-[1lh] w-3/4"
+                >
+                  <div
+                    class="flex h-[1lh] items-center"
+                  >
+                    <div
+                      aria-hidden="true"
+                      class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="flex flex-col overflow-hidden justify-start text-left min-w-0 flex-1"
+            >
+              <span
+                aria-hidden="true"
+                class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none inline-flex items-center justify-center rounded-md h-8 gap-[var(--spacing-system-xs)] p-[var(--spacing-system-xsf)] text-h5 w-fit shrink-0"
+              />
+            </div>
+            <div
+              class="flex-col overflow-hidden justify-end text-right w-12 flex-none hidden content-md:flex"
+            >
+              <div
+                class="pointer-events-auto flex items-center justify-end"
+                data-no-row-click="true"
+              >
+                <button
+                  aria-label="Open in new tab"
+                  class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:bg-ods-card disabled:text-ods-text-disabled aria-disabled:bg-ods-card aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-11 w-11 p-[var(--spacing-system-sf)] md:h-12 md:w-12 [&_svg]:h-4 [&_svg]:w-4 md:[&_svg]:h-6 md:[&_svg]:w-6 bg-ods-card"
+                  disabled=""
+                >
+                  <span
+                    class="contents"
+                  >
+                    <span
+                      class="inline-flex items-center"
+                    >
+                      <svg
+                        class="h-5 w-5"
+                        fill="none"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        width="24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="m16.154 6.255.086-.078a1.125 1.125 0 0 1 1.583 1.583l-.078.086-9.9 9.899a1.125 1.125 0 1 1-1.59-1.591z"
+                          fill="currentColor"
+                        />
+                        <path
+                          d="M7.34 7.05c0-.582.442-1.062 1.01-1.12l.115-.005h8.485a1.124 1.124 0 0 1 1.125 1.125v8.485a1.125 1.125 0 1 1-2.25 0v-7.36h-7.36L8.35 8.17a1.125 1.125 0 0 1-1.01-1.12"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;

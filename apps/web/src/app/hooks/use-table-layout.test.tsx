@@ -10,7 +10,7 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FeatureFlagGate } from '@/lib/feature-flags';
 import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
-import { tableLayoutFor, useTableGridGate } from './use-table-layout';
+import { type GridTableProps, tableLayoutFor, useGridTableProps, useTableGridGate } from './use-table-layout';
 
 /** The gate as a screen reads it now. */
 function readGate(): FeatureFlagGate | null {
@@ -51,6 +51,55 @@ describe('tableLayoutFor', () => {
     expect(tableLayoutFor('on')).toBe('grid');
     expect(tableLayoutFor('off')).toBe('cards');
     expect(tableLayoutFor('loading')).toBe('cards');
+  });
+});
+
+/** What a table reads for its layout now. */
+function readGridProps(storageKey: string, options?: { fill?: boolean }): GridTableProps | null {
+  const seen: { props: GridTableProps | null } = { props: null };
+  function Probe() {
+    seen.props = useGridTableProps(storageKey, options);
+    return null;
+  }
+  const root = createRoot(document.createElement('div'));
+  act(() => root.render(<Probe />));
+  act(() => root.unmount());
+  return seen.props;
+}
+
+describe('useGridTableProps', () => {
+  afterEach(() => useFeatureFlagsStore.getState().reset());
+
+  it('asks for a loading scope and card rows until the server has answered', () => {
+    expect(readGridProps('tickets', { fill: true })).toEqual({
+      loading: true,
+      layout: 'cards',
+      maxHeight: undefined,
+      settings: undefined,
+    });
+  });
+
+  it('keeps card rows where the flag is off: no height, no settings', () => {
+    useFeatureFlagsStore.getState().setFlags([{ name: 'data-table-grid', enabled: false }]);
+    expect(readGridProps('tickets', { fill: true })).toEqual({
+      loading: false,
+      layout: 'cards',
+      maxHeight: undefined,
+      settings: undefined,
+    });
+  });
+
+  it('draws the grid where the flag is on, with the table’s own saved settings', () => {
+    useFeatureFlagsStore.getState().setFlags([{ name: 'data-table-grid', enabled: true }]);
+    // A section of a longer page: the page scrolls, not the table.
+    expect(readGridProps('work-time')).toEqual({
+      loading: false,
+      layout: 'grid',
+      maxHeight: undefined,
+      settings: { storageKey: 'work-time' },
+    });
+    // A list page: the table is the page's scroll area.
+    expect(readGridProps('tickets', { fill: true })?.maxHeight).toBe('fill');
   });
 });
 

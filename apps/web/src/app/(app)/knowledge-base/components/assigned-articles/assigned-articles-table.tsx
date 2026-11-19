@@ -1,7 +1,6 @@
 'use client';
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
-import { OpenInNewTabCell } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { BookBookmarkIcon, Link01BreakIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   ActionsMenuDropdown,
@@ -33,9 +32,16 @@ import {
   useRetryKey,
 } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { useGridTableProps } from '@/app/hooks/use-table-layout';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
 import { KnowledgeBaseItemCreatedCell } from '../item-list/knowledge-base-item-created-cell';
+import {
+  KNOWLEDGE_BASE_DATE_GRID,
+  KNOWLEDGE_BASE_NAME_GRID,
+  knowledgeBaseMenuColumn,
+  knowledgeBaseOpenColumn,
+} from '../shared/knowledge-base-grid-columns';
 import { KNOWLEDGE_BASE_ITEM_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
 import { KnowledgeBaseItemNameCell } from '../shared/knowledge-base-item-name-cell';
 import { useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
@@ -102,47 +108,48 @@ function buildColumns(onUnassign: (row: ArticleRow) => void): ColumnDef<ArticleR
       header: KNOWLEDGE_BASE_ITEM_COLUMNS.name.header,
       cell: ({ row }: { row: Row<ArticleRow> }) => <KnowledgeBaseItemNameCell item={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(KNOWLEDGE_BASE_ITEM_COLUMNS.name),
+      ...KNOWLEDGE_BASE_NAME_GRID,
+      meta: liveColumnMeta(KNOWLEDGE_BASE_ITEM_COLUMNS.name, {
+        label: 'Name',
+        gridCell: ({ row }: { row: Row<ArticleRow> }) => <KnowledgeBaseItemNameCell item={row.original} grid />,
+      }),
     },
     {
       id: KNOWLEDGE_BASE_ITEM_COLUMNS.created.id,
       header: KNOWLEDGE_BASE_ITEM_COLUMNS.created.header,
       cell: ({ row }: { row: Row<ArticleRow> }) => <KnowledgeBaseItemCreatedCell item={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(KNOWLEDGE_BASE_ITEM_COLUMNS.created),
+      ...KNOWLEDGE_BASE_DATE_GRID,
+      meta: liveColumnMeta(KNOWLEDGE_BASE_ITEM_COLUMNS.created, {
+        label: 'Created',
+        gridCell: ({ row }: { row: Row<ArticleRow> }) => <KnowledgeBaseItemCreatedCell item={row.original} grid />,
+      }),
     },
-    {
-      id: KNOWLEDGE_BASE_ITEM_COLUMNS.actions.id,
-      cell: ({ row }: { row: Row<ArticleRow> }) => (
-        // `data-no-row-click` keeps the row's own link from firing underneath the menu.
-        <div data-no-row-click className="pointer-events-auto flex justify-end">
-          <ActionsMenuDropdown
-            groups={[
-              {
-                items: [
-                  {
-                    id: 'unassign',
-                    label: 'Unassign',
-                    icon: <Link01BreakIcon className={ICON_CLASS} />,
-                    onClick: () => onUnassign(row.original),
-                  },
-                ],
-              },
-            ]}
-          />
-        </div>
-      ),
-      enableSorting: false,
-      meta: liveColumnMeta(KNOWLEDGE_BASE_ITEM_COLUMNS.actions),
-    },
-    {
-      id: KNOWLEDGE_BASE_ITEM_COLUMNS.open.id,
-      cell: ({ row }: { row: Row<ArticleRow> }) => <OpenInNewTabCell href={rowHref(row.original)} />,
-      enableSorting: false,
-      meta: liveColumnMeta(KNOWLEDGE_BASE_ITEM_COLUMNS.open),
-    },
+    knowledgeBaseMenuColumn<ArticleRow>(({ row }) => (
+      // `data-no-row-click` keeps the row's own link from firing underneath the menu.
+      <div data-no-row-click className="pointer-events-auto flex justify-end">
+        <ActionsMenuDropdown
+          groups={[
+            {
+              items: [
+                {
+                  id: 'unassign',
+                  label: 'Unassign',
+                  icon: <Link01BreakIcon className={ICON_CLASS} />,
+                  onClick: () => onUnassign(row.original),
+                },
+              ],
+            },
+          ]}
+        />
+      </div>
+    )),
+    knowledgeBaseOpenColumn<ArticleRow>(rowHref),
   ];
 }
+
+/** The key of the viewer's saved column layout: one for the tab, on a customer's page and on a device's. */
+const ASSIGNED_ARTICLES_TABLE_KEY = 'assigned-articles';
 
 export interface AssignedArticlesListing {
   search: string;
@@ -181,7 +188,11 @@ export function AssignedArticlesTable(props: AssignedArticlesTableProps) {
 /** In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read. */
 function AssignedArticlesTableReader(props: AssignedArticlesTableProps) {
   const { target } = props;
-  if (useLoadingScope() || target == null) {
+  const scoped = useLoadingScope();
+  // While the table flag is read the table draws its loading state too (and reads nothing): it never draws one layout
+  // and swaps to the other.
+  const { loading: flagLoading } = useGridTableProps(ASSIGNED_ARTICLES_TABLE_KEY);
+  if (scoped || flagLoading || target == null) {
     return (
       <LoadingWhen loading>
         <AssignedArticlesRows
@@ -289,6 +300,9 @@ function AssignedArticlesRows({
   stickyHeaderOffset,
 }: AssignedArticlesRowsProps) {
   const loading = useLoadingScope();
+  // The new grid table, behind the app's one table flag; card rows while it is off. The tab is a section of a
+  // details page, so the table keeps its natural height and the page scrolls.
+  const tableGrid = useGridTableProps(ASSIGNED_ARTICLES_TABLE_KEY);
   const hasFilters = listing.search !== '' || listing.tagIds.length > 0;
   // While the page is read the table holds one page of placeholder rows, drawn with their real cells.
   const placeholderRows = useMemo(
@@ -338,6 +352,8 @@ function AssignedArticlesRows({
       footer={rows.length > 0 ? infiniteScroll : null}
       isPending={isPending}
       stickyHeaderOffset={stickyHeaderOffset}
+      layout={tableGrid.layout}
+      settings={tableGrid.settings}
     />
   );
 }
