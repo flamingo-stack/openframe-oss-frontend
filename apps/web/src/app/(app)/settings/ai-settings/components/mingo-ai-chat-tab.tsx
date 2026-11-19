@@ -64,11 +64,13 @@ function MingoAiChatOverview({
 }
 
 export function MingoAiChatTab({ aiConfig, ...props }: MingoAiChatTabProps) {
-  // With the per-chat model on, each chat picks its own model in Mingo; until the flag answers the fields stay.
-  const showModelControls = useFeatureFlagGate(MINGO_MODEL_FLAG) !== 'on';
+  // With the per-chat model on, each chat picks its own model in Mingo and the tab offers none. Until the flag
+  // answers, the tab is still loading: neither layout is guessed.
+  const modelGate = useFeatureFlagGate(MINGO_MODEL_FLAG);
+  const showModelControls = modelGate !== 'on';
   // The form below is seeded once from the configuration, so it mounts only when that is in hand. Until then the tab
   // the user asked for (the editor on an edit deep link, else the overview) draws itself in a loading scope.
-  if (useLoadingScope() || aiConfig == null) {
+  if (useLoadingScope() || aiConfig == null || modelGate === 'loading') {
     return (
       <LoadingWhen loading>
         {props.isEditMode ? (
