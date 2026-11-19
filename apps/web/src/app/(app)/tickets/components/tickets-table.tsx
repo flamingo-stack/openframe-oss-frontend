@@ -10,8 +10,10 @@ import {
   PageLayout,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { type ReactNode, useCallback, useMemo, useState } from 'react';
+import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react';
+import { scrollListToTop } from '@/app/components/shared/scroll-list-to-top';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { useGridTableProps } from '@/app/hooks/use-table-layout';
 import { ASSIGNEE_FILTER_PAGE_SIZE, useAssigneeOptions } from '../hooks/use-assignee-options';
 import { emphasizeNewTicketAction, useTicketsActions } from '../hooks/use-tickets-actions';
 import { TICKETS_PAGE_SIZE, useTicketsQuery } from '../hooks/use-tickets-query';
@@ -86,6 +88,11 @@ export function TicketsTable({
   const debouncedSearch = useDebounce(search, 300);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
+  // The new grid table, behind the app's one table flag; card rows while it is off. The list is the page's main
+  // content, so in the grid it is the page's scroll area; the archive keeps a column layout of its own.
+  const tableGrid = useGridTableProps(isArchived ? 'tickets-archive' : 'tickets', { fill: true });
+  // Around the table: a new sort or filter returns the list to its first row, wherever it scrolls.
+  const listRef = useRef<HTMLDivElement>(null);
 
   const {
     dialogs: tickets,
@@ -111,7 +118,7 @@ export function TicketsTable({
   const handleSortChange = (columnId: string) => {
     if (columnId !== TICKET_COLUMNS.title.id) return;
     onSortChange(toggleTicketListSort(sort));
-    document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
+    scrollListToTop(listRef.current);
   };
 
   const archiveFilter = useMemo(() => ({ tagIds }), [tagIds]);
@@ -177,7 +184,7 @@ export function TicketsTable({
         organizationIds: organizationIds ?? [],
         unreadOnly: unreadOnly ?? false,
       });
-      document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
+      scrollListToTop(listRef.current);
     },
     [columnFilters, isArchived, onFiltersChange, organizationIds, unreadOnly],
   );
@@ -198,7 +205,7 @@ export function TicketsTable({
         unreadOnly: filters.unreadOnly,
         sort: filters.sort,
       });
-      document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
+      scrollListToTop(listRef.current);
     },
     [isArchived, onFiltersChange],
   );
@@ -241,7 +248,7 @@ export function TicketsTable({
         className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
         contentClassName="flex flex-col"
       >
-        <div style={containerStyle}>
+        <div ref={listRef} style={containerStyle}>
           {/* Default rich empty state (no data, no query): search + filters are hidden per the
               Figma data-placeholder-onboarding pattern — only the title bar chrome stays. */}
           {!showEmptyState && (
@@ -290,8 +297,12 @@ export function TicketsTable({
           ) : (
             <TicketTableBody
               tickets={tickets}
-              isLoading={isLoading}
+              // While the flag is read the table draws its loading rows: it never draws one layout and swaps.
+              isLoading={isLoading || tableGrid.loading}
               isPending={isPending}
+              layout={tableGrid.layout}
+              maxHeight={tableGrid.maxHeight}
+              settings={tableGrid.settings}
               emptyState={emptyTableState}
               pageSize={TICKETS_PAGE_SIZE}
               stickyHeaderOffset={stickyHeaderOffset}

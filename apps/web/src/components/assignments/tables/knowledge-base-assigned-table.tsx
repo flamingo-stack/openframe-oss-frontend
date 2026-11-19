@@ -1,6 +1,5 @@
 'use client';
 
-import { OpenInNewTabCell } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
@@ -13,12 +12,18 @@ import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useState } from 'react';
 import type { knowledgeBaseItemCreatedCell_item$data } from '@/__generated__/knowledgeBaseItemCreatedCell_item.graphql';
 import { ItemTimestamp } from '@/app/(app)/knowledge-base/components/shared/item-timestamp';
+import {
+  KNOWLEDGE_BASE_DATE_GRID,
+  KNOWLEDGE_BASE_NAME_GRID,
+  knowledgeBaseOpenColumn,
+} from '@/app/(app)/knowledge-base/components/shared/knowledge-base-grid-columns';
 import { KNOWLEDGE_BASE_ITEM_COLUMNS } from '@/app/(app)/knowledge-base/components/shared/knowledge-base-item-columns';
 import {
   KnowledgeBaseItemName,
   type KnowledgeBaseItemNameProps,
 } from '@/app/(app)/knowledge-base/components/shared/knowledge-base-item-name';
 import { liveColumnMeta, oneLineEmptyState } from '@/app/components/shared';
+import { useGridTableProps } from '@/app/hooks/use-table-layout';
 import { routes } from '@/lib/routes';
 import { ASSIGNED_ITEMS_SKELETON_ROWS } from '../use-assigned-items';
 
@@ -48,7 +53,19 @@ const COLUMNS: ColumnDef<AssignedArticle>[] = [
       />
     ),
     enableSorting: false,
-    meta: liveColumnMeta(KNOWLEDGE_BASE_ITEM_COLUMNS.name),
+    ...KNOWLEDGE_BASE_NAME_GRID,
+    meta: liveColumnMeta(KNOWLEDGE_BASE_ITEM_COLUMNS.name, {
+      label: 'Name',
+      gridCell: ({ row }: { row: Row<AssignedArticle> }) => (
+        <KnowledgeBaseItemName
+          type={row.original.type}
+          name={row.original.name}
+          status={row.original.status}
+          summary={row.original.summary}
+          grid
+        />
+      ),
+    }),
   },
   {
     id: KNOWLEDGE_BASE_ITEM_COLUMNS.created.id,
@@ -56,15 +73,19 @@ const COLUMNS: ColumnDef<AssignedArticle>[] = [
     cell: ({ row }: { row: Row<AssignedArticle> }) =>
       row.original.createdAt ? <ItemTimestamp value={row.original.createdAt} /> : null,
     enableSorting: false,
-    meta: liveColumnMeta(KNOWLEDGE_BASE_ITEM_COLUMNS.created),
+    ...KNOWLEDGE_BASE_DATE_GRID,
+    meta: liveColumnMeta(KNOWLEDGE_BASE_ITEM_COLUMNS.created, {
+      label: 'Created',
+      gridCell: ({ row }: { row: Row<AssignedArticle> }) =>
+        row.original.createdAt ? <ItemTimestamp value={row.original.createdAt} grid /> : null,
+    }),
   },
-  {
-    id: KNOWLEDGE_BASE_ITEM_COLUMNS.open.id,
-    cell: ({ row }: { row: Row<AssignedArticle> }) => <OpenInNewTabCell href={rowHref(row.original)} />,
-    enableSorting: false,
-    meta: liveColumnMeta(KNOWLEDGE_BASE_ITEM_COLUMNS.open),
-  },
+  knowledgeBaseOpenColumn<AssignedArticle>(rowHref),
 ];
+
+/** The key of the viewer's saved column layout. */
+const ASSIGNED_ARTICLES_PANEL_KEY = 'assignments-articles';
+const NO_ARTICLES: AssignedArticle[] = [];
 
 interface KnowledgeBaseAssignedTableProps {
   articles: AssignedArticle[];
@@ -72,6 +93,12 @@ interface KnowledgeBaseAssignedTableProps {
 }
 
 export function KnowledgeBaseAssignedTable({ articles, isLoading }: KnowledgeBaseAssignedTableProps) {
+  // The new grid table, behind the app's one table flag; card rows while it is off. The panel is a section of a
+  // longer page, so the table keeps its natural height. While the flag is read the table draws its loading rows: it
+  // never draws one layout and swaps to the other.
+  const tableGrid = useGridTableProps(ASSIGNED_ARTICLES_PANEL_KEY);
+  const grid = tableGrid.layout === 'grid';
+  const loading = isLoading || tableGrid.loading;
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
 
@@ -85,7 +112,9 @@ export function KnowledgeBaseAssignedTable({ articles, isLoading }: KnowledgeBas
     : articles;
 
   const table = useDataTable<AssignedArticle>({
-    data: rows,
+    // The body draws its loading rows only while it has no rows: none while the flag is read, even with the
+    // assignments already here.
+    data: tableGrid.loading ? NO_ARTICLES : rows,
     columns: COLUMNS,
     getRowId,
     enableSorting: false,
@@ -100,10 +129,18 @@ export function KnowledgeBaseAssignedTable({ articles, isLoading }: KnowledgeBas
         onChange={event => setSearch(event.target.value)}
         startAdornment={<SearchIcon className="h-4 w-4 content-md:h-6 content-md:w-6" />}
       />
-      <DataTable table={table}>
-        <DataTable.Header rightSlot={<DataTable.RowCount itemName="item" />} />
+      <DataTable table={table} layout={tableGrid.layout} settings={tableGrid.settings}>
+        {/* The grid's results count sits above the table; the card header carries its own in `rightSlot`, which the
+            grid header does not draw. */}
+        {grid && (
+          <DataTable.Meta>
+            <DataTable.RowCount itemName="item" />
+          </DataTable.Meta>
+        )}
+        {/* `loading`: what the body gets. A loading grid table names no column (the card header does not read it). */}
+        <DataTable.Header rightSlot={<DataTable.RowCount itemName="item" />} loading={loading} />
         <DataTable.Body
-          loading={isLoading}
+          loading={loading}
           skeletonRows={ASSIGNED_ITEMS_SKELETON_ROWS}
           emptyState={oneLineEmptyState('No articles assigned.')}
           rowHref={rowHref}
