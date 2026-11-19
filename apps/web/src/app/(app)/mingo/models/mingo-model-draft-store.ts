@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { getQueryClient } from '@/lib/query-client';
-import { type DialogModel, type DialogModelChoice, dialogModelQueryKey } from './dialog-model-api';
+import { type DialogModel, dialogModelQueryKey } from './dialog-model-api';
 
 /**
  * The model picked for the chat that does not exist yet (a new chat's composer). A store, not chat state: the dialog
@@ -16,19 +16,8 @@ export const useMingoModelDraftStore = create<MingoModelDraftState>()(set => ({
   setDraft: draft => set({ draft }),
 }));
 
-/** The draft's pick for `createDialog`, or null for the tenant default. */
-export function draftModelChoice(): DialogModelChoice | null {
-  const { draft } = useMingoModelDraftStore.getState();
-  return draft && { provider: draft.provider, modelName: draft.modelName };
-}
-
-/**
- * The chat was created on the draft's pick: its label holds the pick while the first read is in flight, and the next
- * new chat starts on the default again.
- */
-export function adoptDraftModel(dialogId: string): void {
-  const { draft, setDraft } = useMingoModelDraftStore.getState();
-  if (!draft) return;
+/** Shows the model sent at creation until the first read and consumes that draft if it is still current. */
+export function adoptDraftModel(dialogId: string, draft: DialogModel): void {
   const queryClient = getQueryClient();
   queryClient.setQueryData(dialogModelQueryKey(dialogId), {
     model: draft,
@@ -36,5 +25,6 @@ export function adoptDraftModel(dialogId: string): void {
     modelTokenBudget: null,
   });
   void queryClient.invalidateQueries({ queryKey: dialogModelQueryKey(dialogId) });
-  setDraft(null);
+  const { draft: currentDraft, setDraft } = useMingoModelDraftStore.getState();
+  if (currentDraft === draft) setDraft(null);
 }

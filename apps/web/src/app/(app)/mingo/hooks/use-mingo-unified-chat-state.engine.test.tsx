@@ -13,22 +13,31 @@ import { mingoDialogLink } from '@/lib/routes';
 import { ticketService } from '../../tickets/services';
 import { dialogModelQueryKey } from '../models/dialog-model-api';
 import { useMingoModelDraftStore } from '../models/mingo-model-draft-store';
+import type { MingoModelSelection } from '../models/use-mingo-model-selection';
 import { useMingoCompactionStore } from '../stores/mingo-compaction-store';
 import { useMingoUnifiedChatState } from './use-mingo-unified-chat-state';
 
-const { captured, toast, flags, tenantHost, commands } = vi.hoisted(() => ({
+const { captured, toast, flags, tenantHost, commands, modelSelection } = vi.hoisted(() => ({
   captured: { config: null as UseChatEngineConfig | null },
   toast: vi.fn(),
   flags: new Map<string, boolean>(),
   tenantHost: { url: 'https://acme.openframe.ai' },
   commands: [{ id: 'docs', description: 'Docs', primarySourceId: 'openframe-docs', actions: [] }],
+  modelSelection: vi.fn<() => MingoModelSelection>(),
 }));
 
 vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', async importOriginal => ({
   ...(await importOriginal<object>()),
   useChatEngine: (engineConfig: UseChatEngineConfig) => {
     captured.config = engineConfig;
-    return { activeDialogId: null, messages: [], streamingPhase: 'idle', isMessagesLoading: false, dialogs: [] };
+    return {
+      activeDialogId: null,
+      messages: [],
+      streamingPhase: 'idle',
+      isMessagesLoading: false,
+      dialogs: [],
+      currentContextWindowMaxTokens: 400_000,
+    };
   },
   useSlashCommandRegistry: () => ({ commands }),
 }));
@@ -45,7 +54,7 @@ vi.mock('@/lib/runtime-config', () => ({ runtimeEnv: { tenantHostUrl: () => tena
 vi.mock('./use-mingo-dialog-row-status', () => ({ useMingoDialogRowStatus: () => () => undefined }));
 vi.mock('../models/use-mingo-model-selection', () => ({
   MINGO_MODEL_FLAG: 'ai-mingo-chat-model-selection',
-  useMingoModelSelection: () => ({ gate: 'off', current: null, contextSize: null, menuItems: [] }),
+  useMingoModelSelection: modelSelection,
 }));
 
 let container: HTMLDivElement;
@@ -73,6 +82,8 @@ describe('useMingoUnifiedChatState: the engine config', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     flags.clear();
+    modelSelection.mockReturnValue({ gate: 'off', current: null, contextSize: null, menuItems: [] });
+    useMingoModelDraftStore.getState().setDraft(null);
     captured.config = null;
     last.chat = null;
     tenantHost.url = 'https://acme.openframe.ai';
@@ -138,6 +149,45 @@ describe('useMingoUnifiedChatState: the engine config', () => {
     });
     expect(useMingoModelDraftStore.getState().draft).toBeNull();
     expect(getQueryClient().getQueryData(dialogModelQueryKey('d-new'))).toMatchObject({ effectiveModel: gpt });
+  });
+
+  it('caches the model sent at creation and keeps a newer draft pick', async () => {
+    const pending = Promise.withResolvers<string>();
+    const createDialog = vi.spyOn(ticketService, 'createDialog').mockReturnValueOnce(pending.promise);
+    const sent = { provider: 'OPENAI' as const, modelName: 'gpt-5.5', displayName: 'GPT-5.5' };
+    const nextDraft = { provider: 'ANTHROPIC' as const, modelName: 'claude-sonnet-5', displayName: 'Claude Sonnet 5' };
+    flags.set('ai-mingo-chat-model-selection', true);
+    useMingoModelDraftStore.getState().setDraft(sent);
+    render();
+
+    await act(async () => {
+      const creation = config().history?.createDialog?.({});
+      useMingoModelDraftStore.getState().setDraft(nextDraft);
+      pending.resolve('d-creating');
+      await creation;
+    });
+
+    expect(createDialog).toHaveBeenCalledWith({
+      agentType: 'ADMIN',
+      model: { provider: sent.provider, modelName: sent.modelName },
+    });
+    expect(getQueryClient().getQueryData(dialogModelQueryKey('d-creating'))).toMatchObject({
+      model: sent,
+      effectiveModel: sent,
+    });
+    expect(useMingoModelDraftStore.getState().draft).toBe(nextDraft);
+  });
+
+  it('shows the draft model without the engine budget for another model', () => {
+    render();
+    expect(last.chat?.state.currentContextWindowMaxTokens).toBe(400_000);
+
+    const current = { provider: 'OPENAI' as const, modelName: 'gpt-5.5', displayName: 'GPT-5.5' };
+    modelSelection.mockReturnValue({ gate: 'on', current, contextSize: null, menuItems: [] });
+    render();
+
+    expect(last.chat?.state.currentModelLabel).toBe(current.displayName);
+    expect(last.chat?.state.currentContextWindowMaxTokens).toBeNull();
   });
 
   it('offers Compact behind its flag, and says when one is already running', async () => {

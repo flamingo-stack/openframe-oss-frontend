@@ -63,7 +63,7 @@ import type { MessageListRef, MessagePageRef } from '../../tickets/services/tick
 import type { GraphQlResponse } from '../../tickets/utils/graphql';
 import { CONTEXT_ITEMS_MAX, RECENT_VIEWS_MAX } from '../context/context-types';
 import { pageContextHref, resolvePageContext } from '../context/page-context';
-import { adoptDraftModel, draftModelChoice } from '../models/mingo-model-draft-store';
+import { adoptDraftModel, useMingoModelDraftStore } from '../models/mingo-model-draft-store';
 import {
   MINGO_MODEL_FLAG,
   type MingoModelSelection,
@@ -302,14 +302,15 @@ function useMingoHistory(): ChatHistoryBackend {
       createDialog: async ({ title, intent, sendOptions, firstMessage }) => {
         try {
           const insightId = insightIdOf(sendOptions, firstMessage);
-          const model = modelSelectionEnabled ? draftModelChoice() : null;
+          const draft = modelSelectionEnabled ? useMingoModelDraftStore.getState().draft : null;
+          const model = draft && { provider: draft.provider, modelName: draft.modelName };
           const dialogId = await ticketService.createDialog({
             agentType: 'ADMIN',
             ...(insightId ? { insightId } : {}),
             ...(intent ? { intent: intent as DialogIntent } : {}),
             ...(model ? { model } : {}),
           });
-          if (model) adoptDraftModel(dialogId);
+          if (draft) adoptDraftModel(dialogId, draft);
           if (title) appNamed.add(dialogId);
           invalidateDialogLookups();
           return { dialogId };
@@ -470,7 +471,7 @@ export function useMingoUnifiedChatState({ onScreen }: { onScreen: boolean }): M
           ...stateWithUsage,
           currentProvider: model.provider,
           currentModelLabel: model.displayName ?? model.modelName,
-          currentContextWindowMaxTokens: contextSize ?? state.currentContextWindowMaxTokens,
+          currentContextWindowMaxTokens: contextSize,
         }
       : stateWithUsage,
     modelSelection,
