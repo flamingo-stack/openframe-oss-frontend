@@ -119,10 +119,24 @@ describe('MingoModelPicker', () => {
     expect(button.getAttribute('aria-expanded')).toBe('false');
   });
 
+  it('keeps the same trigger when selection is locked with the menu open', () => {
+    const { button } = render();
+    key(button, 'Enter');
+    expect(button.getAttribute('aria-expanded')).toBe('true');
+
+    const locked = render({ disabled: true }).button;
+    expect(locked).toBe(button);
+    expect(locked.getAttribute('aria-expanded')).toBe('false');
+
+    const unlocked = render().button;
+    expect(unlocked).toBe(button);
+    expect(unlocked.getAttribute('aria-expanded')).toBe('false');
+  });
+
   it('leaves the current model visible and disabled while changes are locked', () => {
     const { button } = render({ disabled: true });
     expect(button.textContent).toBe('Claude Opus 4.8');
-    expect(button.disabled).toBe(true);
+    expect(button.getAttribute('aria-disabled')).toBe('true');
     key(button, 'Enter');
     expect(document.querySelector('[role="menu"]')).toBeNull();
   });

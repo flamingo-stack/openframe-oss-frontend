@@ -109,10 +109,10 @@ function ProviderModels({
           // Radix is keeping the previous submenu open for diagonal movement.
           if (event.pointerType === 'mouse') onOpenChange(true);
         }}
-        className="min-h-10 gap-2 rounded-none px-3 font-body text-base font-medium hover:bg-ods-menu-hover focus:bg-ods-menu-hover data-[state=open]:bg-ods-menu-hover [&_svg]:size-5"
+        className="min-h-10 gap-1 rounded-none px-2 font-body text-sm font-medium hover:bg-ods-menu-hover focus:bg-ods-menu-hover data-[state=open]:bg-ods-menu-hover sm:gap-2 sm:px-3 sm:text-base [&_svg]:size-4 sm:[&_svg]:size-5"
       >
         <NamedIcon icon={LLM_PROVIDER_ICON[provider]} className="size-5" />
-        <span className="min-w-0 flex-1 break-words">{LLM_PROVIDER_LABEL[provider]}</span>
+        <span className="min-w-0 flex-1 truncate">{LLM_PROVIDER_LABEL[provider]}</span>
         {current && <CheckFillIcon aria-hidden className="text-ods-accent" />}
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent
@@ -166,31 +166,41 @@ export function MingoModelPicker({
   selection: MingoModelPickerState;
 }) {
   const providerMenu = useRef<HTMLDivElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [openProvider, setOpenProvider] = useState<ProviderSelection['provider'] | null>(null);
+  // Keep the trigger mounted and focusable when saving the model.
+  // A lock closes an open menu without making it reopen after the save.
+  if (selection.disabled && menuOpen) {
+    setMenuOpen(false);
+    setOpenProvider(null);
+  }
   const label = name ?? 'Chat Model';
-  const trigger = (
-    <button
-      type="button"
-      aria-label={`Change chat model: ${label}`}
-      disabled={selection.disabled}
-      className="group inline-flex min-w-0 items-center gap-1.5 rounded-sm py-0.5 pl-1.5 pr-1 text-ods-text-secondary hover:bg-[var(--ods-backgrounds-openframe-background-hover)] hover:text-ods-text-primary focus-visible:outline-2 focus-visible:outline-ods-focus disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent data-[state=open]:bg-[var(--ods-backgrounds-openframe-background-action)] data-[state=open]:text-ods-text-primary"
-    >
-      <ModelProviderLogo provider={provider} />
-      <span className="truncate font-body">{label}</span>
-      <Chevron02DownIcon aria-hidden size={16} className="shrink-0 group-data-[state=open]:rotate-180" />
-    </button>
-  );
-
-  if (selection.disabled) return trigger;
   return (
-    <DropdownMenu modal={false} onOpenChange={() => setOpenProvider(null)}>
-      <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
+    <DropdownMenu
+      modal={false}
+      open={menuOpen}
+      onOpenChange={open => {
+        if (open && selection.disabled) return;
+        setMenuOpen(open);
+        setOpenProvider(null);
+      }}
+    >
+      <DropdownMenuTrigger
+        type="button"
+        aria-label={`Change chat model: ${label}`}
+        aria-disabled={selection.disabled || undefined}
+        className="group inline-flex min-w-0 items-center gap-1.5 rounded-sm py-0.5 pl-1.5 pr-1 text-ods-text-secondary hover:bg-[var(--ods-backgrounds-openframe-background-hover)] hover:text-ods-text-primary focus-visible:outline-2 focus-visible:outline-ods-focus aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-transparent data-[state=open]:bg-[var(--ods-backgrounds-openframe-background-action)] data-[state=open]:text-ods-text-primary"
+      >
+        <ModelProviderLogo provider={provider} />
+        <span className="truncate font-body">{label}</span>
+        <Chevron02DownIcon aria-hidden size={16} className="shrink-0 group-data-[state=open]:rotate-180" />
+      </DropdownMenuTrigger>
       <DropdownMenuContent
         ref={providerMenu}
         align="start"
         side="top"
         sideOffset={4}
-        className={`${menuClassName} w-60 max-w-[calc((100vw-40px)/2)]`}
+        className={`${menuClassName} w-60 max-w-[calc((100vw+24px)/2)]`}
       >
         <DropdownMenuItem
           role="menuitemradio"

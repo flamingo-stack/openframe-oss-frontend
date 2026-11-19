@@ -22,14 +22,17 @@ const env = vi.hoisted(() => ({
 }));
 
 vi.mock('@/app/hooks/use-feature-flag', () => ({ useFeatureFlagGate: () => env.gate }));
-vi.mock('@/app/hooks/use-ai-model', () => ({
-  useAiModelStatus: () => ({ aiModel: { provider: 'ANTHROPIC', displayName: 'Claude Opus 5.5' } }),
+vi.mock('@/app/(app)/settings/ai-settings/hooks/use-agent-ai-config', () => ({
+  useAdminAiConfig: () => ({ config: { llmProvider: 'ANTHROPIC', providerModel: 'claude-sonnet-5' } }),
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', () => ({ useToast: () => ({ toast: env.toast }) }));
 vi.mock('@/app/(app)/settings/ai-settings/hooks/use-supported-models', () => ({
   useSupportedModels: () => ({
     modelsByProvider: {
-      ANTHROPIC: [{ value: 'claude-sonnet-5', label: 'Claude Sonnet 5' }],
+      ANTHROPIC: [
+        { value: 'claude-sonnet-5', label: 'Claude Sonnet 5' },
+        { value: 'claude-sonnet-5-alt', label: 'Claude Sonnet 5' },
+      ],
       OPENAI: [{ value: 'gpt-5.5', label: 'GPT-5.5' }],
     },
   }),
@@ -116,6 +119,14 @@ describe('useMingoModelSelection', () => {
     expect(selection.picker?.providers[1]).toMatchObject({ provider: 'OPENAI', current: true });
     expect(modelOption('gpt-5.5').current).toBe(true);
     expect(env.updateDialogModel).not.toHaveBeenCalled();
+  });
+
+  it('marks only the default model ID even when two choices share their display name', async () => {
+    await render();
+
+    expect(selection.picker?.followsDefault).toBe(true);
+    expect(modelOption('claude-sonnet-5').current).toBe(true);
+    expect(modelOption('claude-sonnet-5-alt').current).toBe(false);
   });
 
   it("reads a saved chat's model and changes it on the server", async () => {

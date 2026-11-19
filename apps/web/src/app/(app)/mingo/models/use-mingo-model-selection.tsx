@@ -1,11 +1,11 @@
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAdminAiConfig } from '@/app/(app)/settings/ai-settings/hooks/use-agent-ai-config';
 import {
   type SupportedModelsByProvider,
   useSupportedModels,
 } from '@/app/(app)/settings/ai-settings/hooks/use-supported-models';
 import { LLM_PROVIDER_OPTIONS } from '@/app/(app)/settings/ai-settings/utils/ai-settings-display';
-import { useAiModelStatus } from '@/app/hooks/use-ai-model';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import type { AIProvider } from '@/generated/schema-enums';
 import type { FeatureFlagGate } from '@/lib/feature-flags';
@@ -48,16 +48,13 @@ export interface MingoModelPickerState {
   }[];
 }
 
-const sameModel = (a: DialogModelChoice | null, b: DialogModelChoice) =>
-  a !== null && a.provider === b.provider && a.modelName === b.modelName;
-
 /** The model for one Mingo chat: read from the chat, picked from its composer; a new chat keeps its pick in a draft. */
 export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSelection {
   const gate = useFeatureFlagGate(MINGO_MODEL_FLAG);
   const enabled = gate === 'on';
   const { activeDialogId } = chat;
   const { modelsByProvider } = useSupportedModels();
-  const { aiModel } = useAiModelStatus();
+  const { config } = useAdminAiConfig();
   const draft = useMingoModelDraftStore(s => s.draft);
   const setDraft = useMingoModelDraftStore(s => s.setDraft);
   const queryClient = useQueryClient();
@@ -85,6 +82,8 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
   const saved = activeDialogId ? query.data : undefined;
   const selected = activeDialogId ? (saved?.model ?? null) : draft;
   const current = activeDialogId ? (saved?.effectiveModel ?? null) : draft;
+  const effectiveProvider = current?.provider ?? config?.llmProvider;
+  const effectiveModelName = current?.modelName ?? config?.providerModel;
   const locked =
     mutation.isPending ||
     (activeDialogId !== null && query.isPending) ||
@@ -110,15 +109,13 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
         if (options.length === 0) return [];
         return {
           provider,
-          current: provider === (current?.provider ?? aiModel?.provider),
+          current: provider === effectiveProvider,
           models: options.map(option => {
             const model = { provider, modelName: option.value, displayName: option.label };
             return {
               id: option.value,
               label: option.label,
-              current: current
-                ? sameModel(current, model)
-                : aiModel?.provider === provider && aiModel.displayName === option.label,
+              current: provider === effectiveProvider && option.value === effectiveModelName,
               choose: () => choose(model),
             };
           }),
