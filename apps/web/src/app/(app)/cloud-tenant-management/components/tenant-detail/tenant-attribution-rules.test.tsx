@@ -162,6 +162,8 @@ describe('TenantAttributionRules', () => {
     expect(gridRoot(container)).not.toBeNull();
     expect(gridHeaderColumns(container)).toEqual(['customer', 'matchBy', 'values', 'users']);
     expect(gridSettingsGear(container)).not.toBeNull();
+    // The count is drawn once, above the table: the grid header does not draw the card header's right slot.
+    expect((container.textContent ?? '').match(/1 result/g)).toHaveLength(1);
     // A section of a longer page: the page scrolls, the table has no viewport of its own.
     expect(gridViewport(container)).toBeNull();
     expect(container.textContent).toContain('Acme');

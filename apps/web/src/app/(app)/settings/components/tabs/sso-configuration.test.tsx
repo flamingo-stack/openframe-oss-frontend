@@ -131,6 +131,8 @@ describe('SsoConfigurationTab', () => {
     // Under the sign-in card and the search: the page scrolls, the table has no viewport of its own.
     expect(gridViewport(container)).toBeNull();
     expect(gridActions()).toEqual([['actions', 56]]);
+    // The count is drawn once, above the table: the grid header does not draw the card header's right slot.
+    expect((container.textContent ?? '').match(/1 result/g)).toHaveLength(1);
     expect(editButton(container)?.className).toContain('border-0');
     // One line a provider: its key follows its name.
     expect(container.querySelector('[data-part="secondary"]')?.textContent).toBe('google');

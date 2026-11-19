@@ -15,11 +15,18 @@ const invitationEmailCellFragment = graphql`
   }
 `;
 
+/**
+ * The invited email for both of the column's cells. A row still being read (a loading scope) has no fragment to read:
+ * an empty text, which each cell draws as its loading form.
+ */
+function useInvitationEmail(invitation: invitationEmailCell_invitation$key): string {
+  const data = useFragment(invitationEmailCellFragment, useLoadingScope() ? null : invitation);
+  return data?.email ?? '';
+}
+
 /** USER column of the invitations block: nobody has a name yet, only the invited email. */
 export function InvitationEmailCell({ invitation }: { invitation: invitationEmailCell_invitation$key }) {
-  // A row still being read (a loading scope) has no fragment to read: the cell draws its loading form.
-  const data = useFragment(invitationEmailCellFragment, useLoadingScope() ? null : invitation);
-  const email = data?.email ?? '';
+  const email = useInvitationEmail(invitation);
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-xs)]">
       <SquareAvatar fallback={email} size="sm" variant="round" />
@@ -30,8 +37,6 @@ export function InvitationEmailCell({ invitation }: { invitation: invitationEmai
 
 /** USER column in the grid layout: the same avatar and email, as the grid's one-line cell. */
 export function InvitationEmailGridCell({ invitation }: { invitation: invitationEmailCell_invitation$key }) {
-  // A row still being read (a loading scope) has no fragment to read: the cell draws its loading form.
-  const data = useFragment(invitationEmailCellFragment, useLoadingScope() ? null : invitation);
-  const email = data?.email ?? '';
+  const email = useInvitationEmail(invitation);
   return <DataTable.Cell leading={{ type: 'avatar', name: email }} text={email} />;
 }
