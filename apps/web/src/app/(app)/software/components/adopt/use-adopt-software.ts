@@ -9,7 +9,10 @@ import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { pluralize } from '@/lib/pluralize';
 import { routes } from '@/lib/routes';
 
-/** Returns the devices the order went to; a device its package manager cannot run on is left out. */
+/**
+ * Returns the devices the order went to. A device Adopt cannot run on is left out without an error: another OS, an
+ * agent too old for the order, no Homebrew, or the app only in the user's ~/Applications.
+ */
 const adoptMutation = graphql`
   mutation useAdoptSoftwareMutation($input: AdoptSoftwareInput!) {
     adoptSoftware(input: $input)
@@ -45,7 +48,7 @@ export function useAdoptSoftware(software: { id: string; name: string }) {
         const skipped = machineIds.length - sent;
         toast({
           title: 'Adoption started',
-          description: `${software.name} on ${pluralize(sent, 'device')}.${skipped > 0 ? ` ${pluralize(skipped, 'device')} left out: its package manager cannot run there.` : ''}`,
+          description: `${software.name} on ${pluralize(sent, 'device')}.${skipped > 0 ? ` ${pluralize(skipped, 'device')} left out: Adopt cannot run there (an older agent, Homebrew missing, or the app only in ~/Applications).` : ''}`,
           variant: 'success',
         });
         setLeaving(true);

@@ -7,6 +7,7 @@ import {
   type PackageSearchSlotProps,
   PackageSearchFieldPlaceholder,
   SoftwareActionForm,
+  type SoftwareActionKind,
   type SoftwareDeviceScope,
   type SoftwareScheduleTiming,
   earliestScheduleDay,
@@ -19,7 +20,7 @@ import { useMemo } from 'react';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
-import { ScheduleTimeReference, type SoftwareAction } from '@/generated/schema-enums';
+import { ScheduleTimeReference } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
 import { BundleDevicePicker } from './bundle-device-picker';
 import { PackageSearchField } from './package-search-field';
@@ -94,7 +95,8 @@ export function SoftwareActionView({
   software,
   loading = false,
 }: {
-  action: SoftwareAction;
+  /** Install or update: the actions a bundle runs (Adopt has a page of its own, and bundles refuse it). */
+  action: SoftwareActionKind;
   /** Update this one title (from its page), the package picked by the server, instead of packages in rows. */
   software?: SoftwareActionTitle;
   /** The module's flag (or the title) has not answered yet: the form draws, the picker does not fetch and nothing submits. */

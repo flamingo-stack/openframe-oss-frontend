@@ -5429,12 +5429,17 @@ type Software {
 }
 
 """
-Install vs update — the two software management actions. Also scopes a package's Execution
-History (softwareExecutions).
+The software management actions. Also scopes a package's Execution History (softwareExecutions).
 """
 enum SoftwareAction {
   INSTALL
   UPDATE
+
+  """
+  A hand-installed copy reinstalled with a package manager (adoptSoftware). Not a bundle or schedule action:
+  BAD_REQUEST there.
+  """
+  ADOPT
 }
 
 """
