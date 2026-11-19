@@ -82,7 +82,7 @@ describe('useMingoUnifiedChatState: the engine config', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     flags.clear();
-    modelSelection.mockReturnValue({ gate: 'off', current: null, contextSize: null, menuItems: [] });
+    modelSelection.mockReturnValue({ gate: 'off', current: null, contextSize: null, picker: null });
     useMingoModelDraftStore.getState().setDraft(null);
     captured.config = null;
     last.chat = null;
@@ -183,7 +183,7 @@ describe('useMingoUnifiedChatState: the engine config', () => {
     expect(last.chat?.state.currentContextWindowMaxTokens).toBe(400_000);
 
     const current = { provider: 'OPENAI' as const, modelName: 'gpt-5.5', displayName: 'GPT-5.5' };
-    modelSelection.mockReturnValue({ gate: 'on', current, contextSize: null, menuItems: [] });
+    modelSelection.mockReturnValue({ gate: 'on', current, contextSize: null, picker: null });
     render();
 
     expect(last.chat?.state.currentModelLabel).toBe(current.displayName);

@@ -1,8 +1,7 @@
 /**
- * A Mingo chat's model: a new chat keeps its pick in a draft, a saved chat reads and changes its own, and the ⋯ entry
+ * A Mingo chat's model: a new chat keeps its pick in a draft, a saved chat reads and changes its own, and the composer picker
  * is locked while the server would refuse the change.
  */
-import type { ActionsMenuItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -73,12 +72,10 @@ async function render(chat: Partial<MingoModelChatState> = {}) {
   );
 }
 
-const entry = () => selection.menuItems[0];
-const choice = (id: string): ActionsMenuItem => {
-  const all = (entry().submenu ?? []).flatMap(item => [item, ...(item.submenu ?? [])]);
-  const found = all.find(item => item.id === id);
-  if (!found) throw new Error(`no menu item ${id}`);
-  return found;
+const modelOption = (id: string) => {
+  const model = selection.picker?.providers.flatMap(provider => provider.models).find(option => option.id === id);
+  if (!model) throw new Error('no model option ' + id);
+  return model;
 };
 
 beforeEach(() => {
@@ -101,23 +98,23 @@ describe('useMingoModelSelection', () => {
     env.gate = 'off';
     await render({ activeDialogId: 'd-1' });
 
-    expect(selection.menuItems).toEqual([]);
+    expect(selection.picker).toBeNull();
     expect(selection.current).toBeNull();
     expect(env.fetchDialogModel).not.toHaveBeenCalled();
   });
 
   it("keeps a new chat's pick in the draft and names it", async () => {
     await render();
-    expect(choice('chat-model-default').checked).toBe(true);
-    expect(entry()).toMatchObject({ label: 'Claude Opus 5.5', description: 'Chat Model' });
+    expect(selection.picker?.followsDefault).toBe(true);
+    expect(selection.picker?.providers[0]).toMatchObject({ provider: 'ANTHROPIC', current: true });
 
-    await act(async () => choice('chat-model-OPENAI-gpt-5.5').onClick?.());
+    await act(async () => modelOption('gpt-5.5').choose());
     await render();
 
     expect(useMingoModelDraftStore.getState().draft).toEqual(GPT);
     expect(selection.current).toEqual(GPT);
-    expect(entry().label).toBe('GPT-5.5');
-    expect(choice('chat-model-OPENAI-gpt-5.5').checked).toBe(true);
+    expect(selection.picker?.providers[1]).toMatchObject({ provider: 'OPENAI', current: true });
+    expect(modelOption('gpt-5.5').current).toBe(true);
     expect(env.updateDialogModel).not.toHaveBeenCalled();
   });
 
@@ -129,16 +126,17 @@ describe('useMingoModelSelection', () => {
     await vi.waitFor(() => expect(selection.current).toEqual(GPT));
 
     expect(env.fetchDialogModel).toHaveBeenCalledWith('d-1');
-    expect(entry().disabled).toBe(false);
+    expect(selection.picker?.disabled).toBe(false);
     expect(selection.contextSize).toBe(150_000);
-    expect(choice('chat-model-default').checked).toBe(true);
+    expect(selection.picker?.followsDefault).toBe(true);
+    expect(modelOption('gpt-5.5').current).toBe(true);
 
-    await act(async () => choice('chat-model-ANTHROPIC-claude-sonnet-5').onClick?.());
+    await act(async () => modelOption('claude-sonnet-5').choose());
     await vi.waitFor(() => expect(selection.current).toEqual(SONNET));
 
     expect(env.updateDialogModel).toHaveBeenCalledWith('d-1', SONNET);
     expect(selection.contextSize).toBe(200_000);
-    expect(choice('chat-model-ANTHROPIC-claude-sonnet-5').checked).toBe(true);
+    expect(modelOption('claude-sonnet-5').current).toBe(true);
   });
 
   it('puts a saved chat back on the default', async () => {
@@ -147,7 +145,7 @@ describe('useMingoModelSelection', () => {
     await render({ activeDialogId: 'd-1' });
     await vi.waitFor(() => expect(selection.current).toEqual(SONNET));
 
-    await act(async () => choice('chat-model-default').onClick?.());
+    await act(async () => selection.picker?.chooseDefault());
 
     expect(env.updateDialogModel).toHaveBeenCalledWith('d-1', null);
   });
@@ -158,7 +156,7 @@ describe('useMingoModelSelection', () => {
     await render({ activeDialogId: 'd-1' });
     await vi.waitFor(() => expect(selection.current).toEqual(GPT));
 
-    await act(async () => choice('chat-model-ANTHROPIC-claude-sonnet-5').onClick?.());
+    await act(async () => modelOption('claude-sonnet-5').choose());
 
     await vi.waitFor(() =>
       expect(env.toast).toHaveBeenCalledWith(
@@ -179,6 +177,6 @@ describe('useMingoModelSelection', () => {
     await render({ activeDialogId: 'd-1', ...chat });
     await vi.waitFor(() => expect(selection.current).toEqual(GPT));
 
-    expect(entry().disabled).toBe(true);
+    expect(selection.picker?.disabled).toBe(true);
   });
 });

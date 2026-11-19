@@ -59,6 +59,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useMingoContextMemory } from '@/app/(app)/mingo/context/use-context-memory';
 import type { MingoUnifiedChat } from '@/app/(app)/mingo/hooks/use-mingo-unified-chat-state';
+import { MingoModelPicker } from '@/app/(app)/mingo/models/mingo-model-picker';
 import { useMingoChatSurface } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { useMingoTour } from '@/app/(app)/mingo/tour/use-mingo-tour';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
@@ -524,11 +525,9 @@ function DockChat({ route, chat }: DockChatProps) {
       : []),
     ...devOnboardingItems,
   ];
-  // With the per-chat model on, the model is picked in the ⋯ menus and the footer name only shows it.
   const modelGate = chat.modelSelection?.gate ?? 'off';
-  const modelMenuItems = chat.modelSelection?.menuItems ?? [];
-  const extraItems = [...modelMenuItems, ...(onboardingV2 === 'on' ? onboardingItems : [])];
-  const chatMenuExtraItems = extraItems.length > 0 ? extraItems : undefined;
+  const modelPicker = chat.modelSelection?.picker;
+  const chatMenuExtraItems = onboardingV2 === 'on' && onboardingItems.length > 0 ? onboardingItems : undefined;
 
   return (
     <>
@@ -593,7 +592,18 @@ function DockChat({ route, chat }: DockChatProps) {
           renameMode="inline"
           onModelClick={modelGate === 'off' ? () => navigate(routes.settings.aiSettings({ tab: 'mingo' })) : undefined}
           modelTooltip={modelGate === 'off' ? 'Change in Settings → AI Settings' : undefined}
-          composerMenuItems={modelMenuItems.length > 0 ? modelMenuItems : undefined}
+          renderComposerModelLabel={
+            modelPicker
+              ? ({ name, provider }) => (
+                  <MingoModelPicker
+                    key={chat.state.activeDialogId}
+                    selection={modelPicker}
+                    name={name}
+                    provider={provider}
+                  />
+                )
+              : undefined
+          }
           // Over the page the thread is the chat's: its prompt; behind it, "continue or ask anew".
           composerPlaceholder={
             startWorkColumn

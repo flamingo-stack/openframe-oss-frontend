@@ -1,18 +1,13 @@
-import { NamedIcon } from '@flamingo-stack/openframe-frontend-core/components';
-import type { ActionsMenuItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   type SupportedModelsByProvider,
   useSupportedModels,
 } from '@/app/(app)/settings/ai-settings/hooks/use-supported-models';
-import {
-  LLM_PROVIDER_ICON,
-  LLM_PROVIDER_LABEL,
-  LLM_PROVIDER_OPTIONS,
-} from '@/app/(app)/settings/ai-settings/utils/ai-settings-display';
+import { LLM_PROVIDER_OPTIONS } from '@/app/(app)/settings/ai-settings/utils/ai-settings-display';
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
+import type { AIProvider } from '@/generated/schema-enums';
 import type { FeatureFlagGate } from '@/lib/feature-flags';
 import {
   type DialogModel,
@@ -39,14 +34,24 @@ export interface MingoModelSelection {
   current: DialogModel | null;
   /** The answering model's context, once the server said. */
   contextSize: number | null;
-  /** "Chat Model" for the chat's and the composer's ⋯ menus; empty while the flag is not on. */
-  menuItems: ActionsMenuItem[];
+  picker: MingoModelPickerState | null;
+}
+
+export interface MingoModelPickerState {
+  disabled: boolean;
+  followsDefault: boolean;
+  chooseDefault: () => void;
+  providers: {
+    provider: AIProvider;
+    current: boolean;
+    models: { id: string; label: string; current: boolean; choose: () => void }[];
+  }[];
 }
 
 const sameModel = (a: DialogModelChoice | null, b: DialogModelChoice) =>
   a !== null && a.provider === b.provider && a.modelName === b.modelName;
 
-/** The model for one Mingo chat: read from the chat, picked in its ⋯ menus; a new chat keeps its pick in a draft. */
+/** The model for one Mingo chat: read from the chat, picked from its composer; a new chat keeps its pick in a draft. */
 export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSelection {
   const gate = useFeatureFlagGate(MINGO_MODEL_FLAG);
   const enabled = gate === 'on';
@@ -75,7 +80,7 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
       }),
   });
 
-  if (!enabled) return { gate, current: null, contextSize: null, menuItems: [] };
+  if (!enabled) return { gate, current: null, contextSize: null, picker: null };
 
   const saved = activeDialogId ? query.data : undefined;
   const selected = activeDialogId ? (saved?.model ?? null) : draft;
@@ -87,11 +92,6 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
     chat.archived ||
     chat.isCompacting;
 
-  // The entry names the model that answers: the chat's, else the tenant default a new chat starts on.
-  const shown = current
-    ? { label: labelOf(current, modelsByProvider), provider: current.provider }
-    : aiModel && { label: aiModel.displayName, provider: LLM_PROVIDER_OPTIONS.find(p => p === aiModel.provider) };
-
   const choose = (model: DialogModel | null) => {
     if (activeDialogId) mutation.mutate({ dialogId: activeDialogId, model });
     else setDraft(model);
@@ -101,47 +101,30 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
     gate,
     current: current && { ...current, displayName: labelOf(current, modelsByProvider) },
     contextSize: saved?.modelTokenBudget ?? null,
-    menuItems: [
-      {
-        id: 'chat-model',
-        label: shown?.label ?? 'Chat Model',
-        description: shown ? 'Chat Model' : undefined,
-        icon: shown?.provider ? <NamedIcon icon={LLM_PROVIDER_ICON[shown.provider]} className="h-5 w-5" /> : undefined,
-        type: 'submenu',
-        // The cascade is three menus wide: it may leave the chat's column, which is narrower than that.
-        submenuBoundary: 'viewport',
-        disabled: locked,
-        submenu: [
-          {
-            id: 'chat-model-default',
-            label: 'Use Default Model',
-            type: 'radio',
-            checked: selected === null,
-            onClick: () => choose(null),
-          },
-          ...LLM_PROVIDER_OPTIONS.flatMap(provider => {
-            const options = modelsByProvider?.[provider] ?? [];
-            if (options.length === 0) return [];
+    picker: {
+      disabled: locked,
+      followsDefault: selected === null,
+      chooseDefault: () => choose(null),
+      providers: LLM_PROVIDER_OPTIONS.flatMap(provider => {
+        const options = modelsByProvider?.[provider] ?? [];
+        if (options.length === 0) return [];
+        return {
+          provider,
+          current: provider === (current?.provider ?? aiModel?.provider),
+          models: options.map(option => {
+            const model = { provider, modelName: option.value, displayName: option.label };
             return {
-              id: `chat-model-${provider}`,
-              label: LLM_PROVIDER_LABEL[provider],
-              icon: <NamedIcon icon={LLM_PROVIDER_ICON[provider]} className="h-5 w-5" />,
-              type: 'submenu' as const,
-              submenu: options.map(option => {
-                const model = { provider, modelName: option.value, displayName: option.label };
-                return {
-                  id: `chat-model-${provider}-${option.value}`,
-                  label: option.label,
-                  type: 'radio' as const,
-                  checked: sameModel(selected, model),
-                  onClick: () => choose(model),
-                };
-              }),
+              id: option.value,
+              label: option.label,
+              current: current
+                ? sameModel(current, model)
+                : aiModel?.provider === provider && aiModel.displayName === option.label,
+              choose: () => choose(model),
             };
           }),
-        ],
-      },
-    ],
+        };
+      }),
+    },
   };
 }
 

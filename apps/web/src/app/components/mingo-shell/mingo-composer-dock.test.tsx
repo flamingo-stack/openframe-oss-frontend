@@ -6,11 +6,11 @@
  * holds its place while the chat loads, and its own crash fallback.
  */
 
-import type { ActionsMenuItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { act, forwardRef, type ReactNode, useEffect, useImperativeHandle } from 'react';
 import { createPortal } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { MingoModelPickerState } from '@/app/(app)/mingo/models/use-mingo-model-selection';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { routes } from '@/lib/routes';
 import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
@@ -213,14 +213,14 @@ function setSurface({
   enabled = true,
   error = null as Error | null,
   identityEnabled = true,
-  modelMenuItems = null as ActionsMenuItem[] | null,
+  modelPicker = null as MingoModelPickerState | null,
 } = {}) {
   surface.value = {
     chat: error
       ? null
       : {
-          ...(modelMenuItems
-            ? { modelSelection: { gate: 'on', current: null, contextSize: null, menuItems: modelMenuItems } }
+          ...(modelPicker
+            ? { modelSelection: { gate: 'on', current: null, contextSize: null, picker: modelPicker } }
             : {}),
           state: {
             activeDialogId,
@@ -899,13 +899,16 @@ describe('MingoComposerDock', () => {
     expect(props().composerMenuItems).toBeUndefined();
   });
 
-  it("puts the chat's model in both ⋯ menus and leaves the footer name display-only", () => {
-    const menuItems: ActionsMenuItem[] = [{ id: 'chat-model', label: 'GPT-5.5', type: 'submenu', submenu: [] }];
-    setSurface({ activeDialogId: 'a', modelMenuItems: menuItems });
+  it('uses the composer model label as the only model picker entry', () => {
+    setSurface({
+      activeDialogId: 'a',
+      modelPicker: { disabled: false, followsDefault: true, chooseDefault: vi.fn(), providers: [] },
+    });
     render('/mingo/chat/');
 
-    expect(props().chatMenuExtraItems).toEqual(expect.arrayContaining(menuItems));
-    expect(props().composerMenuItems).toEqual(menuItems);
+    expect(props().renderComposerModelLabel).toEqual(expect.any(Function));
+    expect(props().chatMenuExtraItems).toBeUndefined();
+    expect(props().composerMenuItems).toBeUndefined();
     expect(props().onModelClick).toBeUndefined();
     expect(props().modelTooltip).toBeUndefined();
   });
