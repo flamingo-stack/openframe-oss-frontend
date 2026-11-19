@@ -1,0 +1,226 @@
+'use client';
+
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import {
+  DEFAULT_DEVICES_LIST_STATUSES,
+  getDeviceName,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
+  Autocomplete,
+  type AutocompleteOption,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
+import { graphql, useLazyLoadQuery } from 'react-relay';
+import type { checkScopeBarTagsQuery as CheckScopeBarTagsQueryType } from '@/__generated__/checkScopeBarTagsQuery.graphql';
+import { fetchDevicesPage } from '@/app/(app)/devices/queries/devices-api';
+import { deviceQueryKeys } from '@/app/(app)/devices/utils/query-keys';
+import { useOrganizationOptions } from '@/app/(app)/tickets/hooks/use-ticket-options';
+import { ContentErrorBoundary, NO_ITEMS } from '@/app/components/shared';
+import { InsightCheckScopeType } from '@/generated/schema-enums';
+import { INSIGHT_CHECK_SCOPE_LABELS } from '../../utils/incident-check-labels';
+import {
+  type CheckScope,
+  isWritableScopeType,
+  WRITABLE_SCOPE_TYPES,
+  type WritableScopeType,
+} from '../../utils/incident-check-transform';
+
+/** The device tags a TAG scope is picked from. The API resolves a tag scope by `Tag.id` and refuses any other tag. */
+const checkScopeBarTagsQuery = graphql`
+  query checkScopeBarTagsQuery {
+    tagsByEntityType(entityType: DEVICE) {
+      id
+      key
+    }
+  }
+`;
+
+const DEVICE_OPTIONS_LIMIT = 50;
+
+interface CheckScopeBarProps {
+  scope: CheckScope;
+  /** The picked entity's name (from the URL's id), so the field names it before its list pages to it. */
+  scopeName: string | null;
+  onChange: (scope: CheckScope) => void;
+}
+
+const ENTITY_PLACEHOLDERS: Record<Exclude<WritableScopeType, 'GLOBAL'>, string> = {
+  CUSTOMER: 'Select customer',
+  TAG: 'Select tag',
+  DEVICE: 'Select device',
+};
+
+/**
+ * Which settings the tab shows: "All devices", or one customer, device tag or device. Picking a
+ * kind clears the entity; the list waits until one is picked.
+ */
+export function CheckScopeBar({ scope, scopeName, onChange }: CheckScopeBarProps) {
+  return (
+    <div className="flex flex-col gap-[var(--spacing-system-m)] content-md:flex-row">
+      <Select
+        value={scope.type}
+        onValueChange={value => {
+          if (isWritableScopeType(value)) onChange({ type: value, id: null });
+        }}
+      >
+        <SelectTrigger className="content-md:w-56" aria-label="Settings for">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {WRITABLE_SCOPE_TYPES.map(type => (
+            <SelectItem key={type} value={type}>
+              {INSIGHT_CHECK_SCOPE_LABELS[type]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {scope.type !== InsightCheckScopeType.GLOBAL && (
+        <div className="min-w-0 flex-1 content-md:max-w-[480px]">
+          <ScopeEntityPicker
+            key={scope.type}
+            type={scope.type}
+            value={scope.id}
+            selectedLabel={scopeName}
+            onChange={id => onChange({ type: scope.type, id })}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ScopeEntityPickerProps {
+  type: Exclude<WritableScopeType, 'GLOBAL'>;
+  value: string | null;
+  selectedLabel: string | null;
+  onChange: (id: string | null) => void;
+}
+
+function ScopeEntityPicker(props: ScopeEntityPickerProps) {
+  switch (props.type) {
+    case InsightCheckScopeType.CUSTOMER:
+      return <CustomerPicker {...props} />;
+    case InsightCheckScopeType.DEVICE:
+      return <DevicePicker {...props} />;
+    case InsightCheckScopeType.TAG:
+      return (
+        <ContentErrorBoundary
+          fallback={() => <PickerField {...props} options={NO_ITEMS} error="Couldn't load tags" disabled />}
+        >
+          <TagPickerIsland {...props} />
+        </ContentErrorBoundary>
+      );
+  }
+}
+
+/** The tag field with its own boundary. */
+function TagPickerIsland(props: ScopeEntityPickerProps) {
+  return (
+    <LoadingSuspense label="Loading tags">
+      <TagPicker {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/** The single-pick field every entity kind draws, its picked entity always among the options. */
+function PickerField({
+  type,
+  value,
+  selectedLabel,
+  onChange,
+  options,
+  onSearch,
+  loading,
+  error,
+  disabled,
+  searchOnServer = false,
+}: ScopeEntityPickerProps & {
+  options: readonly AutocompleteOption[];
+  onSearch?: (search: string) => void;
+  loading?: boolean;
+  error?: string;
+  disabled?: boolean;
+  searchOnServer?: boolean;
+}) {
+  const withSelected = useMemo(() => {
+    if (!value || options.some(option => option.value === value)) return [...options];
+    return [{ value, label: selectedLabel ?? value }, ...options];
+  }, [options, value, selectedLabel]);
+  return (
+    <Autocomplete
+      options={withSelected}
+      value={value}
+      onChange={onChange}
+      onInputChange={onSearch}
+      disableClientFilter={searchOnServer}
+      placeholder={ENTITY_PLACEHOLDERS[type]}
+      loading={loading}
+      error={error}
+      disabled={disabled}
+    />
+  );
+}
+
+function CustomerPicker(props: ScopeEntityPickerProps) {
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 300);
+  const { options, isLoading } = useOrganizationOptions(debouncedSearch);
+  return <PickerField {...props} options={options} onSearch={setSearch} loading={isLoading} searchOnServer />;
+}
+
+function DevicePicker(props: ScopeEntityPickerProps) {
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 300);
+  // One object for the cache key and the request, as the ticket form's device picker does.
+  const filter = useMemo(() => ({ statuses: [...DEFAULT_DEVICES_LIST_STATUSES] }), []);
+  const query = useQuery({
+    queryKey: deviceQueryKeys.page(filter, debouncedSearch, DEVICE_OPTIONS_LIMIT),
+    queryFn: () => fetchDevicesPage({ filter, search: debouncedSearch, first: DEVICE_OPTIONS_LIMIT }),
+    placeholderData: keepPreviousData,
+  });
+  const options = useMemo<AutocompleteOption[]>(
+    () =>
+      (query.data?.devices ?? []).map(device => ({
+        label: getDeviceName(device) || device.machineId,
+        value: device.machineId,
+      })),
+    [query.data],
+  );
+  return (
+    <PickerField
+      {...props}
+      options={options}
+      onSearch={setSearch}
+      loading={query.isLoading}
+      error={query.isError ? "Couldn't load devices" : undefined}
+      searchOnServer
+    />
+  );
+}
+
+function TagPicker(props: ScopeEntityPickerProps) {
+  // In a loading scope (its boundary's fallback) it is the field, locked, reading nothing.
+  if (useLoadingScope()) return <PickerField {...props} options={NO_ITEMS} disabled loading />;
+  return <TagPickerLive {...props} />;
+}
+
+function TagPickerLive(props: ScopeEntityPickerProps) {
+  const data = useLazyLoadQuery<CheckScopeBarTagsQueryType>(
+    checkScopeBarTagsQuery,
+    {},
+    { fetchPolicy: 'store-and-network' },
+  );
+  const options = useMemo<AutocompleteOption[]>(
+    () => data.tagsByEntityType.map(tag => ({ value: tag.id, label: tag.key })),
+    [data.tagsByEntityType],
+  );
+  return <PickerField {...props} options={options} />;
+}

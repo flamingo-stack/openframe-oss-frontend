@@ -179,6 +179,11 @@ export function resolvePageContext(href: string, openView: ContextRefWithLabel |
     return { currentPage: pageRef('LIST', navModuleLabel(list.nav)), currentList: listOf(list, query) };
   }
 
+  // Incidents → Checks is the built-in checks' settings, not a list of incidents.
+  if (pathname === '/incidents' && query.get('tab') === 'checks') {
+    return { currentPage: pageRef('OTHER', navModuleLabel('incidents'), 'checks') };
+  }
+
   const list = LIST_PAGES[pathname];
   if (list) {
     return { currentPage: pageRef('LIST', navModuleLabel(list.nav), list.section), currentList: listOf(list, query) };

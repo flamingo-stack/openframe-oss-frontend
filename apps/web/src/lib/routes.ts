@@ -22,6 +22,7 @@ import type { LegalDocumentType } from '@flamingo-stack/openframe-frontend-core/
 import type {
   DeviceConnectivity,
   DeviceStatus,
+  InsightCheckScopeType,
   InsightSeverity,
   InsightStatus,
   NotificationEntityType,
@@ -78,7 +79,8 @@ export const TAB_IDS = {
   employees: ['users', 'invitations'],
   aiSettings: ['mingo', 'customer', 'guardrails', 'device-guardrails'],
   notifications: ['history'],
-  incidents: ['current', 'snoozed', 'archived'],
+  /** The three lists, then Checks: the built-in checks' switches and thresholds at a scope. */
+  incidents: ['current', 'snoozed', 'archived', 'checks'],
   /** A directory user's page (`/users/details`). */
   userDetails: ['details', 'devices', 'user-groups', 'licences'],
 } as const;
@@ -507,6 +509,12 @@ export const routes = {
     filtered: (o: { severity?: readonly InsightSeverity[]; status?: readonly InsightStatus[]; tab?: IncidentsTab }) =>
       withQuery(INCIDENTS_LIST_PATH, { tab: o.tab, severity: o.severity, status: o.status }),
     details: (id: string | number) => withQuery('/incidents/details', { id }),
+    /**
+     * The Checks tab at a scope (`?scope=`, default GLOBAL): a CUSTOMER takes its
+     * `organizationId`, a TAG its `Tag.id`, a DEVICE its `machineId` as `scopeId`.
+     */
+    checks: (o?: { scope?: Exclude<InsightCheckScopeType, 'DEFAULT'>; scopeId?: string }) =>
+      withQuery(INCIDENTS_LIST_PATH, { tab: 'checks', scope: o?.scope, scopeId: o?.scopeId }),
   },
 
   knowledgeBase: {
