@@ -3,7 +3,9 @@ import { ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/compon
 import {
   Button,
   type ColumnDef,
+  DataTable,
   type DataTableFilterOption,
+  GRID_ACTION_COLUMN_SIZE,
   type Row,
   Tag,
   TruncateText,
@@ -12,6 +14,7 @@ import {
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { ValueText } from '@/app/components/shared/value-text';
 import { InvoiceStatus } from '@/generated/schema-enums';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { presentationFor } from '@/lib/exhaustive-map';
 import { formatCurrency } from '@/lib/format-currency';
 import { formatDate } from '@/lib/format-date';
@@ -123,7 +126,54 @@ function InvoiceStatusTag({ status }: { status: string | null | undefined }) {
   return <Tag variant={variant} label={label} loading={loading} />;
 }
 
-/** The table's columns; the status column filters over `statusOptions`. */
+/** The invoice's number and, after it, the date it was issued: the grid's one line. A bar while the row is read. */
+function InvoiceNumberGridCell({ invoice }: { invoice: InvoiceRow }) {
+  if (useLoadingScope()) return <DataTable.Cell text="" />;
+  return <DataTable.Cell text={invoice.invoiceNumber ?? EMPTY_VALUE} secondary={formatDate(invoice.createdAt)} />;
+}
+
+/**
+ * The row's link to the invoice on Stripe. No link before Stripe finalizes the invoice (nor on a loading row): the
+ * control stays, disabled, so the column keeps its shape. `grid`: the grid action column's form, 40px with no border
+ * or fill of its own (the column is its box).
+ */
+function InvoiceLink({ url, grid = false }: { url: string | null | undefined; grid?: boolean }) {
+  return (
+    <div data-no-row-click className="pointer-events-auto flex justify-end">
+      {url ? (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Open invoice"
+          className={
+            grid
+              ? 'flex size-10 items-center justify-center rounded-md text-ods-text-secondary transition-colors hover:text-ods-text-primary'
+              : 'flex items-center justify-center rounded-md border border-ods-border bg-ods-card p-3 text-ods-text-secondary transition-colors hover:text-ods-text-primary'
+          }
+        >
+          <ExternalLinkIcon className="size-6" />
+        </a>
+      ) : (
+        <Button
+          variant={grid ? 'transparent' : 'outline'}
+          size="icon"
+          disabled
+          aria-label="This invoice has no payment link yet"
+          className={grid ? 'size-10 border-0 md:size-10' : undefined}
+        >
+          <ExternalLinkIcon className="size-6" />
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The table's columns; the status column filters over `statusOptions`. Beside the card layout's `meta.width` each data
+ * column states what the grid layout reads: a `size`, a one-line `gridCell` where the card cell is not one line
+ * already, a `label`.
+ */
 export function invoiceColumns(statusOptions: DataTableFilterOption[]): ColumnDef<InvoiceRow>[] {
   return [
     {
@@ -141,7 +191,11 @@ export function invoiceColumns(statusOptions: DataTableFilterOption[]): ColumnDe
         </>
       ),
       enableSorting: false,
-      meta: liveColumnMeta(INVOICE_COLUMNS.invoiceNumber),
+      size: 280,
+      meta: liveColumnMeta(INVOICE_COLUMNS.invoiceNumber, {
+        label: 'Invoice',
+        gridCell: ({ row }: { row: Row<InvoiceRow> }) => <InvoiceNumberGridCell invoice={row.original} />,
+      }),
     },
     {
       id: 'dueDate',
@@ -149,7 +203,8 @@ export function invoiceColumns(statusOptions: DataTableFilterOption[]): ColumnDe
       header: 'DUE DATE',
       cell: ({ row }: { row: Row<InvoiceRow> }) => <InvoiceDate iso={row.original.dueDate} />,
       sortUndefined: 'last',
-      meta: liveColumnMeta(INVOICE_COLUMNS.dueDate),
+      size: 180,
+      meta: liveColumnMeta(INVOICE_COLUMNS.dueDate, { label: 'Due date' }),
     },
     {
       // `amountDue` is already in major units (dollars): the backend converts
@@ -157,7 +212,8 @@ export function invoiceColumns(statusOptions: DataTableFilterOption[]): ColumnDe
       accessorKey: 'amountDue',
       header: 'AMOUNT',
       cell: ({ row }: { row: Row<InvoiceRow> }) => <InvoiceAmount amount={row.original.amountDue} />,
-      meta: liveColumnMeta(INVOICE_COLUMNS.amountDue),
+      size: 160,
+      meta: liveColumnMeta(INVOICE_COLUMNS.amountDue, { label: 'Amount' }),
     },
     {
       id: 'status',
@@ -168,36 +224,28 @@ export function invoiceColumns(statusOptions: DataTableFilterOption[]): ColumnDe
       filterFn: multiSelectFilterFn,
       // The body cell is a `flex-col` (default `align-items: stretch`), which stretches the
       // tag full-width. `items-start` keeps it at its natural width, left-aligned.
+      size: 180,
       meta: liveColumnMeta(INVOICE_COLUMNS.status, {
         cellClassName: 'items-start',
         filter: { options: statusOptions },
+        label: 'Status',
+        gridCell: ({ row }: { row: Row<InvoiceRow> }) => (
+          <DataTable.Cell tag={<InvoiceStatusTag status={row.original.status} />} />
+        ),
       }),
     },
     {
       id: 'actions',
-      cell: ({ row }: { row: Row<InvoiceRow> }) => (
-        <div data-no-row-click className="pointer-events-auto flex justify-end">
-          {/* No link before Stripe finalizes the invoice (nor on a loading row): the control stays, disabled, so the
-              column keeps its shape. */}
-          {row.original.hostedInvoiceUrl ? (
-            <a
-              href={row.original.hostedInvoiceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Open invoice"
-              className="flex items-center justify-center rounded-md border border-ods-border bg-ods-card p-3 text-ods-text-secondary transition-colors hover:text-ods-text-primary"
-            >
-              <ExternalLinkIcon className="size-6" />
-            </a>
-          ) : (
-            <Button variant="outline" size="icon" disabled aria-label="This invoice has no payment link yet">
-              <ExternalLinkIcon className="size-6" />
-            </Button>
-          )}
-        </div>
-      ),
+      cell: ({ row }: { row: Row<InvoiceRow> }) => <InvoiceLink url={row.original.hostedInvoiceUrl} />,
+      // The grid's action column, kept by hand: `actionColumn()` would replace the card layout's width. Never sorted
+      // and never hidden, as `actionColumn()` states it.
       enableSorting: false,
-      meta: liveColumnMeta(INVOICE_COLUMNS.actions),
+      enableHiding: false,
+      size: GRID_ACTION_COLUMN_SIZE,
+      meta: liveColumnMeta(INVOICE_COLUMNS.actions, {
+        gridKind: 'action',
+        gridCell: ({ row }: { row: Row<InvoiceRow> }) => <InvoiceLink url={row.original.hostedInvoiceUrl} grid />,
+      }),
     },
   ];
 }

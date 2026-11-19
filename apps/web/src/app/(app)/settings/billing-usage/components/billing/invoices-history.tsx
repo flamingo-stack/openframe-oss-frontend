@@ -4,6 +4,7 @@ import { FileDollarIcon, Filter02Icon, SearchIcon } from '@flamingo-stack/openfr
 import {
   Button,
   DataTable,
+  type DataTableSettings,
   Input,
   NoData,
   useLoadingScope,
@@ -11,6 +12,7 @@ import {
 import { useMemo, useState } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type { invoicesHistory_subscription$key } from '@/__generated__/invoicesHistory_subscription.graphql';
+import { tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { toInvoiceRow } from '../shared/invoice-row';
 import { InvoicesFilterModal } from './invoices-filter-modal';
 import { INVOICES_SKELETON_ROWS } from './invoices-table-layout';
@@ -29,13 +31,24 @@ const invoicesHistoryFragment = graphql`
   }
 `;
 
+/**
+ * The grid table's settings: the gear's menu of columns, with the viewer's layout (hidden columns, their order,
+ * resized widths) kept in the browser under this table's own key.
+ */
+const INVOICES_TABLE_SETTINGS: DataTableSettings = { storageKey: 'billing-invoices' };
+
 const INVOICES_UNAVAILABLE_MESSAGE =
   "Couldn't load the invoices. Try again in a moment, and contact support if this persists.";
 
 /** `subscription` is `null` only while the page loads: the section draws itself with the table's skeleton rows. */
 export function InvoicesHistory({ subscription }: { subscription: invoicesHistory_subscription$key | null }) {
   const data = useFragment(invoicesHistoryFragment, subscription);
-  const loading = useLoadingScope() || data == null;
+  // The grid table, behind the app's one table flag; card rows while it is off. Until the flag is answered the table
+  // is loading: one layout is never drawn and then replaced by the other.
+  const tableGate = useTableGridGate();
+  const pageLoading = useLoadingScope();
+  const loading = pageLoading || data == null || tableGate === 'loading';
+  const layout = tableLayoutFor(tableGate);
   const pendingInvoices = data?.pendingInvoices ?? null;
   // Memoized for the table instance, which keys its row model on the rows'
   // identity — the fragment's array is stable between store updates, the mapped
@@ -101,21 +114,33 @@ export function InvoicesHistory({ subscription }: { subscription: invoicesHistor
             className="w-full"
           />
         </div>
-        <Button
-          variant="outline"
-          size="icon"
-          className="content-md:hidden"
-          onClick={() => setMobileFilterOpen(true)}
-          aria-label="Open filters"
-          leftIcon={<Filter02Icon className="text-ods-text-primary" />}
-        />
+        {/* The grid table keeps its header, with the funnel and the sort, at every width. */}
+        {layout === 'cards' && (
+          <Button
+            variant="outline"
+            size="icon"
+            className="content-md:hidden"
+            onClick={() => setMobileFilterOpen(true)}
+            aria-label="Open filters"
+            leftIcon={<Filter02Icon className="text-ods-text-primary" />}
+          />
+        )}
       </div>
 
-      <DataTable table={table}>
+      {/* A section of the billing page: the grid keeps its natural height and the page scrolls. Card rows do not read
+          the settings. */}
+      <DataTable table={table} layout={layout} settings={INVOICES_TABLE_SETTINGS}>
+        {/* The grid's count sits above the table; the card header carries its own (`rightSlot`). */}
+        {layout === 'grid' && (
+          <DataTable.Meta>
+            <DataTable.RowCount loading={loading} />
+          </DataTable.Meta>
+        )}
         <DataTable.Header
           rightSlot={<DataTable.RowCount loading={loading} />}
           sort={sortState}
           onSortChange={handleSortChange}
+          loading={loading}
         />
         <DataTable.Body
           loading={loading}
