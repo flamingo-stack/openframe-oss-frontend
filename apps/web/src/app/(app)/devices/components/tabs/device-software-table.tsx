@@ -9,7 +9,7 @@ import type { SoftwareListFrameRenderProps } from '@/app/(app)/software/componen
 import { SOFTWARE_LIST_PAGE_SIZE } from '@/app/(app)/software/components/software-list/software-list-columns';
 import { SoftwareTable } from '@/app/(app)/software/components/software-list/software-table';
 import { useRetryKey } from '@/app/components/shared';
-import { StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
+import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
 import { forwardPage } from '@/app/hooks/forward-page';
 import { usePagedTable } from '@/app/hooks/use-paged-table';
 import { useRefetchPage } from '@/app/hooks/use-refetch-page';
@@ -57,7 +57,7 @@ interface DeviceSoftwareTableProps extends Pick<
 /** The Software tab's rows, with their own boundary: in its scope the reader draws its own loading form. */
 export function DeviceSoftwareTable(props: DeviceSoftwareTableProps) {
   return (
-    <StaleCursorBoundary cursor={props.pager.cursor} onStaleCursor={props.pager.dropCursor}>
+    <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
       <DeviceSoftwareTableLoading {...props} />
     </StaleCursorBoundary>
   );

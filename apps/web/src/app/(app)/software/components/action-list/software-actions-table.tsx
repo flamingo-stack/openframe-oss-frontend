@@ -24,7 +24,7 @@ import type {
 import { EmptyState, liveColumnMeta, NO_ITEMS, oneLineEmptyState, useRetryKey } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { OpenRowButton } from '@/app/components/shared/open-row-button';
-import { StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
+import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
 import { forwardPage } from '@/app/hooks/forward-page';
 import { usePagedTable } from '@/app/hooks/use-paged-table';
 import { useRefetchPage } from '@/app/hooks/use-refetch-page';
@@ -186,7 +186,7 @@ const UNREAD_FILTER_OPTIONS: SoftwareActionFilterOptions = { actions: [], engine
  */
 export function SoftwareActionsTable(props: SoftwareActionsTableProps) {
   return (
-    <StaleCursorBoundary cursor={props.pager.cursor} onStaleCursor={props.pager.dropCursor}>
+    <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
       <SoftwareActionsTableLoading {...props} />
     </StaleCursorBoundary>
   );

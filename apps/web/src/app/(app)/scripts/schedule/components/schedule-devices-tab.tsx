@@ -22,7 +22,7 @@ import type { scriptScheduleDevicesRelayQuery as ScheduleDevicesQueryType } from
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { machineRowToDevice } from '@/app/(app)/devices/utils/device-transform';
 import { ContentErrorBoundary, NO_ITEMS, useRetryKey } from '@/app/components/shared';
-import { StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
+import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
 import { forwardPage } from '@/app/hooks/forward-page';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { usePagedTable } from '@/app/hooks/use-paged-table';
@@ -220,7 +220,7 @@ function ScheduleDevicesTabContent({
  */
 function ScheduleDevicesTabBody(props: ScheduleDevicesTabContentProps) {
   return (
-    <StaleCursorBoundary cursor={props.pager.cursor} onStaleCursor={props.pager.dropCursor}>
+    <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
       <ScheduleDevicesTabLoading {...props} />
     </StaleCursorBoundary>
   );

@@ -6,7 +6,7 @@ import type { CursorPagerVariables, UseCursorPagerReturn } from '@flamingo-stack
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { usersListTableQuery } from '@/__generated__/usersListTableQuery.graphql';
 import { NO_ITEMS, useRetryKey } from '@/app/components/shared';
-import { StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
+import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
 import { forwardPage } from '@/app/hooks/forward-page';
 import { usePagedTable } from '@/app/hooks/use-paged-table';
 import { useRefetchPage } from '@/app/hooks/use-refetch-page';
@@ -74,7 +74,7 @@ interface UsersListTableProps {
  */
 export function UsersListTable(props: UsersListTableProps) {
   return (
-    <StaleCursorBoundary cursor={props.pager.cursor} onStaleCursor={props.pager.dropCursor}>
+    <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
       <UsersListTableLoading {...props} />
     </StaleCursorBoundary>
   );

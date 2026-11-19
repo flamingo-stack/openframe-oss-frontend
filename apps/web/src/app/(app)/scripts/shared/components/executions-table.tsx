@@ -48,7 +48,7 @@ import type { ScriptExecutionFilterInput, SortInput } from '@/__generated__/scri
 import { ValueText } from '@/app/components/shared';
 import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
 import { LiveTable } from '@/app/components/shared/live-table';
-import { StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
+import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
@@ -776,7 +776,7 @@ function PagedExecutionsTabRows({
     paramPrefix: paging.prefix,
   };
   return (
-    <StaleCursorBoundary cursor={pager.cursor} onStaleCursor={pager.dropCursor}>
+    <StaleCursorBoundary cursor={readCursor(deferredPage)} onStaleCursor={pager.dropCursor}>
       <ExecutionsTabBody state={state}>{children}</ExecutionsTabBody>
     </StaleCursorBoundary>
   );

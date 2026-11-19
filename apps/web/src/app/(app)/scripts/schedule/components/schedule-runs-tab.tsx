@@ -32,7 +32,7 @@ import type {
 import { useRetryKey } from '@/app/components/shared';
 import type { TableDateFilter } from '@/app/components/shared/date-column-header';
 import { LiveTable } from '@/app/components/shared/live-table';
-import { StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
+import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { usePagedTable } from '@/app/hooks/use-paged-table';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
@@ -292,7 +292,7 @@ function ScheduleRunsContent({
  */
 function ScheduleRunsTable(props: ContentProps) {
   return (
-    <StaleCursorBoundary cursor={props.pager.cursor} onStaleCursor={props.pager.dropCursor}>
+    <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
       <ScheduleRunsTableLoading {...props} />
     </StaleCursorBoundary>
   );

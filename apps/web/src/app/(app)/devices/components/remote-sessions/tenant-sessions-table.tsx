@@ -34,7 +34,7 @@ import { multiColumnFilter } from '@/app/(app)/software/components/shared/column
 import { NO_ITEMS, noop, useRetryKey } from '@/app/components/shared';
 import type { TableDateFilter } from '@/app/components/shared/date-column-header';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
-import { StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
+import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
 import { forwardPage } from '@/app/hooks/forward-page';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useNow } from '@/app/hooks/use-now';
@@ -308,7 +308,7 @@ interface TenantSessionsContentProps extends Omit<
  */
 function TenantSessionsContent(props: TenantSessionsContentProps) {
   return (
-    <StaleCursorBoundary cursor={props.pager.cursor} onStaleCursor={props.pager.dropCursor}>
+    <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
       <TenantSessionsContentLoading {...props} />
     </StaleCursorBoundary>
   );

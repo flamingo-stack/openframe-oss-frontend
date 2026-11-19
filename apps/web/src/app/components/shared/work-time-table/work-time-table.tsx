@@ -525,7 +525,7 @@ interface WorkTimeTableDataProps {
  */
 function WorkTimeTableData(props: WorkTimeTableDataProps) {
   return (
-    <StaleCursorBoundary cursor={props.pager.cursor} onStaleCursor={props.pager.dropCursor}>
+    <StaleCursorBoundary cursor={props.vars.after} onStaleCursor={props.pager.dropCursor}>
       <WorkTimeTableDataLoading {...props} />
     </StaleCursorBoundary>
   );

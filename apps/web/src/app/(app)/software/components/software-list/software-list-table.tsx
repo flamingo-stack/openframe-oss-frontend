@@ -6,7 +6,7 @@ import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/compone
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { softwareListTableQuery as SoftwareListTableQueryType } from '@/__generated__/softwareListTableQuery.graphql';
 import { EmptyState, useRetryKey } from '@/app/components/shared';
-import { StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
+import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
 import { forwardPage } from '@/app/hooks/forward-page';
 import { usePagedTable } from '@/app/hooks/use-paged-table';
 import { useRefetchPage } from '@/app/hooks/use-refetch-page';
@@ -72,7 +72,7 @@ interface SoftwareListTableProps extends Pick<
  */
 export function SoftwareListTable(props: SoftwareListTableProps) {
   return (
-    <StaleCursorBoundary cursor={props.pager.cursor} onStaleCursor={props.pager.dropCursor}>
+    <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
       <SoftwareListTableLoading {...props} />
     </StaleCursorBoundary>
   );
