@@ -61,6 +61,7 @@ import { routes } from '@/lib/routes';
 import { useAuthStore } from '@/stores';
 import { useDeviceActionsMenu } from '../../devices/hooks/use-device-actions-menu';
 import { useDeviceDetails } from '../../devices/hooks/use-device-details';
+import { WATCH_LIVE_ITEM_ID } from '../../devices/utils/device-menu-items';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
 import { ASSISTANT_CONFIG, CHAT_TYPE } from '../constants';
 import { useAssignTicket } from '../hooks/use-assign-ticket';
@@ -466,10 +467,13 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         withActivityTracking(deviceMenuItems.remoteShell, EVENT_SUBTYPE.OPEN_REMOTE_SHELL, href => router.push(href)),
       );
       if (deviceMenuItems.remoteControl) {
+        // Watching another technician's session is not opening Remote Control: it is not counted as one.
         remoteItems.push(
-          withActivityTracking(deviceMenuItems.remoteControl, EVENT_SUBTYPE.OPEN_REMOTE_CONTROL, href =>
-            router.push(href),
-          ),
+          deviceMenuItems.remoteControl.id === WATCH_LIVE_ITEM_ID
+            ? deviceMenuItems.remoteControl
+            : withActivityTracking(deviceMenuItems.remoteControl, EVENT_SUBTYPE.OPEN_REMOTE_CONTROL, href =>
+                router.push(href),
+              ),
         );
       }
       remoteItems.push(deviceMenuItems.manageFiles, deviceMenuItems.runScript);
