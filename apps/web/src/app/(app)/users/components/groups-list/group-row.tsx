@@ -3,6 +3,8 @@
 import { providerMark } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   type ColumnDef,
+  DataTable,
+  GRID_MIN_WIDTH,
   type Row,
   Tag,
   TruncateText,
@@ -11,10 +13,9 @@ import {
 import { readInlineData } from 'react-relay';
 import type { groupRowFields_group$key } from '@/__generated__/groupRowFields_group.graphql';
 import { liveColumnMeta } from '@/app/components/shared';
-import { OpenRowButton } from '@/app/components/shared/open-row-button';
+import { openRowColumn } from '@/app/components/shared/open-row-column';
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { groupRowFieldsFragment } from '@/graphql/directory/group-row-fields';
-import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { groupFeedTag } from '../../utils/user-presentation';
 
@@ -69,6 +70,19 @@ function GroupCell({ row }: { row: GroupRow }) {
   );
 }
 
+/** GROUP column in the grid layout: one line, the provider's mark, the name, then the tenant. */
+function GroupGridCell({ row }: { row: GroupRow }) {
+  const mark = row.provider ? providerMark(row.provider) : null;
+  return (
+    <DataTable.Cell
+      leading={mark ? { type: 'icon', icon: <mark.Logo size={20} role="img" aria-label={mark.label} /> } : undefined}
+      // A row still being read has no name: the cell draws it as a bar.
+      text={row.name ?? ''}
+      secondary={row.tenant}
+    />
+  );
+}
+
 function FeedCell({ row }: { row: GroupRow }) {
   const loading = useLoadingScope();
   const tag = row.feed ? groupFeedTag(row.feed) : null;
@@ -79,7 +93,12 @@ function FeedCell({ row }: { row: GroupRow }) {
   );
 }
 
-/** The columns of a group list; `sortable` draws the Members sort (a customer's groups, not a user's). */
+/**
+ * The columns of a group list; `sortable` draws the Members sort (a customer's groups, not a user's).
+ *
+ * Each data column also states what the grid layout reads: a `size` (its designed width), and for the group a `label`
+ * (its header differs by host) and a one-line `gridCell`. Members and Feed are one line already.
+ */
 export function groupColumns({
   groupHeader,
   sortable = false,
@@ -93,7 +112,12 @@ export function groupColumns({
       header: groupHeader,
       cell: ({ row }: { row: Row<GroupRow> }) => <GroupCell row={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(GROUP_COLUMNS.group),
+      size: 340,
+      minSize: GRID_MIN_WIDTH.icon,
+      meta: liveColumnMeta(GROUP_COLUMNS.group, {
+        label: 'Group',
+        gridCell: ({ row }: { row: Row<GroupRow> }) => <GroupGridCell row={row.original} />,
+      }),
     },
     {
       id: GROUP_COLUMNS.members.id,
@@ -104,6 +128,7 @@ export function groupColumns({
         </TruncateText>
       ),
       enableSorting: false,
+      size: 140,
       meta: liveColumnMeta({ ...GROUP_COLUMNS.members, sortable }),
     },
     {
@@ -111,22 +136,13 @@ export function groupColumns({
       header: GROUP_COLUMNS.feed.header,
       cell: ({ row }: { row: Row<GroupRow> }) => <FeedCell row={row.original} />,
       enableSorting: false,
+      size: 180,
       meta: liveColumnMeta(GROUP_COLUMNS.feed),
     },
-    {
-      id: GROUP_COLUMNS.open.id,
-      cell: ({ row }: { row: Row<GroupRow> }) => {
-        const { href, name } = row.original;
-        return (
-          <OpenRowButton
-            label={`Open ${name ?? 'group'} in new tab`}
-            onClick={event => href && openInNewTab(href)(event)}
-          />
-        );
-      },
-      enableSorting: false,
-      meta: liveColumnMeta(GROUP_COLUMNS.open),
-    },
+    openRowColumn<GroupRow>(GROUP_COLUMNS.open, row => ({
+      label: `Open ${row.name ?? 'group'} in new tab`,
+      href: row.href,
+    })),
   ];
 }
 

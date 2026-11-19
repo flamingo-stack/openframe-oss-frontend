@@ -1,16 +1,23 @@
 'use client';
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
-import { DeviceTypeTile, OSTypeBadge } from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
+  DeviceTypeTile,
+  OSTypeBadge,
+  renderDeviceTypeIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   CheckCircleIcon,
   Link01Icon,
   MinusCircleIcon,
+  MonitorIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
   type ColumnDef,
   DataTable,
+  GRID_ACTION_COLUMN_SIZE,
+  GRID_MIN_WIDTH,
   type Row,
   Tag,
   TruncateText,
@@ -27,7 +34,9 @@ import type {
 import { liveColumnMeta, oneLineEmptyState, useRetryKey } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { OpenRowButton } from '@/app/components/shared/open-row-button';
+import { openRowColumn } from '@/app/components/shared/open-row-column';
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
+import { useTableGrid } from '@/app/components/shared/table-layout-scope';
 import { toCustomer } from '@/graphql/directory/customer-claim-fields';
 import { toCustomerOption } from '@/graphql/directory/customer-option';
 import { type LinkMachine, toLinkMachine } from '@/graphql/directory/link-machine-fields';
@@ -35,7 +44,7 @@ import { EMPTY_VALUE } from '@/lib/empty-value';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { deviceOrigin, matchedKeysLabel, recordDetail } from '../../utils/device-presentation';
-import { CustomerCell, type UserRow } from '../users-list/user-row-cells';
+import { CustomerCell, CustomerGridCell, type UserRow } from '../users-list/user-row-cells';
 import { LinkDeviceModal, type LinkRecord } from './link-device-modal';
 import { UserTabHeading } from './user-tab-heading';
 
@@ -100,6 +109,8 @@ const DEVICE_COLUMNS = {
   customer: { id: 'customer', header: 'Customer', width: 'flex-[2] min-w-0', hideAt: 'lg' },
   // Figma's "..." holds Update Status, which is not in the contract (F5): its slot carries Link instead.
   actions: { id: 'actions', width: 'w-12 shrink-0 flex-none content-md:w-28', align: 'right' },
+  // The grid only: there every action is a column of its own, so Link leaves the card rows' shared `actions` cell.
+  link: { id: 'link', width: 'w-12 shrink-0 flex-none', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;
 
 const SUGGESTED_COLUMNS = {
@@ -230,6 +241,29 @@ function DeviceCell({ row }: { row: DeviceRow }) {
   );
 }
 
+const GRID_DEVICE_ICON_CLASS = 'h-5 w-5';
+
+/** DEVICE column in the grid layout: one line, a machine's type icon, the name, then the card's second line. */
+function DeviceGridCell({ row }: { row: DeviceRow }) {
+  return (
+    <DataTable.Cell
+      leading={
+        row.machine
+          ? {
+              type: 'icon',
+              icon: renderDeviceTypeIcon(row.machine.type ?? undefined, GRID_DEVICE_ICON_CLASS) ?? (
+                <MonitorIcon className={GRID_DEVICE_ICON_CLASS} />
+              ),
+            }
+          : undefined
+      }
+      // A row still being read has no name: the cell draws it as a bar.
+      text={row.name ?? ''}
+      secondary={row.detail}
+    />
+  );
+}
+
 /** MANAGED or NOT SUPPORTED (Figma 1014:1660). */
 function StatusCell({ row }: { row: DeviceRow }) {
   if (row.machine) {
@@ -256,16 +290,20 @@ function OsCell({ row }: { row: DeviceRow }) {
   );
 }
 
-function LinkButton({ name, onClick }: { name: string; onClick: () => void }) {
+/**
+ * `grid`: the button's form in a grid table's action column, the 40px button with no border or fill of its own (the
+ * shared `OpenRowButton`'s grid form).
+ */
+function LinkButton({ name, onClick, grid = false }: { name: string; onClick: () => void; grid?: boolean }) {
   return (
     <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
       <Button
-        variant="outline"
+        variant={grid ? 'transparent' : 'outline'}
         size="icon"
         onClick={onClick}
         leftIcon={<Link01Icon className="h-5 w-5" />}
         aria-label={`Link ${name}`}
-        className="bg-ods-card"
+        className={grid ? 'size-10 border-0 md:size-10' : 'bg-ods-card'}
       />
     </div>
   );
@@ -294,20 +332,56 @@ const getRowId = (row: { id: string }) => row.id;
 const DEVICES_SKELETON_ROWS = 2;
 const SUGGESTED_SKELETON_ROWS = 1;
 
-function deviceColumns(onLink: (record: LinkRecord) => void): ColumnDef<DeviceRow>[] {
+/**
+ * The card rows' last column holds both actions (Link, from `content-md`, and open). The grid draws one action column
+ * per action, so it gets these two in its place: Link on a record that can carry an agent, and open, inert on a record
+ * no machine is linked to.
+ */
+function gridActionColumns(onLink: (record: LinkRecord) => void): ColumnDef<DeviceRow>[] {
+  const linkCell = ({ row }: { row: Row<DeviceRow> }) => {
+    const { link } = row.original;
+    return link ? <LinkButton grid name={link.name} onClick={() => onLink(link)} /> : null;
+  };
+  return [
+    {
+      id: DEVICE_COLUMNS.link.id,
+      cell: linkCell,
+      enableSorting: false,
+      size: GRID_ACTION_COLUMN_SIZE,
+      enableHiding: false,
+      meta: liveColumnMeta(DEVICE_COLUMNS.link, { gridKind: 'action', gridCell: linkCell }),
+    },
+    openRowColumn<DeviceRow>(DEVICE_COLUMNS.actions, row => ({
+      label: `Open ${row.name ?? 'device'} in new tab`,
+      href: row.machine ? routes.devices.details(row.machine.machineId) : null,
+    })),
+  ];
+}
+
+/**
+ * The columns. Each data column also states what the grid layout reads: a `size` (its designed width) and a one-line
+ * `gridCell` where the card cell has a second line (the status and the OS are one line already). `grid`: the table
+ * draws the grid layout, whose actions are columns of their own (`gridActionColumns`).
+ */
+function deviceColumns(onLink: (record: LinkRecord) => void, grid: boolean): ColumnDef<DeviceRow>[] {
   return [
     {
       id: DEVICE_COLUMNS.device.id,
       header: DEVICE_COLUMNS.device.header,
       cell: ({ row }: { row: Row<DeviceRow> }) => <DeviceCell row={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(DEVICE_COLUMNS.device),
+      size: 340,
+      minSize: GRID_MIN_WIDTH.icon,
+      meta: liveColumnMeta(DEVICE_COLUMNS.device, {
+        gridCell: ({ row }: { row: Row<DeviceRow> }) => <DeviceGridCell row={row.original} />,
+      }),
     },
     {
       id: DEVICE_COLUMNS.status.id,
       header: DEVICE_COLUMNS.status.header,
       cell: ({ row }: { row: Row<DeviceRow> }) => <StatusCell row={row.original} />,
       enableSorting: false,
+      size: 200,
       meta: liveColumnMeta(DEVICE_COLUMNS.status),
     },
     {
@@ -315,7 +389,9 @@ function deviceColumns(onLink: (record: LinkRecord) => void): ColumnDef<DeviceRo
       header: DEVICE_COLUMNS.os.header,
       cell: ({ row }: { row: Row<DeviceRow> }) => <OsCell row={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(DEVICE_COLUMNS.os),
+      size: 200,
+      minSize: GRID_MIN_WIDTH.icon,
+      meta: liveColumnMeta(DEVICE_COLUMNS.os, { label: 'OS' }),
     },
     {
       id: DEVICE_COLUMNS.customer.id,
@@ -324,14 +400,24 @@ function deviceColumns(onLink: (record: LinkRecord) => void): ColumnDef<DeviceRo
         <CustomerCell row={row.original.customer ?? { id: row.original.id }} />
       ),
       enableSorting: false,
-      meta: liveColumnMeta(DEVICE_COLUMNS.customer),
+      size: 280,
+      minSize: GRID_MIN_WIDTH.media,
+      meta: liveColumnMeta(DEVICE_COLUMNS.customer, {
+        gridCell: ({ row }: { row: Row<DeviceRow> }) => (
+          <CustomerGridCell row={row.original.customer ?? { id: row.original.id }} />
+        ),
+      }),
     },
-    {
-      id: DEVICE_COLUMNS.actions.id,
-      cell: ({ row }: { row: Row<DeviceRow> }) => <ActionsCell row={row.original} onLink={onLink} />,
-      enableSorting: false,
-      meta: liveColumnMeta(DEVICE_COLUMNS.actions),
-    },
+    ...(grid
+      ? gridActionColumns(onLink)
+      : [
+          {
+            id: DEVICE_COLUMNS.actions.id,
+            cell: ({ row }: { row: Row<DeviceRow> }) => <ActionsCell row={row.original} onLink={onLink} />,
+            enableSorting: false,
+            meta: liveColumnMeta(DEVICE_COLUMNS.actions),
+          },
+        ]),
   ];
 }
 
@@ -365,6 +451,20 @@ function PossibleMatchCell({ row }: { row: SuggestedRow }) {
   );
 }
 
+/** ENTRA ID DEVICE column in the grid layout: one line, the record's name, then where it comes from. */
+function SuggestedDeviceGridCell({ row }: { row: SuggestedRow }) {
+  return <DataTable.Cell text={row.name ?? ''} secondary={row.detail} />;
+}
+
+/** POSSIBLE MATCH column in the grid layout: one line, the machine's name, then who manages it. */
+function PossibleMatchGridCell({ row }: { row: SuggestedRow }) {
+  return <DataTable.Cell text={row.match?.name ?? ''} secondary="Managed by OpenFrame" />;
+}
+
+/**
+ * The columns. Each data column also states what the grid layout reads: a `size` (its designed width), a `label` in
+ * sentence case, and a one-line `gridCell` where the card cell has a second line. Link is the grid's action column.
+ */
 function suggestedColumns(onLink: (record: LinkRecord) => void): ColumnDef<SuggestedRow>[] {
   return [
     {
@@ -372,20 +472,29 @@ function suggestedColumns(onLink: (record: LinkRecord) => void): ColumnDef<Sugge
       header: SUGGESTED_COLUMNS.device.header,
       cell: ({ row }: { row: Row<SuggestedRow> }) => <SuggestedDeviceCell row={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(SUGGESTED_COLUMNS.device),
+      size: 340,
+      meta: liveColumnMeta(SUGGESTED_COLUMNS.device, {
+        label: 'Entra ID device',
+        gridCell: ({ row }: { row: Row<SuggestedRow> }) => <SuggestedDeviceGridCell row={row.original} />,
+      }),
     },
     {
       id: SUGGESTED_COLUMNS.match.id,
       header: SUGGESTED_COLUMNS.match.header,
       cell: ({ row }: { row: Row<SuggestedRow> }) => <PossibleMatchCell row={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(SUGGESTED_COLUMNS.match),
+      size: 320,
+      meta: liveColumnMeta(SUGGESTED_COLUMNS.match, {
+        label: 'Possible match',
+        gridCell: ({ row }: { row: Row<SuggestedRow> }) => <PossibleMatchGridCell row={row.original} />,
+      }),
     },
     {
       id: SUGGESTED_COLUMNS.why.id,
       header: SUGGESTED_COLUMNS.why.header,
       cell: ({ row }: { row: Row<SuggestedRow> }) => <TruncateText>{row.original.why ?? ''}</TruncateText>,
       enableSorting: false,
+      size: 220,
       meta: liveColumnMeta(SUGGESTED_COLUMNS.why),
     },
     {
@@ -395,25 +504,35 @@ function suggestedColumns(onLink: (record: LinkRecord) => void): ColumnDef<Sugge
         return link ? <LinkButton name={link.name} onClick={() => onLink(link)} /> : null;
       },
       enableSorting: false,
-      meta: liveColumnMeta(SUGGESTED_COLUMNS.link),
+      size: GRID_ACTION_COLUMN_SIZE,
+      enableHiding: false,
+      meta: liveColumnMeta(SUGGESTED_COLUMNS.link, {
+        gridKind: 'action',
+        gridCell: ({ row }: { row: Row<SuggestedRow> }) => {
+          const { link } = row.original;
+          return link ? <LinkButton grid name={link.name} onClick={() => onLink(link)} /> : null;
+        },
+      }),
     },
   ];
 }
 
 function DevicesTable({ rows, onLink }: { rows: readonly DeviceRow[] | null; onLink: (record: LinkRecord) => void }) {
   const loading = useLoadingScope();
+  const tableGrid = useTableGrid('user-devices');
   const placeholderRows = useMemo(
     () => (loading ? loadingPlaceholderRows<DeviceRow>(DEVICES_SKELETON_ROWS) : null),
     [loading],
   );
   const table = useDataTable<DeviceRow>({
     data: placeholderRows ?? ((rows ?? []) as DeviceRow[]),
-    columns: deviceColumns(onLink),
+    columns: deviceColumns(onLink, tableGrid.layout === 'grid'),
     getRowId,
     enableSorting: false,
   });
   return (
     <LiveTable
+      {...tableGrid}
       table={table}
       skeletonRows={DEVICES_SKELETON_ROWS}
       loadingCells={loading}
@@ -425,6 +544,7 @@ function DevicesTable({ rows, onLink }: { rows: readonly DeviceRow[] | null; onL
 }
 
 function SuggestedDevices({ rows, onLink }: { rows: readonly SuggestedRow[]; onLink: (record: LinkRecord) => void }) {
+  const tableGrid = useTableGrid('user-device-matches');
   const table = useDataTable<SuggestedRow>({
     data: rows as SuggestedRow[],
     columns: suggestedColumns(onLink),
@@ -440,6 +560,7 @@ function SuggestedDevices({ rows, onLink }: { rows: readonly SuggestedRow[]; onL
         </p>
       </div>
       <LiveTable
+        {...tableGrid}
         table={table}
         skeletonRows={SUGGESTED_SKELETON_ROWS}
         stickyHeader={false}

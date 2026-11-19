@@ -1,6 +1,7 @@
 'use client';
 
 import { SOFTWARE_ACTION_DETAIL_TITLE } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { TableLayoutScope } from '@/app/components/shared/table-layout-scope';
 import { useRequiredIdParam } from '@/app/hooks/use-required-id-param';
 import { routes } from '@/lib/routes';
 import { SoftwareActionDetailView } from '../../components/action-detail/software-action-detail-view';
@@ -16,7 +17,10 @@ export default function SoftwareActionDetailsPage() {
 
   return (
     <SoftwarePageShell title={SOFTWARE_ACTION_DETAIL_TITLE} errorMessage="Couldn't load this run.">
-      <SoftwareActionDetailView actionId={actionId} loading={gate === 'loading'} />
+      {/* The tables are sections of a longer page: in the grid layout the page scrolls, not a table. */}
+      <TableLayoutScope>
+        <SoftwareActionDetailView actionId={actionId} loading={gate === 'loading'} />
+      </TableLayoutScope>
     </SoftwarePageShell>
   );
 }

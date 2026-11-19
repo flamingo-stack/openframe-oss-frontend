@@ -8,6 +8,8 @@ import {
   type Row,
   useDataTable,
   useLoadingScope,
+  GRID_ACTION_COLUMN_SIZE,
+  GRID_MIN_WIDTH,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useEffect, useMemo } from 'react';
@@ -20,15 +22,16 @@ import type { ExecutionsTabState } from '@/app/(app)/scripts/shared/components/e
 import type { FacetOption } from '@/app/(app)/scripts/shared/utils/facet-options';
 import { liveColumnMeta, useRetryKey } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { useTableGrid } from '@/app/components/shared/table-layout-scope';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { softwareActionStatusLabel } from '../action-list/software-action-status-tag';
 import { singleColumnFilter } from '../shared/column-filters';
 import { SoftwareLogCustomerCell } from './software-log-customer-cell';
-import { SoftwareLogDeviceCell } from './software-log-device-cell';
+import { SoftwareLogDeviceCell, SoftwareLogDeviceGridCell } from './software-log-device-cell';
 import { SoftwareLogResultPanel } from './software-log-result-panel';
 import { SoftwareLogResultToggleCell } from './software-log-result-toggle';
 import { matchesSoftwareLog } from './software-log-search';
-import { SoftwareLogStatusCell } from './software-log-status-cell';
+import { SoftwareLogStatusCell, SoftwareLogStatusGridCell } from './software-log-status-cell';
 import { SOFTWARE_LOG_COLUMNS } from './software-logs-columns';
 import { ResultPhasesContext, useResultPhases } from './use-result-phases';
 
@@ -111,6 +114,7 @@ export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
     onEmptyChange,
   } = state;
   const loading = useLoadingScope();
+  const tableGrid = useTableGrid('software-action-log');
   const { phases, toggle, collapsed } = useResultPhases();
 
   // The statuses the run's devices are in, and how many each: the list is whole, so these are the facets. The labels
@@ -151,13 +155,18 @@ export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
         header: SOFTWARE_LOG_COLUMNS.device.header,
         cell: ({ row }: { row: Row<LogRow> }) => <SoftwareLogDeviceCell device={row.original} />,
         enableSorting: false,
-        meta: liveColumnMeta(SOFTWARE_LOG_COLUMNS.device),
+        size: 420,
+        minSize: GRID_MIN_WIDTH.icon,
+        meta: liveColumnMeta(SOFTWARE_LOG_COLUMNS.device, {
+          gridCell: ({ row }: { row: Row<LogRow> }) => <SoftwareLogDeviceGridCell device={row.original} />,
+        }),
       },
       {
         id: SOFTWARE_LOG_COLUMNS.customer.id,
         header: SOFTWARE_LOG_COLUMNS.customer.header,
         cell: ({ row }: { row: Row<LogRow> }) => <SoftwareLogCustomerCell device={row.original} />,
         enableSorting: false,
+        size: 260,
         meta: liveColumnMeta(SOFTWARE_LOG_COLUMNS.customer),
       },
       {
@@ -167,13 +176,24 @@ export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
         cell: ({ row }: { row: Row<LogRow> }) => <SoftwareLogStatusCell device={row.original} />,
         enableSorting: false,
         filterFn: multiSelectFilterFn,
-        meta: liveColumnMeta(SOFTWARE_LOG_COLUMNS.status, { filter: { options: statusOptions } }),
+        size: 340,
+        meta: liveColumnMeta(SOFTWARE_LOG_COLUMNS.status, {
+          filter: { options: statusOptions },
+          gridCell: ({ row }: { row: Row<LogRow> }) => <SoftwareLogStatusGridCell device={row.original} />,
+        }),
       },
       {
         id: SOFTWARE_LOG_COLUMNS.result.id,
         cell: ({ row }: { row: Row<LogRow> }) => <SoftwareLogResultToggleCell id={row.original.machineId} />,
         enableSorting: false,
-        meta: liveColumnMeta(SOFTWARE_LOG_COLUMNS.result),
+        // In the grid the toggle is the row's action: its own 56px column, pinned right, the chevron alone. The row's
+        // output still unfolds under the row.
+        size: GRID_ACTION_COLUMN_SIZE,
+        enableHiding: false,
+        meta: liveColumnMeta(SOFTWARE_LOG_COLUMNS.result, {
+          gridKind: 'action',
+          gridCell: ({ row }: { row: Row<LogRow> }) => <SoftwareLogResultToggleCell id={row.original.machineId} grid />,
+        }),
       },
     ],
     [statusOptions],
@@ -232,6 +252,7 @@ export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
   return (
     <ResultPhasesContext.Provider value={{ phases, toggle }}>
       <LiveTable
+        {...tableGrid}
         table={table}
         skeletonRows={LOGS_SKELETON_ROWS}
         loadingCells={loading}
