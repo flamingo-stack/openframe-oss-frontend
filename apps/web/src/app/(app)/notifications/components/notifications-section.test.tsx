@@ -158,7 +158,7 @@ describe('the notifications list', () => {
     expect(seen.table?.settings?.storageKey).toBe('notifications-read');
   });
 
-  it('keeps the approval block as wide as the row in the grid, so a long line wraps and never widens the table', async () => {
+  it('hands the approval block to the grid’s sub-row, which keeps it as wide as the visible table', async () => {
     const loadingList = (
       <LoadingWhen loading>
         <SectionTableView rows={[]} rowVariant="unread" searchValue="" stickyHeaderOffset="0px" />
@@ -168,12 +168,19 @@ describe('the notifications list', () => {
     const grid = mount(loadingList);
     await settle();
     expect(gridRoot(grid.container)).not.toBeNull();
-    expect(grid.container.querySelector('.w-0.min-w-full')).not.toBeNull();
+    // The table's own sub-row box (the lib's, from 0.0.911): no width of its own, sticky to the visible table.
+    const subRow = grid.container.querySelector('[data-grid-sub-row]');
+    expect(subRow).not.toBeNull();
+    expect(subRow?.className).toContain('w-0');
+    expect(subRow?.className).toContain('sticky');
+    // The block is its direct content: the app adds no width wrapper of its own any more.
+    expect(grid.container.querySelector('.w-0.min-w-full')).toBeNull();
 
     unmountAll();
     answerTableFlag('off');
     const cards = mount(loadingList);
     await settle();
+    expect(cards.container.querySelector('[data-grid-sub-row]')).toBeNull();
     expect(cards.container.querySelector('.w-0.min-w-full')).toBeNull();
   });
 

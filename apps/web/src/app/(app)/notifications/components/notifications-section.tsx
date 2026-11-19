@@ -307,15 +307,13 @@ export function SectionTableView({
     [rowVariant, onMarkRead, onDelete, tableGrid.layout],
   );
 
-  const grid = tableGrid.layout === 'grid';
+  // The block under a row. In the grid the table gives it the visible table's width (the lib's sub-row, from 0.0.911):
+  // a long line wraps and never widens the table, and on a narrow screen the block stays in view while the cells
+  // scroll sideways. So it takes no width of its own here.
   const renderSubRow = useCallback(
-    (item: NotificationRow) => {
-      const block = approvalBlock(item, { loading, onResolved: rowVariant === 'unread' ? onMarkRead : undefined });
-      // A grid row is as wide as its widest part, so a long line in the block would widen the whole table and scroll it
-      // sideways. Taking no width of its own, the block is as wide as the row's cells and its text wraps, as on a card.
-      return block && grid ? <div className="w-0 min-w-full">{block}</div> : block;
-    },
-    [rowVariant, onMarkRead, loading, grid],
+    (item: NotificationRow) =>
+      approvalBlock(item, { loading, onResolved: rowVariant === 'unread' ? onMarkRead : undefined }),
+    [rowVariant, onMarkRead, loading],
   );
 
   // In a loading scope the table holds one page of placeholder rows, drawn with the real cells (each cell draws its
