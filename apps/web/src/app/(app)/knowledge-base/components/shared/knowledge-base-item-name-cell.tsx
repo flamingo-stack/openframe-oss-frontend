@@ -19,13 +19,19 @@ interface KnowledgeBaseItemNameCellProps {
   item: knowledgeBaseItemNameCell_item$key;
   /** The folder the row is in — for a list whose rows come from different folders. */
   folder?: string;
+  /** The cell's one-line form in a grid table (`KnowledgeBaseItemName`). */
+  grid?: boolean;
 }
 
 /** NAME column of the knowledge base lists. */
-export function KnowledgeBaseItemNameCell({ item, folder }: KnowledgeBaseItemNameCellProps) {
+export function KnowledgeBaseItemNameCell({ item, folder, grid }: KnowledgeBaseItemNameCellProps) {
   // A row still being read (a loading scope) has no fragment to read: the name draws its loading form.
   const data = useFragment(knowledgeBaseItemNameCellFragment, useLoadingScope() ? null : item);
-  if (!data) return <KnowledgeBaseItemName type={KnowledgeBaseItemType.ARTICLE} name="" status={null} summary={null} />;
+  if (!data) {
+    return (
+      <KnowledgeBaseItemName type={KnowledgeBaseItemType.ARTICLE} name="" status={null} summary={null} grid={grid} />
+    );
+  }
   return (
     <KnowledgeBaseItemName
       type={data.type}
@@ -33,6 +39,7 @@ export function KnowledgeBaseItemNameCell({ item, folder }: KnowledgeBaseItemNam
       status={data.status}
       summary={data.summary}
       folder={folder}
+      grid={grid}
     />
   );
 }

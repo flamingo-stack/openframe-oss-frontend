@@ -57,9 +57,9 @@ interface ComposerLauncherDrainOptions {
  *  - an existing chat (a notification, "Open Mingo Session", the sidebar's history) opens
  *    over the page, home included; from the chat page, and on a phone, on its own page;
  *  - "What to ask Mingo?" goes to its own page, the full chat (`routes.mingo.whatToAsk`),
- *    which shows the suggestions in a new chat each time it is arrived at (a reload
- *    included); asked for there, it shows a fresh set in place. The pick creates the
- *    chat, and the page becomes its page.
+ *    which sends the hub's `/what-can-you-do` command in a new chat each time it is
+ *    arrived at (a reload included); asked for there, it asks again in a new chat. The
+ *    server answers it as a turn, so the chat it creates is an ordinary one.
  */
 export function useComposerLauncherDrain({
   handle,
