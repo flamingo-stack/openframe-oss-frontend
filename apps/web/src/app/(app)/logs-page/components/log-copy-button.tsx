@@ -44,9 +44,10 @@ const logCopyButtonQuery = graphql`
 /**
  * Table-row "Copy Log Details" button. The full log (message + raw details) is
  * fetched on click — the same `logDetails` the drawer and the log-details page
- * read, so a log the drawer already opened copies straight from the store.
+ * read, so a log the drawer already opened copies straight from the store. `grid` is the grid table's form of the
+ * button (bare, the action cell being its frame).
  */
-export function LogCopyButton({ log }: { log: logCopyButton_log$key }) {
+export function LogCopyButton({ log, grid = false }: { log: logCopyButton_log$key; grid?: boolean }) {
   const { toolEventId, ingestDay, toolType, eventType, timestamp } = useFragment(logCopyButtonFragment, log);
   const environment = useRelayEnvironment();
   const { toast } = useToast();
@@ -79,5 +80,5 @@ export function LogCopyButton({ log }: { log: logCopyButton_log$key }) {
     }
   };
 
-  return <LogCopyIconButton onClick={handleCopy} disabled={isLoading} copied={copied} />;
+  return <LogCopyIconButton onClick={handleCopy} disabled={isLoading} copied={copied} grid={grid} />;
 }

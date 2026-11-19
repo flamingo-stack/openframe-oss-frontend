@@ -46,6 +46,12 @@ const QUICK_QUERY = {
 } satisfies TableSkeletonColumn;
 
 /**
+ * The data columns' widths in the grid table, in px (the `width` classes above are the card rows'). The last one,
+ * STATUS, takes the width the others leave.
+ */
+export const MONITORING_DEVICE_GRID_SIZES = { device: 280, organization: 280, os: 160, status: 200 } as const;
+
+/**
  * A policy's or a query's devices are every assigned host, read whole (no paging): their loading body draws this
  * typical count. One constant for both lists.
  */
