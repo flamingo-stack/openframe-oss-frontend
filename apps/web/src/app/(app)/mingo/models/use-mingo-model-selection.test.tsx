@@ -23,6 +23,9 @@ const env = vi.hoisted(() => ({
 }));
 
 vi.mock('@/app/hooks/use-feature-flag', () => ({ useFeatureFlagGate: () => env.gate }));
+vi.mock('@/app/hooks/use-ai-model', () => ({
+  useAiModelStatus: () => ({ aiModel: { provider: 'ANTHROPIC', displayName: 'Claude Opus 5.5' } }),
+}));
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', () => ({ useToast: () => ({ toast: env.toast }) }));
 vi.mock('@/app/(app)/settings/ai-settings/hooks/use-supported-models', () => ({
   useSupportedModels: () => ({
@@ -107,6 +110,7 @@ describe('useMingoModelSelection', () => {
   it("keeps a new chat's pick in the draft and names it", async () => {
     await render();
     expect(choice('chat-model-default').checked).toBe(true);
+    expect(entry()).toMatchObject({ label: 'Claude Opus 5.5', description: 'Chat Model' });
 
     await act(async () => choice('chat-model-OPENAI-gpt-5.5').onClick?.());
     await render();

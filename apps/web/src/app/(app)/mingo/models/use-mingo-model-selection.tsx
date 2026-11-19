@@ -12,6 +12,7 @@ import {
   LLM_PROVIDER_LABEL,
   LLM_PROVIDER_OPTIONS,
 } from '@/app/(app)/settings/ai-settings/utils/ai-settings-display';
+import { useAiModelStatus } from '@/app/hooks/use-ai-model';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import type { FeatureFlagGate } from '@/lib/feature-flags';
 import { liveRowState } from '../utils/dialog-row-status';
@@ -54,6 +55,7 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
   const enabled = gate === 'on';
   const { activeDialogId } = chat;
   const { modelsByProvider } = useSupportedModels();
+  const { aiModel } = useAiModelStatus();
   const draft = useMingoModelDraftStore(s => s.draft);
   const setDraft = useMingoModelDraftStore(s => s.setDraft);
   const queryClient = useQueryClient();
@@ -90,6 +92,11 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
     chat.isCompacting ||
     liveRowState(chat.streamingPhase, chat.messages).awaitingApproval;
 
+  // The entry names the model that answers: the chat's, else the tenant default a new chat starts on.
+  const shown = current
+    ? { label: labelOf(current, modelsByProvider), provider: current.provider }
+    : aiModel && { label: aiModel.displayName, provider: LLM_PROVIDER_OPTIONS.find(p => p === aiModel.provider) };
+
   const choose = (model: DialogModel | null) => {
     if (activeDialogId) mutation.mutate({ dialogId: activeDialogId, model });
     else setDraft(model);
@@ -102,9 +109,9 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
     menuItems: [
       {
         id: 'chat-model',
-        label: current ? labelOf(current, modelsByProvider) : 'Chat Model',
-        description: current ? 'Chat Model' : undefined,
-        icon: current ? <NamedIcon icon={LLM_PROVIDER_ICON[current.provider]} className="h-5 w-5" /> : undefined,
+        label: shown?.label ?? 'Chat Model',
+        description: shown ? 'Chat Model' : undefined,
+        icon: shown?.provider ? <NamedIcon icon={LLM_PROVIDER_ICON[shown.provider]} className="h-5 w-5" /> : undefined,
         type: 'submenu',
         // The cascade is three menus wide: it may leave the chat's column, which is narrower than that.
         submenuBoundary: 'viewport',
