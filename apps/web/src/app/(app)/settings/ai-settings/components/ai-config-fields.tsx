@@ -12,7 +12,7 @@ import {
   Textarea,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type Control, Controller, type FieldValues } from 'react-hook-form';
-import type { SupportedModelsByProvider } from '../hooks/use-supported-models';
+import { getProviderModelLabel, type SupportedModelsByProvider } from '../hooks/use-supported-models';
 import type { AiLogicFormValues } from '../types/ai-logic.types';
 import type { AIProvider, AnswerStyle } from '../types/ai-settings';
 import {
@@ -48,6 +48,7 @@ export function AiProviderModelFields<T extends AiLogicFormValues & FieldValues>
   // The generic constraint guarantees the form has the AI-logic fields; cast
   // narrows Control to that shape for type-safe field names.
   const aiControl = control as unknown as Control<AiLogicFormValues>;
+  const providerOptions = LLM_PROVIDER_OPTIONS.filter(provider => modelsByProvider?.[provider]?.length);
   const modelOptions = modelsByProvider?.[llmProvider] ?? [];
 
   return (
@@ -59,16 +60,19 @@ export function AiProviderModelFields<T extends AiLogicFormValues & FieldValues>
           render={({ field, fieldState }) => (
             <Select
               value={field.value}
+              disabled={providerOptions.length === 0}
               onValueChange={value => {
                 field.onChange(value);
                 onProviderChange();
               }}
             >
               <SelectTrigger label={providerLabel} labelVariant="large" error={fieldState.error?.message}>
-                <SelectValue placeholder="Select a provider" />
+                <SelectValue placeholder="Select a provider">
+                  {providerOptions.includes(field.value) ? undefined : LLM_PROVIDER_LABEL[field.value]}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {LLM_PROVIDER_OPTIONS.map(provider => {
+                {providerOptions.map(provider => {
                   return (
                     <SelectItem key={provider} value={provider}>
                       <span className="flex items-center gap-2">
@@ -89,9 +93,11 @@ export function AiProviderModelFields<T extends AiLogicFormValues & FieldValues>
           name="providerModel"
           control={aiControl}
           render={({ field, fieldState }) => (
-            <Select value={field.value} onValueChange={field.onChange}>
+            <Select value={field.value} onValueChange={field.onChange} disabled={modelOptions.length === 0}>
               <SelectTrigger label="Provider Model" labelVariant="large" error={fieldState.error?.message}>
-                <SelectValue placeholder="Select a model" />
+                <SelectValue placeholder="Select a model">
+                  {field.value ? getProviderModelLabel(modelsByProvider, llmProvider, field.value) : undefined}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {modelOptions.map(model => (
