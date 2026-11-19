@@ -69,6 +69,29 @@ describe('postMingoGraphql: how a failure says what the server did', () => {
     expect(error.message).toBe('Service Unavailable');
   });
 
+  it("a resolver's own error with no data and no classification is not a refusal", async () => {
+    // What QA answered (200, 2026-11-19) for `dialogs(first: -1)`, directly and through the router.
+    const error = await rejectionOf({
+      ok: true,
+      status: 200,
+      data: {
+        data: null as unknown as undefined,
+        errors: [
+          {
+            message: 'first must be positive',
+            extensions: {
+              code: 'VALIDATION_ERROR',
+              errorType: 'BAD_REQUEST',
+              httpStatus: 400,
+              serviceName: 'ai-agent',
+            },
+          },
+        ],
+      },
+    });
+    expect(error.refused).toBe(false);
+  });
+
   it('a query that ran and failed is not a refusal', async () => {
     const error = await rejectionOf({
       ok: true,

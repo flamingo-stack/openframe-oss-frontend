@@ -15,7 +15,7 @@ describe('isRefusedQuery', () => {
     expect(isRefusedQuery({ errors: [unknownField] })).toBe(true);
   });
 
-  it('is GraphQL errors with no data when the server names no classification', () => {
+  it("is the federation router's own validation error: no data, no extensions at all", () => {
     // What QA's federation router (/api/router/graphql, flag graphql-router) answered (200, 2026-11-19).
     const routerUnknownField = {
       message: 'Cannot query field "notARealField" on type "DialogTokenUsage".',
@@ -24,6 +24,25 @@ describe('isRefusedQuery', () => {
     expect(isRefusedQuery({ errors: [routerUnknownField] })).toBe(true);
     expect(isRefusedQuery({ errors: [{ message: 'Unknown field' }] })).toBe(true);
     expect(isRefusedQuery({ data: null as unknown as undefined, errors: [{ message: 'Unknown field' }] })).toBe(true);
+  });
+
+  // What QA answered (200, data null, 2026-11-19) when a resolver rejected an argument (`dialogs(first: -1)`): the query
+  // ran, so asking again with other arguments is not refused. No classification, but extensions.
+  const resolverError = {
+    message: 'first must be positive',
+    extensions: { code: 'VALIDATION_ERROR', errorType: 'BAD_REQUEST', httpStatus: 400, timestamp: 1795107000000 },
+  };
+
+  it("is not a resolver's own error without a classification: the ai-agent's code and error type", () => {
+    expect(isRefusedQuery({ data: null as unknown as undefined, errors: [resolverError] })).toBe(false);
+  });
+
+  it('is not a subgraph error the federation router passes on: its service name and status code', () => {
+    const passedOn = {
+      ...resolverError,
+      extensions: { ...resolverError.extensions, serviceName: 'ai-agent', statusCode: 200 },
+    };
+    expect(isRefusedQuery({ data: null as unknown as undefined, errors: [passedOn] })).toBe(false);
   });
 
   it('is not a query that ran: data beside the errors, a failed resolver included', () => {
@@ -42,8 +61,9 @@ describe('isRefusedQuery', () => {
     expect(isRefusedQuery({ errors: [] })).toBe(false);
   });
 
-  it('reads a classification only from an object', () => {
+  it('reads extensions only from an object, and a classification only from a string in it', () => {
     expect(isRefusedQuery({ errors: [{ message: 'x', extensions: 'ValidationError' }] })).toBe(true);
-    expect(isRefusedQuery({ errors: [{ message: 'x', extensions: { classification: 7 } }] })).toBe(true);
+    expect(isRefusedQuery({ errors: [{ message: 'x', extensions: {} }] })).toBe(true);
+    expect(isRefusedQuery({ errors: [{ message: 'x', extensions: { classification: 7 } }] })).toBe(false);
   });
 });
