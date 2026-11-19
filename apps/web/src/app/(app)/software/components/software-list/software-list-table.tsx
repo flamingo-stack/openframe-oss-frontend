@@ -73,10 +73,18 @@ interface SoftwareListTableProps extends Pick<
 export function SoftwareListTable(props: SoftwareListTableProps) {
   return (
     <StaleCursorBoundary cursor={props.pager.cursor} onStaleCursor={props.pager.dropCursor}>
-      <LoadingSuspense label="Loading software">
-        <SoftwareListTableReader {...props} />
-      </LoadingSuspense>
+      <SoftwareListTableLoading {...props} />
     </StaleCursorBoundary>
+  );
+}
+
+/** The rows' loading boundary, the whole output of its own component (the loading standard), under the
+ * stale-cursor boundary above. */
+function SoftwareListTableLoading(props: SoftwareListTableProps) {
+  return (
+    <LoadingSuspense label="Loading software">
+      <SoftwareListTableReader {...props} />
+    </LoadingSuspense>
   );
 }
 

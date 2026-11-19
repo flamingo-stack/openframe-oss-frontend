@@ -202,10 +202,18 @@ interface SoftwareDevicesTableProps {
 export function SoftwareDevicesTable(props: SoftwareDevicesTableProps) {
   return (
     <StaleCursorBoundary cursor={props.pager.cursor} onStaleCursor={props.pager.dropCursor}>
-      <LoadingSuspense label="Loading devices">
-        <SoftwareDevicesTableReader {...props} />
-      </LoadingSuspense>
+      <SoftwareDevicesTableLoading {...props} />
     </StaleCursorBoundary>
+  );
+}
+
+/** The rows' loading boundary, the whole output of its own component (the loading standard), under the
+ * stale-cursor boundary above. */
+function SoftwareDevicesTableLoading(props: SoftwareDevicesTableProps) {
+  return (
+    <LoadingSuspense label="Loading devices">
+      <SoftwareDevicesTableReader {...props} />
+    </LoadingSuspense>
   );
 }
 

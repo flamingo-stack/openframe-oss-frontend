@@ -58,10 +58,18 @@ interface DeviceVulnerabilitiesTableProps extends Pick<
 export function DeviceVulnerabilitiesTable(props: DeviceVulnerabilitiesTableProps) {
   return (
     <StaleCursorBoundary cursor={props.pager.cursor} onStaleCursor={props.pager.dropCursor}>
-      <LoadingSuspense label="Loading vulnerabilities">
-        <DeviceVulnerabilitiesTableReader {...props} />
-      </LoadingSuspense>
+      <DeviceVulnerabilitiesTableLoading {...props} />
     </StaleCursorBoundary>
+  );
+}
+
+/** The rows' loading boundary, the whole output of its own component (the loading standard), under the
+ * stale-cursor boundary above. */
+function DeviceVulnerabilitiesTableLoading(props: DeviceVulnerabilitiesTableProps) {
+  return (
+    <LoadingSuspense label="Loading vulnerabilities">
+      <DeviceVulnerabilitiesTableReader {...props} />
+    </LoadingSuspense>
   );
 }
 

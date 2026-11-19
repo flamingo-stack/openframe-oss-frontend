@@ -187,10 +187,18 @@ const UNREAD_FILTER_OPTIONS: SoftwareActionFilterOptions = { actions: [], engine
 export function SoftwareActionsTable(props: SoftwareActionsTableProps) {
   return (
     <StaleCursorBoundary cursor={props.pager.cursor} onStaleCursor={props.pager.dropCursor}>
-      <LoadingSuspense label="Loading software actions">
-        <SoftwareActionsTableReader {...props} />
-      </LoadingSuspense>
+      <SoftwareActionsTableLoading {...props} />
     </StaleCursorBoundary>
+  );
+}
+
+/** The rows' loading boundary, the whole output of its own component (the loading standard), under the
+ * stale-cursor boundary above. */
+function SoftwareActionsTableLoading(props: SoftwareActionsTableProps) {
+  return (
+    <LoadingSuspense label="Loading software actions">
+      <SoftwareActionsTableReader {...props} />
+    </LoadingSuspense>
   );
 }
 

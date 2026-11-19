@@ -155,10 +155,18 @@ interface SoftwareVulnerabilitiesTableProps {
 export function SoftwareVulnerabilitiesTable(props: SoftwareVulnerabilitiesTableProps) {
   return (
     <StaleCursorBoundary cursor={props.pager.cursor} onStaleCursor={props.pager.dropCursor}>
-      <LoadingSuspense label="Loading vulnerabilities">
-        <SoftwareVulnerabilitiesTableReader {...props} />
-      </LoadingSuspense>
+      <SoftwareVulnerabilitiesTableLoading {...props} />
     </StaleCursorBoundary>
+  );
+}
+
+/** The rows' loading boundary, the whole output of its own component (the loading standard), under the
+ * stale-cursor boundary above. */
+function SoftwareVulnerabilitiesTableLoading(props: SoftwareVulnerabilitiesTableProps) {
+  return (
+    <LoadingSuspense label="Loading vulnerabilities">
+      <SoftwareVulnerabilitiesTableReader {...props} />
+    </LoadingSuspense>
   );
 }
 

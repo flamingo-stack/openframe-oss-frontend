@@ -58,10 +58,18 @@ interface DeviceSoftwareTableProps extends Pick<
 export function DeviceSoftwareTable(props: DeviceSoftwareTableProps) {
   return (
     <StaleCursorBoundary cursor={props.pager.cursor} onStaleCursor={props.pager.dropCursor}>
-      <LoadingSuspense label="Loading software">
-        <DeviceSoftwareTableReader {...props} />
-      </LoadingSuspense>
+      <DeviceSoftwareTableLoading {...props} />
     </StaleCursorBoundary>
+  );
+}
+
+/** The rows' loading boundary, the whole output of its own component (the loading standard), under the
+ * stale-cursor boundary above. */
+function DeviceSoftwareTableLoading(props: DeviceSoftwareTableProps) {
+  return (
+    <LoadingSuspense label="Loading software">
+      <DeviceSoftwareTableReader {...props} />
+    </LoadingSuspense>
   );
 }
 
