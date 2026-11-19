@@ -63,6 +63,12 @@ import type { MessageListRef, MessagePageRef } from '../../tickets/services/tick
 import type { GraphQlResponse } from '../../tickets/utils/graphql';
 import { CONTEXT_ITEMS_MAX, RECENT_VIEWS_MAX } from '../context/context-types';
 import { pageContextHref, resolvePageContext } from '../context/page-context';
+import { adoptDraftModel, useMingoModelDraftStore } from '../models/mingo-model-draft-store';
+import {
+  MINGO_MODEL_FLAG,
+  type MingoModelSelection,
+  useMingoModelSelection,
+} from '../models/use-mingo-model-selection';
 import { useMingoCompactionStore } from '../stores/mingo-compaction-store';
 import { useMingoContextStore } from '../stores/mingo-context-store';
 import { noteMingoToolExecuted } from '../stores/mingo-created-entities-store';
@@ -226,6 +232,8 @@ export interface MingoUnifiedChat {
   dialogNotFound: boolean;
   /** When the open dialog was created (its record), or null until read. */
   dialogCreatedAt: string | null;
+  /** The chat's model and the ⋯ menu entry that changes it (behind `ai-mingo-chat-model-selection`). */
+  modelSelection?: MingoModelSelection;
 }
 
 /** The ai-agent's commands, for the dialog the engine names. */
@@ -277,6 +285,7 @@ function useMingoHistory(): ChatHistoryBackend {
   const { toast } = useToast();
   // "Compact Chat Memory" while its flag is on; the compaction watchers report how it ended.
   const compactMemoryEnabled = useFeatureFlag('mingo-compact-memory');
+  const modelSelectionEnabled = useFeatureFlag(MINGO_MODEL_FLAG);
   const startCompaction = useMingoCompactionStore(s => s.startCompaction);
   // A title the app gives a dialog it creates (the Getting Started tour) is not the person's rename: no toast.
   const [appNamed] = useState(() => new Set<string>());
@@ -293,11 +302,15 @@ function useMingoHistory(): ChatHistoryBackend {
       createDialog: async ({ title, intent, sendOptions, firstMessage }) => {
         try {
           const insightId = insightIdOf(sendOptions, firstMessage);
+          const draft = modelSelectionEnabled ? useMingoModelDraftStore.getState().draft : null;
+          const model = draft && { provider: draft.provider, modelName: draft.modelName };
           const dialogId = await ticketService.createDialog({
             agentType: 'ADMIN',
             ...(insightId ? { insightId } : {}),
             ...(intent ? { intent: intent as DialogIntent } : {}),
+            ...(model ? { model } : {}),
           });
+          if (draft) adoptDraftModel(dialogId, draft);
           if (title) appNamed.add(dialogId);
           invalidateDialogLookups();
           return { dialogId };
@@ -329,7 +342,7 @@ function useMingoHistory(): ChatHistoryBackend {
           }
         : {}),
     };
-  }, [toast, appNamed, compactMemoryEnabled, startCompaction]);
+  }, [toast, appNamed, compactMemoryEnabled, modelSelectionEnabled, startCompaction]);
 }
 
 /**
@@ -443,8 +456,25 @@ export function useMingoUnifiedChatState({ onScreen }: { onScreen: boolean }): M
     [state, usagePanelEnabled, company, dialogTokenUsage],
   );
 
+  // The chat's own model (or a new chat's pick) names the footer and sizes its context bar.
+  const modelSelection = useMingoModelSelection({
+    activeDialogId,
+    streamingPhase,
+    archived: !!state.activeDialog?.archived,
+    isCompacting: !!state.isCompacting,
+  });
+  const { current: model, contextSize } = modelSelection;
+
   return {
-    state: stateWithUsage,
+    state: model
+      ? {
+          ...stateWithUsage,
+          currentProvider: model.provider,
+          currentModelLabel: model.displayName ?? model.modelName,
+          currentContextWindowMaxTokens: contextSize,
+        }
+      : stateWithUsage,
+    modelSelection,
     dialogStatusOf,
     dialogNotFound: !!activeDialogId && missing.has(activeDialogId) && !!state.dialogError,
     dialogCreatedAt: activeDialogId ? (rows.get(activeDialogId)?.createdAt ?? null) : null,
