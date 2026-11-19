@@ -449,7 +449,6 @@ export function useMingoUnifiedChatState({ onScreen }: { onScreen: boolean }): M
   const modelSelection = useMingoModelSelection({
     activeDialogId,
     streamingPhase,
-    messages,
     archived: !!state.activeDialog?.archived,
     isCompacting: !!state.isCompacting,
   });

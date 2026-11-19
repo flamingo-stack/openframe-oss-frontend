@@ -1,4 +1,3 @@
-import type { ChatMessage } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { NamedIcon } from '@flamingo-stack/openframe-frontend-core/components';
 import type { ActionsMenuItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -15,7 +14,6 @@ import {
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import type { FeatureFlagGate } from '@/lib/feature-flags';
-import { liveRowState } from '../utils/dialog-row-status';
 import {
   type DialogModel,
   type DialogModelChoice,
@@ -31,7 +29,6 @@ export const MINGO_MODEL_FLAG = 'ai-mingo-chat-model-selection';
 export interface MingoModelChatState {
   activeDialogId: string | null;
   streamingPhase: string;
-  messages: readonly ChatMessage[];
   archived: boolean;
   isCompacting: boolean;
 }
@@ -83,14 +80,12 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
   const saved = activeDialogId ? query.data : undefined;
   const selected = activeDialogId ? (saved?.model ?? null) : draft;
   const current = activeDialogId ? (saved?.effectiveModel ?? null) : draft;
-  // The server refuses a change mid-reply, while an approval waits, or in a closed chat; the menu says so first.
   const locked =
     mutation.isPending ||
     (activeDialogId !== null && query.isPending) ||
     chat.streamingPhase !== 'idle' ||
     chat.archived ||
-    chat.isCompacting ||
-    liveRowState(chat.streamingPhase, chat.messages).awaitingApproval;
+    chat.isCompacting;
 
   // The entry names the model that answers: the chat's, else the tenant default a new chat starts on.
   const shown = current

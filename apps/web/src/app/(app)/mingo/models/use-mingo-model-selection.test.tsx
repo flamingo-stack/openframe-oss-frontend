@@ -46,7 +46,6 @@ const SONNET = { provider: 'ANTHROPIC' as const, modelName: 'claude-sonnet-5', d
 const IDLE: MingoModelChatState = {
   activeDialogId: null,
   streamingPhase: 'idle',
-  messages: [],
   archived: false,
   isCompacting: false,
 };
@@ -130,6 +129,7 @@ describe('useMingoModelSelection', () => {
     await vi.waitFor(() => expect(selection.current).toEqual(GPT));
 
     expect(env.fetchDialogModel).toHaveBeenCalledWith('d-1');
+    expect(entry().disabled).toBe(false);
     expect(selection.contextSize).toBe(150_000);
     expect(choice('chat-model-default').checked).toBe(true);
 
@@ -154,7 +154,7 @@ describe('useMingoModelSelection', () => {
 
   it('says why a change failed', async () => {
     env.fetchDialogModel.mockResolvedValue({ model: null, effectiveModel: GPT, modelTokenBudget: 150_000 });
-    env.updateDialogModel.mockRejectedValue(new Error('This chat is waiting for an approval'));
+    env.updateDialogModel.mockRejectedValue(new Error('Chat state changed. Reload it before changing the model.'));
     await render({ activeDialogId: 'd-1' });
     await vi.waitFor(() => expect(selection.current).toEqual(GPT));
 
@@ -162,7 +162,10 @@ describe('useMingoModelSelection', () => {
 
     await vi.waitFor(() =>
       expect(env.toast).toHaveBeenCalledWith(
-        expect.objectContaining({ description: 'This chat is waiting for an approval', variant: 'destructive' }),
+        expect.objectContaining({
+          description: 'Chat state changed. Reload it before changing the model.',
+          variant: 'destructive',
+        }),
       ),
     );
   });
