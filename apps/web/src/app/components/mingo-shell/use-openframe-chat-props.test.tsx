@@ -1,7 +1,8 @@
 /**
  * What OpenFrame's chat can do, as the dock hands it to `EmbeddableChat`: the row status
  * glyphs, and quick actions whose instructions go into the
- * composer. "What to ask Mingo?" is the hub's (the runtime's `whatToAskUrl`), not a prop. The session's engine and its dialog actions reach the panel through
+ * composer. "What to ask Mingo?" is the hub's `/what-can-you-do` command (listed in the runtime's `commandsUrl`
+ * catalog), not a prop. The session's engine and its dialog actions reach the panel through
  * `ChatEngineProvider`, not as props.
  */
 
