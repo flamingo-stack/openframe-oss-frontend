@@ -1,10 +1,15 @@
 'use client';
 
 import { AgentMark, UnifiedSkeleton, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
-import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
+  GRID_ACTION_BUTTON_CLASS,
+  renderDeviceTypeIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
+  Ellipsis01Icon,
   Filter02Icon,
+  MonitorIcon,
   SearchIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { UnreadNotificationsIndicator } from '@flamingo-stack/openframe-frontend-core/components/navigation';
@@ -12,8 +17,12 @@ import {
   ActionsMenuDropdown,
   Button,
   type ColumnDef,
+  DataTable,
   FilterModal,
+  GRID_ACTION_COLUMN_SIZE,
+  GRID_MIN_WIDTH,
   Input,
+  LoadingWhen,
   PageLayout,
   type Row,
   TruncateText,
@@ -42,9 +51,11 @@ import type { insightFacets_filters$key as InsightFacetsKey } from '@/__generate
 import { EmptyState, liveColumnMeta, NO_ITEMS, oneLineEmptyState, useRetryKey } from '@/app/components/shared';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { LiveTable } from '@/app/components/shared/live-table';
+import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { type TableLayout, tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { InsightSeverity, InsightStatus, InsightType, NotificationEntityType } from '@/generated/schema-enums';
 import { archiveResolvedInsightsMutation } from '@/graphql/insights/archive-resolved-insights-mutation';
 import { incidentsTableRelayFragment, incidentsTableRelayQuery } from '@/graphql/insights/incidents-table-relay';
@@ -76,7 +87,8 @@ import {
 import { type IncidentRow, toIncidentRow, toTransitionTable } from '../utils/incident-transform';
 import { IncidentAssignee } from './incident-assignee';
 import { IncidentSeverityTag, IncidentStatusTag } from './incident-tags';
-import { INCIDENT_COLUMNS } from './incidents-table-columns';
+import { INCIDENT_COLUMNS, INCIDENT_GRID_SIZES } from './incidents-table-columns';
+import { type IncidentsTablePlace, incidentsTableSettings } from './incidents-table-settings';
 import { archiveResolvedAction, INCIDENT_TAB_VIEWS } from './incidents-tabs';
 import { SnoozeIncidentModal } from './snooze-incident-modal';
 import { transitionMenuItems } from './transition-menu-items';
@@ -143,10 +155,17 @@ interface IncidentColumnsInput {
   options: IncidentColumnOptions | null;
   deviceScoped: boolean;
   statusLocked: boolean;
-  renderRowActions: (row: IncidentRow) => ReactNode;
+  /** The row's transitions menu; `grid`: with the bare trigger of a grid table's action column. */
+  renderRowActions: (row: IncidentRow, grid: boolean) => ReactNode;
 }
 
-/** The table's columns: the loaded table and its loading state draw the same ones. */
+/**
+ * The table's columns: the loaded table and its loading state draw the same ones.
+ *
+ * Each data column states what the grid layout reads beside the card rows' `meta.width`: a `size` in px, a `minSize`
+ * where the cell holds more than text, a one-line `gridCell` and a `label` for the gear's menu. The three row actions
+ * are action columns there, kept by hand: the card rows drop two of them below `md`, which `actionColumn()` would not.
+ */
 function incidentColumns({
   options,
   deviceScoped,
@@ -161,7 +180,13 @@ function incidentColumns({
     cell: ({ row }: { row: Row<IncidentTableRow> }) => <IncidentDeviceCell row={row.original} />,
     enableSorting: false,
     filterFn: multiSelectFilterFn,
-    meta: liveColumnMeta(INCIDENT_COLUMNS.device, { filter: facetFilter(options?.customer) }),
+    size: INCIDENT_GRID_SIZES.device,
+    minSize: GRID_MIN_WIDTH.icon,
+    meta: liveColumnMeta(INCIDENT_COLUMNS.device, {
+      label: 'Device',
+      filter: facetFilter(options?.customer),
+      gridCell: ({ row }: { row: Row<IncidentTableRow> }) => <IncidentDeviceGridCell row={row.original} />,
+    }),
   };
   return [
     {
@@ -191,7 +216,12 @@ function incidentColumns({
       ),
       enableSorting: false,
       filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(INCIDENT_COLUMNS.incident, { filter: facetFilter(options?.type) }),
+      size: INCIDENT_GRID_SIZES.incident,
+      meta: liveColumnMeta(INCIDENT_COLUMNS.incident, {
+        label: 'Incident',
+        filter: facetFilter(options?.type),
+        gridCell: ({ row }: { row: Row<IncidentTableRow> }) => <IncidentTitleGridCell row={row.original} />,
+      }),
     },
     ...(deviceScoped ? [] : [deviceColumn]),
     {
@@ -206,7 +236,14 @@ function incidentColumns({
       ),
       enableSorting: false,
       filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(INCIDENT_COLUMNS.severity, { filter: facetFilter(options?.severity) }),
+      size: INCIDENT_GRID_SIZES.severity,
+      meta: liveColumnMeta(INCIDENT_COLUMNS.severity, {
+        label: 'Severity',
+        filter: facetFilter(options?.severity),
+        gridCell: ({ row }: { row: Row<IncidentTableRow> }) => (
+          <DataTable.Cell tag={<IncidentSeverityTag severity={row.original.severity} />} />
+        ),
+      }),
     },
     {
       accessorKey: 'status',
@@ -221,9 +258,19 @@ function incidentColumns({
       ),
       enableSorting: false,
       filterFn: multiSelectFilterFn,
-      meta: statusLocked
-        ? liveColumnMeta(INCIDENT_COLUMNS.status)
-        : liveColumnMeta(INCIDENT_COLUMNS.status, { filter: facetFilter(options?.status) }),
+      size: INCIDENT_GRID_SIZES.status,
+      meta: liveColumnMeta(INCIDENT_COLUMNS.status, {
+        label: 'Status',
+        // A single-status tab has no status to filter by.
+        ...(statusLocked ? {} : { filter: facetFilter(options?.status) }),
+        // The tag, then the status time a card row prints under it.
+        gridCell: ({ row }: { row: Row<IncidentTableRow> }) => (
+          <DataTable.Cell
+            tag={<IncidentStatusTag status={row.original.status} />}
+            secondary={statusTime(row.original)}
+          />
+        ),
+      }),
     },
     {
       id: INCIDENT_COLUMNS.assignee.id,
@@ -237,8 +284,11 @@ function incidentColumns({
       enableSorting: false,
       filterFn: multiSelectFilterFn,
       // Rightmost filterable column: anchor the dropdown to the right edge so it
-      // never flips placement (start↔end) on open/close.
+      // never flips placement (start↔end) on open/close. The cell is one line already: the grid draws the same one.
+      size: INCIDENT_GRID_SIZES.assignee,
+      minSize: GRID_MIN_WIDTH.media,
       meta: liveColumnMeta(INCIDENT_COLUMNS.assignee, {
+        label: 'Assigned',
         filter: { ...facetFilter(options?.assignee), placement: 'bottom-end' },
       }),
     },
@@ -246,11 +296,19 @@ function incidentColumns({
       id: 'actions',
       cell: ({ row }: { row: Row<IncidentTableRow> }) => (
         <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-          {renderRowActions(row.original)}
+          {renderRowActions(row.original, false)}
         </div>
       ),
       enableSorting: false,
-      meta: liveColumnMeta(INCIDENT_COLUMNS.actions),
+      size: GRID_ACTION_COLUMN_SIZE,
+      meta: liveColumnMeta(INCIDENT_COLUMNS.actions, {
+        gridKind: 'action',
+        gridCell: ({ row }: { row: Row<IncidentTableRow> }) => (
+          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
+            {renderRowActions(row.original, true)}
+          </div>
+        ),
+      }),
     },
     {
       // The Mingo button, as `mingoActionFor` decides it (see `IncidentTableRow`
@@ -258,13 +316,27 @@ function incidentColumns({
       id: 'mingo',
       cell: ({ row }: { row: Row<IncidentTableRow> }) => <IncidentMingoCell row={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(INCIDENT_COLUMNS.mingo),
+      size: GRID_ACTION_COLUMN_SIZE,
+      meta: liveColumnMeta(INCIDENT_COLUMNS.mingo, {
+        gridKind: 'action',
+        gridCell: ({ row }: { row: Row<IncidentTableRow> }) => <IncidentMingoCell row={row.original} grid />,
+      }),
     },
     {
       id: 'open',
       cell: ({ row }: { row: Row<IncidentTableRow> }) => <IncidentOpenCell row={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(INCIDENT_COLUMNS.open),
+      size: GRID_ACTION_COLUMN_SIZE,
+      meta: liveColumnMeta(INCIDENT_COLUMNS.open, {
+        gridKind: 'action',
+        gridCell: ({ row }: { row: Row<IncidentTableRow> }) => (
+          <OpenRowButton
+            grid
+            label="Open in new tab"
+            onClick={openInNewTab(routes.incidents.details(row.original.id))}
+          />
+        ),
+      }),
     },
   ];
 }
@@ -310,22 +382,55 @@ function IncidentDeviceCell({ row }: { row: IncidentTableRow }) {
   );
 }
 
-/** The Mingo button, as `mingoActionFor` decides it. While the row is read it is drawn real, and inert. */
-function IncidentMingoCell({ row }: { row: IncidentTableRow }) {
+/**
+ * The Incident column in the grid: the title, the incident's type after it, and the unread count at the end of the
+ * line. The status time a narrow card row prints under the title has its own column here, at every width.
+ */
+function IncidentTitleGridCell({ row }: { row: IncidentTableRow }) {
+  return (
+    <DataTable.Cell
+      text={row.title ?? ''}
+      secondary={row.type ? labelOf(INCIDENT_TYPE_LABELS, row.type) : undefined}
+      // Nothing at 0: an empty mark would still take its gap at the end of the line.
+      trailing={(row.unreadNotificationCount ?? 0) > 0 ? <IncidentUnreadIndicator row={row} /> : undefined}
+    />
+  );
+}
+
+/** The Device column in the grid: the device's type icon and its name, then its customer on the same line. */
+function IncidentDeviceGridCell({ row }: { row: IncidentTableRow }) {
+  return (
+    <DataTable.Cell
+      leading={{
+        type: 'icon',
+        icon: renderDeviceTypeIcon(row.deviceType ?? undefined, 'size-5') ?? <MonitorIcon className="size-5" />,
+      }}
+      text={row.deviceName ?? ''}
+      // A device with no customer on record has no second part to draw.
+      secondary={row.organizationName || undefined}
+    />
+  );
+}
+
+/**
+ * The Mingo button, as `mingoActionFor` decides it. While the row is read it is drawn real, and inert. `grid`: the
+ * bare 40px button of a grid table's action column, where a card row draws the outlined one.
+ */
+function IncidentMingoCell({ row, grid = false }: { row: IncidentTableRow; grid?: boolean }) {
   const inScope = useLoadingScope();
   const action = inScope ? undefined : row.mingoAction;
   return (
     <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
       <Button
         onClick={action?.onClick}
-        variant="outline"
+        variant={grid ? 'transparent' : 'outline'}
         size="icon"
         leftIcon={<AgentMark agent="mingo" className="size-5" />}
         aria-label={action?.label ?? 'Mingo'}
         title={action?.label}
         disabled={action ? action.disabled : true}
         loading={action?.loading}
-        className="bg-ods-card"
+        className={grid ? GRID_ACTION_BUTTON_CLASS : 'bg-ods-card'}
       />
     </div>
   );
@@ -388,7 +493,35 @@ interface IncidentsTableContentProps {
   emptyState: ReactNode;
   /** In a loading scope (the page's feature flag unanswered) the list reads nothing: the table draws itself empty. */
   scoped: boolean;
+  /** The table the `data-table-grid` flag picks. */
+  tableLayout: TableLayout;
+  /** Where the table is drawn: its saved grid layout, and whether it fills the page's height. */
+  place: IncidentsTablePlace;
 }
+
+/**
+ * The grid table's height and settings for where it is drawn. On the Incidents page the table is the page's main
+ * content: it takes the height the page leaves and scrolls inside itself. In a device's tab it is a section of a page
+ * that scrolls, so it states no height. A cards table reads neither.
+ */
+function tableLayoutProps(tableLayout: TableLayout, place: IncidentsTablePlace) {
+  return {
+    layout: tableLayout,
+    maxHeight: place === 'page' ? ('fill' as const) : undefined,
+    settings: incidentsTableSettings(place),
+  };
+}
+
+/** The transitions menu's trigger in a grid table's action column: the bare 40px button. */
+const GRID_ACTIONS_TRIGGER = (
+  <Button
+    variant="transparent"
+    size="icon"
+    leftIcon={<Ellipsis01Icon className="h-5 w-5" />}
+    aria-label="More actions"
+    className={GRID_ACTION_BUTTON_CLASS}
+  />
+);
 
 /** The incidents table, with its own boundary: in its scope the reader draws its own loading form. */
 function IncidentsTableContent(props: IncidentsTableContentProps) {
@@ -413,6 +546,7 @@ function IncidentsTableContentReader(props: IncidentsTableContentProps) {
         })}
         pageSize={PAGE_SIZE}
         stickyHeaderOffset={props.stickyHeaderOffset}
+        {...tableLayoutProps(props.tableLayout, props.place)}
       />
     );
   }
@@ -434,6 +568,8 @@ function IncidentsTableContentLive({
   statuses,
   refreshKey,
   emptyState,
+  tableLayout,
+  place,
 }: IncidentsTableContentProps) {
   const { toast } = useToast();
   const mingoControls = useFixWithMingo();
@@ -564,9 +700,10 @@ function IncidentsTableContentLive({
         },
         deviceScoped,
         statusLocked,
-        renderRowActions: (row: IncidentRow) => {
+        renderRowActions: (row: IncidentRow, grid: boolean) => {
           const items = transitionMenuItems(row, transitionTable, transition, isMutating);
-          return items.length > 0 ? <ActionsMenuDropdown groups={[{ items }]} /> : null;
+          if (items.length === 0) return null;
+          return <ActionsMenuDropdown groups={[{ items }]} customTrigger={grid ? GRID_ACTIONS_TRIGGER : undefined} />;
         },
       }),
     [
@@ -650,6 +787,7 @@ function IncidentsTableContentLive({
         )}
         rowHref={(row: IncidentTableRow) => routes.incidents.details(row.id)}
         footer={{ hasNextPage: hasNext && !pageFailed, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+        {...tableLayoutProps(tableLayout, place)}
       />
 
       <FilterModal
@@ -724,8 +862,12 @@ function IncidentsList({
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
 
   const deviceScoped = machineId !== undefined;
-  // In a loading scope (the page's feature flag unanswered) the list reads nothing: the table draws itself empty.
-  const scoped = useLoadingScope();
+  // Which table is drawn (`data-table-grid`). Until the flag answers the table is in a loading scope.
+  const tableGate = useTableGridGate();
+  const gateLoading = tableGate === 'loading';
+  // In a loading scope (the page's feature flag unanswered, or the table's) the list reads nothing: the table draws
+  // itself empty.
+  const scoped = useLoadingScope() || gateLoading;
 
   // URL params are untyped strings — keep only real enum members (and, for
   // status, only the list's own; none on a single-status tab, which has no
@@ -800,23 +942,27 @@ function IncidentsList({
         </div>
       )}
 
-      <IncidentsTableContent
-        scoped={scoped}
-        backendFilters={deferredFilters}
-        debouncedSearch={deferredSearch}
-        tableFilters={tableFilters}
-        isPending={isPending}
-        onFilterChange={handleFilterChange}
-        onEmptyChange={setIsEmpty}
-        toolbarHidden={isEmpty}
-        mobileFilterOpen={mobileFilterOpen}
-        onMobileFilterClose={() => setMobileFilterOpen(false)}
-        stickyHeaderOffset={stickyHeaderOffset}
-        deviceScoped={deviceScoped}
-        statuses={statuses}
-        refreshKey={refreshKey}
-        emptyState={emptyState}
-      />
+      <LoadingWhen loading={gateLoading}>
+        <IncidentsTableContent
+          scoped={scoped}
+          backendFilters={deferredFilters}
+          debouncedSearch={deferredSearch}
+          tableFilters={tableFilters}
+          isPending={isPending}
+          onFilterChange={handleFilterChange}
+          onEmptyChange={setIsEmpty}
+          toolbarHidden={isEmpty}
+          mobileFilterOpen={mobileFilterOpen}
+          onMobileFilterClose={() => setMobileFilterOpen(false)}
+          stickyHeaderOffset={stickyHeaderOffset}
+          deviceScoped={deviceScoped}
+          statuses={statuses}
+          refreshKey={refreshKey}
+          emptyState={emptyState}
+          tableLayout={tableLayoutFor(tableGate)}
+          place={deviceScoped ? 'device' : 'page'}
+        />
+      </LoadingWhen>
     </div>
   );
 }

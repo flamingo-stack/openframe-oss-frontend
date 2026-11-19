@@ -19,3 +19,9 @@ export const INCIDENT_COLUMNS = {
   mingo: { id: 'mingo', width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
   open: { id: 'open', width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;
+
+/**
+ * The data columns' widths in the grid table, in px (the `width` classes above are the card rows'). The last one,
+ * Assigned, takes the width the others leave.
+ */
+export const INCIDENT_GRID_SIZES = { incident: 400, device: 280, severity: 140, status: 240, assignee: 240 } as const;

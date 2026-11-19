@@ -16,7 +16,10 @@ import {
   type ColumnDef,
   DataTable,
   FilterModal,
+  GRID_ACTION_COLUMN_SIZE,
+  GRID_MIN_WIDTH,
   Input,
+  LoadingWhen,
   type Row,
   Tag,
   TruncateText,
@@ -28,10 +31,23 @@ import { useCallback, useMemo, useState } from 'react';
 import { NO_ITEMS, noop } from '@/app/components/shared';
 import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
+import { type TableLayout, tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import { MONITORING_DEVICES_SKELETON_ROWS, QUERY_DEVICE_COLUMNS } from '../../components/monitoring-table-columns';
-import { DeviceCustomerCell, DeviceOpenCell, QuickQueryToggle } from '../../policy/components/policy-devices-table';
+import {
+  MONITORING_DEVICE_GRID_SIZES,
+  MONITORING_DEVICES_SKELETON_ROWS,
+  QUERY_DEVICE_COLUMNS,
+} from '../../components/monitoring-table-columns';
+import { QUERY_DEVICES_TABLE_SETTINGS } from '../../components/monitoring-table-settings';
+import {
+  DeviceCustomerCell,
+  DeviceCustomerGridCell,
+  DeviceNameGridCell,
+  DeviceOpenCell,
+  DeviceOsGridCell,
+  QuickQueryToggle,
+} from '../../policy/components/policy-devices-table';
 import { QuickQueryPanel } from '../../policy/components/quick-query-panel';
 import { useQueryDevicesTable } from '../hooks/use-query-devices-table';
 import type { QueryDeviceRow } from '../types/query-device-row';
@@ -43,26 +59,46 @@ interface QueryDevicesTableProps {
 }
 
 /**
- * The query's devices. In a loading scope (the query itself still loading) it reads nothing and draws the table's
- * own loading rows; otherwise it reads the devices and draws them.
+ * The query's devices, as the table the `data-table-grid` flag picks. Until the flag answers the table is in a
+ * loading scope: it reads nothing and draws loading rows.
  */
 export function QueryDevicesTable(props: QueryDevicesTableProps) {
-  if (useLoadingScope()) return <QueryDevicesTableView rows={NO_ITEMS} isLoading query={props.query} />;
+  const tableGate = useTableGridGate();
+  return (
+    <LoadingWhen loading={tableGate === 'loading'}>
+      <QueryDevicesTableReader {...props} tableLayout={tableLayoutFor(tableGate)} />
+    </LoadingWhen>
+  );
+}
+
+interface QueryDevicesTableReaderProps extends QueryDevicesTableProps {
+  tableLayout: TableLayout;
+}
+
+/**
+ * In a loading scope (the query itself still loading, or the table's flag) it reads nothing and draws the table's
+ * own loading rows; otherwise it reads the devices and draws them.
+ */
+function QueryDevicesTableReader(props: QueryDevicesTableReaderProps) {
+  if (useLoadingScope()) {
+    return <QueryDevicesTableView rows={NO_ITEMS} isLoading query={props.query} tableLayout={props.tableLayout} />;
+  }
   return <QueryDevicesTableContent {...props} />;
 }
 
-function QueryDevicesTableContent({ queryId, query }: QueryDevicesTableProps) {
+function QueryDevicesTableContent({ queryId, query, tableLayout }: QueryDevicesTableReaderProps) {
   const { rows, isLoading } = useQueryDevicesTable(queryId);
-  return <QueryDevicesTableView rows={rows} isLoading={isLoading} query={query} />;
+  return <QueryDevicesTableView rows={rows} isLoading={isLoading} query={query} tableLayout={tableLayout} />;
 }
 
 interface QueryDevicesTableViewProps {
   rows: QueryDeviceRow[];
   isLoading: boolean;
   query?: string;
+  tableLayout: TableLayout;
 }
 
-function QueryDevicesTableView({ rows, isLoading, query }: QueryDevicesTableViewProps) {
+function QueryDevicesTableView({ rows, isLoading, query, tableLayout }: QueryDevicesTableViewProps) {
   const isMdUp = useContentMdUp();
   const [search, setSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -168,7 +204,12 @@ function QueryDevicesTableView({ rows, isLoading, query }: QueryDevicesTableView
             </div>
           );
         },
-        meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.device),
+        size: MONITORING_DEVICE_GRID_SIZES.device,
+        minSize: GRID_MIN_WIDTH.icon,
+        meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.device, {
+          label: 'Device',
+          gridCell: ({ row }: { row: Row<QueryDeviceRow> }) => <QueryDeviceNameGridCell device={row.original} />,
+        }),
       },
       {
         id: QUERY_DEVICE_COLUMNS.organization.id,
@@ -182,7 +223,19 @@ function QueryDevicesTableView({ rows, isLoading, query }: QueryDevicesTableView
           />
         ),
         filterFn: multiSelectFilterFn,
-        meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.organization, { filter: { options: customerOptions } }),
+        size: MONITORING_DEVICE_GRID_SIZES.organization,
+        minSize: GRID_MIN_WIDTH.media,
+        meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.organization, {
+          label: 'Customer',
+          filter: { options: customerOptions },
+          gridCell: ({ row }: { row: Row<QueryDeviceRow> }) => (
+            <DeviceCustomerGridCell
+              organization={row.original.organization}
+              imageUrl={row.original.organizationImageUrl}
+              imageHash={row.original.organizationImageHash}
+            />
+          ),
+        }),
       },
       {
         id: QUERY_DEVICE_COLUMNS.os.id,
@@ -194,7 +247,13 @@ function QueryDevicesTableView({ rows, isLoading, query }: QueryDevicesTableView
           </div>
         ),
         filterFn: multiSelectFilterFn,
-        meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.os, { filter: { options: osOptions } }),
+        size: MONITORING_DEVICE_GRID_SIZES.os,
+        minSize: GRID_MIN_WIDTH.icon,
+        meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.os, {
+          label: 'OS',
+          filter: { options: osOptions },
+          gridCell: ({ row }: { row: Row<QueryDeviceRow> }) => <DeviceOsGridCell osType={row.original.osType} />,
+        }),
       },
       {
         id: QUERY_DEVICE_COLUMNS.status.id,
@@ -204,13 +263,20 @@ function QueryDevicesTableView({ rows, isLoading, query }: QueryDevicesTableView
           <DeviceStatusCell status={row.original.status} connectivity={row.original.connectivity} />
         ),
         filterFn: multiSelectFilterFn,
-        meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.status, { filter: { options: statusOptions } }),
+        size: MONITORING_DEVICE_GRID_SIZES.status,
+        meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.status, { label: 'Status', filter: { options: statusOptions } }),
       },
       {
         id: QUERY_DEVICE_COLUMNS.open.id,
         cell: ({ row }: { row: Row<QueryDeviceRow> }) => <DeviceOpenCell machineId={row.original.machineId} />,
         enableSorting: false,
-        meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.open),
+        size: GRID_ACTION_COLUMN_SIZE,
+        meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.open, {
+          gridKind: 'action',
+          gridCell: ({ row }: { row: Row<QueryDeviceRow> }) => (
+            <DeviceOpenCell machineId={row.original.machineId} grid />
+          ),
+        }),
       },
       {
         id: QUERY_DEVICE_COLUMNS.quickQuery.id,
@@ -222,7 +288,18 @@ function QueryDevicesTableView({ rows, isLoading, query }: QueryDevicesTableView
           />
         ),
         enableSorting: false,
-        meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.quickQuery),
+        size: GRID_ACTION_COLUMN_SIZE,
+        meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.quickQuery, {
+          gridKind: 'action',
+          gridCell: ({ row }: { row: Row<QueryDeviceRow> }) => (
+            <QuickQueryToggle
+              isOpen={quickQueryIds.has(String(row.original.id))}
+              hasQuery={hasQuery}
+              onToggle={() => toggleQuickQuery(String(row.original.id))}
+              grid
+            />
+          ),
+        }),
       },
     ],
     [statusOptions, osOptions, customerOptions, quickQueryIds, toggleQuickQuery, hasQuery],
@@ -269,6 +346,7 @@ function QueryDevicesTableView({ rows, isLoading, query }: QueryDevicesTableView
       };
   // Per the design, the empty state replaces the whole table - headers hidden.
   const showHeader = isLoading || filteredRows.length > 0;
+  const grid = tableLayout === 'grid';
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-m)]">
@@ -304,8 +382,15 @@ function QueryDevicesTableView({ rows, isLoading, query }: QueryDevicesTableView
         )}
       </div>
 
-      <DataTable table={table}>
-        {showHeader && <DataTable.Header rightSlot={<DataTable.RowCount loading={isLoading} />} />}
+      {/* No height of its own: the table is a tab of the query's page, which scrolls. */}
+      <DataTable table={table} layout={tableLayout} settings={grid ? QUERY_DEVICES_TABLE_SETTINGS : undefined}>
+        {/* The grid's results count sits above the table; the card header carries its own (`rightSlot`). */}
+        {showHeader && grid && (
+          <DataTable.Meta>
+            <DataTable.RowCount loading={isLoading} />
+          </DataTable.Meta>
+        )}
+        {showHeader && <DataTable.Header rightSlot={<DataTable.RowCount loading={isLoading} />} loading={isLoading} />}
         <DataTable.Body
           loading={isLoading}
           loadingCells={isLoading}
@@ -337,6 +422,19 @@ function DeviceLastOnline({ lastSeen }: { lastSeen: QueryDeviceRow['lastSeen'] |
     <TruncateText variant="h6" tone="secondary">
       {formatLastOnline(lastSeen)}
     </TruncateText>
+  );
+}
+
+/** The grid's DEVICE cell: the type icon, the name, and when the device was last online beside it. */
+function QueryDeviceNameGridCell({ device }: { device: QueryDeviceRow }) {
+  const loading = useLoadingScope();
+  return (
+    <DeviceNameGridCell
+      name={device.name}
+      deviceType={device.deviceType}
+      // While the row is read there is nothing to print after the name's bar.
+      secondary={loading && !device.lastSeen ? undefined : formatLastOnline(device.lastSeen)}
+    />
   );
 }
 
