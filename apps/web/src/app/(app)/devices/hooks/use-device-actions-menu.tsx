@@ -19,6 +19,7 @@ import { buildDeviceMenuItems } from '../utils/device-menu-items';
 import { useDeviceConfirmationDialogs } from './use-device-confirmation-dialogs';
 import { useRemoteAccessApprovalGate } from './use-remote-access-approval-gate';
 import { useEffectiveDeviceRemoteAccessMode } from './use-remote-access-policy';
+import { useWatchLiveSessionId } from './use-watch-live-session';
 
 const DEFAULT_ICON_SIZE = 'w-6 h-6';
 
@@ -112,12 +113,21 @@ export function useDeviceActionsMenu(
     }
   };
 
+  // Another technician's running session turns Remote Control into Watch live. Read only where the item can show
+  // (not the phone, which drops it; not a device Remote Control is disabled on, which keeps it as it is): a device
+  // page reads its own device, a table's rows share one read of the tenant's running sessions.
+  const watchLiveSessionId = useWatchLiveSessionId(deviceId, {
+    scope: policyContext === 'row' ? 'tenant' : 'device',
+    enabled: !isMobileShell && !!actionAvailability?.remoteControlEnabled,
+  });
+
   const base = buildDeviceMenuItems({
     deviceId,
     availability: actionAvailability,
     iconSize: iconSize,
     isWindows,
     withNewTabAction: true,
+    watchLiveSessionId,
   });
 
   const runScriptDisabled = !actionAvailability?.runScriptEnabled;

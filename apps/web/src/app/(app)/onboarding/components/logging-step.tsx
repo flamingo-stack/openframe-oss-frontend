@@ -12,6 +12,7 @@ import {
   Button,
   type ColumnDef,
   DataTable,
+  GRID_ACTION_COLUMN_SIZE,
   type Row,
   Tag,
   TruncateText,
@@ -23,6 +24,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useMemo } from 'react';
 import { oneLineEmptyState } from '@/app/components/shared/empty-state';
 import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDateTime } from '@/lib/format-date';
 import { openInNewTab } from '@/lib/open-in-new-tab';
@@ -90,18 +92,34 @@ function LogSourceCell({ device }: { device: LogRow['device'] | undefined }) {
   );
 }
 
-/** Opens the log's page in a new tab. Static chrome: drawn real while the row is read, and inert. */
-function OpenLogButton({ log }: { log: LogEntry | undefined }) {
+/** A grid cell's one line: a text and, after it, what the card cell says on its second line. A bar on a loading row. */
+function LogGridText({ text, secondary }: { text: string | undefined; secondary?: string }) {
+  const loading = useLoadingScope();
+  if (loading || text === undefined) return <DataTable.Cell text="" />;
+  return <DataTable.Cell text={text} secondary={secondary} />;
+}
+
+/** Where a log came from, on the grid's one line: the device, its customer after it. */
+function LogSourceGridCell({ device }: { device: LogRow['device'] | undefined }) {
+  const { deviceName, organization } = device ? logSourceLabels(device) : { deviceName: undefined, organization: '' };
+  return <LogGridText text={deviceName} secondary={organization || undefined} />;
+}
+
+/**
+ * Opens the log's page in a new tab. Static chrome: drawn real while the row is read, and inert. `grid`: its form in
+ * the grid table's action column, the 40px button with no border or fill of its own (the column is its box).
+ */
+function OpenLogButton({ log, grid = false }: { log: LogEntry | undefined; grid?: boolean }) {
   const loading = useLoadingScope();
   return (
     <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
       <Button
         onClick={loading || !log ? undefined : openInNewTab(logDetailsUrl(log))}
-        variant="outline"
+        variant={grid ? 'transparent' : 'outline'}
         size="icon"
         leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
         aria-label="Open log in new tab"
-        className="bg-ods-card"
+        className={grid ? 'size-10 border-0 md:size-10' : 'bg-ods-card'}
         disabled={loading}
       />
     </div>
@@ -130,7 +148,12 @@ export function LoggingStep({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { logs, isLoading } = useLogs();
+  const { logs, isLoading: logsLoading } = useLogs();
+  // The grid table, behind the app's one table flag; card rows while it is off. Until the flag is answered the table
+  // is loading: one layout is never drawn and then replaced by the other.
+  const tableGate = useTableGridGate();
+  const isLoading = logsLoading || tableGate === 'loading';
+  const layout = tableLayoutFor(tableGate);
 
   const rows: LogRow[] = useMemo(
     () =>
@@ -150,13 +173,22 @@ export function LoggingStep({
     [logs],
   );
 
+  // Beside the card layout's `meta.width` each data column states what the grid layout reads: a `size`, a one-line
+  // `gridCell` where the card cell has two lines, a `label`.
   const columns = useMemo<ColumnDef<LogRow>[]>(
     () => [
       {
         accessorKey: 'logId',
         header: 'Log ID',
         enableSorting: false,
-        meta: { width: 'w-[160px]' },
+        size: 320,
+        meta: {
+          width: 'w-[160px]',
+          label: 'Log ID',
+          gridCell: ({ row }: { row: Row<LogRow> }) => (
+            <LogGridText text={row.original.timestamp} secondary={row.original.logId} />
+          ),
+        },
         cell: ({ row }: { row: Row<LogRow> }) => (
           <div className="flex shrink-0 flex-col justify-center">
             <TruncateText>{row.original.timestamp}</TruncateText>
@@ -170,7 +202,22 @@ export function LoggingStep({
         accessorKey: 'status',
         header: 'Status',
         enableSorting: false,
-        meta: { width: 'w-[96px]' },
+        size: 120,
+        meta: {
+          width: 'w-[96px]',
+          label: 'Status',
+          gridCell: ({ row }: { row: Row<LogRow> }) => (
+            <DataTable.Cell
+              tag={
+                <Tag
+                  label={row.original.status?.label}
+                  variant={row.original.status?.variant}
+                  loading={!row.original.status}
+                />
+              }
+            />
+          ),
+        },
         cell: ({ row }: { row: Row<LogRow> }) => (
           <div className="shrink-0">
             {/* A placeholder row (the table's loading form) has no status: the tag draws its loading form. */}
@@ -186,7 +233,9 @@ export function LoggingStep({
         accessorKey: 'tool',
         header: 'Tool',
         enableSorting: false,
-        meta: { width: LOG_COLUMN_WIDTHS.tool, hideAt: 'md' },
+        // One line already: the grid draws the same cell.
+        size: 160,
+        meta: { width: LOG_COLUMN_WIDTHS.tool, hideAt: 'md', label: 'Tool' },
         cell: ({ row }: { row: Row<LogRow> }) => (
           <ToolBadge toolType={row.original.toolType} iconClassName="h-4 w-4 content-md:h-6 content-md:w-6" />
         ),
@@ -195,14 +244,26 @@ export function LoggingStep({
         accessorKey: 'source',
         header: 'Source',
         enableSorting: false,
-        meta: { width: 'w-[240px]', hideAt: 'md' },
+        size: 280,
+        meta: {
+          width: 'w-[240px]',
+          hideAt: 'md',
+          label: 'Source',
+          gridCell: ({ row }: { row: Row<LogRow> }) => <LogSourceGridCell device={row.original.device} />,
+        },
         cell: ({ row }: { row: Row<LogRow> }) => <LogSourceCell device={row.original.device} />,
       },
       {
         accessorKey: 'description',
         header: 'Log Details',
         enableSorting: false,
-        meta: { width: 'flex-1', hideAt: 'lg' },
+        size: 400,
+        meta: {
+          width: 'flex-1',
+          hideAt: 'lg',
+          label: 'Log details',
+          gridCell: ({ row }: { row: Row<LogRow> }) => <LogGridText text={row.original.summary} />,
+        },
         cell: ({ row }: { row: Row<LogRow> }) => (
           <TruncateText lines={2} variant="h6" tone="secondary">
             {row.original.summary}
@@ -212,7 +273,17 @@ export function LoggingStep({
       {
         id: 'open',
         enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
+        // The grid's action column, kept by hand: `actionColumn()` would drop the card layout's `hideAt`. Never hidden,
+        // as `actionColumn()` states it.
+        enableHiding: false,
+        size: GRID_ACTION_COLUMN_SIZE,
+        meta: {
+          width: 'w-12 shrink-0 flex-none',
+          hideAt: 'md',
+          align: 'right',
+          gridKind: 'action',
+          gridCell: ({ row }: { row: Row<LogRow> }) => <OpenLogButton log={row.original.original} grid />,
+        },
         cell: ({ row }: { row: Row<LogRow> }) => <OpenLogButton log={row.original.original} />,
       },
     ],
@@ -241,8 +312,15 @@ export function LoggingStep({
       </p>
       <p className="text-ods-text-primary text-h4">Here's what activity looks like once things start happening:</p>
 
-      <DataTable table={table}>
-        <DataTable.Header rightSlot={<DataTable.RowCount loading={isLoading} />} />
+      {/* A three-row preview inside a tour step: the grid has no settings gear and keeps its natural height. */}
+      <DataTable table={table} layout={layout}>
+        {/* The grid's count sits above the table; the card header carries its own (`rightSlot`). */}
+        {layout === 'grid' && (
+          <DataTable.Meta>
+            <DataTable.RowCount loading={isLoading} />
+          </DataTable.Meta>
+        )}
+        <DataTable.Header rightSlot={<DataTable.RowCount loading={isLoading} />} loading={isLoading} />
         <DataTable.Body
           loading={isLoading}
           loadingCells={isLoading}

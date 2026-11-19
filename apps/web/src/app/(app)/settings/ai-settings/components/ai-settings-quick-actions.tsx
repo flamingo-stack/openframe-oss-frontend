@@ -10,6 +10,7 @@ import { InfoCircleIcon } from '@flamingo-stack/openframe-frontend-core/componen
 import {
   type ColumnDef,
   DataTable,
+  GRID_MIN_WIDTH,
   IconTile,
   type Row,
   StackedRowsPanel,
@@ -22,6 +23,7 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useMemo } from 'react';
 import { NO_ITEMS, oneLineEmptyState } from '@/app/components/shared';
 import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import type { AiQuickAction } from '../types/ai-settings';
 
 /** Per-tab wording for the quick-actions blocks (Mingo vs the customer assistant). */
@@ -135,6 +137,27 @@ export function AiSettingsQuickActionsSection({
  * One action's row: its glyph tile (when it has one) beside the name and instructions. While the row is read the tile is
  * a bar of the tile's size and the two lines bars of their type steps (`TruncateText` with no text, in the scope).
  */
+function QuickActionGridCell({ action, accent }: { action: AiQuickAction; accent: QuickActionAccent | undefined }) {
+  const loading = useLoadingScope();
+  // The grid's one line: the glyph as the cell's leading icon (no tile: the 48px row has no room for one), the name,
+  // the instructions after it. A bar while the row is read.
+  if (loading) return <DataTable.Cell leading={{ type: 'icon', icon: <MediaSkeleton.Icon size="sm" /> }} text="" />;
+  const icon = renderQuickActionIcon({
+    name: action.iconName ?? undefined,
+    url: action.iconUrl ?? undefined,
+    props: action.iconProps ?? undefined,
+    accent,
+    size: 16,
+  });
+  return (
+    <DataTable.Cell
+      leading={icon ? { type: 'icon', icon } : undefined}
+      text={action.name}
+      secondary={action.instructions || undefined}
+    />
+  );
+}
+
 function QuickActionCell({ action, accent }: { action: AiQuickAction; accent: QuickActionAccent | undefined }) {
   const loading = useLoadingScope();
   const icon = renderQuickActionIcon({
@@ -200,16 +223,29 @@ export function AiSettingsQuickActions({
         accessorKey: 'name',
         // Whose list it is (OpenFrame's or the organization's) is read: the header draws its own bar while loading.
         header: `${isDefault ? 'OpenFrame' : 'Organization'} ${agentConfig.agentLabel} Quick Actions`,
-        meta: { headerLoading: isDefault == null },
         cell: ({ row }: { row: Row<AiQuickAction> }) => <QuickActionCell action={row.original} accent={glyphAccent} />,
+        // The grid layout's width (the one column takes the free width) and its one-line cell.
+        size: 480,
+        minSize: GRID_MIN_WIDTH.icon,
+        meta: {
+          headerLoading: isDefault == null,
+          label: 'Quick action',
+          gridCell: ({ row }: { row: Row<AiQuickAction> }) => (
+            <QuickActionGridCell action={row.original} accent={glyphAccent} />
+          ),
+        },
       },
     ],
     [isDefault, agentConfig.agentLabel, glyphAccent],
   );
 
   // In the section's loading scope the table holds one typical list of placeholder rows, drawn with their real cells
-  // (`loadingCells`): each cell draws its own loading form.
-  const loading = useLoadingScope();
+  // (`loadingCells`): each cell draws its own loading form. Until the app's table flag is answered the list is loading
+  // too: one layout is never drawn and then replaced by the other.
+  const tableGate = useTableGridGate();
+  const inScope = useLoadingScope();
+  const loading = inScope || tableGate === 'loading';
+  const layout = tableLayoutFor(tableGate);
   const data = useMemo(
     () => (loading ? loadingPlaceholderRows<AiQuickAction>(QUICK_ACTIONS_SKELETON_ROWS) : actions),
     [loading, actions],
@@ -223,9 +259,18 @@ export function AiSettingsQuickActions({
 
   return (
     <div className={cn(className)}>
-      <DataTable table={table}>
-        <DataTable.Header rightSlot={<DataTable.RowCount loading={loading} />} />
+      {/* One column, read-only: the grid has no settings gear here (nothing to hide or reorder) and keeps its natural
+          height. */}
+      <DataTable table={table} layout={layout}>
+        {/* The grid's count sits above the table; the card header carries its own (`rightSlot`). */}
+        {layout === 'grid' && (
+          <DataTable.Meta>
+            <DataTable.RowCount loading={loading} />
+          </DataTable.Meta>
+        )}
+        <DataTable.Header rightSlot={<DataTable.RowCount loading={loading} />} loading={loading} />
         <DataTable.Body
+          loading={loading}
           loadingCells={loading}
           emptyState={oneLineEmptyState('No quick actions configured.')}
           rowClassName="mb-1"

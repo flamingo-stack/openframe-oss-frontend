@@ -285,3 +285,43 @@ describe('emptyDescription', () => {
     expect(emptyDescription(none)).toBe('Recorded remote sessions for this device will appear here.');
   });
 });
+
+describe('RemoteSessionsTab in the grid layout', () => {
+  beforeEach(() => {
+    act(() => root.render(<RemoteSessionsTab device={DEVICE} tableLayout="grid" />));
+  });
+
+  it('draws the grid table with its column settings, at its natural height', () => {
+    expect(container.querySelector('[data-grid-root]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Table settings"]')).not.toBeNull();
+    expect(container.querySelector('[data-grid-root] [style*="--data-table-max-height"]')).toBeNull();
+  });
+
+  it('counts the results above the table and gives every row its Delete and its Open', () => {
+    expect(container.textContent).toContain(`${ROWS.length} results`);
+    expect(container.querySelectorAll('[aria-label="Delete session"]')).toHaveLength(ROWS.length);
+    expect(container.querySelectorAll('[data-grid-col="session"]')).toHaveLength(ROWS.length + 1);
+  });
+
+  it('says why an Open is off where the row does not, as the card row does', () => {
+    const hint = (row: RecordingSummary) => {
+      const wrapper = button(row, 'Open session recording')?.closest<HTMLElement>('span[tabindex]');
+      if (!wrapper) return null;
+      act(() => wrapper.focus());
+      const text = document.querySelector('[role="tooltip"]')?.textContent ?? null;
+      act(() => wrapper.blur());
+      return text;
+    };
+    expect(button(NOT_RECORDED, 'Open session recording')?.disabled).toBe(true);
+    expect(hint(NOT_RECORDED)).toBe('This session has no recording');
+    // A row that reads its own state (expired) and a row that opens get no hint.
+    expect(hint(EXPIRED)).toBeNull();
+    expect(hint(READY)).toBeNull();
+  });
+
+  it('keeps the rules of the card rows: a kept or processing session cannot be deleted', () => {
+    expect(button(READY, 'Delete session')?.disabled).toBe(false);
+    expect(button(KEPT, 'Delete session')?.disabled).toBe(true);
+    expect(button(PROCESSING, 'Delete session')?.disabled).toBe(true);
+  });
+});

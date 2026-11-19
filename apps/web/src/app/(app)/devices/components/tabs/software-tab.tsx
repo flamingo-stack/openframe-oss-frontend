@@ -5,6 +5,7 @@ import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/compone
 import { SoftwareListFrame } from '@/app/(app)/software/components/shared/software-list-frame';
 import { ContentErrorBoundary } from '@/app/components/shared';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
+import type { TableLayout } from '@/app/hooks/use-table-layout';
 import type { Device } from '../../types/device.types';
 import { getVulnerabilitiesEmptyReason } from '../../utils/vulnerabilities-empty-state';
 import { DeviceSoftwareTable } from './device-software-table';
@@ -13,6 +14,11 @@ import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
 
 interface SoftwareTabProps {
   device: Device | null;
+  /**
+   * The table's layout (the app's table flag, read by the tabs' host). The Fleet list takes it; the module's table is
+   * the Software module's own and moves to the grid with that module.
+   */
+  tableLayout?: TableLayout;
 }
 
 const SEARCH_PLACEHOLDER = 'Search for Software';
@@ -104,8 +110,8 @@ function ModuleSoftwareTab({ device, loading }: SoftwareTabProps & { loading: bo
  * Fleet list, which would guess the module absent and swap the table out under
  * the user (`use-feature-flag.ts`).
  */
-export function SoftwareTab({ device }: SoftwareTabProps) {
+export function SoftwareTab({ device, tableLayout = 'cards' }: SoftwareTabProps) {
   const gate = useFeatureFlagGate('software-management');
-  if (gate === 'off') return <FleetSoftwareTab device={device} />;
+  if (gate === 'off') return <FleetSoftwareTab device={device} tableLayout={tableLayout} />;
   return <ModuleSoftwareTab device={device} loading={gate === 'loading'} />;
 }

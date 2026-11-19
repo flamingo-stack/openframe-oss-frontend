@@ -3,7 +3,7 @@ export { CVE_SEVERITY, CVE_SEVERITY_BANDS, cveSeverityRank, resolveCveSeverity }
 export { CveSeverityTag } from './cve/cve-severity-tag';
 export { CustomerInfoCell, type CustomerInfoCellProps } from './customer-info-cell';
 export { DateColumnHeader, type DateColumnHeaderProps, type TableDateFilter } from './date-column-header';
-export { DateWithAge } from './date-with-age';
+export { DateWithAge, DateWithAgeGridCell } from './date-with-age';
 export { DETAIL_CELL_CLASS, DETAIL_CELL_GAP_CLASS } from './detail-cell';
 export { DeviceInfoSection } from './device-info-section';
 export { DevicesPanel, type DevicesPanelProps } from './devices-panel';

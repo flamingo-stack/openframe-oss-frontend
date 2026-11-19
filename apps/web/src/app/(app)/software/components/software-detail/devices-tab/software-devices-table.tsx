@@ -8,6 +8,7 @@ import {
   type Row,
   useDataTable,
   useLoadingScope,
+  GRID_MIN_WIDTH,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
@@ -31,13 +32,13 @@ import {
   useRetryKey,
 } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
-import { OpenRowButton } from '@/app/components/shared/open-row-button';
-import { openInNewTab } from '@/lib/open-in-new-tab';
+import { openRowColumn } from '@/app/components/shared/open-row-column';
+import { useTableGrid } from '@/app/components/shared/table-layout-scope';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { singleColumnFilter } from '../../shared/column-filters';
 import { SoftwareDeviceAutoUpdateCell } from './software-device-auto-update-cell';
-import { SoftwareDeviceCell } from './software-device-cell';
+import { SoftwareDeviceCell, SoftwareDeviceGridCell } from './software-device-cell';
 import { SoftwareDeviceInstalledByCell } from './software-device-installed-by-cell';
 import { SoftwareDeviceVersionCell } from './software-device-version-cell';
 import { SOFTWARE_DEVICE_COLUMNS, SOFTWARE_DEVICES_PAGE_SIZE } from './software-devices-columns';
@@ -125,7 +126,13 @@ function buildColumns(): ColumnDef<SoftwareDeviceRow>[] {
       header: SOFTWARE_DEVICE_COLUMNS.device.header,
       cell: ({ row }: { row: Row<SoftwareDeviceRow> }) => <SoftwareDeviceCell machine={row.original.device} />,
       enableSorting: false,
-      meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.device),
+      size: 380,
+      minSize: GRID_MIN_WIDTH.icon,
+      meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.device, {
+        gridCell: ({ row }: { row: Row<SoftwareDeviceRow> }) => (
+          <SoftwareDeviceGridCell machine={row.original.device} />
+        ),
+      }),
     },
     {
       // Column id is the backend sort field, as everywhere else in the app.
@@ -135,7 +142,10 @@ function buildColumns(): ColumnDef<SoftwareDeviceRow>[] {
       cell: ({ row }: { row: Row<SoftwareDeviceRow> }) => <SoftwareDeviceVersionCell softwareOnDevice={row.original} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,
+      size: 280,
+      // One line already (the version, its status chip): the grid draws the same cell.
       meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.softwareVersion, {
+        label: 'Software version',
         // The column stretches to the row's end, so an end-anchored popover would
         // hang off the far right, nowhere near the header it belongs to.
         filter: { options: SOFTWARE_ON_DEVICE_STATUS_OPTIONS },
@@ -148,7 +158,8 @@ function buildColumns(): ColumnDef<SoftwareDeviceRow>[] {
         <SoftwareDeviceInstalledByCell softwareOnDevice={row.original} />
       ),
       enableSorting: false,
-      meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.installedBy),
+      size: 200,
+      meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.installedBy, { label: 'Managed by' }),
     },
     {
       id: SOFTWARE_DEVICE_COLUMNS.autoUpdate.id,
@@ -157,18 +168,13 @@ function buildColumns(): ColumnDef<SoftwareDeviceRow>[] {
         <SoftwareDeviceAutoUpdateCell softwareOnDevice={row.original} />
       ),
       enableSorting: false,
+      size: 180,
       meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.autoUpdate),
     },
-    {
-      id: SOFTWARE_DEVICE_COLUMNS.open.id,
-      cell: ({ row }: { row: Row<SoftwareDeviceRow> }) => {
-        // A loading placeholder row (or a device with no address) has nothing to open: the button is inert.
-        const href = deviceHref(row.original);
-        return <OpenRowButton label="Open device in new tab" onClick={openInNewTab(href ?? '')} disabled={!href} />;
-      },
-      enableSorting: false,
-      meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.open),
-    },
+    openRowColumn<SoftwareDeviceRow>(SOFTWARE_DEVICE_COLUMNS.open, row => ({
+      label: 'Open device in new tab',
+      href: deviceHref(row),
+    })),
   ];
 }
 
@@ -281,6 +287,7 @@ function SoftwareDevicesTableRows({
   stickyHeaderOffset,
 }: SoftwareDevicesTableRowsProps) {
   const loading = useLoadingScope();
+  const tableGrid = useTableGrid('software-devices');
 
   const { columnFilters, onColumnFiltersChange } = singleColumnFilter(
     SOFTWARE_DEVICE_COLUMNS.softwareVersion.id,
@@ -324,6 +331,7 @@ function SoftwareDevicesTableRows({
 
   return (
     <LiveTable
+      {...tableGrid}
       table={table}
       pageSize={SOFTWARE_DEVICES_PAGE_SIZE}
       loadingCells={loading}
