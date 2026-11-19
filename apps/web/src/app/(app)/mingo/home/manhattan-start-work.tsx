@@ -6,7 +6,7 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { CSSProperties } from 'react';
 import { RevealTogether } from '@/app/components/shared/reveal-together';
 import { routes } from '@/lib/routes';
-import { useWhatToAskLabel } from '../hooks/use-what-to-ask-label';
+import { useWhatToAsk, WHAT_TO_ASK_BUTTON_BOX } from '../hooks/use-what-to-ask-label';
 import { GreetingText, useGreeting } from './mingo-home-greeting';
 import { NeedsYouCard, NeedsYouPanel } from './needs-you/needs-you-card';
 
@@ -36,7 +36,9 @@ const CENTRED_ABOVE_DOCK: CSSProperties = {
  * D15): `/dashboard` leads here in v2.
  *
  * `live` off: no reads (the shell holds the page while it waits on the onboarding answer),
- * "Needs you" in its loading form, so the hand-over moves nothing.
+ * "Needs you" in its loading form, so the hand-over moves nothing. "What to ask Mingo?" is the
+ * hub's `/what-can-you-do` command: while the hub's command catalog is read its place is held,
+ * so the greeting and "Needs you" do not move when it lands.
  *
  * `variant="column"`: Start Work in the chat column beside a page when no chat is open
  * (CU-17tkuw65znp). The column has its own "Start Work" header, so the greeting is a
@@ -56,7 +58,7 @@ export function ManhattanStartWork({
   const column = variant === 'column';
   const Heading = column ? 'h2' : 'h1';
   const greeting = useGreeting();
-  const whatToAsk = useWhatToAskLabel();
+  const { label: whatToAsk, pending: whatToAskPending } = useWhatToAsk();
   return (
     <div
       className={cn(
@@ -86,6 +88,14 @@ export function ManhattanStartWork({
             >
               {whatToAsk}
             </Button>
+          )}
+          {/* The button's place while the catalog is read: the column is centred, so its height must not change. */}
+          {!whatToAsk && whatToAskPending && (
+            <div
+              aria-hidden
+              data-what-to-ask-place
+              className={cn('mt-[var(--spacing-system-m)]', WHAT_TO_ASK_BUTTON_BOX)}
+            />
           )}
         </div>
         {live ? (
