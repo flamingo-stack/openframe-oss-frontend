@@ -8,16 +8,16 @@ import { ContentErrorBoundary, useRetryKey } from '@/app/components/shared';
 import { pluralNoun } from '@/lib/pluralize';
 import { routes } from '@/lib/routes';
 import { SoftwareNoticeBanner } from '../shared/software-notice-banner';
-import { ADOPTABLE_DEVICES_FILTER } from './adoptable-devices';
+import { ADOPT_DEVICE_LIMIT, ADOPTABLE_DEVICES_FILTER, isAdopting } from './adoptable-devices';
 import { adoptionPackageManagerLabel } from './adoption-package-manager';
 
 /**
  * The title's adoption package, and how many of its devices no package manager manages. `adoptionCount` is the
- * server's own count of them; while it is not filled (null), the size of the list the Adopt page picks from stands in,
- * so the banner and the page never disagree.
+ * server's own count of them; while it is not filled (null), the list the Adopt page picks from stands in, less the
+ * devices whose adoption is already running, so the banner and the page never disagree.
  */
 const softwareAdoptionBannerQuery = graphql`
-  query softwareAdoptionBannerQuery($id: ID!, $filter: SoftwareOnDeviceFilterInput!) {
+  query softwareAdoptionBannerQuery($id: ID!, $filter: SoftwareOnDeviceFilterInput!, $first: Int!) {
     software(id: $id) {
       id
       name
@@ -26,8 +26,15 @@ const softwareAdoptionBannerQuery = graphql`
         packageManager
       }
     }
-    softwareDevices(softwareId: $id, filter: $filter, first: 1) {
+    softwareDevices(softwareId: $id, filter: $filter, first: $first) {
       filteredCount
+      edges {
+        node {
+          adoption {
+            status
+          }
+        }
+      }
     }
   }
 `;
@@ -63,11 +70,13 @@ function SoftwareAdoptionBannerQuery({ softwareId }: { softwareId: string }) {
   const retryKey = useRetryKey();
   const { software, softwareDevices } = useLazyLoadQuery<SoftwareAdoptionBannerQueryType>(
     softwareAdoptionBannerQuery,
-    { id: softwareId, filter: ADOPTABLE_DEVICES_FILTER },
+    { id: softwareId, filter: ADOPTABLE_DEVICES_FILTER, first: ADOPT_DEVICE_LIMIT },
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
   const manager = software?.adoptionPackage?.packageManager;
-  const count = software?.adoptionCount ?? softwareDevices.filteredCount;
+  // The page read is as long as one adoption (100): past it, the devices beyond count as adoptable.
+  const adopting = softwareDevices.edges.filter(edge => isAdopting(edge.node.adoption?.status)).length;
+  const count = software?.adoptionCount ?? softwareDevices.filteredCount - adopting;
   if (!software || !manager || count <= 0) return null;
 
   const devices = `${count} ${pluralNoun(count, 'device')}`;

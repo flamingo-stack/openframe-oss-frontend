@@ -15,7 +15,7 @@ import type { Device } from '@/app/(app)/devices/types/device.types';
 import { machineSelectorToDevice } from '@/app/(app)/devices/utils/device-transform';
 import { NO_ITEMS } from '@/app/components/shared/no-next-page';
 import { pluralize } from '@/lib/pluralize';
-import { ADOPT_DEVICE_LIMIT, ADOPTABLE_DEVICES_FILTER } from './adoptable-devices';
+import { ADOPT_DEVICE_LIMIT, ADOPTABLE_DEVICES_FILTER, isAdopting } from './adoptable-devices';
 
 /**
  * The devices the title can be adopted on, one read of as many as one adoption takes. The picker searches and filters
@@ -27,6 +27,9 @@ const adoptDevicePickerQuery = graphql`
       filteredCount
       edges {
         node {
+          adoption {
+            status
+          }
           device {
             ...deviceSelectorFields_machine
           }
@@ -39,10 +42,14 @@ const adoptDevicePickerQuery = graphql`
 /** `adoptSoftware` takes Machine global ids: the selection is keyed by them. */
 export const adoptDeviceKey = (device: Device) => device.id;
 
-/** Refused by the server, so offered as a disabled row rather than as a request that fails. */
-function adoptDisabledReason(device: Device): string | undefined {
+/**
+ * Why a row cannot be picked: the server refuses it (no agent, not managed), or its adoption is already running.
+ * Offered as a disabled row rather than as a request that fails or a second order.
+ */
+function adoptDisabledReason(device: Device, adopting: ReadonlySet<string>): string | undefined {
   if (!device.machineId) return 'Agent is not\nconnected';
-  return isManagedStatus(device.status) ? undefined : 'Device is not\nmanaged';
+  if (!isManagedStatus(device.status)) return 'Device is not\nmanaged';
+  return adopting.has(adoptDeviceKey(device)) ? 'Adoption is\nin progress' : undefined;
 }
 
 interface AdoptDevicePickerProps {
@@ -102,9 +109,18 @@ function AdoptDevicePickerQuery({
     // drawn from before it.
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
-  const devices = useMemo(
-    () => softwareDevices.edges.map(edge => machineSelectorToDevice(edge.node.device)),
+  const rows = useMemo(
+    () =>
+      softwareDevices.edges.map(edge => ({
+        device: machineSelectorToDevice(edge.node.device),
+        adopting: isAdopting(edge.node.adoption?.status),
+      })),
     [softwareDevices.edges],
+  );
+  const devices = useMemo(() => rows.map(row => row.device), [rows]);
+  const adopting = useMemo(
+    () => new Set(rows.filter(row => row.adopting).map(row => adoptDeviceKey(row.device))),
+    [rows],
   );
   const selectedIds = useMemo(() => new Set(selected.map(adoptDeviceKey)), [selected]);
   const more = softwareDevices.filteredCount - devices.length;
@@ -124,7 +140,7 @@ function AdoptDevicePickerQuery({
         getDeviceKey={adoptDeviceKey}
         selectedIds={selectedIds}
         onSelectionChange={ids => onSelectionChange(devices.filter(device => ids.has(adoptDeviceKey(device))))}
-        isDeviceDisabled={adoptDisabledReason}
+        isDeviceDisabled={device => adoptDisabledReason(device, adopting)}
       />
     </div>
   );

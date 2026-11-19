@@ -1,24 +1,20 @@
 'use client';
 
 import { SOFTWARE_SOURCE_LABEL } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { DotsLoaderIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { FloatingTooltip, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { softwareDeviceInstalledByCell_softwareOnDevice$key } from '@/__generated__/softwareDeviceInstalledByCell_softwareOnDevice.graphql';
 import { ValueText } from '@/app/components/shared';
-import { DeviceConnectivity, SoftwareAdoptionStatus } from '@/generated/schema-enums';
 import { presentationFor } from '@/lib/exhaustive-map';
+import { SoftwareDeviceAdoptionTag } from './software-device-adoption-tag';
 
 const softwareDeviceInstalledByCellFragment = graphql`
   fragment softwareDeviceInstalledByCell_softwareOnDevice on SoftwareOnDevice {
     installedBy
     adoption {
-      status
-      error
+      __typename
     }
-    device {
-      connectivity
-    }
+    ...softwareDeviceAdoptionTag_softwareOnDevice
   }
 `;
 
@@ -27,8 +23,7 @@ const softwareDeviceInstalledByCellFragment = graphql`
  * installed by hand; the empty mark when it is not known. The design's "Manageable" (installed by hand, can be adopted)
  * is not drawn: whether a copy can be adopted is known per title (`Software.adoptionPackage`), not per device.
  *
- * While an adoption runs, or after it failed, its chip takes the installer's place (design 1227:45730): ADOPTING, with
- * "Starts when online" under it on an offline device, and ADOPTION FAILED with the device's reason on hover.
+ * While an adoption runs, or after it failed, its chip takes the installer's place (design 1227:45730).
  */
 export function SoftwareDeviceInstalledByCell({
   softwareOnDevice,
@@ -37,23 +32,7 @@ export function SoftwareDeviceInstalledByCell({
 }) {
   // A row still being read (a loading scope) has no fragment to read: `ValueText` draws its bar.
   const data = useFragment(softwareDeviceInstalledByCellFragment, useLoadingScope() ? null : softwareOnDevice);
-
-  if (data?.adoption?.status === SoftwareAdoptionStatus.ADOPTING) {
-    const offline = data.device.connectivity === DeviceConnectivity.OFFLINE;
-    return (
-      <div className="flex min-w-0 flex-col items-start gap-[var(--spacing-system-xxs)]">
-        <Tag label="Adopting" variant="warning" icon={<DotsLoaderIcon className="h-4 w-4" />} />
-        {offline && <p className="truncate text-ods-text-secondary text-h6">Starts when online</p>}
-      </div>
-    );
-  }
-  if (data?.adoption?.status === SoftwareAdoptionStatus.FAILED) {
-    return (
-      <FloatingTooltip content={data.adoption.error} disabled={!data.adoption.error} as="span">
-        <Tag label="Adoption failed" variant="error" />
-      </FloatingTooltip>
-    );
-  }
+  if (data?.adoption) return <SoftwareDeviceAdoptionTag softwareOnDevice={data} />;
 
   const source = data?.installedBy;
   return (
