@@ -4,8 +4,6 @@ import { TagIcon } from '@flamingo-stack/openframe-frontend-core/components/icon
 import {
   type ColumnDef,
   type DataTableSettings,
-  GRID_ACTION_COLUMN_SIZE,
-  GRID_MIN_WIDTH,
   LoadingWhen,
   PageError,
   SearchInput,
@@ -35,21 +33,12 @@ import { TabEmptyState } from './tab-empty-state';
  */
 const DEVICE_TICKETS_TABLE_SETTINGS: DataTableSettings = { storageKey: 'device-tickets' };
 
-/**
- * The grid widths of this tab's ticket columns, by column: the grid lays a column out by its `size`, the card rows by
- * the widths of `DEVICE_TICKET_COLUMNS`. The cells' own one-line grid form belongs to the shared ticket columns.
- */
-const GRID_COLUMN_SIZE: Record<string, { size: number; minSize?: number; label: string }> = {
-  title: { size: 420, label: 'Ticket' },
-  assignee: { size: 280, minSize: GRID_MIN_WIDTH.media, label: 'Assignee' },
-  status: { size: 180, label: 'Status' },
-};
-
 interface TicketsTabProps {
   device: Device | null;
   /**
-   * The table's layout. `grid` draws the lib's grid table (48px rows, the ticket column pinned, the open action
-   * pinned right, the gear menu), at the tab's natural height: the page scrolls. Default `cards`.
+   * The table's layout. `grid` draws the lib's grid table (48px one-line rows, the ticket column pinned, the open
+   * action pinned right, the gear menu), at the tab's natural height: the page scrolls. The columns' grid form (sizes,
+   * one-line cells, the open action column) is the shared ticket columns' own. Default `cards`.
    */
   tableLayout?: TableLayout;
 }
@@ -92,13 +81,8 @@ export function TicketsTab({ device, tableLayout = 'cards' }: TicketsTabProps) {
     const widthById = new Map(DEVICE_TICKET_COLUMNS.map(column => [column.id, column.width]));
     const base = getTicketTableColumns({ isArchived: false, isUserDeleted })
       .filter(column => (column as { accessorKey?: string }).accessorKey !== 'source')
-      .map(source => {
-        const key = (source as { accessorKey?: string }).accessorKey;
-        // What the grid reads beside the card widths: the column's size and its name in the settings menu.
-        const grid = key ? GRID_COLUMN_SIZE[key] : undefined;
-        const column: ColumnDef<Dialog> = grid
-          ? { ...source, size: grid.size, minSize: grid.minSize, meta: { ...source.meta, label: grid.label } }
-          : source;
+      .map(column => {
+        const key = (column as { accessorKey?: string }).accessorKey;
         const width = key ? widthById.get(key) : undefined;
         if (key === 'status' && column.meta?.filter) {
           // STATUS is the last data column here: anchor its filter dropdown to
@@ -114,13 +98,7 @@ export function TicketsTab({ device, tableLayout = 'cards' }: TicketsTabProps) {
         }
         return width ? { ...column, meta: { ...column.meta, width } } : column;
       });
-    // The open column is the grid's action column kept by hand (pinned right, never hidden), so that the card rows
-    // keep it as it is.
-    const open = getTicketOpenColumn();
-    return [
-      ...base,
-      { ...open, size: GRID_ACTION_COLUMN_SIZE, enableHiding: false, meta: { ...open.meta, gridKind: 'action' } },
-    ];
+    return [...base, getTicketOpenColumn()];
   }, [isUserDeleted]);
 
   const loading = scoped || isLoading;
