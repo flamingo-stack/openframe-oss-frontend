@@ -612,7 +612,9 @@ describe('Users tables, the grid', () => {
     expect(body).not.toContain('Added in OpenFrame');
     expect(bodyButtons(container, 'Open Olivia Grant in new tab')).toHaveLength(1);
     expect(bodyButtons(container, 'Open Contractors in new tab')).toHaveLength(1);
-    expect((bodyButtons(container, 'Open Olivia iPhone in new tab')[0] as HTMLButtonElement).disabled).toBe(true);
+    // A record no machine is linked to opens nothing: no button, as in its card row.
+    expect(bodyButtons(container, 'Open OLIVIA-LAPTOP in new tab')).toHaveLength(1);
+    expect(bodyButtons(container, 'Open Olivia iPhone in new tab')).toHaveLength(0);
     // What sits around the table stays: the members outside the customer, the external ones.
     expect(container.textContent).toContain('2 members outside this customer');
     expect(container.textContent).toContain('1 external member');

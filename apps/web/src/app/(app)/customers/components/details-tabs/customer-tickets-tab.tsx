@@ -8,21 +8,16 @@ import {
   SearchInput,
   useDataTable,
   useLoadingScope,
-  GRID_ACTION_COLUMN_SIZE,
-  GRID_MIN_WIDTH,
-  type Row,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import { oneLineEmptyState } from '@/app/components/shared/empty-state';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
-import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { ResponsiveActionButton } from '@/app/components/shared/responsive-action-button';
 import { useTableGrid } from '@/app/components/shared/table-layout-scope';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
-import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import {
   getTicketOpenColumn,
@@ -32,18 +27,6 @@ import {
 import { TICKETS_PAGE_SIZE, useTicketsQuery } from '../../../tickets/hooks/use-tickets-query';
 import type { Dialog } from '../../../tickets/types/dialog.types';
 import { CustomerTabHeader } from './customer-tab-header';
-
-/**
- * The grid widths of this tab's ticket columns, by column: the grid lays a column out by its `size`, the card rows by
- * the shared columns' own widths. The cells' one-line grid form belongs to the shared ticket columns: until they state
- * one, the grid clips their card cells to one line.
- */
-const GRID_COLUMN_SIZE: Record<string, { size: number; minSize?: number; label: string }> = {
-  title: { size: 420, label: 'Ticket' },
-  source: { size: 280, minSize: GRID_MIN_WIDTH.icon, label: 'Source' },
-  assignee: { size: 280, minSize: GRID_MIN_WIDTH.media, label: 'Assignee' },
-  status: { size: 180, label: 'Status' },
-};
 
 interface CustomerTicketsTabProps {
   organizationId: string;
@@ -79,36 +62,12 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
   });
 
   const { isUserDeleted } = useUserStatusMap(tickets.map(ticket => ticket.assignedTo));
-  // The shared ticket columns and the trailing open-in-new-tab action.
-  const columns = useMemo<ColumnDef<Dialog>[]>(() => {
-    const data = getTicketTableColumns({ isArchived: false, isUserDeleted }).map(source => {
-      // What the grid reads beside the card widths: the column's size and its name in the settings menu.
-      const key = (source as { accessorKey?: string }).accessorKey;
-      const grid = key ? GRID_COLUMN_SIZE[key] : undefined;
-      return grid
-        ? { ...source, size: grid.size, minSize: grid.minSize, meta: { ...source.meta, label: grid.label } }
-        : source;
-    });
-    // The open column is the grid's action column kept by hand (pinned right, never hidden), so that the card rows
-    // keep it as it is. In the grid it draws the shared open button's grid form (no border or fill of its own), as
-    // every other list's action column does; the card cell stays the shared ticket column's.
-    const open = getTicketOpenColumn();
-    return [
-      ...data,
-      {
-        ...open,
-        size: GRID_ACTION_COLUMN_SIZE,
-        enableHiding: false,
-        meta: {
-          ...open.meta,
-          gridKind: 'action',
-          gridCell: ({ row }: { row: Row<Dialog> }) => (
-            <OpenRowButton grid label="Open in new tab" onClick={openInNewTab(ticketRowHref(row.original))} />
-          ),
-        },
-      },
-    ];
-  }, [isUserDeleted]);
+  // The shared ticket columns and the trailing open-in-new-tab action: both state their own grid form (widths, one-line
+  // cells, the action column), so the tab takes them as they are.
+  const columns = useMemo<ColumnDef<Dialog>[]>(
+    () => [...getTicketTableColumns({ isArchived: false, isUserDeleted }), getTicketOpenColumn()],
+    [isUserDeleted],
+  );
 
   const loading = scoped || isLoading;
   // While the customer or the first page is read the table holds one page of placeholder rows, drawn with the real

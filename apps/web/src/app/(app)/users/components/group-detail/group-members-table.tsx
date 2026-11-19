@@ -30,7 +30,6 @@ import {
   useRetryKey,
 } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
-import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { openRowColumn } from '@/app/components/shared/open-row-column';
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { useTableGrid } from '@/app/components/shared/table-layout-scope';
@@ -39,7 +38,6 @@ import { DirectoryMembershipScope } from '@/generated/schema-enums';
 import { toAccountRow } from '@/graphql/directory/account-row-fields';
 import { toCustomer } from '@/graphql/directory/customer-claim-fields';
 import { toCustomerOption } from '@/graphql/directory/customer-option';
-import { openInNewTab } from '@/lib/open-in-new-tab';
 import { pluralize } from '@/lib/pluralize';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
@@ -252,19 +250,10 @@ const COLUMNS: ColumnDef<MemberRow>[] = [
     size: 240,
     meta: liveColumnMeta(MEMBER_COLUMNS.licences),
   },
-  {
-    // The grid's form of the column: an action column, its button inert on a row with nothing to open. The card cell
-    // stays its own: a record no machine is linked to has no button there.
-    ...openRowColumn<MemberRow>(MEMBER_COLUMNS.open, row => ({
-      label: `Open ${row.name ?? 'member'} in new tab`,
-      href: row.href,
-    })),
-    cell: ({ row }: { row: Row<MemberRow> }) => {
-      const { href, name } = row.original;
-      if (!href) return null;
-      return <OpenRowButton label={`Open ${name ?? 'member'} in new tab`} onClick={openInNewTab(href)} />;
-    },
-  },
+  // A member with nothing behind it to open (a record no machine is linked to) has no button, in either layout.
+  openRowColumn<MemberRow>(MEMBER_COLUMNS.open, row =>
+    row.href ? { label: `Open ${row.name ?? 'member'} in new tab`, href: row.href } : null,
+  ),
 ];
 
 const getRowId = (row: MemberRow) => row.id;
