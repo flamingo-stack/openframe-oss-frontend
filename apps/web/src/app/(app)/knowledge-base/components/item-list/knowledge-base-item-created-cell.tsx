@@ -13,13 +13,19 @@ const knowledgeBaseItemCreatedCellFragment = graphql`
   }
 `;
 
+interface KnowledgeBaseItemCreatedCellProps {
+  item: knowledgeBaseItemCreatedCell_item$key;
+  /** The cell's one-line form in a grid table (`ItemTimestamp`). */
+  grid?: boolean;
+}
+
 /** CREATED column: when an article was written. A folder's row leaves it empty. */
-export function KnowledgeBaseItemCreatedCell({ item }: { item: knowledgeBaseItemCreatedCell_item$key }) {
+export function KnowledgeBaseItemCreatedCell({ item, grid }: KnowledgeBaseItemCreatedCellProps) {
   // A row still being read (a loading scope) has no fragment to read: the timestamp draws its bars.
   const data = useFragment(knowledgeBaseItemCreatedCellFragment, useLoadingScope() ? null : item);
-  if (!data) return <ItemTimestamp value={null} />;
+  if (!data) return <ItemTimestamp value={null} grid={grid} />;
   if (data.type !== KnowledgeBaseItemType.ARTICLE || !data.createdAt) {
     return null;
   }
-  return <ItemTimestamp value={data.createdAt} />;
+  return <ItemTimestamp value={data.createdAt} grid={grid} />;
 }

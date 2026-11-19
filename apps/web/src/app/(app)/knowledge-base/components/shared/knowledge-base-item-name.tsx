@@ -1,6 +1,6 @@
 'use client';
 
-import { Tag, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { DataTable, Tag, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { knowledgeBaseItemNameCell_item$data } from '@/__generated__/knowledgeBaseItemNameCell_item.graphql';
 import { KnowledgeBaseArticleStatus, KnowledgeBaseItemType } from '@/generated/schema-enums';
 import { ARTICLE_STATUS_VARIANT } from './article-status';
@@ -10,6 +10,11 @@ import { KB_ITEM_ICON } from './knowledge-base-item-icon';
 export type KnowledgeBaseItemNameProps = Omit<knowledgeBaseItemNameCell_item$data, ' $fragmentType'> & {
   /** The folder the row is in — for a list whose rows come from different folders. */
   folder?: string;
+  /**
+   * The cell's form in a grid table: one line (the glyph, the name, the status, then the folder and the summary beside
+   * them). Default: the card row's two lines.
+   */
+  grid?: boolean;
 };
 
 /**
@@ -18,13 +23,24 @@ export type KnowledgeBaseItemNameProps = Omit<knowledgeBaseItemNameCell_item$dat
  * scope, no name yet) the tile is static chrome (an article's glyph), and the name
  * and the caption are bars.
  */
-export function KnowledgeBaseItemName({ type, name, status, summary, folder }: KnowledgeBaseItemNameProps) {
+export function KnowledgeBaseItemName({ type, name, status, summary, folder, grid }: KnowledgeBaseItemNameProps) {
   const loading = useLoadingScope() && !name;
   const isFolder = type === KnowledgeBaseItemType.FOLDER;
   const caption = [folder, isFolder ? null : summary].filter(Boolean).join(' · ');
   const Icon = KB_ITEM_ICON[isFolder ? KnowledgeBaseItemType.FOLDER : KnowledgeBaseItemType.ARTICLE];
   const flag =
     status === KnowledgeBaseArticleStatus.DRAFT || status === KnowledgeBaseArticleStatus.ARCHIVED ? status : null;
+
+  if (grid) {
+    return (
+      <DataTable.Cell
+        leading={{ type: 'icon', icon: <Icon size={16} className="shrink-0" /> }}
+        text={name}
+        tag={flag ? <Tag variant={ARTICLE_STATUS_VARIANT[flag]} label={flag} /> : undefined}
+        secondary={caption || undefined}
+      />
+    );
+  }
 
   return (
     <div className="flex h-20 w-full items-center gap-[var(--spacing-system-m)]">

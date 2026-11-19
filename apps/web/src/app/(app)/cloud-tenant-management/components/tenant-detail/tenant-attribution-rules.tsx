@@ -8,6 +8,7 @@ import {
   type ColumnFiltersState,
   DataTable,
   type DataTableFilterOption,
+  type DataTableSettings,
   FilterModal,
   type Row,
   type SortingState,
@@ -26,6 +27,7 @@ import { useRetryKey } from '@/app/components/shared';
 import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { ValueText } from '@/app/components/shared/value-text';
+import { tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { DirectoryRuleKind } from '@/generated/schema-enums';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { deletedValuesBadge, ruleKindLabel, ruleValueLabel } from '../../utils/tenant-presentation';
@@ -110,11 +112,21 @@ function toRows(customers: Customers): AttributionRuleRow[] {
 
 const getRowId = (row: AttributionRuleRow) => row.id;
 
+/**
+ * The grid table's settings: the gear's menu of columns, with the viewer's layout (hidden columns, their order,
+ * resized widths) kept in the browser under this table's own key.
+ */
+const ATTRIBUTION_RULES_TABLE_SETTINGS: DataTableSettings = { storageKey: 'tenant-attribution-rules' };
+
 /** A filter's options: the values the rows actually hold, so no option can only ever empty the table. */
 function optionsOf(rows: readonly AttributionRuleRow[], key: 'customer' | 'matchBy'): DataTableFilterOption[] {
   return [...new Set(rows.map(row => row[key]))].sort().map(label => ({ id: label, label, value: label }));
 }
 
+/**
+ * The columns. Every cell is one line already, so the grid draws the card cells; each column adds the grid layout's
+ * `size` and its `label` for the settings menu beside the card layout's `meta.width`.
+ */
 function attributionRuleColumns(
   customerOptions: DataTableFilterOption[],
   matchByOptions: DataTableFilterOption[],
@@ -131,7 +143,11 @@ function attributionRuleColumns(
       ),
       filterFn: multiSelectFilterFn,
       enableSorting: false,
-      meta: liveColumnMeta(ATTRIBUTION_RULE_COLUMNS.customer, { filter: { options: customerOptions } }),
+      size: 300,
+      meta: liveColumnMeta(ATTRIBUTION_RULE_COLUMNS.customer, {
+        label: 'Customer',
+        filter: { options: customerOptions },
+      }),
     },
     {
       accessorKey: 'matchBy',
@@ -139,7 +155,11 @@ function attributionRuleColumns(
       cell: ({ row }: { row: Row<AttributionRuleRow> }) => <ValueText value={row.original.matchBy} />,
       filterFn: multiSelectFilterFn,
       enableSorting: false,
-      meta: liveColumnMeta(ATTRIBUTION_RULE_COLUMNS.matchBy, { filter: { options: matchByOptions } }),
+      size: 200,
+      meta: liveColumnMeta(ATTRIBUTION_RULE_COLUMNS.matchBy, {
+        label: 'Match by',
+        filter: { options: matchByOptions },
+      }),
     },
     {
       accessorKey: 'values',
@@ -153,20 +173,27 @@ function attributionRuleColumns(
         </span>
       ),
       enableSorting: false,
-      meta: liveColumnMeta(ATTRIBUTION_RULE_COLUMNS.values),
+      size: 360,
+      meta: liveColumnMeta(ATTRIBUTION_RULE_COLUMNS.values, { label: 'Values' }),
     },
     {
       accessorKey: 'users',
       header: ATTRIBUTION_RULE_COLUMNS.users.header,
       cell: ({ row }: { row: Row<AttributionRuleRow> }) => <ValueText value={row.original.users} />,
       sortUndefined: 'last',
-      meta: liveColumnMeta(ATTRIBUTION_RULE_COLUMNS.users),
+      size: 140,
+      meta: liveColumnMeta(ATTRIBUTION_RULE_COLUMNS.users, { label: 'Users' }),
     },
   ];
 }
 
 function AttributionRulesTable({ customers }: { customers: Customers | null }) {
-  const loading = customers == null;
+  // The grid table, behind the app's one table flag; card rows while it is off. Until the flag is answered the table
+  // is loading: one layout is never drawn and then replaced by the other. Both of the section's branches (its loading
+  // scope and the read rules) draw this table, so both draw the same layout.
+  const tableGate = useTableGridGate();
+  const layout = tableLayoutFor(tableGate);
+  const loading = customers == null || tableGate === 'loading';
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -204,22 +231,25 @@ function AttributionRulesTable({ customers }: { customers: Customers | null }) {
   const selected = Object.fromEntries(columnFilters.map(filter => [filter.id, filter.value as string[]]));
 
   // Nothing but ALL rules (left out by `toRows`): no section at all, rather than an empty table.
-  if (!loading && customers.length > 0 && rows.length === 0) return null;
+  if (!loading && customers != null && customers.length > 0 && rows.length === 0) return null;
 
   return (
     <section className="flex flex-col gap-[var(--spacing-system-l)]">
       <div className="flex items-center justify-between gap-[var(--spacing-system-m)]">
         <h2 className="text-ods-text-primary text-h2">Attribution Rules</h2>
-        {/* The header filters and sorts from `content-md`; a phone has no header (Figma 3287:13732). */}
-        <Button
-          variant="outline"
-          size="icon"
-          className="content-md:hidden"
-          onClick={() => setFiltersOpen(true)}
-          disabled={loading}
-          aria-label="Filter attribution rules"
-          leftIcon={<Filter02Icon className="text-ods-text-primary" />}
-        />
+        {/* Card rows: the header filters and sorts from `content-md`; a phone has no header (Figma 3287:13732). The
+            grid table has its header, with the funnels and the sort, at every width. */}
+        {layout === 'cards' && (
+          <Button
+            variant="outline"
+            size="icon"
+            className="content-md:hidden"
+            onClick={() => setFiltersOpen(true)}
+            disabled={loading}
+            aria-label="Filter attribution rules"
+            leftIcon={<Filter02Icon className="text-ods-text-primary" />}
+          />
+        )}
       </div>
       <FilterModal
         isOpen={filtersOpen}
@@ -244,8 +274,21 @@ function AttributionRulesTable({ customers }: { customers: Customers | null }) {
         onSort={(columnId, direction) => setSorting([{ id: columnId, desc: direction === 'desc' }])}
         onSortClear={() => setSorting([])}
       />
-      <DataTable table={table}>
-        <DataTable.Header rightSlot={<DataTable.RowCount />} sort={sort} onSortChange={handleSortChange} />
+      {/* A section of the tenant's page: the grid keeps its natural height and the page scrolls. Card rows do not read
+          the settings. */}
+      <DataTable table={table} layout={layout} settings={ATTRIBUTION_RULES_TABLE_SETTINGS}>
+        {/* The grid's count sits above the table; the card header carries its own (`rightSlot`). */}
+        {layout === 'grid' && (
+          <DataTable.Meta>
+            <DataTable.RowCount />
+          </DataTable.Meta>
+        )}
+        <DataTable.Header
+          rightSlot={<DataTable.RowCount />}
+          sort={sort}
+          onSortChange={handleSortChange}
+          loading={loading}
+        />
         <DataTable.Body
           loading={loading}
           loadingCells={loading}

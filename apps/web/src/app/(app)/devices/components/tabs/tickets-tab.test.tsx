@@ -62,9 +62,9 @@ const idle = {
 let container: HTMLDivElement;
 let root: Root;
 
-function render(device: Device | null) {
+function render(device: Device | null, tableLayout?: 'cards' | 'grid') {
   act(() => {
-    root.render(<TicketsTab device={device} />);
+    root.render(<TicketsTab device={device} tableLayout={tableLayout} />);
   });
 }
 
@@ -107,5 +107,28 @@ describe('TicketsTab', () => {
     hooks.useTicketsQuery.mockReturnValue({ ...idle, hasNextPage: false });
     render(DEVICE);
     expect(container.textContent).toContain('Ticket history empty');
+  });
+});
+
+describe('TicketsTab and the table layout', () => {
+  const grid = () => ({
+    drawn: container.querySelector('[data-grid-root]') !== null,
+    settings: container.querySelector('[aria-label="Table settings"]') !== null,
+    // The table keeps its natural height: the page scrolls, not the table.
+    ownScroll: container.querySelector('[data-grid-root] [style*="--data-table-max-height"]') !== null,
+  });
+
+  it('draws card rows by default and where cards are asked for', () => {
+    hooks.useTicketsQuery.mockReturnValue({ ...idle, isLoading: true });
+    render(DEVICE);
+    expect(grid()).toEqual({ drawn: false, settings: false, ownScroll: false });
+    render(DEVICE, 'cards');
+    expect(grid()).toEqual({ drawn: false, settings: false, ownScroll: false });
+  });
+
+  it('draws the grid table with its column settings, at its natural height, where the grid is asked for', () => {
+    hooks.useTicketsQuery.mockReturnValue({ ...idle, isLoading: true });
+    render(DEVICE, 'grid');
+    expect(grid()).toEqual({ drawn: true, settings: true, ownScroll: false });
   });
 });

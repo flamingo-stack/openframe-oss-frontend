@@ -28,11 +28,10 @@ export function SoftwareDeviceVersionCell({
   // A row still being read (a loading scope) has no fragment to read: `ValueText` draws its bar.
   const data = useFragment(softwareDeviceVersionCellFragment, useLoadingScope() ? null : softwareOnDevice);
   return (
-    <div className="flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]">
-      <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-        <ValueText value={data?.softwareVersion} />
-        <SoftwareOnDeviceStatusTag status={data?.status} />
-      </div>
+    // One row that wraps: one line in the grid layout, the adoption chip under the version where a card is narrow.
+    <div className="flex min-w-0 flex-wrap items-center gap-[var(--spacing-system-xxs)]">
+      <ValueText value={data?.softwareVersion} />
+      <SoftwareOnDeviceStatusTag status={data?.status} />
       <SoftwareDeviceAdoptionTag softwareOnDevice={data ?? null} className="content-md:hidden" />
     </div>
   );

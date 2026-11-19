@@ -6,8 +6,11 @@ import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components
 import {
   Button,
   type ColumnDef,
+  DataTable,
   FilterModal,
   FloatingTooltip,
+  GRID_ACTION_COLUMN_SIZE,
+  GRID_MIN_WIDTH,
   type Row,
   Tag,
   TruncateText,
@@ -23,6 +26,7 @@ import type {
 import { liveColumnMeta, oneLineEmptyState, useRetryKey } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
+import { useTableGrid } from '@/app/components/shared/table-layout-scope';
 import { singleColumnFilter } from '../../../software/components/shared/column-filters';
 import { groupRefName } from '../../utils/user-presentation';
 import { UserTabHeading } from './user-tab-heading';
@@ -120,15 +124,52 @@ function AssignmentCell({ row }: { row: LicenceRow }) {
   );
 }
 
+/** ASSIGNMENT column in the grid layout: the same tags on one line (they wrap in the card's narrow column). */
+function AssignmentGridCell({ row }: { row: LicenceRow }) {
+  const loading = useLoadingScope();
+  const assignments = row.assignments ?? [DIRECT];
+  return (
+    <DataTable.Cell
+      tag={
+        <span className="flex items-center gap-[var(--spacing-system-xxs)]">
+          {assignments.includes(DIRECT) && <Tag label="Direct" variant="grey" loading={loading} />}
+          {assignments.includes(VIA_GROUP) && (
+            <FloatingTooltip
+              as="span"
+              content={
+                <>
+                  {(row.viaGroups ?? []).map(name => (
+                    <p key={name}>{name}</p>
+                  ))}
+                  <p>An inherited seat can’t be released from the user.</p>
+                </>
+              }
+            >
+              <Tag label="Via group" variant="grey" />
+            </FloatingTooltip>
+          )}
+        </span>
+      }
+    />
+  );
+}
+
 const assignmentFilterFn = (row: Row<LicenceRow>, _columnId: string, selected: string[] | undefined) =>
   !selected?.length || (row.original.assignments ?? []).some(assignment => selected.includes(assignment));
 
+/*
+ * The columns. Each data column also states what the grid layout reads: a `size` (its designed width), and for the
+ * assignment a `gridCell` that keeps its tags on one line. The licence is one line already. The card rows' empty action
+ * gutter is the grid's action column: nothing in its rows, the settings gear in its header.
+ */
 const COLUMNS: ColumnDef<LicenceRow>[] = [
   {
     id: LICENCE_COLUMNS.licence.id,
     header: LICENCE_COLUMNS.licence.header,
     cell: ({ row }: { row: Row<LicenceRow> }) => <LicenceCell row={row.original} />,
     enableSorting: false,
+    size: 440,
+    minSize: GRID_MIN_WIDTH.icon,
     meta: liveColumnMeta(LICENCE_COLUMNS.licence),
   },
   {
@@ -138,9 +179,20 @@ const COLUMNS: ColumnDef<LicenceRow>[] = [
     cell: ({ row }: { row: Row<LicenceRow> }) => <AssignmentCell row={row.original} />,
     enableSorting: false,
     filterFn: assignmentFilterFn,
-    meta: liveColumnMeta(LICENCE_COLUMNS.assignment, { filter: { options: ASSIGNMENT_OPTIONS } }),
+    size: 220,
+    meta: liveColumnMeta(LICENCE_COLUMNS.assignment, {
+      filter: { options: ASSIGNMENT_OPTIONS },
+      gridCell: ({ row }: { row: Row<LicenceRow> }) => <AssignmentGridCell row={row.original} />,
+    }),
   },
-  { id: LICENCE_COLUMNS.open.id, cell: () => null, enableSorting: false, meta: liveColumnMeta(LICENCE_COLUMNS.open) },
+  {
+    id: LICENCE_COLUMNS.open.id,
+    cell: () => null,
+    enableSorting: false,
+    size: GRID_ACTION_COLUMN_SIZE,
+    enableHiding: false,
+    meta: liveColumnMeta(LICENCE_COLUMNS.open, { gridKind: 'action' }),
+  },
 ];
 
 /** The phone's filter window (Figma 1019:37231): the Assignment funnel the column header carries from `content-md`. */
@@ -158,6 +210,7 @@ const LICENCES_SKELETON_ROWS = 3;
 /** The heading and the table, from the rows it is handed (`null` while they are read). */
 function LicencesTable({ rows }: { rows: readonly LicenceRow[] | null }) {
   const loading = useLoadingScope();
+  const tableGrid = useTableGrid('user-licences');
   const [selected, setSelected] = useState<string[]>([]);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const { columnFilters, onColumnFiltersChange } = singleColumnFilter(
@@ -196,6 +249,7 @@ function LicencesTable({ rows }: { rows: readonly LicenceRow[] | null }) {
         }
       />
       <LiveTable
+        {...tableGrid}
         table={table}
         skeletonRows={LICENCES_SKELETON_ROWS}
         loadingCells={loading}

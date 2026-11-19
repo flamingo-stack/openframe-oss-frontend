@@ -14,8 +14,10 @@ import {
 import {
   ActionsMenuDropdown,
   type ActionsMenuGroup,
+  actionColumn,
   type ColumnDef,
   DataTable,
+  type DataTableSettings,
   type PageActionButton,
   PageLayout,
   type Row,
@@ -29,6 +31,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EmptyState, oneLineEmptyState } from '@/app/components/shared/empty-state';
 import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
+import { tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDate, formatTime } from '@/lib/format-date';
 import { formatCount } from '@/lib/format-number';
@@ -51,6 +54,12 @@ const MENU_ICON = 'w-6 h-6 text-ods-text-secondary';
 const API_KEYS_SKELETON_ROWS = 10;
 
 /**
+ * The grid table's settings: the gear's menu of columns, with the viewer's layout (hidden columns, their order,
+ * resized widths) kept in the browser under this table's own key.
+ */
+const API_KEYS_TABLE_SETTINGS: DataTableSettings = { storageKey: 'settings-api-keys' };
+
+/**
  * A cell's text line; a bar of that line on a loading row (a loading scope, no key yet), where a formatter's empty
  * mark ("—") or a placeholder's id would otherwise be drawn as text.
  */
@@ -61,6 +70,19 @@ function KeyText({ text, variant, tone, mono }: { text: string; variant?: 'h6'; 
       {text}
     </TruncateText>
   );
+}
+
+/**
+ * A grid cell's one line: the text and, after it, what the card cell says on its second line. One bar on a loading row.
+ */
+function KeyGridText({ text, secondary }: { text: string; secondary?: string }) {
+  if (useLoadingScope()) return <DataTable.Cell text="" />;
+  return <DataTable.Cell text={text} secondary={secondary} />;
+}
+
+/** A date and its time on the grid's one line; a missing date is the empty mark alone. */
+function KeyGridDate({ value }: { value: ApiKeyRecord['createdAt'] | ApiKeyRecord['expiresAt'] }) {
+  return <KeyGridText text={formatDate(value)} secondary={value ? formatTime(value) : undefined} />;
 }
 
 /** The key's status tag; the tag's own skeleton on a loading row (a placeholder is neither active nor inactive). */
@@ -78,6 +100,8 @@ function KeyStatusTag({ enabled }: { enabled: boolean }) {
 
 export function ApiKeysTab() {
   const handleBack = useSafeBack(routes.settings.root());
+  // The grid table, behind the app's one table flag; card rows while it is off.
+  const tableGate = useTableGridGate();
   const { toast } = useToast();
   const { items, isLoading, error, fetchApiKeys, createApiKey, updateApiKey, regenerateApiKey, setApiKeyEnabled } =
     useApiKeys();
@@ -170,8 +194,9 @@ export function ApiKeysTab() {
     [openDetails, enableApiKey],
   );
 
-  // Mobile keeps only name/description, status and the actions menu; the rest
-  // fold in at tablet (expires), desktop (usage, created) and wide desktop (key id).
+  // Card rows: mobile keeps only name/description, status and the actions menu; the rest fold in at tablet (expires),
+  // desktop (usage, created) and wide desktop (key id). Beside the card layout's `meta.width` each data column states
+  // what the grid layout reads: a `size`, a one-line `gridCell` where the card cell has two lines, a `label`.
   const columns = useMemo<ColumnDef<ApiKeyRecord>[]>(
     () => [
       {
@@ -183,25 +208,42 @@ export function ApiKeysTab() {
             <KeyText variant="h6" tone="secondary" text={row.original.description || EMPTY_VALUE} />
           </div>
         ),
-        meta: { width: 'flex-1 min-w-0' },
+        size: 320,
+        meta: {
+          width: 'flex-1 min-w-0',
+          label: 'Name',
+          gridCell: ({ row }: { row: Row<ApiKeyRecord> }) => (
+            <KeyGridText text={row.original.name} secondary={row.original.description || undefined} />
+          ),
+        },
       },
       {
         accessorKey: 'enabled',
         header: 'Status',
         cell: ({ row }: { row: Row<ApiKeyRecord> }) => <KeyStatusTag enabled={row.original.enabled} />,
-        meta: { width: 'w-auto shrink-0 content-md:w-[120px]' },
+        size: 140,
+        meta: {
+          width: 'w-auto shrink-0 content-md:w-[120px]',
+          label: 'Status',
+          gridCell: ({ row }: { row: Row<ApiKeyRecord> }) => (
+            <DataTable.Cell tag={<KeyStatusTag enabled={row.original.enabled} />} />
+          ),
+        },
       },
       {
         accessorKey: 'id',
         header: 'Key ID',
         cell: ({ row }: { row: Row<ApiKeyRecord> }) => <KeyText mono text={row.original.id} />,
-        meta: { width: 'w-[240px] shrink-0', hideAt: 'xl' },
+        // One line of monospace already: the grid draws the same cell.
+        size: 300,
+        meta: { width: 'w-[240px] shrink-0', hideAt: 'xl', label: 'Key ID' },
       },
       {
         accessorKey: 'totalRequests',
         header: 'Usage',
         cell: ({ row }: { row: Row<ApiKeyRecord> }) => <KeyText text={formatCount(row.original.totalRequests)} />,
-        meta: { width: 'w-[100px] shrink-0', hideAt: 'lg' },
+        size: 120,
+        meta: { width: 'w-[100px] shrink-0', hideAt: 'lg', label: 'Usage' },
       },
       {
         accessorKey: 'createdAt',
@@ -212,7 +254,13 @@ export function ApiKeysTab() {
             <KeyText variant="h6" tone="secondary" text={formatTime(row.original.createdAt)} />
           </div>
         ),
-        meta: { width: 'w-[140px] shrink-0', hideAt: 'lg' },
+        size: 200,
+        meta: {
+          width: 'w-[140px] shrink-0',
+          hideAt: 'lg',
+          label: 'Created',
+          gridCell: ({ row }: { row: Row<ApiKeyRecord> }) => <KeyGridDate value={row.original.createdAt} />,
+        },
       },
       {
         accessorKey: 'expiresAt',
@@ -223,25 +271,34 @@ export function ApiKeysTab() {
             <KeyText variant="h6" tone="secondary" text={formatTime(row.original.expiresAt)} />
           </div>
         ),
-        meta: { width: 'w-[140px] shrink-0', hideAt: 'md' },
+        size: 200,
+        meta: {
+          width: 'w-[140px] shrink-0',
+          hideAt: 'md',
+          label: 'Expires',
+          gridCell: ({ row }: { row: Row<ApiKeyRecord> }) => <KeyGridDate value={row.original.expiresAt} />,
+        },
       },
-      {
+      // The row menu: the grid's action column. `actionColumn()` gives the card layout the `meta` this column always had
+      // (`w-12 shrink-0 flex-none`, right-aligned, shown at every width), so the card rows do not change.
+      actionColumn<ApiKeyRecord>({
         id: 'actions',
-        cell: ({ row }: { row: Row<ApiKeyRecord> }) => (
+        cell: ({ row }) => (
           <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
             {renderRowActions(row.original)}
           </div>
         ),
-        enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none', align: 'right' },
-      },
+      }),
     ],
     [renderRowActions],
   );
 
   // The first read (no key on screen yet): the table holds placeholder rows, drawn with their real cells
-  // (`loadingCells`), each cell its own loading form. A refetch keeps the keys on screen.
-  const loadingRows = isLoading && items.length === 0;
+  // (`loadingCells`), each cell its own loading form. A refetch keeps the keys on screen. Until the table flag is
+  // answered the table is loading too: one layout is never drawn and then replaced by the other.
+  const gateLoading = tableGate === 'loading';
+  const loadingRows = gateLoading || (isLoading && items.length === 0);
+  const layout = tableLayoutFor(tableGate);
   const data = useMemo(
     () => (loadingRows ? loadingPlaceholderRows<ApiKeyRecord>(API_KEYS_SKELETON_ROWS) : items),
     [loadingRows, items],
@@ -295,10 +352,21 @@ export function ApiKeysTab() {
           description="Keys that let your scripts and integrations call the OpenFrame API will be listed here."
         />
       ) : (
-        <DataTable table={table}>
-          <DataTable.Header rightSlot={<DataTable.RowCount itemName="API key" loading={loadingRows} />} />
+        // The grid table is the page's main content: it fills the height under the title, and the page does not
+        // scroll. Card rows read neither the height nor the settings.
+        <DataTable table={table} layout={layout} maxHeight="fill" settings={API_KEYS_TABLE_SETTINGS}>
+          {/* The grid's count sits above the table; the card header carries its own (`rightSlot`). */}
+          {layout === 'grid' && (
+            <DataTable.Meta>
+              <DataTable.RowCount itemName="API key" loading={loadingRows} />
+            </DataTable.Meta>
+          )}
+          <DataTable.Header
+            rightSlot={<DataTable.RowCount itemName="API key" loading={loadingRows} />}
+            loading={loadingRows}
+          />
           <DataTable.Body
-            loading={isLoading}
+            loading={isLoading || gateLoading}
             loadingCells={loadingRows}
             skeletonRows={API_KEYS_SKELETON_ROWS}
             emptyState={oneLineEmptyState(error || 'No API keys found.')}

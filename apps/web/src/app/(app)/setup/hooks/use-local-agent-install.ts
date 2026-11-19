@@ -21,6 +21,8 @@ export interface LocalAgentInstall {
   lines: InstallOutputLine[];
   /** Why the last run failed, or null. */
   error: AgentInstallError | null;
+  /** When the last run settled (epoch ms), succeeded or failed; null while idle or running. */
+  settledAt: number | null;
   /** Install the agent on this machine behind the administrator prompt. */
   start: (request: AgentInstallRequest) => Promise<void>;
 }
@@ -36,6 +38,7 @@ export function useLocalAgentInstall(): LocalAgentInstall {
   const [status, setStatus] = useState<LocalInstallStatus>('idle');
   const [lines, setLines] = useState<InstallOutputLine[]>([]);
   const [error, setError] = useState<AgentInstallError | null>(null);
+  const [settledAt, setSettledAt] = useState<number | null>(null);
 
   useEffect(() => {
     if (!supported) return undefined;
@@ -52,6 +55,7 @@ export function useLocalAgentInstall(): LocalAgentInstall {
       if (!live) return;
       setStatus(done.success ? 'succeeded' : 'failed');
       setError(done.error ?? null);
+      setSettledAt(Date.now());
     });
     return () => {
       live = false;
@@ -61,14 +65,16 @@ export function useLocalAgentInstall(): LocalAgentInstall {
   const start = useCallback(async (request: AgentInstallRequest) => {
     setLines([]);
     setError(null);
+    setSettledAt(null);
     setStatus('running');
     try {
       await startLocalAgentInstall(request);
     } catch (caught) {
       setStatus('failed');
       setError(caught as AgentInstallError);
+      setSettledAt(Date.now());
     }
   }, []);
 
-  return { supported, status, lines, error, start };
+  return { supported, status, lines, error, settledAt, start };
 }

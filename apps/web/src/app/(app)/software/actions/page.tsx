@@ -1,5 +1,6 @@
 'use client';
 
+import { TableLayoutScope } from '@/app/components/shared/table-layout-scope';
 import { SoftwareActionsView } from '../components/action-list/software-actions-view';
 import { SoftwarePageShell } from '../components/shared/software-page-shell';
 import { SOFTWARE_SECTIONS } from '../components/shared/software-sections';
@@ -14,7 +15,10 @@ export default function SoftwareActionsPage() {
       title={SOFTWARE_SECTIONS.actions.label}
       errorMessage="Couldn't load software actions."
     >
-      <SoftwareActionsView loading={gate === 'loading'} />
+      {/* The list is the page's content: in the grid layout its table is the page's scroll area. */}
+      <TableLayoutScope fill>
+        <SoftwareActionsView loading={gate === 'loading'} />
+      </TableLayoutScope>
     </SoftwarePageShell>
   );
 }

@@ -12,6 +12,7 @@ import { NavigationSidebarActionRow } from '@flamingo-stack/openframe-frontend-c
 import { useRouter } from 'next/navigation';
 import { useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
+import { useWhatToAskLabel } from '@/app/(app)/mingo/hooks/use-what-to-ask-label';
 import { useMingoChat } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
@@ -65,6 +66,7 @@ export function MingoSidebarHistory({
   const [archiveTarget, setArchiveTarget] = useState<DialogItem | null>(null);
   const onboardingV2 = useFeatureFlagGate('onboarding-v2');
   const canResetOnboarding = useCanResetOnboarding() && onboardingV2 === 'on';
+  const whatToAsk = useWhatToAskLabel();
   const [resetOnboardingOpen, setResetOnboardingOpen] = useState(false);
   // The modals render over the window, outside the sidebar: a drawer that slides
   // the sidebar in (a transform) would otherwise become their containing block.
@@ -143,8 +145,9 @@ export function MingoSidebarHistory({
         onRequestCopyLink={state.dialogCapabilities?.onCopyLink}
         onRequestArchive={setArchiveTarget}
         onOpenArchive={() => open(routes.mingo.archive)}
-        // The design's "What to ask Mingo?" in the history's ⋯: the suggestions, as the full chat.
+        // "What to ask?" in the history's ⋯: the `/what-can-you-do` command, as the full chat (only when the hub lists it).
         onWhatToAsk={() => useMingoLauncherStore.getState().showWhatToAsk()}
+        whatToAskLabel={whatToAsk ?? undefined}
         moreMenuItems={
           canResetOnboarding
             ? [

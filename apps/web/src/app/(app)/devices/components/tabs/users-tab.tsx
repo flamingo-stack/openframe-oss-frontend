@@ -6,6 +6,7 @@ import { UsersIcon } from '@flamingo-stack/openframe-frontend-core/components/ic
 import {
   type ColumnDef,
   DataTable,
+  type DataTableSettings,
   type Row,
   SearchInput,
   TruncateText,
@@ -17,8 +18,10 @@ import { useMemo, useState } from 'react';
 import { EmptyValue } from '@/app/components/shared/empty-value';
 import { LIVE_ROW_GAP_CLASS, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
+import { ValueGridCell } from '@/app/components/shared/value-grid-cell';
 import { ValueText } from '@/app/components/shared/value-text';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import type { TableLayout } from '@/app/hooks/use-table-layout';
 import type { Device } from '../../types/device.types';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
 
@@ -32,8 +35,19 @@ const USER_COLUMNS = {
   status: { id: 'status', header: 'STATUS', width: 'w-[120px] shrink-0', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;
 
+/**
+ * The grid table's settings: the gear's menu of columns, with the viewer's layout (hidden columns, their order, resized
+ * widths) kept in the browser under this table's own key.
+ */
+const USERS_TABLE_SETTINGS: DataTableSettings = { storageKey: 'device-users' };
+
 interface UsersTabProps {
   device: Device | null;
+  /**
+   * The table's layout. `grid` draws the lib's grid table (48px one-line rows, the user column pinned, the gear menu),
+   * at the tab's natural height: the page scrolls. Default `cards`.
+   */
+  tableLayout?: TableLayout;
 }
 
 interface UserRow {
@@ -72,13 +86,25 @@ function UserNameCell({ user }: { user: UserRow }) {
   );
 }
 
+/** The grid's one line: the account name with its role after it. */
+function UserNameGridCell({ user }: { user: UserRow }) {
+  // A row still being read has no name: the cell draws its bar, and no role beside it.
+  if (useLoadingScope()) return <DataTable.Cell text="" />;
+  return <DataTable.Cell text={user.username} secondary={roleLabel(user)} />;
+}
+
 /** The account type; a bar of its line on a loading row. */
 function UserTypeCell({ type }: { type: string | undefined }) {
   if (useLoadingScope()) return <TextLineSkeleton type="h4" className="w-3/4" />;
   return <span className="capitalize text-ods-text-primary text-h4">{type || <EmptyValue />}</span>;
 }
 
-export function UsersTab({ device }: UsersTabProps) {
+/** The account type as the card row prints it (CSS capitalises it there): "person" reads "Person". */
+function typeLabel(type: string | undefined): string | undefined {
+  return type ? type.charAt(0).toUpperCase() + type.slice(1) : undefined;
+}
+
+export function UsersTab({ device, tableLayout = 'cards' }: UsersTabProps) {
   const loading = useLoadingScope();
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
@@ -116,35 +142,55 @@ export function UsersTab({ device }: UsersTabProps) {
         header: USER_COLUMNS.username.header,
         cell: ({ row }: { row: Row<UserRow> }) => <UserNameCell user={row.original} />,
         enableSorting: false,
-        meta: liveColumnMeta(USER_COLUMNS.username),
+        size: 280,
+        meta: liveColumnMeta(USER_COLUMNS.username, {
+          label: 'User',
+          gridCell: ({ row }: { row: Row<UserRow> }) => <UserNameGridCell user={row.original} />,
+        }),
       },
       {
         accessorKey: 'uid',
         header: USER_COLUMNS.uid.header,
         cell: ({ row }: { row: Row<UserRow> }) => <ValueText value={row.original.uid} />,
         enableSorting: false,
-        meta: liveColumnMeta(USER_COLUMNS.uid),
+        size: 120,
+        meta: liveColumnMeta(USER_COLUMNS.uid, {
+          label: 'UID',
+          gridCell: ({ row }: { row: Row<UserRow> }) => <ValueGridCell value={row.original.uid} />,
+        }),
       },
       {
         accessorKey: 'type',
         header: USER_COLUMNS.type.header,
         cell: ({ row }: { row: Row<UserRow> }) => <UserTypeCell type={row.original.type} />,
         enableSorting: false,
-        meta: liveColumnMeta(USER_COLUMNS.type),
+        size: 140,
+        meta: liveColumnMeta(USER_COLUMNS.type, {
+          label: 'Type',
+          gridCell: ({ row }: { row: Row<UserRow> }) => <ValueGridCell value={typeLabel(row.original.type)} />,
+        }),
       },
       {
         accessorKey: 'groupname',
         header: USER_COLUMNS.groupname.header,
         cell: ({ row }: { row: Row<UserRow> }) => <ValueText value={row.original.groupname} />,
         enableSorting: false,
-        meta: liveColumnMeta(USER_COLUMNS.groupname),
+        size: 180,
+        meta: liveColumnMeta(USER_COLUMNS.groupname, {
+          label: 'Group',
+          gridCell: ({ row }: { row: Row<UserRow> }) => <ValueGridCell value={row.original.groupname} />,
+        }),
       },
       {
         accessorKey: 'shell',
         header: USER_COLUMNS.shell.header,
         cell: ({ row }: { row: Row<UserRow> }) => <ValueText value={row.original.shell} />,
         enableSorting: false,
-        meta: liveColumnMeta(USER_COLUMNS.shell),
+        size: 240,
+        meta: liveColumnMeta(USER_COLUMNS.shell, {
+          label: 'Shell',
+          gridCell: ({ row }: { row: Row<UserRow> }) => <ValueGridCell value={row.original.shell} />,
+        }),
       },
       {
         id: USER_COLUMNS.status.id,
@@ -156,7 +202,16 @@ export function UsersTab({ device }: UsersTabProps) {
             <ValueText value={null} />
           ),
         enableSorting: false,
-        meta: liveColumnMeta(USER_COLUMNS.status),
+        size: 140,
+        meta: liveColumnMeta(USER_COLUMNS.status, {
+          label: 'Status',
+          gridCell: ({ row }: { row: Row<UserRow> }) =>
+            row.original.isLoggedIn ? (
+              <DataTable.Cell tag={<Tag label="ACTIVE" variant="success" />} />
+            ) : (
+              <ValueGridCell value={null} />
+            ),
+        }),
       },
     ],
     [],
@@ -227,8 +282,13 @@ export function UsersTab({ device }: UsersTabProps) {
         </div>
       )}
 
-      <DataTable table={table}>
-        {!isEmpty && <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />}
+      {/* The settings belong to the grid; the table keeps its natural height in both layouts (the page scrolls). */}
+      <DataTable
+        table={table}
+        layout={tableLayout}
+        settings={tableLayout === 'grid' ? USERS_TABLE_SETTINGS : undefined}
+      >
+        {!isEmpty && <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} loading={loading} />}
         <DataTable.Body
           loadingCells={loading}
           skeletonRows={USERS_TAB_SKELETON_ROWS}

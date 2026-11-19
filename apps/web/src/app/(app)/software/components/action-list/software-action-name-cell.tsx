@@ -1,6 +1,6 @@
 'use client';
 
-import { TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { DataTable, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { softwareActionNameCell_action$key } from '@/__generated__/softwareActionNameCell_action.graphql';
 import { softwareActionKindLabel } from './software-action-kind';
@@ -31,4 +31,14 @@ export function SoftwareActionNameCell({ action }: { action: softwareActionNameC
       )}
     </div>
   );
+}
+
+/**
+ * SOFTWARE column in the grid layout: the package alone. The action and its version, which a card row shows under it
+ * where the Action column is shed, have their own column at every width of the grid.
+ */
+export function SoftwareActionNameGridCell({ action }: { action: softwareActionNameCell_action$key }) {
+  // A row still being read (a loading scope) has no fragment to read: the cell draws the name as a bar.
+  const data = useFragment(softwareActionNameCellFragment, useLoadingScope() ? null : action);
+  return <DataTable.Cell text={data?.software ?? ''} />;
 }

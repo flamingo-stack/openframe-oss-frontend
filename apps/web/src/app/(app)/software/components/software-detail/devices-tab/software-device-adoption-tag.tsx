@@ -40,7 +40,8 @@ export function SoftwareDeviceAdoptionTag({
   if (adoption?.status === SoftwareAdoptionStatus.ADOPTING) {
     const offline = data?.device.connectivity === DeviceConnectivity.OFFLINE;
     return (
-      <div className={cn('flex min-w-0 flex-col items-start gap-[var(--spacing-system-xxs)]', className)}>
+      // A row that wraps, not a column: one line in the grid layout, "Starts when online" under the chip in a narrow card.
+      <div className={cn('flex min-w-0 flex-wrap items-center gap-[var(--spacing-system-xxs)]', className)}>
         <Tag label="Adopting" variant="warning" icon={<DotsLoaderIcon className="h-4 w-4" />} />
         {offline && <p className="truncate text-ods-text-secondary text-h6">Starts when online</p>}
       </div>

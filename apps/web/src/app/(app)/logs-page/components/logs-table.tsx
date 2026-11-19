@@ -16,6 +16,7 @@ import {
   type DateFilterResult,
   type DateRange,
   LoadError,
+  LoadingWhen,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -51,6 +52,7 @@ import {
 import { logDrawerDeviceCard } from '@/app/components/shared/log-drawer-device-card';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
 import { useSearchParam } from '@/app/hooks/use-search-param';
+import { type TableLayout, tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { LogSortField, SortDirection } from '@/generated/schema-enums';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
 import { EMPTY_VALUE } from '@/lib/empty-value';
@@ -61,6 +63,7 @@ import { routes } from '@/lib/routes';
 import { LOGS_PAGE_SIZE } from '../hooks/use-logs';
 import { LogCopyButton } from './log-copy-button';
 import { LogDrawerDetails } from './log-drawer-details';
+import { type LogsTablePlace, logsTablePlace, logsTableSettings } from './logs-table-settings';
 
 // ----------------------------------------------------------------
 // GraphQL definitions
@@ -192,6 +195,23 @@ interface LogsTableContentProps {
   onMobileFilterClose: () => void;
   /** In a loading scope (an embedding tab whose parent still loads) the table reads nothing. */
   scoped: boolean;
+  /** The table the `data-table-grid` flag picks. */
+  tableLayout: TableLayout;
+  /** Where the table is drawn: its saved grid layout, and whether it fills the page's height. */
+  place: LogsTablePlace;
+}
+
+/**
+ * The grid table's height and settings for where it is drawn. On the Logs page the table is the page's main content:
+ * it takes the height the page leaves and scrolls inside itself. In a device's or a customer's tab it is a section of
+ * a page that scrolls, so it states no height. A cards table reads neither.
+ */
+function tableLayoutProps(tableLayout: TableLayout, place: LogsTablePlace) {
+  return {
+    layout: tableLayout,
+    tableMaxHeight: place === 'page' ? ('fill' as const) : undefined,
+    tableSettings: logsTableSettings(place),
+  };
 }
 
 const LOGS_GUIDE_BUTTON = onboardingGuideButton('logs');
@@ -201,6 +221,8 @@ const LOAD_ERROR_MESSAGE = "Couldn't load logs.";
 const renderEmptyState = (props: EmptyStateProps) => <EmptyState {...props} />;
 
 const renderCopyAction = (log: LogRow) => <LogCopyButton log={log.originalLogEntry} />;
+/** The grid table's copy action: the bare button, the action cell being its frame. */
+const renderGridCopyAction = (log: LogRow) => <LogCopyButton log={log.originalLogEntry} grid />;
 
 // ----------------------------------------------------------------
 // Inner content — uses Relay hooks, inside its own boundary
@@ -231,6 +253,7 @@ function LogsTableContentReader(props: LogsTableContentProps) {
         deviceScoped={props.deviceScoped}
         organizationLocked={Boolean(props.organizationLocked)}
         pageSize={LOGS_PAGE_SIZE}
+        {...tableLayoutProps(props.tableLayout, props.place)}
       />
     );
   }
@@ -250,6 +273,8 @@ function LogsTableContentLive({
   onEmptyChange,
   mobileFilterOpen,
   onMobileFilterClose,
+  tableLayout,
+  place,
 }: LogsTableContentProps) {
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
@@ -405,7 +430,7 @@ function LogsTableContentLive({
         deviceScoped={deviceScoped}
         organizationLocked={organizationLocked}
         getLogHref={getLogDetailsUrl}
-        renderCopyAction={renderCopyAction}
+        renderCopyAction={tableLayout === 'grid' ? renderGridCopyAction : renderCopyAction}
         onQuickView={setSelectedLog}
         hasNextPage={hasNext}
         isFetchingNextPage={isLoadingNext}
@@ -416,6 +441,7 @@ function LogsTableContentLive({
         renderEmptyState={renderEmptyState}
         guideButton={LOGS_GUIDE_BUTTON}
         pageSize={LOGS_PAGE_SIZE}
+        {...tableLayoutProps(tableLayout, place)}
       />
 
       <LogDrawer
@@ -572,8 +598,13 @@ export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsT
     refreshRef.current?.();
   }, []);
 
-  // In a loading scope (an embedding tab whose parent still loads) the table reads nothing: it draws its own loading rows.
-  const scoped = useLoadingScope();
+  // Which table is drawn (`data-table-grid`). Until the flag answers the table is in a loading scope.
+  const tableGate = useTableGridGate();
+  const gateLoading = tableGate === 'loading';
+
+  // In a loading scope (an embedding tab whose parent still loads, or the table's flag) the table reads nothing: it
+  // draws its own loading rows.
+  const scoped = useLoadingScope() || gateLoading;
 
   const className = embedded ? EMBEDDED_PAGE_OFFSET : undefined;
 
@@ -612,21 +643,25 @@ export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsT
         hideSearch={isEmpty}
         onOpenFilters={() => setMobileFilterOpen(true)}
       >
-        <LogsTableContent
-          scoped={scoped}
-          deviceScoped={deviceScoped}
-          organizationLocked={Boolean(organizationId)}
-          backendFilters={backendFilters}
-          sort={sort}
-          dateFilter={dateFilter}
-          debouncedSearch={debouncedSearch}
-          tableFilters={tableFilters}
-          onFilterChange={handleFilterChange}
-          onRefreshRef={refreshRef}
-          onEmptyChange={setIsEmpty}
-          mobileFilterOpen={mobileFilterOpen}
-          onMobileFilterClose={() => setMobileFilterOpen(false)}
-        />
+        <LoadingWhen loading={gateLoading}>
+          <LogsTableContent
+            scoped={scoped}
+            deviceScoped={deviceScoped}
+            organizationLocked={Boolean(organizationId)}
+            backendFilters={backendFilters}
+            sort={sort}
+            dateFilter={dateFilter}
+            debouncedSearch={debouncedSearch}
+            tableFilters={tableFilters}
+            onFilterChange={handleFilterChange}
+            onRefreshRef={refreshRef}
+            onEmptyChange={setIsEmpty}
+            mobileFilterOpen={mobileFilterOpen}
+            onMobileFilterClose={() => setMobileFilterOpen(false)}
+            tableLayout={tableLayoutFor(tableGate)}
+            place={logsTablePlace({ deviceScoped, organizationLocked: Boolean(organizationId) })}
+          />
+        </LoadingWhen>
       </LogsPageView>
     </ContentErrorBoundary>
   );

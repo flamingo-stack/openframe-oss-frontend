@@ -20,6 +20,7 @@ import {
   useRetryKey,
 } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { useTableGrid } from '@/app/components/shared/table-layout-scope';
 import { DirectoryGroupSortField, SortDirection } from '@/generated/schema-enums';
 import { getGroupRowId, type GroupRow, groupColumns, groupRowHref, MEMBERS_COLUMN_ID, toGroupRow } from './group-row';
 
@@ -139,6 +140,7 @@ function GroupsRows({
   stickyHeaderOffset,
 }: GroupsTableProps & { rows: readonly GroupRow[]; totalCount: number; infiniteScroll: InfiniteScroll }) {
   const loading = useLoadingScope();
+  const tableGrid = useTableGrid('groups');
   const placeholderRows = useMemo(
     () => (loading ? loadingPlaceholderRows<GroupRow>(GROUPS_PAGE_SIZE) : null),
     [loading],
@@ -167,6 +169,7 @@ function GroupsRows({
   }
   return (
     <LiveTable
+      {...tableGrid}
       table={table}
       pageSize={GROUPS_PAGE_SIZE}
       loadingCells={loading}
