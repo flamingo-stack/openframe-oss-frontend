@@ -118,6 +118,8 @@ describe('LoggingStep', () => {
     expect(gridSettingsGear(container)).toBeNull();
     expect(gridViewport(container)).toBeNull();
     expect(gridActions()).toEqual([['open', 56]]);
+    // The count is drawn once, above the table: the grid header does not draw the card header's right slot.
+    expect((container.textContent ?? '').match(/1 result/g)).toHaveLength(1);
     expect(openButton(container)?.className).toContain('border-0');
   });
 

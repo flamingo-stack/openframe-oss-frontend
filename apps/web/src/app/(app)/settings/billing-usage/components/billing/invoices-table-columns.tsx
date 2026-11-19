@@ -237,8 +237,10 @@ export function invoiceColumns(statusOptions: DataTableFilterOption[]): ColumnDe
     {
       id: 'actions',
       cell: ({ row }: { row: Row<InvoiceRow> }) => <InvoiceLink url={row.original.hostedInvoiceUrl} />,
+      // The grid's action column, kept by hand: `actionColumn()` would replace the card layout's width. Never sorted
+      // and never hidden, as `actionColumn()` states it.
       enableSorting: false,
-      // The grid's action column, kept by hand: `actionColumn()` would replace the card layout's width.
+      enableHiding: false,
       size: GRID_ACTION_COLUMN_SIZE,
       meta: liveColumnMeta(INVOICE_COLUMNS.actions, {
         gridKind: 'action',

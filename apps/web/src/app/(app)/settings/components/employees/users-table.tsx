@@ -96,6 +96,9 @@ function buildColumns(filterOptions: EmployeeFilterOptions): ColumnDef<UserRow>[
       cell: ({ row }: { row: Row<UserRow> }) => (
         <OpenRowButton label="Open in new tab" onClick={openInNewTab(detailHref(row.original))} />
       ),
+      // As `actionColumn()` states them: an action column is never sorted and never hidden.
+      enableSorting: false,
+      enableHiding: false,
       size: GRID_ACTION_COLUMN_SIZE,
       meta: liveColumnMeta(EMPLOYEES_COLUMNS.open, {
         gridKind: 'action',

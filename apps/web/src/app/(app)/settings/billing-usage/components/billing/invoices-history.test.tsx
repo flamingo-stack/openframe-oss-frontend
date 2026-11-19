@@ -130,6 +130,8 @@ describe('InvoicesHistory', () => {
     // A section of the billing page: the page scrolls, the table has no viewport of its own.
     expect(gridViewport(container)).toBeNull();
     expect(gridActions()).toEqual([['actions', 56]]);
+    // The count is drawn once, above the table: the grid header does not draw the card header's right slot.
+    expect((container.textContent ?? '').match(/2 results/g)).toHaveLength(1);
     // The grid header carries the funnel and the sort at every width.
     expect(container.querySelector('[aria-label="Open filters"]')).toBeNull();
   });

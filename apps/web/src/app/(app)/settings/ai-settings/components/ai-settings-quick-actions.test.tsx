@@ -48,6 +48,8 @@ describe('AiSettingsQuickActions', () => {
     expect(gridRoot(container)).not.toBeNull();
     expect(gridHeaderColumns(container)).toEqual(['name']);
     expect(gridMetaRow(container)?.textContent).toContain('2');
+    // The count is drawn once, above the table: the grid header does not draw the card header's right slot.
+    expect((container.textContent ?? '').match(/2 results/g)).toHaveLength(1);
     // The instructions follow the name on the row's one line.
     expect(container.querySelector('[data-part="secondary"]')?.textContent).toBe(
       'Give a short health summary of the device.',

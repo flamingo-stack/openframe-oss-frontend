@@ -470,8 +470,10 @@ export function SsoConfigurationTab() {
       {
         id: 'actions',
         cell: ({ row }: { row: Row<UiProviderRow> }) => editButton(row, false),
+        // The grid's action column, kept by hand: `actionColumn()` would replace the card layout's width. Never sorted
+        // and never hidden, as `actionColumn()` states it.
         enableSorting: false,
-        // The grid's action column, kept by hand: `actionColumn()` would replace the card layout's width.
+        enableHiding: false,
         size: GRID_ACTION_COLUMN_SIZE,
         meta: {
           width: 'w-11 shrink-0 content-md:w-16',

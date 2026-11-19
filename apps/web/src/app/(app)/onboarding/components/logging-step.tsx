@@ -273,7 +273,9 @@ export function LoggingStep({
       {
         id: 'open',
         enableSorting: false,
-        // The grid's action column, kept by hand: `actionColumn()` would drop the card layout's `hideAt`.
+        // The grid's action column, kept by hand: `actionColumn()` would drop the card layout's `hideAt`. Never hidden,
+        // as `actionColumn()` states it.
+        enableHiding: false,
         size: GRID_ACTION_COLUMN_SIZE,
         meta: {
           width: 'w-12 shrink-0 flex-none',

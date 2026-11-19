@@ -100,6 +100,9 @@ function buildColumns(
         <InvitationActionsCell invitation={row.original} onAction={action => onAction(row.original, action)} />
       ),
       // The grid's action column, kept by hand: `actionColumn()` would replace the card layout's `meta` (its `hideAt`).
+      // As `actionColumn()` states them: an action column is never sorted and never hidden.
+      enableSorting: false,
+      enableHiding: false,
       size: GRID_ACTION_COLUMN_SIZE,
       meta: liveColumnMeta(EMPLOYEES_COLUMNS.actions, { gridKind: 'action' }),
     },
