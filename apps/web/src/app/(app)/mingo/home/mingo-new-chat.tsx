@@ -1,13 +1,12 @@
 'use client';
 
-import { AgentMark } from '@flamingo-stack/openframe-frontend-core/components';
+import { AgentMark, InteractiveSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { BackButton, Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useMingoSheetStore } from '@/app/components/mingo-shell/mingo-sheet-store';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
-import { useWhatToAsk, WHAT_TO_ASK_BUTTON_BOX } from '../hooks/use-what-to-ask-label';
+import { useWhatToAsk } from '../hooks/use-what-to-ask-label';
 import { GreetingText, useGreeting } from './mingo-home-greeting';
 
 /**
@@ -20,8 +19,8 @@ import { GreetingText, useGreeting } from './mingo-home-greeting';
  * The greeting and the button carry Mingo's mark from its identity (`AgentMark`), as every
  * Mingo icon does: one icon, set on the server, the same everywhere. Until the identities
  * land both keep their mark's box, so nothing moves when it is drawn. The button is the hub's
- * `/what-can-you-do` command: while the hub's command catalog is read its place is held, so
- * the greeting above it does not move when it lands.
+ * `/what-can-you-do` command: while the hub's command catalog is read the button draws its
+ * loading form in its place, so the greeting above it does not move when it lands.
  *
  * On a phone, reached from the chat list over a page (`newChatPage`), "Back" leads back
  * there with the list open over it again, the screen "Start New Chat" was pressed on, as a
@@ -57,23 +56,21 @@ export function MingoNewChat() {
       <p className="mt-[var(--spacing-system-xs)] max-w-[560px] text-ods-text-secondary text-h6">
         Start with a quick action, or tell Mingo what needs to happen across your devices.
       </p>
-      {whatToAsk && (
-        <Button
-          variant="outline"
-          href={routes.mingo.whatToAsk}
-          leftIcon={<AgentMark agent="mingo" className="size-5" />}
-          className="mt-[var(--spacing-system-l)]"
-        >
-          {whatToAsk}
-        </Button>
-      )}
-      {/* The button's place while the catalog is read: the block is centred, so its height must not change. */}
-      {!whatToAsk && whatToAskPending && (
-        <div
-          aria-hidden
-          data-what-to-ask-place
-          className={cn('mt-[var(--spacing-system-l)]', WHAT_TO_ASK_BUTTON_BOX)}
-        />
+      {/* While the catalog is read the button is its loading form, in its place: the block is centred, so its height
+          must not change when the label lands. No such command: no button. */}
+      {whatToAskPending ? (
+        <InteractiveSkeleton.Button data-what-to-ask-place className="mt-[var(--spacing-system-l)]" />
+      ) : (
+        whatToAsk && (
+          <Button
+            variant="outline"
+            href={routes.mingo.whatToAsk}
+            leftIcon={<AgentMark agent="mingo" className="size-5" />}
+            className="mt-[var(--spacing-system-l)]"
+          >
+            {whatToAsk}
+          </Button>
+        )
       )}
     </div>
   );

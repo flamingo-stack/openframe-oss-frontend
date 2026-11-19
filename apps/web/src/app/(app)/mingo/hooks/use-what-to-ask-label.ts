@@ -13,16 +13,11 @@ export interface WhatToAskEntry {
   label: string | null;
   /**
    * The catalog has not answered yet, so whether there is an entry is not known. A screen that lays its content out
-   * around the entry holds the entry's place meanwhile (`WHAT_TO_ASK_BUTTON_BOX`), so nothing moves when it lands.
+   * around the entry draws the button's loading form in its place meanwhile (the lib's `InteractiveSkeleton.Button`),
+   * so nothing moves when it lands.
    */
   pending: boolean;
 }
-
-/**
- * The box of the "What to ask?" button (the lib's default `Button` height), for the place a screen holds while the
- * catalog is read.
- */
-export const WHAT_TO_ASK_BUTTON_BOX = 'h-11 md:h-12';
 
 /**
  * "What to ask?": the `/what-can-you-do` command as the hub's command catalog lists it (the same one the chat reads,

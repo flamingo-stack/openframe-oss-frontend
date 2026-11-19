@@ -19,7 +19,6 @@ let whatToAskLabel: string | null = 'What can you do?';
 /** The catalog has not answered yet: whether there is an entry is not known. */
 let whatToAskPending = false;
 vi.mock('../hooks/use-what-to-ask-label', () => ({
-  WHAT_TO_ASK_BUTTON_BOX: 'h-11 md:h-12',
   useWhatToAsk: () => ({ label: whatToAskLabel, pending: whatToAskPending }),
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => router }));
@@ -77,9 +76,10 @@ describe('ManhattanStartWork', () => {
     whatToAskLabel = null;
     whatToAskPending = true;
     act(() => root.render(<ManhattanStartWork />));
+    // The lib's button skeleton, at the default Button's own height.
     const place = container.querySelector('[data-what-to-ask-place]');
-    expect(place?.className).toContain('h-11 md:h-12');
-    expect(place?.getAttribute('aria-hidden')).toBe('true');
+    expect(place?.className).toContain('h-11');
+    expect(place?.className).toContain('md:h-12');
     expect([...container.querySelectorAll('a, button')].some(el => el.textContent === 'What can you do?')).toBe(false);
 
     whatToAskLabel = 'What can you do?';
