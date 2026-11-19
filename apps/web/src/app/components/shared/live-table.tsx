@@ -10,7 +10,10 @@ import {
   type DataTableSettings,
   type DataTableSortState,
   useDataTable,
+  AutoRefreshControl,
+  type AutoRefreshControlProps,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import type { CursorPagerFooterProps } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useMemo } from 'react';
 
@@ -113,6 +116,16 @@ interface LiveTableShellProps<T> {
   /** The next page's infinite-scroll sentinel; `null` (or omitted) draws none. */
   footer?: Omit<DataTableInfiniteFooterProps, 'skeletonRows'> | null;
   /**
+   * The First · Prev · Next footer of a paged list (`useCursorPager`'s `footerProps`), with the range ("21–40 of
+   * 340"). Wins over `footer`: a paged list has no infinite scroll.
+   */
+  pager?: CursorPagerFooterProps | null;
+  /**
+   * The auto-refresh picker in the header (`useAutoRefresh`'s `control`). Opt-in: only a list that refetches its page
+   * silently passes it (a paged or load-all list), never one still on infinite scroll.
+   */
+  refresh?: AutoRefreshControlProps | null;
+  /**
    * The table holds placeholder rows while it loads (`loadingPlaceholderRows`, one page): the body draws them with
    * their real cells in its loading scope. Set by the `columns` form itself; a list that builds its own table over
    * placeholder rows while loading sets it too.
@@ -185,6 +198,8 @@ function LiveTableShell<T>({
   loadingSubRows,
   rowHeightClassName,
   footer,
+  pager,
+  refresh,
   loadingCells = false,
   layout = 'cards',
   maxHeight,
@@ -192,9 +207,18 @@ function LiveTableShell<T>({
 }: LiveTableShellProps<T> & LiveTableRows & { table: DataTableInstance<T> }) {
   const rows = pageSize ?? skeletonRows;
   const grid = layout === 'grid';
-  const rowCount = showRowCount && (
+  const count = showRowCount && (
     <DataTable.RowCount itemName={itemName} totalCount={totalCount} loading={loadingCells} />
   );
+  const rowCount =
+    refresh && (count || grid) ? (
+      <div className="flex items-center gap-[var(--spacing-system-xsf)]">
+        <AutoRefreshControl {...refresh} />
+        {count}
+      </div>
+    ) : (
+      count || (refresh && <AutoRefreshControl {...refresh} />)
+    );
   return (
     <PendingDim isPending={isPending}>
       {/* The height and the settings belong to the grid: a list left on cards passes neither. */}
@@ -229,7 +253,11 @@ function LiveTableShell<T>({
           loadingSubRows={loadingSubRows}
           rowHeightClassName={rowHeightClassName}
         />
-        {footer && <DataTable.InfiniteFooter {...footer} skeletonRows={rows} />}
+        {pager ? (
+          <DataTable.CursorFooter {...pager} itemName={itemName} totalCount={totalCount} loading={loadingCells} />
+        ) : (
+          footer && <DataTable.InfiniteFooter {...footer} skeletonRows={rows} />
+        )}
       </DataTable>
     </PendingDim>
   );

@@ -34,12 +34,51 @@ export function navCanGoBack(): boolean {
 export function useSafeBack(fallback: string): () => void {
   const router = useRouter();
   return useCallback(() => {
-    if (navCanGoBack()) {
-      router.back();
-    } else {
-      router.push(fallback);
-    }
+    const steps = navCanGoBack() ? stepsBackToPreviousPage() : null;
+    if (steps === 1) router.back();
+    else if (steps !== null) window.history.go(-steps);
+    else router.push(fallback);
   }, [router, fallback]);
+}
+
+interface NavigationEntryLike {
+  url: string | null;
+  index: number;
+}
+
+/** The page an entry shows: its path and its `id` (a detail page's entity). Its other params are the page's own state. */
+function pageOf(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    return `${parsed.pathname.replace(/\/+$/, '')}?${parsed.searchParams.get('id') ?? ''}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * How many history entries back the nearest entry showing ANOTHER page is (another path, or another `id`), so the
+ * entries a page added for itself (a paged table's pages, pushed one by one) are skipped and the page's Back leaves
+ * it. `1` when the entry behind is already another page (the common case: the same as `router.back()`); `null` when
+ * every entry behind is this page (or nothing is behind), so the caller takes its fallback route.
+ */
+export function stepsBackToPreviousPage(): number | null {
+  if (typeof window === 'undefined') return null;
+  const navigation = (
+    window as unknown as {
+      navigation?: { currentEntry?: NavigationEntryLike | null; entries?: () => NavigationEntryLike[] };
+    }
+  ).navigation;
+  const current = navigation?.currentEntry;
+  // An API that says it can go back but cannot list the entries (older engines): one step, as before.
+  if (!current || typeof navigation.entries !== 'function') return navCanGoBack() ? 1 : null;
+  const entries = navigation.entries();
+  const here = pageOf(current.url);
+  for (let index = current.index - 1; index >= 0; index--) {
+    if (pageOf(entries[index]?.url ?? null) !== here) return current.index - index;
+  }
+  return null;
 }
 
 /**
