@@ -524,7 +524,11 @@ function DockChat({ route, chat }: DockChatProps) {
       : []),
     ...devOnboardingItems,
   ];
-  const chatMenuExtraItems = onboardingV2 === 'on' && onboardingItems.length > 0 ? onboardingItems : undefined;
+  // With the per-chat model on, the model is picked in the ⋯ menus and the footer name only shows it.
+  const modelGate = chat.modelSelection?.gate ?? 'off';
+  const modelMenuItems = chat.modelSelection?.menuItems ?? [];
+  const extraItems = [...modelMenuItems, ...(onboardingV2 === 'on' ? onboardingItems : [])];
+  const chatMenuExtraItems = extraItems.length > 0 ? extraItems : undefined;
 
   return (
     <>
@@ -587,8 +591,9 @@ function DockChat({ route, chat }: DockChatProps) {
           }
           rail="none"
           renameMode="inline"
-          onModelClick={() => navigate(routes.settings.aiSettings({ tab: 'mingo' }))}
-          modelTooltip="Change in Settings → AI Settings"
+          onModelClick={modelGate === 'off' ? () => navigate(routes.settings.aiSettings({ tab: 'mingo' })) : undefined}
+          modelTooltip={modelGate === 'off' ? 'Change in Settings → AI Settings' : undefined}
+          composerMenuItems={modelMenuItems.length > 0 ? modelMenuItems : undefined}
           // Over the page the thread is the chat's: its prompt; behind it, "continue or ask anew".
           composerPlaceholder={
             startWorkColumn

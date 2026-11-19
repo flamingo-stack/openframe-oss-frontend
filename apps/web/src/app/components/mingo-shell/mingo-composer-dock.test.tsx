@@ -6,6 +6,7 @@
  * holds its place while the chat loads, and its own crash fallback.
  */
 
+import type { ActionsMenuItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { act, forwardRef, type ReactNode, useEffect, useImperativeHandle } from 'react';
 import { createPortal } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
@@ -212,11 +213,15 @@ function setSurface({
   enabled = true,
   error = null as Error | null,
   identityEnabled = true,
+  modelMenuItems = null as ActionsMenuItem[] | null,
 } = {}) {
   surface.value = {
     chat: error
       ? null
       : {
+          ...(modelMenuItems
+            ? { modelSelection: { gate: 'on', current: null, contextSize: null, menuItems: modelMenuItems } }
+            : {}),
           state: {
             activeDialogId,
             dialogs: [],
@@ -892,6 +897,17 @@ describe('MingoComposerDock', () => {
     render('/mingo/chat/');
     expect(props().composerFooterActions).toBeUndefined();
     expect(props().composerMenuItems).toBeUndefined();
+  });
+
+  it("puts the chat's model in both ⋯ menus and leaves the footer name display-only", () => {
+    const menuItems: ActionsMenuItem[] = [{ id: 'chat-model', label: 'GPT-5.5', type: 'submenu', submenu: [] }];
+    setSurface({ activeDialogId: 'a', modelMenuItems: menuItems });
+    render('/mingo/chat/');
+
+    expect(props().chatMenuExtraItems).toEqual(expect.arrayContaining(menuItems));
+    expect(props().composerMenuItems).toEqual(menuItems);
+    expect(props().onModelClick).toBeUndefined();
+    expect(props().modelTooltip).toBeUndefined();
   });
 
   // MISSING 3.6-3.8: the thread on the chat page is the session's, with everything the
