@@ -1,9 +1,10 @@
 /**
  * The tenant-wide list's rows while it is open: with Watch live on, the running
- * sessions are polled under the list's scope and lead it once each, a session
- * started since the first page counts in the total, a running row the poll no
- * longer returns reads the first page again (once), and a refused cursor on the
- * next page starts the list again.
+ * sessions are polled under the list's scope and lead the first page once each,
+ * a session started since the page came counts in the total, a running row the
+ * poll no longer returns reads the page again (once), and a later page polls and
+ * merges nothing. (A refused cursor is the stale-cursor boundary's: it drops to
+ * the first page.)
  */
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -39,7 +40,12 @@ let root: Root;
 let result: Result | null = null;
 const onRefresh = vi.fn();
 
-function Probe(props: { pageRows: TenantSessionRow[]; totalCount: number; filter: RemoteSessionFilter }) {
+function Probe(props: {
+  pageRows: TenantSessionRow[];
+  totalCount: number;
+  filter: RemoteSessionFilter;
+  firstPage: boolean;
+}) {
   const value = useTenantSessionRows({ ...props, onRefresh });
   useEffect(() => {
     result = value;
@@ -47,8 +53,13 @@ function Probe(props: { pageRows: TenantSessionRow[]; totalCount: number; filter
   return null;
 }
 
-function render(pageRows: TenantSessionRow[], totalCount = pageRows.length, filter: RemoteSessionFilter = {}) {
-  act(() => root.render(<Probe pageRows={pageRows} totalCount={totalCount} filter={filter} />));
+function render(
+  pageRows: TenantSessionRow[],
+  totalCount = pageRows.length,
+  filter: RemoteSessionFilter = {},
+  firstPage = true,
+) {
+  act(() => root.render(<Probe pageRows={pageRows} totalCount={totalCount} filter={filter} firstPage={firstPage} />));
   if (!result) throw new Error('the probe did not render');
   return result;
 }
@@ -126,17 +137,13 @@ describe('useTenantSessionRows', () => {
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 
-  it('starts the list again when the next page is refused for its cursor, and only then', () => {
-    const { onLoadMoreComplete } = render([row('a')]);
-    const refusal = (code: string) =>
-      Object.assign(new Error('refused'), { source: { errors: [{ extensions: { code } }] } });
-
-    act(() => onLoadMoreComplete(null));
-    act(() => onLoadMoreComplete(refusal('REMOTE_ACCESS_FORBIDDEN')));
-    act(() => onLoadMoreComplete(new Error('network')));
+  it("polls and merges nothing on a later page: the running sessions are the first page's", () => {
+    hooks.liveRows = WATCH_LIVE;
+    hooks.polled = [row('new', true)];
+    const { rows, totalCount } = render([row('x'), row('y')], 45, {}, false);
+    expect(hooks.pollFilter).toHaveBeenLastCalledWith(null);
+    expect(rows.map(r => r.id)).toEqual(['x', 'y']);
+    expect(totalCount).toBe(45);
     expect(onRefresh).not.toHaveBeenCalled();
-
-    act(() => onLoadMoreComplete(refusal('INVALID_CURSOR')));
-    expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 });
