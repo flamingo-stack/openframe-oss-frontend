@@ -26,7 +26,7 @@ function Harness({
 }: {
   currentProvider: AiLogicFormValues['llmProvider'];
   currentModel: string;
-  catalog: SupportedModelsByProvider;
+  catalog: SupportedModelsByProvider | undefined;
   onSave: (values: ReturnType<typeof toAgentAiConfigInput>) => void;
 }) {
   const { control, handleSubmit, setValue } = useForm<AiLogicFormValues>({
@@ -78,7 +78,7 @@ describe('AiProviderModelFields', () => {
   });
 
   function render(
-    catalog: SupportedModelsByProvider,
+    catalog: SupportedModelsByProvider | undefined,
     currentProvider: AiLogicFormValues['llmProvider'],
     currentModel: string,
   ) {
@@ -101,17 +101,26 @@ describe('AiProviderModelFields', () => {
     await act(async () => container.querySelector<HTMLButtonElement>('button[type="submit"]')?.click());
   }
 
+  /** The provider's mark in a select trigger; the trigger's chevron is the aria-hidden svg. */
+  function markOf(trigger: HTMLButtonElement) {
+    return trigger.querySelector('svg:not([aria-hidden="true"])');
+  }
+
   it.each([
     { catalog: models, state: 'missing' },
     { catalog: { ...models, GOOGLE_GEMINI: [] }, state: 'empty' },
   ])('offers Anthropic and OpenAI when the Gemini catalog is $state', async ({ catalog }) => {
     const { provider, model, onSave } = render(catalog, 'ANTHROPIC', 'claude-opus-5-5');
 
+    expect(provider.textContent).toBe('Anthropic');
+    expect(markOf(provider)).not.toBeNull();
     expect(model.textContent).toBe('Claude Opus 5.5');
     const options = open(provider);
     expect(options.map(option => option.textContent)).toEqual(['Anthropic', 'OpenAI']);
 
     act(() => options[1].click());
+    expect(provider.textContent).toBe('OpenAI');
+    expect(markOf(provider)).not.toBeNull();
     expect(model.textContent).toBe('Select a model');
     const modelOptions = open(model);
     expect(modelOptions.map(option => option.textContent)).toEqual(['GPT-6.1 Terra']);
@@ -136,6 +145,7 @@ describe('AiProviderModelFields', () => {
     const { provider, model, onSave } = render(models, 'GOOGLE_GEMINI', geminiModel);
 
     expect(provider.textContent).toBe('Google Gemini');
+    expect(markOf(provider)).not.toBeNull();
     expect(model.textContent).toBe(geminiModel);
     expect(model.disabled).toBe(true);
 
@@ -150,5 +160,27 @@ describe('AiProviderModelFields', () => {
     act(() => options[0].click());
     expect(model.disabled).toBe(false);
     expect(open(model).map(option => option.textContent)).toEqual(['Claude Opus 5.5']);
+  });
+
+  it.each([
+    { catalog: undefined, state: 'loading' },
+    { catalog: {}, state: 'empty' },
+  ])('keeps the saved configuration visible and locked while the catalog is $state', ({ catalog }) => {
+    const { provider, model, onSave } = render(catalog, 'ANTHROPIC', 'claude-opus-5-5');
+
+    expect(provider.disabled).toBe(true);
+    expect(provider.textContent).toBe('Anthropic');
+    expect(markOf(provider)).not.toBeNull();
+    expect(model.disabled).toBe(true);
+    expect(model.textContent).toBe('claude-opus-5-5');
+
+    act(() =>
+      root.render(
+        <Harness catalog={models} currentProvider="ANTHROPIC" currentModel="claude-opus-5-5" onSave={onSave} />,
+      ),
+    );
+    expect(provider.disabled).toBe(false);
+    expect(model.disabled).toBe(false);
+    expect(model.textContent).toBe('Claude Opus 5.5');
   });
 });
