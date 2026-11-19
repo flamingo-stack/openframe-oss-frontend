@@ -3,7 +3,7 @@
 import { type TabItem, TabNavigation } from '@flamingo-stack/openframe-frontend-core';
 import { PlusCircleIcon, UserPlusIcon, UsersIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { CURSOR_PAGER_KEYS, useApiParams, useCursorPager } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMemo, useState } from 'react';
 import { ContentErrorBoundary } from '@/app/components/shared';
 import { SearchToolbar } from '@/app/components/shared/search-toolbar';
@@ -11,9 +11,11 @@ import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { PAGED_LISTS } from '@/lib/paged-lists';
 import { type EmployeesTab, routes, TAB_IDS } from '@/lib/routes';
 import { AddUsersModal } from '../add-users-modal';
 import { type EmployeeSelections, NO_EMPLOYEE_SELECTIONS } from '../employees/employee-filters';
+import { USERS_PAGE_SIZE } from '../employees/employees-columns';
 import { InvitationsListTable } from '../employees/invitations-list-table';
 import { affectedInvitationsListings, invitationsListingId } from '../employees/invitations-listing';
 import { UsersListTable } from '../employees/users-list-table';
@@ -37,25 +39,33 @@ function isEmployeesTab(value: string): value is EmployeesTab {
  * Settings → Employees: users and open invitations, one tab each, both searched,
  * narrowed and paged on the server. The search is shared by the tabs; the funnels
  * belong to the open tab and a switch clears them.
+ *
+ * Users pages with First · Prev · Next, its cursor in the URL (`cursor`, `page`; a
+ * top-level page, so no prefix). Any change to the params here (the tab, the search,
+ * a funnel) drops the cursor in the SAME URL write: one history entry on page 2+, so
+ * Back returns to the old view. Invitations stays on infinite scroll: it never has a
+ * cursor, so the reset and the pager leave it as it was.
  */
 export function CompanyAndUsersTab() {
   const handleBack = useSafeBack(routes.settings.root());
   const [isAddOpen, setIsAddOpen] = useState(false);
 
-  const { params, setParam, setParams } = useApiParams({
-    tab: { type: 'string', default: 'users' },
-    search: { type: 'string', default: '' },
-    roles: { type: 'array', default: [] },
-    status: { type: 'array', default: [] },
-  });
+  const { params, setParam, setParams } = useApiParams(
+    {
+      tab: { type: 'string', default: 'users' },
+      search: { type: 'string', default: '' },
+      roles: { type: 'array', default: [] },
+      status: { type: 'array', default: [] },
+    },
+    { resetKeys: CURSOR_PAGER_KEYS, resetHistory: 'push' },
+  );
+  const pager = useCursorPager({ pageSize: USERS_PAGE_SIZE, ...PAGED_LISTS.users, resetOn: JSON.stringify(params) });
   const tab: EmployeesTab = isEmployeesTab(params.tab) ? params.tab : 'users';
   // Local search keeps typing responsive; the shared hook debounces it to the
   // URL param and guards the back/forward sync-down against clobbering typing.
-  const {
-    search: searchInput,
-    setSearch: setSearchInput,
-    debouncedSearch,
-  } = useSearchParam(params.search, value => setParam('search', value));
+  const { search: searchInput, setSearch: setSearchInput } = useSearchParam(params.search, value =>
+    setParam('search', value),
+  );
 
   // Memoized for their identity, not for speed: `useDeferredQuery` tells a
   // pending refetch by comparing references.
@@ -65,9 +75,17 @@ export function CompanyAndUsersTab() {
   );
   // The tab is deferred with the funnels, so a switch keeps the old table on
   // screen (dimmed) until the new one answers, and never queries one tab with
-  // the other's funnels.
+  // the other's funnels. The query reads the URL's search, not the box's
+  // debounced value: the URL write that carries a new search drops the cursor in
+  // the same navigation, so the two never meet in one request. The page is
+  // deferred with the rest, so a page move keeps the current rows on screen.
   const view = useMemo(() => ({ tab, selections }), [tab, selections]);
-  const { deferredFilters: shownView, deferredSearch, isPending } = useDeferredQuery(view, debouncedSearch);
+  const {
+    deferredFilters: shownView,
+    deferredSearch,
+    deferredPage,
+    isPending,
+  } = useDeferredQuery(view, params.search, pager.variables);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
 
   const setSelections = (next: EmployeeSelections) => setParams({ roles: next.roles, status: next.status });
@@ -115,6 +133,8 @@ export function CompanyAndUsersTab() {
               onSelectionsChange={setSelections}
               isPending={isPending}
               stickyHeaderOffset={stickyHeaderOffset}
+              pager={pager}
+              pageVariables={deferredPage}
             />
           ) : (
             <InvitationsListTable
