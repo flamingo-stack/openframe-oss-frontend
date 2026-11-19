@@ -3,11 +3,14 @@
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   buildDevicePanelActions,
+  DEVICE_CONNECTIVITY_FILTER_SECTION,
   type DeviceFilterInput,
   type DeviceFilters,
   DevicesPanelView,
   getDeviceActionsColumn,
   getDeviceFilterColumns,
+  joinStatusFilterValue,
+  useDeviceStatusDisplay,
   useTagFilterModal,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
@@ -36,6 +39,7 @@ import { useDevicesUrlParams } from '@/app/(app)/devices/hooks/use-devices-url-p
 import { useDirectoryFacets } from '@/app/(app)/devices/hooks/use-directory-facets';
 import { useDirectoryGate } from '@/app/(app)/devices/hooks/use-directory-gate';
 import { useGridInfiniteScroll } from '@/app/(app)/devices/hooks/use-grid-infinite-scroll';
+import { useOutdatedClientFacet } from '@/app/(app)/devices/hooks/use-outdated-client-facet';
 import { useRowRemoteAccessPolicies } from '@/app/(app)/devices/hooks/use-remote-access-policy';
 import { DEVICES_PAGE_SIZE } from '@/app/(app)/devices/queries/devices-api';
 import type { Device } from '@/app/(app)/devices/types/device.types';
@@ -172,7 +176,12 @@ function DevicesPanelContent(body: DevicesPanelBodyProps) {
   const { deferredFilters, deferredSearch, isPending: isNarrowing } = useDeferredQuery(filters, debouncedSearch);
 
   const directoryFacets = useDirectoryFacets(deferredFilters, directoryColumns);
-  const list = useDevices(deferredFilters, deferredSearch);
+  const outdatedFacet = useOutdatedClientFacet(
+    deferredFilters,
+    urlParams.tableFilters.status,
+    !props.hideFilters?.includes('status'),
+  );
+  const list = useDevices(deferredFilters, deferredSearch, urlParams.sort);
   const epoch = useDeviceEpoch();
 
   // Only a synced-connection count that is out when the list first answers holds the rows, so the USER and SOURCES
@@ -194,6 +203,7 @@ function DevicesPanelContent(body: DevicesPanelBodyProps) {
         directoryColumns={directoryColumns}
         fleetFacets={fleetFacets}
         directoryFacets={directoryFacets}
+        outdatedFacet={outdatedFacet}
       />
     );
 
@@ -220,6 +230,8 @@ interface DevicesPanelLoadedProps {
   /** `null` when the facet query failed: no options, so no funnels, no grid filter row, an empty filter modal. */
   fleetFacets: DeviceFilters | null;
   directoryFacets: Pick<DeviceFilters, 'directorySources' | 'userLinks'>;
+  /** The Status funnel's OUTDATED option count (`useOutdatedClientFacet`); absent: no OUTDATED option. */
+  outdatedFacet: Pick<DeviceFilters, 'clientOutdated'>;
 }
 
 function DevicesPanelLoaded({
@@ -230,6 +242,7 @@ function DevicesPanelLoaded({
   directoryColumns,
   fleetFacets,
   directoryFacets,
+  outdatedFacet,
 }: DevicesPanelLoadedProps) {
   const {
     title = 'Devices',
@@ -250,8 +263,8 @@ function DevicesPanelLoaded({
   } = panel;
   const router = useRouter();
   const deviceFilters = useMemo(
-    () => fleetFacets && { ...fleetFacets, ...directoryFacets },
-    [fleetFacets, directoryFacets],
+    () => fleetFacets && { ...fleetFacets, ...directoryFacets, ...outdatedFacet },
+    [fleetFacets, directoryFacets, outdatedFacet],
   );
 
   const {
@@ -271,13 +284,20 @@ function DevicesPanelLoaded({
   const { devices, isFetchingNextPage, hasNextPage, fetchNextPage, filteredCount } = list;
   // The grid where its switch is drawn, the table on a narrower page (`devicesViewMode`).
   const viewMode = devicesViewMode(params.viewMode, useContentMdUp());
+  const statusDisplay = useDeviceStatusDisplay();
 
   // The status column reflects only the user's explicit selection — the default
   // statuses are a query-side fallback and must not render as checked filters.
-  const columnFilters = useMemo<ColumnFiltersState>(
-    () => Object.entries(tableFilters).flatMap(([id, value]) => (value.length > 0 ? [{ id, value }] : [])),
-    [tableFilters],
-  );
+  // The table carries the Connectivity picks inside the STATUS funnel (`connectivity:ONLINE`): it has no column of
+  // their own.
+  const columnFilters = useMemo<ColumnFiltersState>(() => {
+    const { [DEVICE_CONNECTIVITY_FILTER_SECTION]: connectivity = [], status = [], ...rest } = tableFilters;
+    const statusValue = joinStatusFilterValue(status, connectivity);
+    return [
+      ...(statusValue.length > 0 ? [{ id: 'status', value: statusValue }] : []),
+      ...Object.entries(rest).flatMap(([id, value]) => (value.length > 0 ? [{ id, value }] : [])),
+    ];
+  }, [tableFilters]);
 
   const hasActiveDeviceFilters = columnFilters.length > 0 || params.tags.length > 0;
 
@@ -295,8 +315,10 @@ function DevicesPanelLoaded({
     // Off, `roomyDirectory` puts SOURCES in the filter window on a desktop, where the table header has no funnel for it
     // beside the customer column (`DevicesTableBody`'s rule). The grid draws a SOURCES dropdown of its own.
     const roomyDirectory = viewMode === 'grid' || (hideColumns?.includes('organization') ?? false);
-    return getDeviceFilterColumns(deviceFilters, { directoryColumns, roomyDirectory }).filter(c => !hidden.has(c.key));
-  }, [deviceFilters, hideFilters, hideColumns, directoryColumns, viewMode]);
+    return getDeviceFilterColumns(deviceFilters, { directoryColumns, roomyDirectory, statusDisplay }).filter(
+      c => !hidden.has(c.key),
+    );
+  }, [deviceFilters, hideFilters, hideColumns, directoryColumns, viewMode, statusDisplay]);
   // Post-action list refresh is handled centrally: useDeviceActions invalidates
   // the device query roots, so no per-row refetch callback is needed.
   // The row menus disable Remote Control on DENY_ACCESS; only the table has them.

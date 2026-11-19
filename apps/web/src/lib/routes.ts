@@ -19,7 +19,13 @@
  * existing bookmarks stay valid.
  */
 import type { LegalDocumentType } from '@flamingo-stack/openframe-frontend-core/utils';
-import type { DeviceStatus, InsightSeverity, InsightStatus, NotificationEntityType } from '@/generated/schema-enums';
+import type {
+  DeviceConnectivity,
+  DeviceStatus,
+  InsightSeverity,
+  InsightStatus,
+  NotificationEntityType,
+} from '@/generated/schema-enums';
 
 // --------------------------------------------------------------------------
 // Tab ids (single source of truth, shared with the tab-component arrays)
@@ -340,6 +346,12 @@ export const routes = {
      * built by `desktopAuthReturnTarget`, which must match the gateway allow-list entry exactly.
      */
     desktopReturn: '/auth/desktop-return',
+    /**
+     * The desktop app's first-launch download hand-off, on the shared host: the app opens it in the
+     * default browser, and the page asks the gateway for the download id in this browser's cookie and
+     * hands it to the app's scheme (`lib/desktop-download-handoff.ts`).
+     */
+    desktopHandoff: '/auth/desktop-handoff',
   },
 
   customers: {
@@ -359,10 +371,23 @@ export const routes = {
      * The Devices list narrowed to some customers and statuses (`?organizationIds=`,
      * `?statuses=`, what `useDevicesUrlParams` reads). `organizationIds` are the RAW
      * `Organization.organizationId` values. An empty list means the page default (every
-     * customer; online + offline), so it is dropped like an absent option.
+     * customer; managed + pending deletion), so it is dropped like an absent option.
+     * `connectivity` narrows to devices online or offline right now (`?connectivity=`).
+     * `sort: 'clientOutdated'` lists devices with an outdated OpenFrame client first (`?sort=`, what
+     * `parseDeviceListSort` reads), without narrowing the list to them.
      */
-    filtered: (o: { organizationIds?: readonly string[]; statuses?: readonly DeviceStatus[] }) =>
-      withQuery(DEVICES_LIST_PATH, { organizationIds: o.organizationIds, statuses: o.statuses }),
+    filtered: (o: {
+      organizationIds?: readonly string[];
+      statuses?: readonly DeviceStatus[];
+      connectivity?: readonly DeviceConnectivity[];
+      sort?: 'clientOutdated';
+    }) =>
+      withQuery(DEVICES_LIST_PATH, {
+        organizationIds: o.organizationIds,
+        statuses: o.statuses,
+        connectivity: o.connectivity,
+        sort: o.sort,
+      }),
     /** Deleted devices. `organizationId`: one customer's, opened from its Devices tab (the same id its list locks). */
     archive: (o?: { organizationId?: string | number }) =>
       withQuery('/devices/archive', { organizationId: o?.organizationId }),
@@ -414,6 +439,13 @@ export const routes = {
     vulnerabilities: '/software/vulnerabilities',
     install: '/software/install',
     update: '/software/update',
+    /**
+     * Update <software> from the software's page: the same route as Update
+     * Software, on one title (`softwareId`), the package picked by the server.
+     */
+    updateSoftware: (softwareId: string | number) => withQuery('/software/update', { softwareId }),
+    /** One title's Auto-update settings, by `Software.id`. */
+    autoUpdate: (id: string | number) => withQuery('/software/auto-update', { id }),
     /**
      * Software Update Details — one install or update run, by its Software
      * Action id (the opaque one the Software Actions table links by; the run's

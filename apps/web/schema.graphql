@@ -546,6 +546,8 @@ type DeviceEdge {
 
 input DeviceFilterInput {
   statuses: [DeviceStatus!]
+  """ONLINE / OFFLINE right now, apart from the lifecycle status."""
+  connectivity: [DeviceConnectivity!]
   deviceTypes: [DeviceType!]
   osTypes: [String!]
   organizationIds: [String!]
@@ -556,6 +558,9 @@ input DeviceFilterInput {
   directorySources: [DirectorySource!]
   """USER filter. NONE also matches a machine no external directory integration wrote (every machine in OSS)."""
   userLinks: [DirectoryUserLink!]
+
+  """true: only devices whose client is below the minimum supported version; false: only supported or unknown versions; null: no filter."""
+  clientOutdated: Boolean
 }
 
 type DeviceFilterOption {
@@ -566,6 +571,8 @@ type DeviceFilterOption {
 
 type DeviceFilters {
   statuses: [DeviceFilterOption!]!
+  """ONLINE / OFFLINE counts; never a "null" option."""
+  connectivity: [DeviceFilterOption!]!
   deviceTypes: [DeviceFilterOption!]!
   osTypes: [DeviceFilterOption!]!
   organizationIds: [DeviceFilterOption!]!
@@ -576,6 +583,9 @@ type DeviceFilters {
   directorySources: [DeviceFilterOption!]!
   """USER filter options: PRIMARY, SHARED, NONE. A machine without a directory link counts as NONE."""
   userLinks: [DeviceFilterOption!]!
+
+  """Outdated client options: "true" (client below the minimum supported version) and "false" (supported or unknown version), both always listed, counted under the other filters. The outdated client banner reads the "true" count."""
+  clientOutdated: [DeviceFilterOption!]!
 }
 
 type DeviceLogConnection {
@@ -644,6 +654,7 @@ type DeviceRemoteAccess {
 }
 
 enum DeviceStatus {
+  MANAGED
   PENDING
   ACTIVE
   INACTIVE
@@ -1283,6 +1294,18 @@ enum ExecutionSource {
 
   """The Mingo AI runner invoked the dispatch on the technician's behalf."""
   AI_ASSISTANT
+
+  """The platform installed a package manager on the device."""
+  SYSTEM_BOOTSTRAP
+
+  """A software install from Software Management."""
+  PACKAGE_INSTALLATION
+
+  """A software update an admin started or scheduled."""
+  PACKAGE_UPDATE
+
+  """A software update the auto-update policy started."""
+  PACKAGE_AUTO_UPDATE
 }
 
 type FeFeatureFlag {
@@ -1914,8 +1937,13 @@ type Machine implements Node & AssignableTarget {
   ip: String
   macAddress: String
   osUuid: String
+  """The client runs a version below the minimum supported one (server setting, 1.6.0 by default). False when the version is unknown. The devices sort field "clientOutdated" (DESC = outdated first) uses the same value."""
+  clientOutdated: Boolean!
   agentVersion: String
+  """Lifecycle: PENDING, MANAGED, PENDING_DELETION, DELETED, ARCHIVED (legacy ONLINE / OFFLINE until migrated)."""
   status: DeviceStatus
+  """Whether the device is online right now; null only for a device that never reported since the migration."""
+  connectivity: DeviceConnectivity
   lastSeen: Instant
   organizationId: String
   organization: Organization
@@ -2484,6 +2512,25 @@ type Mutation {
   dispatched as its own RMM execution; returns one result (with its executionId) per package.
   """
   updateSoftware(input: SoftwareManagementInput!): [SoftwareDispatchResult!]!
+  """
+  Adopt a software title on devices that have it installed manually: reinstall it with a package manager,
+  so it can be updated. Runs now; an offline device starts when it comes online. The device picker lists
+  softwareDevices(softwareId, filter: {installedBy: [UNMANAGED]}). Returns one result per package manager used
+  (each its own execution, shown as an ADOPT row in Software Actions).
+  """
+  adoptSoftware(input: AdoptSoftwareInput!): [SoftwareDispatchResult!]!
+  """
+  Save the Auto-update form: on with these settings for the bundle's devices, off for the title's other
+  devices. Runs no update; the bundle becomes COMPLETED.
+  """
+  turnOnSoftwareAutoUpdate(input: TurnOnSoftwareAutoUpdateInput!): Software!
+  """
+  Turn off auto-update for a software title on every device ("Turn Off Auto-Update"). Running updates
+  finish; no new version is installed automatically. Turned on again through turnOnSoftwareAutoUpdate or Update
+  Software (autoUpdate).
+  Idempotent: a title that has no auto-update is returned as it is. Unknown softwareId → NOT_FOUND.
+  """
+  turnOffSoftwareAutoUpdate(softwareId: ID!): Software!
 
   """
   Heartbeat from an active human session: marks the caller present for the presence TTL.
@@ -2591,6 +2638,12 @@ type Mutation {
   changing a subscription.
   """
   updateAutoTopUp(input: AutoTopUpSettingsInput!): AutoTopUpSettings!
+
+  """
+  Dismisses a billing notice for the whole tenant until its next event. PAYMENT_OVERDUE and
+  ACCOUNT_SUSPENDED cannot be dismissed.
+  """
+  dismissBillingNotice(type: BillingNoticeType!, eventKey: String!): Boolean!
   """
   Buy AI tokens for the given amount in USD. The amount must be a whole number of dollars and at
   least the configured minimum; the backend converts it to a quantity at the current tiered price
@@ -3655,6 +3708,10 @@ type Query {
   Mirrors softwareFilters; scoped to the devices that have this software installed.
   """
   softwareDeviceFilters(softwareId: ID!, filter: SoftwareOnDeviceFilterInput, search: String): SoftwareOnDeviceFilters!
+  """
+  Auto-update of a software title, for its Auto-update form: on or off, the settings and the devices.
+  """
+  softwareAutoUpdatePolicy(softwareId: ID!): SoftwareAutoUpdatePolicy!
 
   """
   Single global CVE record by id (e.g. "CVE-2024-38063"). Null when Fleet has no record.
@@ -3817,6 +3874,11 @@ type Query {
   The standing automatic top-up arrangement, including why the system switched it off if it did.
   """
   autoTopUpSettings: AutoTopUpSettings!
+
+  """
+  The billing notices that hold now for this tenant, less the ones dismissed. Readable in every subscription state.
+  """
+  billingNotices: [BillingNotice!]!
 
   """
   Users of the tenant, ordered by email.
@@ -4609,6 +4671,70 @@ enum AutoTopUpDisabledReason {
   NO_PAYMENT_METHOD
 }
 
+"""
+A billing notice that holds now. It disappears once its condition no longer does; the dates and amounts are
+the ones the email for the same event states. Fields not used by a type are null.
+"""
+type BillingNotice {
+  type: BillingNoticeType!
+
+  """
+  The event this notice is about; pass it back to dismiss the notice. A new event shows again.
+  """
+  eventKey: String!
+  severity: BillingNoticeSeverity!
+
+  """PAYMENT_OVERDUE: total overdue, in major currency units."""
+  amountDue: Float
+
+  """PAYMENT_OVERDUE: ISO 4217 code, lowercase as Stripe returns it."""
+  currency: String
+
+  """PAYMENT_OVERDUE: when the account is suspended unless paid."""
+  suspensionDate: Instant
+
+  """ACCOUNT_SUSPENDED: when the account is deleted."""
+  deletionDate: Instant
+
+  """TRIAL_ENDING: when the trial ends."""
+  trialEndDate: Instant
+
+  """AUTO_TOP_UP_DISABLED: PAYMENT_FAILED or AUTHENTICATION_ABANDONED."""
+  reason: AutoTopUpDisabledReason
+}
+
+"""How urgent a billing notice is."""
+enum BillingNoticeSeverity {
+  """Something to act on."""
+  WARNING
+
+  """The account is suspended or deleted within the next seven days."""
+  CRITICAL
+}
+
+"""
+An in-product billing notice the Payment Terms promise beside a billing email.
+"""
+enum BillingNoticeType {
+  """
+  An invoice is overdue; the account is suspended on suspensionDate unless it is paid. Cannot be dismissed.
+  """
+  PAYMENT_OVERDUE
+
+  """
+  The account is suspended for unpaid invoices and is deleted on deletionDate. Cannot be dismissed.
+  """
+  ACCOUNT_SUSPENDED
+
+  """The trial ends on trialEndDate, within the next seven days."""
+  TRIAL_ENDING
+
+  """
+  A card payment failed or 3-D Secure was not confirmed, so the system switched automatic top-up off; reason says which. Shown for seven days.
+  """
+  AUTO_TOP_UP_DISABLED
+}
+
 """Why automatic top-up is on but holding refills back for now."""
 enum AutoTopUpPausedReason {
   """
@@ -5234,6 +5360,11 @@ type Software {
   source: SoftwareSource
 
   """
+  OS column, from the inventory source. Null = a kind several systems have (browser extensions, npm, …).
+  """
+  os: OsType
+
+  """
   Most-recent version installed anywhere in the fleet — shown as CURRENT VERSION.
   """
   currentVersion: String
@@ -5262,6 +5393,28 @@ type Software {
   — shown as "no CPE match" instead of a severity badge.
   """
   cpeMatched: Boolean
+
+  """
+  Kind of software — the Type field on the detail page (e.g. "Application").
+  """
+  type: SoftwareType
+
+  """
+  AUTO-UPDATE column and the detail page's "Turn Off Auto-Update" button (shown while ON).
+  Filterable with the same values (SoftwareFilterInput.autoUpdateStatuses). Null = unknown.
+  """
+  autoUpdate: SoftwareAutoUpdateStatus
+
+  """
+  Devices that have this title installed manually (installedBy UNMANAGED) and can be adopted — the
+  ADOPTION column and the "N devices have … installed manually" banner with Adopt. Null or 0 = "–", no banner;
+  always 0 when autoUpdate is NO_PACKAGE (nothing to adopt with).
+  Sortable as adoptionCount.
+  """
+  adoptionCount: Int
+
+  """Devices that have this title installed."""
+  devicesCount: Int
 }
 
 """
@@ -5281,7 +5434,44 @@ type SoftwareActionDevice {
   hostname: String
   organizationId: String
   organizationName: String
+
+  """
+  What ran on this device: INSTALL, UPDATE or AUTO_UPDATE. Null for a device the action has not reached yet.
+  """
+  kind: SoftwareActionKind
+
+  """Device lifecycle status."""
+  deviceStatus: DeviceStatus
+
+  """Device connectivity (ONLINE / OFFLINE), for the online dot."""
+  connectivity: DeviceConnectivity
+
+  """Last time the device was seen, shown while it is offline."""
+  lastSeen: Instant
   status: SoftwareActionStatus!
+
+  """
+  Why the update waits on this device: APP_RUNNING, MANAGER_BUSY or NO_USER_SESSION. Null unless WAITING.
+  """
+  waitingReason: String
+
+  """
+  Where the device user is: PROMPT (asked), COUNTDOWN (the app closes at closesAt), POSTPONED (pressed Ask Later) or APPROVED (pressed Update Now, the forced update is on its way). Null unless WAITING.
+  """
+  waitingPhase: String
+
+  """When the countdown closes the app. Set only in COUNTDOWN."""
+  closesAt: Instant
+
+  """
+  When the device user is asked again after Ask Later. Null when the deadline comes first.
+  """
+  askAgainAt: Instant
+
+  """
+  When a waiting update is forced. Null when the update has no deadline or has not waited on an open app yet.
+  """
+  deadlineAt: Instant
   exitCode: Int
   stdout: String
   stdoutTruncated: Boolean
@@ -5299,11 +5489,15 @@ organizationIds is the Customer filter.
 input SoftwareActionDeviceFilterInput {
   statuses: [SoftwareActionStatus!]
   organizationIds: [ID!]
+  deviceTagIds: [ID!]
 }
 
 input SoftwareActionFilterInput {
   statuses: [SoftwareActionStatus!]
   actions: [SoftwareAction!]
+
+  """The ACTION dropdown (Install / Update / Auto-update / Adopt)."""
+  kinds: [SoftwareActionKind!]
   engines: [PackageManagerType!]
 }
 
@@ -5314,6 +5508,7 @@ Faceted filter options (with live counts) for the "Software Actions" page. Reuse
 type SoftwareActionFilters {
   statuses: [ScriptFilterOption!]!
   actions: [ScriptFilterOption!]!
+  kinds: [ScriptFilterOption!]!
   engines: [ScriptFilterOption!]!
   filteredCount: Int!
 }
@@ -5326,8 +5521,14 @@ type SoftwareActionRun {
   """Package name (the SOFTWARE column)."""
   software: String!
 
+  """Version the action installs or updates to. Null = latest."""
+  version: String
+
   """INSTALL or UPDATE."""
   action: SoftwareAction!
+
+  """The ACTION column: Install / Update / Auto-update / Adopt."""
+  kind: SoftwareActionKind!
 
   """Package manager engine — BREW / WINGET / CHOCO."""
   engine: PackageManagerType!
@@ -5339,8 +5540,20 @@ type SoftwareActionRun {
   """Devices that have finished (X in X / Y)."""
   respondedMachineCount: Int!
 
-  """When a SCHEDULED action will fire. Null once dispatched / for NOW."""
+  """
+  Devices whose update waits on the device — a user prompt or an open app (the N WAITING chip).
+  """
+  waitingMachineCount: Int!
+
+  """
+  When a SCHEDULED action will fire. Null once dispatched / for NOW. For DEVICE_LOCAL: the date and time with no zone offset, each device runs at it by its own clock.
+  """
   scheduledAt: Instant
+
+  """
+  How scheduledAt reads: SERVER (an absolute instant) or DEVICE_LOCAL (each device's own clock). Null unless SCHEDULED.
+  """
+  timeReference: ScheduleTimeReference
 
   """When the action was dispatched. Null while SCHEDULED."""
   dispatchedAt: Instant
@@ -5455,6 +5668,11 @@ type SoftwareBundlePackage {
   packageName: String!
   brewPackageType: BrewPackageType
   version: String
+
+  """
+  The Software (Fleet title) this package updates; null when it was picked from the package search.
+  """
+  softwareId: ID
 }
 
 """
@@ -5511,6 +5729,18 @@ input SoftwareFilterInput {
   versionStatuses: [SoftwareVersionStatus!]
   minSeverity: SoftwareCveSeverity
   deviceTagIds: [ID!]
+  autoUpdateStatuses: [SoftwareAutoUpdateStatus!]
+
+  """
+  True: only software a package manager manages (source WINGET / CHOCOLATEY / BREW); false: the rest.
+  Null = no filter. Fleet-wide it needs the software read model; with Fleet paging it is left out, like sources.
+  """
+  manageable: Boolean
+
+  """
+  The OS filter (Software.os). With Fleet paging it is left out, like sources.
+  """
+  osTypes: [OsType!]
 }
 
 type SoftwareFilterOption {
@@ -5524,6 +5754,9 @@ type SoftwareFilters {
   sources: [SoftwareFilterOption!]!
   versionStatuses: [SoftwareFilterOption!]!
   severities: [SoftwareFilterOption!]!
+
+  """AUTO-UPDATE dropdown: ON / OFF / NO_PACKAGE / NEEDS_ADOPTION."""
+  autoUpdateStatuses: [SoftwareFilterOption!]!
 }
 
 """A set of catalog packages to install/update on a set of devices."""
@@ -5540,6 +5773,25 @@ type SoftwareOnDevice {
   device: Machine!
   softwareVersion: String
   status: SoftwareOnDeviceStatus
+
+  """
+  INSTALLED BY column: the package manager that installed it here (WINGET / CHOCOLATEY / BREW), or
+  UNMANAGED for "Manually". Null = unknown.
+  """
+  installedBy: SoftwareSource
+
+  """
+  Set while an adoption of this device runs or after it failed — the ADOPTING / ADOPTION FAILED chip that
+  replaces installedBy. ADOPTING on an offline device shows "Starts when online" (from device.status).
+  Null = no adoption.
+  """
+  adoption: SoftwareAdoption
+
+  """
+  AUTO-UPDATE column for this device. Filterable with the same values
+  (SoftwareOnDeviceFilterInput.autoUpdateStatuses). Null = unknown.
+  """
+  autoUpdate: SoftwareAutoUpdateStatus
 }
 
 type SoftwareOnDeviceConnection {
@@ -5556,10 +5808,41 @@ type SoftwareOnDeviceEdge {
 input SoftwareOnDeviceFilterInput {
   statuses: [SoftwareOnDeviceStatus!]
   deviceTagIds: [ID!]
+
+  """The CUSTOMER filter of the Adopt device picker."""
+  organizationIds: [ID!]
+
+  """
+  The STATUS filter of the Adopt device picker (the device's own status, e.g. ACTIVE = Managed).
+  """
+  deviceStatuses: [DeviceStatus!]
+  installedBy: [SoftwareSource!]
+  autoUpdateStatuses: [SoftwareAutoUpdateStatus!]
+
+  """
+  True: only devices where a package manager manages this title (installedBy set); false: the rest. Null = no filter.
+  """
+  manageable: Boolean
 }
 
 type SoftwareOnDeviceFilters {
   statuses: [SoftwareFilterOption!]!
+
+  """
+  INSTALLED BY dropdown: WINGET / CHOCOLATEY / BREW / UNMANAGED (Manually).
+  """
+  installedBy: [SoftwareFilterOption!]!
+
+  """AUTO-UPDATE dropdown: ON / OFF / NO_PACKAGE / NEEDS_ADOPTION."""
+  autoUpdateStatuses: [SoftwareFilterOption!]!
+
+  """
+  CUSTOMER dropdown of the Adopt device picker: value = organizationId, label = its name.
+  """
+  organizations: [SoftwareFilterOption!]!
+
+  """STATUS dropdown of the Adopt device picker: the device statuses."""
+  deviceStatuses: [SoftwareFilterOption!]!
 }
 
 """
@@ -5578,14 +5861,23 @@ enum SoftwareOnDeviceStatus {
 One package chosen from the catalog, identified exactly as package search returns it.
 """
 input SoftwarePackageInput {
-  packageManager: PackageManagerType!
-  packageName: String!
+  """
+  Omit packageManager and packageName together to let the server pick the package that manages softwareId.
+  """
+  packageManager: PackageManagerType
+  packageName: String
 
   """
   Brew-only sub-type (CASK/FORMULA). Required for brew (enforced server-side), ignored by managers that do not distinguish.
   """
   brewPackageType: BrewPackageType
   version: String
+
+  """
+  The Software (Fleet title) this package updates, when the update starts from a software page. Links an
+  auto-update this package turns on to that Software's autoUpdate and turnOffSoftwareAutoUpdate.
+  """
+  softwareId: ID
 }
 
 type SoftwareSchedule implements Node {
@@ -5690,16 +5982,29 @@ type SoftwareSchedulePackage {
   Brew-only sub-type (CASK/FORMULA); null for managers that do not distinguish.
   """
   brewPackageType: BrewPackageType
+
+  """
+  The Software (Fleet title) this package updates; null when it was picked from the package search.
+  """
+  softwareId: ID
 }
 
 input SoftwareSchedulePackageInput {
-  packageManager: PackageManagerType!
-  packageName: String!
+  """
+  Omit packageManager and packageName together to let the server pick the package that manages softwareId.
+  """
+  packageManager: PackageManagerType
+  packageName: String
 
   """
   Brew-only sub-type (CASK/FORMULA). Required for brew (enforced server-side), ignored by other managers.
   """
   brewPackageType: BrewPackageType
+
+  """
+  The Software (Fleet title) this package updates, as on SoftwarePackageInput.
+  """
+  softwareId: ID
 }
 
 """ ────────── Enums ──────────"""
@@ -5814,6 +6119,15 @@ type SubscriptionDetail {
 
   """Aggregated usage for the current billing period."""
   usage: SubscriptionUsage!
+
+  """
+  Whether activating or renewing must include a token purchase. False while the tenant still holds
+  purchased tokens (usage.purchasedTokensRemaining > 0), when the requirement is switched off, or when the
+  prepaid token bank is off: the token top-up on the paywall is then optional. The answer is for a monthly
+  plan only and does not look at the period: for a yearly plan the paywall must treat the purchase as
+  optional, since the checkout never requires it there.
+  """
+  activationTokenPurchaseRequired: Boolean!
 
   """Forecast of the next invoice from Stripe."""
   currentInvoice: InvoiceSummary
@@ -7536,4 +7850,139 @@ input SoftwareAutoUpdateInput {
   Null = the update's own settings ("Same settings for auto-update"). Ignored while enabled is false.
   """
   settings: PackageUpdateSettingsInput
+}
+
+""" ────────── Adopt ──────────"""
+input AdoptSoftwareInput {
+  """The software title (Software.id) to adopt."""
+  softwareId: ID!
+
+  """
+  Selected devices (Machine global ids), 1..100. Devices that do not have the title installed manually are
+  skipped. Null = every device matching filter + search ("Add All Devices").
+  """
+  machineIds: [ID!]
+
+  """
+  With machineIds null: the devices to adopt, as the picker's softwareDevices(softwareId, filter, search) lists
+  them. Always narrowed to installedBy UNMANAGED. Ignored when machineIds is set.
+  """
+  filter: SoftwareOnDeviceFilterInput
+  search: String
+
+  """Package Manager for Windows. macOS devices always adopt with Brew."""
+  windowsPackageManager: SoftwareAdoptionWindowsManager! = MATCH_CUSTOMER
+}
+
+"""
+Online right now or not; the devices sort field "connectivity" (DESC = online first) uses the same value.
+"""
+enum DeviceConnectivity {
+  ONLINE
+  OFFLINE
+}
+
+"""What a software action did, as the ACTION column shows it."""
+enum SoftwareActionKind {
+  INSTALL
+
+  """An update an admin started (now or scheduled)."""
+  UPDATE
+
+  """
+  An update started by an auto-update policy when a new version came out.
+  """
+  AUTO_UPDATE
+
+  """A manually installed copy reinstalled with a package manager."""
+  ADOPT
+}
+
+"""
+An adoption of one device: the manually installed copy is reinstalled with a package manager, so it can be
+updated.
+"""
+type SoftwareAdoption {
+  status: SoftwareAdoptionStatus!
+
+  """The package manager the copy is reinstalled with."""
+  packageManager: PackageManagerType
+
+  """Why the adoption failed. FAILED only."""
+  error: String
+}
+
+enum SoftwareAdoptionStatus {
+  """
+  Reinstall with a package manager is queued or running; on an offline device it starts when it comes online.
+  """
+  ADOPTING
+
+  """The reinstall failed; the manually installed copy is left as it was."""
+  FAILED
+}
+
+"""Which package manager adopts the title on Windows devices."""
+enum SoftwareAdoptionWindowsManager {
+  """The manager each customer already uses for this app; Winget if none."""
+  MATCH_CUSTOMER
+  WINGET
+  CHOCOLATEY
+}
+
+"""Auto-update of one software title across its devices."""
+type SoftwareAutoUpdatePolicy {
+  """On for at least one device."""
+  enabled: Boolean!
+
+  """The settings saved last. Null while off."""
+  settings: PackageUpdateSettings
+
+  """The devices it is on for (Machine.machineId)."""
+  machineIds: [String!]!
+}
+
+"""
+Whether software can be and is kept updated automatically — the AUTO-UPDATE column and its filter.
+"""
+enum SoftwareAutoUpdateStatus {
+  """An auto-update policy keeps it updated (the ON tag)."""
+  ON
+
+  """
+  A package manager installed it, but no auto-update policy covers it (the OFF tag).
+  """
+  OFF
+
+  """
+  No package manager has a package for this app, so it can't be auto-updated or adopted ("No package found").
+  """
+  NO_PACKAGE
+
+  """Installed by hand: it needs adoption first ("–")."""
+  NEEDS_ADOPTION
+}
+
+"""Kind of software, from the inventory source."""
+enum SoftwareType {
+  """Desktop applications (Windows programs, macOS apps)."""
+  APPLICATION
+
+  """Browser extensions and add-ons."""
+  BROWSER_EXTENSION
+
+  """OS and package-manager packages (deb, rpm, Homebrew, Chocolatey, …)."""
+  PACKAGE
+  OTHER
+}
+
+input TurnOnSoftwareAutoUpdateInput {
+  """The software title (Software.id)."""
+  softwareId: ID!
+
+  """
+  A PENDING SoftwareBundle with the devices to keep updated, at least one.
+  """
+  bundleId: ID!
+  settings: PackageUpdateSettingsInput!
 }

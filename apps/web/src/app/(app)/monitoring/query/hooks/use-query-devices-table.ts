@@ -1,4 +1,12 @@
-import { DEVICE_ENRICHMENT_FILTER, getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
+  DEVICE_ENRICHMENT_FILTER,
+  type DeviceStatusDisplay,
+  getDeviceName,
+  getLegacyDeviceStatusConfig,
+  isManagedStatus,
+  toUiDeviceStatus,
+  useDeviceStatusDisplay,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { skipToken, useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { fleetApiClient } from '@/lib/fleet-api-client';
@@ -32,7 +40,18 @@ async function fetchQueryHosts(queryId: number): Promise<Array<{ id: number; hos
  * assigned Fleet hosts with the device registry (deduplicated by Fleet host id,
  * preferring the most recently seen device). Sorted by display name.
  */
+/**
+ * A row's status as its STATUS funnel filters on it. The lifecycle display: the UI value, MANAGED standing for the
+ * legacy ONLINE / OFFLINE too, so the funnel has one Managed. The legacy display (`DeviceStatusDisplay`): ONLINE or
+ * OFFLINE for a managed device, from its connectivity, as the funnel offered before.
+ */
+function queryRowStatus(status: string, connectivity: string | null, display: DeviceStatusDisplay): string {
+  if (display === 'legacy' && isManagedStatus(status)) return getLegacyDeviceStatusConfig(status, connectivity).label;
+  return toUiDeviceStatus(status);
+}
+
 export function useQueryDevicesTable(queryId: number | null) {
+  const statusDisplay = useDeviceStatusDisplay();
   // The Fleet hosts assigned to this query (id + hostname only).
   const hostsQuery = useQuery({
     queryKey: ['query-assigned-hosts', queryId],
@@ -66,7 +85,8 @@ export function useQueryDevicesTable(queryId: number | null) {
         organizationImageUrl: device?.organizationImageUrl,
         organizationImageHash: device?.organizationImageHash,
         osType: device?.osType,
-        status: device?.status || 'UNKNOWN',
+        status: device?.status ? queryRowStatus(device.status, device.connectivity ?? null, statusDisplay) : 'UNKNOWN',
+        connectivity: device?.connectivity ?? null,
         lastSeen: device?.lastSeen || device?.last_seen,
         machineId: device?.machineId,
         fleetHostId: host.id,
@@ -76,7 +96,7 @@ export function useQueryDevicesTable(queryId: number | null) {
 
     result.sort((a, b) => a.name.localeCompare(b.name));
     return result;
-  }, [hostsQuery.data, devices]);
+  }, [hostsQuery.data, devices, statusDisplay]);
 
   return {
     rows,

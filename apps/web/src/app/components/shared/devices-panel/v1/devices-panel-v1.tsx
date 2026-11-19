@@ -9,7 +9,9 @@ import {
   DevicesPanelView,
   getDeviceActionsColumn,
   getDeviceFilterColumns,
+  useDeviceStatusDisplay,
   useTagFilterModal,
+  joinStatusFilterValue,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   type ColumnDef,
@@ -28,6 +30,7 @@ import { type ReactNode, useCallback, useMemo } from 'react';
 import { DeviceActionsDropdown } from '@/app/(app)/devices/components/device-actions-dropdown';
 import { DeviceFacets } from '@/app/(app)/devices/components/device-facets';
 import { useGridInfiniteScroll } from '@/app/(app)/devices/hooks/use-grid-infinite-scroll';
+import { useOutdatedClientFacet } from '@/app/(app)/devices/hooks/use-outdated-client-facet';
 import { useRowRemoteAccessPolicies } from '@/app/(app)/devices/hooks/use-remote-access-policy';
 import { useDevicesUrlParamsV1 } from '@/app/(app)/devices/hooks/v1/use-devices-url-params-v1';
 import { type UseDevicesResultV1, useDevicesV1 } from '@/app/(app)/devices/hooks/v1/use-devices-v1';
@@ -137,7 +140,12 @@ function DevicesPanelContent(props: DevicesPanelPropsV1) {
   // themselves still read the live `params`, so a checkbox ticks immediately.
   const { deferredFilters, deferredSearch, isPending: isNarrowing } = useDeferredQuery(filters, debouncedSearch);
 
-  const list = useDevicesV1(deferredFilters, deferredSearch);
+  const outdatedFacet = useOutdatedClientFacet(
+    deferredFilters,
+    urlParams.tableFilters.status,
+    !props.hideFilters?.includes('status'),
+  );
+  const list = useDevicesV1(deferredFilters, deferredSearch, urlParams.sort);
   const epoch = useDeviceEpoch();
 
   const renderPanel = (deviceFilters: DeviceFilters | null) => (
@@ -146,7 +154,7 @@ function DevicesPanelContent(props: DevicesPanelPropsV1) {
       urlParams={urlParams}
       list={list}
       isNarrowing={isNarrowing}
-      deviceFilters={deviceFilters}
+      deviceFilters={deviceFilters && { ...deviceFilters, ...outdatedFacet }}
     />
   );
 
@@ -213,6 +221,7 @@ function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters
 
   const hasActiveDeviceFilters =
     params.statuses.length > 0 ||
+    params.connectivity.length > 0 ||
     params.osTypes.length > 0 ||
     params.organizationIds.length > 0 ||
     params.tags.length > 0;
@@ -226,10 +235,11 @@ function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters
   const showEmptyState =
     !!emptyState && !isNarrowing && !debouncedSearch && !hasActiveDeviceFilters && devices.length === 0;
 
+  const statusDisplay = useDeviceStatusDisplay();
   const filterColumns = useMemo(() => {
     const hidden = new Set(hideFilters ?? []);
-    return getDeviceFilterColumns(deviceFilters).filter(c => !hidden.has(c.key));
-  }, [deviceFilters, hideFilters]);
+    return getDeviceFilterColumns(deviceFilters, { statusDisplay }).filter(c => !hidden.has(c.key));
+  }, [deviceFilters, hideFilters, statusDisplay]);
   // Post-action list refresh is handled centrally: useDeviceActions invalidates
   // the device query roots, so no per-row refetch callback is needed.
   // The row menus disable Remote Control on DENY_ACCESS; only the table has them.
@@ -239,11 +249,13 @@ function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters
   // statuses are a query-side fallback and must not render as checked filters.
   const columnFilters = useMemo<ColumnFiltersState>(
     () => [
-      ...(params.statuses.length > 0 ? [{ id: 'status', value: params.statuses }] : []),
+      ...(params.statuses.length > 0 || params.connectivity.length > 0
+        ? [{ id: 'status', value: joinStatusFilterValue(params.statuses, params.connectivity) }]
+        : []),
       ...(params.osTypes.length > 0 ? [{ id: 'os', value: params.osTypes }] : []),
       ...(params.organizationIds.length > 0 ? [{ id: 'organization', value: params.organizationIds }] : []),
     ],
-    [params.statuses, params.osTypes, params.organizationIds],
+    [params.statuses, params.connectivity, params.osTypes, params.organizationIds],
   );
 
   const onColumnFiltersChange = useCallback<OnChangeFn<ColumnFiltersState>>(

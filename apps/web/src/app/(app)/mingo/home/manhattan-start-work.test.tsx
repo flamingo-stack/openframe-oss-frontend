@@ -64,6 +64,23 @@ describe('ManhattanStartWork', () => {
     expect(container.textContent).toContain('needs you live');
   });
 
+  it("keeps the dock's room from the first paint, less what <main> makes once it measured the dock", () => {
+    act(() => root.render(<ManhattanStartWork />));
+    const page = container.firstElementChild as HTMLElement;
+    expect(page.className).toContain('[--start-work-dock-reserve:175px]');
+    expect(page.className).toContain('md:[--start-work-dock-reserve:195px]');
+    expect(page.style.minHeight).toBe(
+      'calc(100% - max(0px, var(--start-work-dock-reserve) - var(--composer-dock-inset, 0px)))',
+    );
+  });
+
+  it('in the chat column, where no dock lies over it, fills the column as before', () => {
+    act(() => root.render(<ManhattanStartWork variant="column" onWhatToAsk={() => {}} />));
+    const page = container.firstElementChild as HTMLElement;
+    expect(page.className).toContain('min-h-full');
+    expect(page.style.minHeight).toBe('');
+  });
+
   it('reads nothing while held: "Needs you" loading', () => {
     act(() => root.render(<ManhattanStartWork live={false} />));
     expect(container.textContent).not.toContain('intro banner');

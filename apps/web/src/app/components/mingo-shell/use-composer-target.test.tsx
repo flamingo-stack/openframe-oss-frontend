@@ -15,7 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { create } from 'zustand';
 import { routes } from '@/lib/routes';
 import type { ComposerRoute } from './mingo-dock-route';
-import { useComposerTarget } from './use-composer-target';
+import { followsToChatPage, useComposerTarget } from './use-composer-target';
 
 /** The session's selection, settable from the test the way the store is from anywhere. */
 const selection = create<{ active: string | null }>(() => ({ active: null }));
@@ -384,5 +384,14 @@ describe('useComposerTarget', () => {
       finish();
       await sending;
     });
+  });
+});
+
+describe('followsToChatPage', () => {
+  it('is home with the sheet down only: the route that hands an active chat to its page', () => {
+    expect(followsToChatPage('home', false)).toBe(true);
+    expect(followsToChatPage('home', true)).toBe(false);
+    expect(followsToChatPage('chat', false)).toBe(false);
+    expect(followsToChatPage('page', false)).toBe(false);
   });
 });

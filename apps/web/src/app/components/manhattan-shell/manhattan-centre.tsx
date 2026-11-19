@@ -3,22 +3,31 @@
 import {
   AppColumnHeader,
   type AppLayoutWorkAreaMode,
+  ColumnBackSlot,
+  useColumnBack,
 } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { previewFadeMask } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { ManhattanStartWork } from '@/app/(app)/mingo/home/manhattan-start-work';
 import { useMingoChat, useMingoChatThreadOnScreen } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { useChatPageNodeStore } from '@/app/components/mingo-shell/chat-page-node-store';
 import { type ComposerRoute, composerRouteOf, isSheetRoute } from '@/app/components/mingo-shell/mingo-dock-route';
 import { useMingoSheetStore } from '@/app/components/mingo-shell/mingo-sheet-store';
 import { navModuleOf, navModuleSectionedLabel } from '@/lib/navigation-config';
+import {
+  MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE,
+  readManhattanChatClosed,
+  writeManhattanChatClosed,
+} from '@/lib/navigation-sidebar-state';
 import { routes, withMingoDialog } from '@/lib/routes';
 import { effectiveModeOf, useManhattanCentreStore, workAreaModeOf } from './manhattan-centre-store';
 import { ManhattanComposerPortal, ManhattanComposerSlot } from './manhattan-composer-host';
 import { ManhattanDockContext } from './manhattan-dock-context';
+import { MANHATTAN_COMPACT_BELOW } from './use-manhattan-squeeze';
 
 /** What the Manhattan v2 centre hands `AppLayout` (`chatColumn`, `workAreaMode`, `pageHeader`, the dock). */
 export interface ManhattanCentreSlots {
@@ -36,8 +45,8 @@ export interface ManhattanCentreSlots {
   dockFloats: (floats: boolean) => boolean;
 }
 
-/** `localStorage` key of the chat / page divider. */
-export const MANHATTAN_WORK_AREA_STORAGE_KEY = 'of.manhattan.workArea';
+/** `localStorage` key of the chat / page divider (declared beside the root layout's seeds). */
+export { MANHATTAN_WORK_AREA_STORAGE_KEY } from '@/lib/navigation-sidebar-state';
 
 /**
  * How far the divider squeezes the chat or the page past its min width: to 30% of it.
@@ -45,6 +54,15 @@ export const MANHATTAN_WORK_AREA_STORAGE_KEY = 'of.manhattan.workArea';
  * the divider marks it, so the other column keeps growing.
  */
 export const MANHATTAN_WORK_AREA_SQUEEZE_FLOOR = 0.3;
+
+/**
+ * The column's composer: the lib's chat `<section>` loses the dock's max width and takes the
+ * column's inset. Only that section, the outermost in the slot: Tailwind writes this as
+ * `.slot section:not(.slot section section)`, so a section drawn inside the chat (the Getting
+ * Started block above the composer) keeps its own padding. A bare `[&_section]` reached them all.
+ */
+const COLUMN_COMPOSER_SECTION =
+  '[&_section:not(&_section_section)]:max-w-none [&_section:not(&_section_section)]:px-[var(--spacing-system-lf)]';
 
 /**
  * The Manhattan v2 centre: the chat column and the page column of
@@ -106,24 +124,54 @@ export function ManhattanCentre({
     }
   }, [whatToAskInColumn, openDialogId, route, setWhatToAskInColumn]);
 
+  // The chat column the user closed before a reload (CU-17tkuw66xzn): back to `hidden` before the first frame the
+  // client draws, on a window wide enough for two columns. The view starts at `split` like the server's markup, so
+  // hydration matches; the `<head>` seed kept the split's chat column off the first paint until now, and its mark goes
+  // once the view holds the choice. A narrower window keeps one column's own rules, unchanged, and the choice waits
+  // for the window to widen to two columns (`chatClosedPendingRef`, below).
+  const chatClosedRestoredRef = useRef(false);
+  const chatClosedPendingRef = useRef(false);
+  useLayoutEffect(() => {
+    if (!enabled || chatClosedRestoredRef.current) return;
+    chatClosedRestoredRef.current = true;
+    const twoColumns =
+      typeof window.matchMedia === 'function'
+        ? window.matchMedia(`(min-width: ${MANHATTAN_COMPACT_BELOW}px)`).matches
+        : window.innerWidth >= MANHATTAN_COMPACT_BELOW;
+    if (readManhattanChatClosed()) {
+      if (twoColumns) setChatView('hidden');
+      else chatClosedPendingRef.current = true;
+    }
+    document.documentElement.removeAttribute(MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE);
+  }, [enabled, setChatView]);
+
   // The dock reads it from the store (it is rendered elsewhere).
   const setCompact = useManhattanCentreStore(s => s.setCompact);
   useEffect(() => setCompact(oneColumn), [oneColumn, setCompact]);
   // A chat opened (picked in the history or the chats drawer, a notification, a first send from the composer under a
   // page): the chats drawer has done its job, and a chat the user closed or put behind the page comes back beside it.
+  // The chat a reload brings back behind the pages (`restoredDialogId`) was not opened: a column closed stays closed.
+  // A chat the user opens lets the stored closed column go at any width (one column stores nothing otherwise).
   const dismissChats = useManhattanCentreStore(s => s.dismissChats);
+  const restoredDialogId = useManhattanCentreStore(s => s.restoredDialogId);
+  const setRestoredDialogId = useManhattanCentreStore(s => s.setRestoredDialogId);
   const previousDialogRef = useRef(openDialogId);
   useEffect(() => {
     if (previousDialogRef.current === openDialogId) return;
     previousDialogRef.current = openDialogId;
-    if (openDialogId === null) return;
+    // Seen once: the next selection is the user's, whichever chat it is.
+    if (restoredDialogId !== null) setRestoredDialogId(null);
+    if (openDialogId === null || openDialogId === restoredDialogId) return;
+    chatClosedPendingRef.current = false;
+    writeManhattanChatClosed(false);
     if (oneColumn) dismissChats();
     else if (chatView === 'hidden') setChatView('split');
-  }, [oneColumn, openDialogId, dismissChats, chatView, setChatView]);
+  }, [oneColumn, openDialogId, restoredDialogId, setRestoredDialogId, dismissChats, chatView, setChatView]);
 
   // The user's choice of view (the chat closed, the page full screen, the chat full screen) holds on every page opened
-  // after it, until a reload or a chat opened. In one column (compact) a new page is shown and the chat waits behind it:
-  // that `hidden` is the layout's, not the user's, and is let go once two columns are back (below).
+  // after it, until a chat opened or a reload (which keeps only a closed column, above). In one column (compact) a new
+  // page is shown and the chat waits behind it: that `hidden` is the layout's, not the user's, and is let go once two
+  // columns are back (below).
   const hiddenByOneColumnRef = useRef(false);
   const previousPathRef = useRef(pathname);
   useEffect(() => {
@@ -171,13 +219,22 @@ export function ManhattanCentre({
   });
 
   // One column's own `hidden` (the page shown, the chat behind it) is not the user's choice:
-  // widened back to two columns, the chat comes beside the page again. A chat the user closed stays closed.
+  // widened back to two columns, the chat comes beside the page again. A chat the user closed stays closed, the one
+  // closed before a reload on a narrow window included (`chatClosedPendingRef`): it is applied now.
   const previousOneColumnRef = useRef(oneColumn);
   useEffect(() => {
     if (previousOneColumnRef.current === oneColumn) return;
     previousOneColumnRef.current = oneColumn;
-    if (!oneColumn && chatView === 'hidden' && hiddenByOneColumnRef.current) setChatView('split');
-  }, [oneColumn, chatView, setChatView]);
+    // Two columns only when the shell is on: the centre switched off (`enabled`) is no widening.
+    if (oneColumn || !enabled) return;
+    if (chatClosedPendingRef.current) {
+      chatClosedPendingRef.current = false;
+      hiddenByOneColumnRef.current = false;
+      setChatView('hidden');
+      return;
+    }
+    if (chatView === 'hidden' && hiddenByOneColumnRef.current) setChatView('split');
+  }, [oneColumn, enabled, chatView, setChatView]);
 
   // "Close page" with the chat waiting behind the page: the chat stops waiting once its page
   // is on screen (where the view draws nothing), not before — set at the click, the page
@@ -208,6 +265,8 @@ export function ManhattanCentre({
     if (isSheetRoute(route)) rememberOutsidePage(href);
   }, [enabled, pathname, search, route, rememberPage, rememberOutsidePage]);
 
+  // The page column draws a header (only beside a chat column: not in one column, not on a phone).
+  const pageHeaderShown = enabled && !oneColumn && !phone;
   const slots: ManhattanCentreSlots | null = enabled
     ? {
         mode,
@@ -227,21 +286,20 @@ export function ManhattanCentre({
         ),
         // Only beside a chat column: in one column (compact) and on a phone the top bar is the
         // page's chrome, and there is no other column to go full screen over or close back to.
-        pageHeader:
-          oneColumn || phone ? null : (
-            <ManhattanPageHeader
-              route={route}
-              pathname={pathname}
-              mode={shown}
-              openDialogId={openDialogId}
-              canShowChat={chatEnabled}
-              onFullScreen={() => setChatView('hidden')}
-              onRestoreSplit={() => setChatView('split')}
-              onShowChat={() => {
-                showChatOnArrivalRef.current = true;
-              }}
-            />
-          ),
+        pageHeader: !pageHeaderShown ? null : (
+          <ManhattanPageHeader
+            route={route}
+            pathname={pathname}
+            mode={shown}
+            openDialogId={openDialogId}
+            canShowChat={chatEnabled}
+            onFullScreen={() => setChatView('hidden')}
+            onRestoreSplit={() => setChatView('split')}
+            onShowChat={() => {
+              showChatOnArrivalRef.current = true;
+            }}
+          />
+        ),
         wrapDock: dock => (
           <>
             <ManhattanComposerPortal>{dock}</ManhattanComposerPortal>
@@ -254,7 +312,16 @@ export function ManhattanCentre({
       }
     : null;
 
-  return <ManhattanDockContext.Provider value={enabled}>{children(slots)}</ManhattanDockContext.Provider>;
+  // A page's Back goes into the page column's header (CU-17tkuw670yr): in the narrow column
+  // the page hides its own, and the header gives it at every width, once. Only where that
+  // header draws one (a page, not Start Work or a chat's page); elsewhere the page keeps its
+  // own. Always rendered: unwrapping it would remount the page.
+  const pageBackInHeader = pageHeaderShown && (route === 'page' || route === 'full-width');
+  return (
+    <ManhattanDockContext.Provider value={enabled}>
+      <ColumnBackSlot enabled={pageBackInHeader}>{children(slots)}</ColumnBackSlot>
+    </ManhattanDockContext.Provider>
+  );
 }
 
 interface ManhattanChatColumnProps {
@@ -324,16 +391,16 @@ function ManhattanChatColumn({
       />
       {/* The composer spans the column (the dock's max width is for under a page), its ground
           edge to edge and the composer inset in it. Over Start Work it floats: Start Work runs on
-          under its ground and fades out above it. */}
+          under its ground and fades out above it. The width and inset go to the composer's own
+          section only (the outermost in the slot), not to the sections drawn inside the chat
+          above the composer: the Getting Started block took the column's 24px inset as its
+          own padding (CU-17tkuw66yf1). */}
       <div
         ref={setDock}
         data-testid="manhattan-column-dock"
         className={cn('shrink-0', startWork && 'pointer-events-none absolute inset-x-0 bottom-0 z-10')}
       >
-        <ManhattanComposerSlot
-          active={shown}
-          className="[&_section]:max-w-none [&_section]:px-[var(--spacing-system-lf)]"
-        />
+        <ManhattanComposerSlot active={shown} className={COLUMN_COMPOSER_SECTION} />
       </div>
     </div>
   );
@@ -341,14 +408,25 @@ function ManhattanChatColumn({
 
 /**
  * An element's height, live (`ResizeObserver`, which reports it once on observe); without one,
- * the last height measured (0 before any).
+ * the last height measured (0 before any). A new height renders in the frame the element changed
+ * in: set from the observer as a plain update, it rendered after that frame was painted, and Start
+ * Work under the column's composer kept the old padding for a frame (CU-17tkuw6633f, as the
+ * shell's own dock inset).
  */
 function useElementHeight(element: HTMLElement | null): number {
   const [height, setHeight] = useState(0);
   useLayoutEffect(() => {
     if (!element || typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(() => setHeight(element.offsetHeight));
-    observer.observe(element);
+    // None yet: the report on observe sets the first one.
+    let last = -1;
+    const observer = new ResizeObserver(() => {
+      const next = element.offsetHeight;
+      if (next === last) return;
+      last = next;
+      flushSync(() => setHeight(next));
+    });
+    // Its border box, what `offsetHeight` reads: a padding or border change is a new height too.
+    observer.observe(element, { box: 'border-box' });
     return () => observer.disconnect();
   }, [element]);
   return height;
@@ -396,6 +474,17 @@ interface ManhattanPageHeaderProps {
  * (that chat on its page; Start Work when no chat is open). A chat's own page draws none: the
  * chat's header is its header. Closing a page ends it, a remote session with it (CU-17tkuw66n0m).
  */
+/**
+ * The page header is only for a window wide enough for two rails and the centre
+ * (`MANHATTAN_COMPACT_BELOW`, 912px): below it the phone or the compact top bar is the
+ * page's chrome. The centre drops it there in JS too (`phone`, `oneColumn`), but those read
+ * the window only once the page has hydrated: the server's markup, and the first paint with
+ * it, would show "Start Work" over a phone's page and then take it away. Hidden in CSS, the
+ * first paint is right. `max-[911px]`, not `max-[912px]`: Tailwind's `max-[N]` is `max-width: N`,
+ * inclusive, and at exactly 912px the window is wide enough for the two columns.
+ */
+const PAGE_HEADER_WINDOW_CLASS = 'max-[911px]:hidden';
+
 function ManhattanPageHeader({
   route,
   pathname,
@@ -407,8 +496,11 @@ function ManhattanPageHeader({
   onShowChat,
 }: ManhattanPageHeaderProps) {
   const router = useRouter();
+  // The page's own Back, handed over by its title (`ColumnBackSlot` above): where it goes and
+  // its fallback are the page's (CU-17tkuw670yr).
+  const pageBack = useColumnBack();
   if (route === 'chat') return null;
-  if (route === 'home') return <AppColumnHeader title="Start Work" />;
+  if (route === 'home') return <AppColumnHeader title="Start Work" className={PAGE_HEADER_WINDOW_CLASS} />;
   const moduleId = pathname ? navModuleOf(pathname) : null;
   const title = moduleId ? navModuleSectionedLabel(moduleId) : pageTitleOutsideNav(pathname);
   // The open chat alone, on its page, whether it sits beside the page or waits behind it
@@ -422,10 +514,13 @@ function ManhattanPageHeader({
     if (mode !== 'split') onShowChat();
     router.push(routes.mingo.chat(openDialogId));
   };
+  // The header's first cell, as big as Close and flush with the column's edge (CU-17tkuw67ep4).
   if (mode === 'split') {
     return (
       <AppColumnHeader
         title={title}
+        className={PAGE_HEADER_WINDOW_CLASS}
+        back={pageBack}
         layoutAction="fullscreen"
         layoutActionLabel="Full screen page"
         onLayoutAction={onFullScreen}
@@ -437,6 +532,8 @@ function ManhattanPageHeader({
   return (
     <AppColumnHeader
       title={title}
+      className={PAGE_HEADER_WINDOW_CLASS}
+      back={pageBack}
       // The chat (or Start Work) comes back beside the page, with or without an open chat.
       layoutAction={canShowChat ? 'restore-split' : undefined}
       layoutActionLabel="Show the chat beside the page"

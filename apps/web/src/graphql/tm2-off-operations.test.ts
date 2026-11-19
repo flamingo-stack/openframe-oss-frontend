@@ -179,7 +179,6 @@ const PHASE2_OPERATIONS = new Set<string>([
   'linkDeviceModalMutation',
   'linkDeviceModalQuery',
   'managerFieldQuery',
-  'needsYouTenantsSourceQuery',
   'reconnectTenantViewQuery',
   'ruleValuesFieldQuery',
   'tenantAttributionRulesQuery',

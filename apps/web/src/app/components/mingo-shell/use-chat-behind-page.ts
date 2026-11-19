@@ -2,6 +2,7 @@
 
 import type { UnifiedChatState } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useEffect, useRef } from 'react';
+import { useManhattanCentreStore } from '@/app/components/manhattan-shell/manhattan-centre-store';
 import { type ComposerRoute, isSheetRoute } from './mingo-dock-route';
 
 /** Per tab: a reload keeps the chat, a new tab starts without one. */
@@ -44,6 +45,8 @@ export function useChatBehindPage({ route, state }: { route: ComposerRoute; stat
     if (activeDialogId === null && isSheetRoute(route)) {
       const id = readChatId();
       if (id !== null && dialogs.some(dialog => dialog.id === id)) {
+        // Brought back, not opened: the Manhattan v2 centre keeps a closed chat column closed (CU-17tkuw66xzn).
+        useManhattanCentreStore.getState().setRestoredDialogId(id);
         selectDialog(id);
         return;
       }

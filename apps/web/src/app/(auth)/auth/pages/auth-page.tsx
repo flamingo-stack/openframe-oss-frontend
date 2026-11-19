@@ -3,8 +3,10 @@
 import type { AuthSsoProvider } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { CreateOrganizationSection } from '@/app/(auth)/auth/components/create-organization-section';
 import { NativeSsoSignupSection } from '@/app/(auth)/auth/components/native-sso-signup-section';
+import { VALID_EMAIL_REGEX } from '@/app/(auth)/auth/constants/registration-validation';
 import { useAuth } from '@/app/(auth)/auth/hooks/use-auth';
 import { useRegistrationProviders } from '@/app/(auth)/auth/hooks/use-registration-providers';
+import { useSignupEmailPrefill } from '@/app/(auth)/auth/hooks/use-signup-email-prefill';
 import { useSsoSignupTakeover } from '@/app/(auth)/auth/hooks/use-sso-signup-takeover';
 import { useIsApplePlatform } from '@/app/hooks/use-apple-platform';
 
@@ -13,6 +15,9 @@ export default function AuthPage() {
   const { providers, loading: providersLoading } = useRegistrationProviders();
 
   const signup = useSsoSignupTakeover();
+  // A handed-over email arrives after hydration: the form is mounted again with it, so its own state starts there.
+  const prefill = useSignupEmailPrefill();
+  const initialEmail = prefill && VALID_EMAIL_REGEX.test(prefill) ? prefill : undefined;
 
   // Organization and personal details are collected on one screen now, so the signup lands here
   // directly instead of handing off through sessionStorage to /auth/signup.
@@ -70,6 +75,8 @@ export default function AuthPage() {
 
   return (
     <CreateOrganizationSection
+      key={initialEmail ?? ''}
+      initialEmail={initialEmail}
       onRegister={handleRegister}
       ssoProviders={ssoProviders}
       ssoProvidersLoading={providersLoading}

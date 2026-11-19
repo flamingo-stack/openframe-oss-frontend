@@ -19,10 +19,29 @@ export const MANHATTAN_COMPACT_BELOW = 2 * RAIL_WIDTH + MANHATTAN_CENTRE_MIN_WID
  */
 export interface ManhattanSqueeze {
   compact: boolean;
+  /**
+   * The window has been read. `false` on the server and through hydration, where `compact` is
+   * only a guess (`false`): there the stylesheet draws the compact band by itself
+   * ({@link COMPACT_BAND_HIDDEN}, {@link COMPACT_BAND_FLEX}), so the first paint between md and
+   * {@link MANHATTAN_COMPACT_BELOW} is the compact layout and not the rails squeezing the page.
+   */
+  measured: boolean;
 }
 
-const NOT_COMPACT: ManhattanSqueeze = { compact: false };
-const COMPACT: ManhattanSqueeze = { compact: true };
+const NOT_COMPACT: ManhattanSqueeze = { compact: false, measured: true };
+const COMPACT: ManhattanSqueeze = { compact: true, measured: true };
+const UNMEASURED: ManhattanSqueeze = { compact: false, measured: false };
+
+/**
+ * The compact band (md up to {@link MANHATTAN_COMPACT_BELOW}) in the stylesheet, for what the
+ * shell draws before the window is read (`ManhattanSqueeze.measured`): the sidebars' rails hide
+ * (they become closed drawers once it is read) and the compact top bar shows. Tailwind reads the
+ * classes from the source, so the step is written out; a test ties it to the constant.
+ * `max-[911px]` is `(max-width: 911px)`, inclusive: 912px is already the two-column window.
+ */
+export const COMPACT_BAND_HIDDEN = 'md:max-[911px]:hidden';
+/** {@link COMPACT_BAND_HIDDEN}'s counterpart: shown (flex) in the compact band only. */
+export const COMPACT_BAND_FLEX = 'md:max-[911px]:flex';
 
 /** {@link ManhattanSqueeze} for a window this wide. */
 export function squeezeOf({ windowWidth }: { windowWidth: number }): ManhattanSqueeze {
@@ -37,8 +56,8 @@ function subscribe(onChange: () => void): () => void {
 // The form, not the width: a resize re-renders only when it crosses a step (the forms are
 // shared constants, so the snapshot stays the same object between steps).
 const snapshot = () => squeezeOf({ windowWidth: window.innerWidth });
-/** Not compact on the server and through hydration: the sidebars' own first paint stands. */
-const serverSnapshot = () => NOT_COMPACT;
+/** Not read on the server and through hydration: the compact band is the stylesheet's there. */
+const serverSnapshot = () => UNMEASURED;
 
 /** {@link squeezeOf} for this window, live. `enabled` off (an OSS tenant): never compact. */
 export function useManhattanSqueeze(enabled: boolean): ManhattanSqueeze {

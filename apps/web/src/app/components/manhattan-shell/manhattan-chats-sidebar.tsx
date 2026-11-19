@@ -9,14 +9,14 @@ import {
 import {
   NavigationSidebarActionRow,
   NotificationsBellButton,
+  TicketAlertsButton,
 } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useNeedsYouCount } from '@/app/(app)/mingo/home/needs-you/needs-you-card';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { MingoAccountPopover } from '@/app/components/mingo-shell/mingo-account-popover';
 import { MingoSidebarHistory } from '@/app/components/mingo-shell/mingo-sidebar-history';
 import { closeMobileMenu } from '@/app/components/mingo-shell/mobile-menu-store';
-import { useSubscriptionOpen } from '@/app/components/subscription-lock/subscription-guard';
+import { routes } from '@/lib/routes';
 
 /**
  * The Manhattan v2 shell's left sidebar (Figma "mingo (Manhattan)"
@@ -29,9 +29,8 @@ import { useSubscriptionOpen } from '@/app/components/subscription-lock/subscrip
 /**
  * "New Chat" (Figma `start-work`, 1366:93304): Mingo's home, Start Work, where a new chat
  * starts. The same launcher action as the Mingo-first shell's "New chat" (the dock goes
- * home and resets the chat there). Its counter is how many rows Start Work's "Needs you"
- * shows, read from the same sources (no request of its own once the page has read them);
- * none while they load, behind the paywall or behind the lock screen.
+ * home and resets the chat there). No counter: "Needs you" is a queue of three over exact
+ * per-category counts, so no one number of its rows means anything (CU-17tkuw66m19).
  */
 export function ManhattanStartWorkRow({
   minimized,
@@ -43,26 +42,19 @@ export function ManhattanStartWorkRow({
   /** Behind the paywall, as the Mingo-first rows are. */
   disabled?: boolean;
 }) {
-  const open = useSubscriptionOpen();
-  const { count, sources } = useNeedsYouCount(open && !disabled);
   return (
-    <>
-      {sources}
-      <NavigationSidebarActionRow
-        size="sectioned"
-        icon={<PlusCircleIcon />}
-        label="New Chat"
-        count={disabled ? 0 : count}
-        countTone="warning"
-        active={active}
-        disabled={disabled}
-        minimized={minimized}
-        onClick={() => {
-          useMingoLauncherStore.getState().startNewChat();
-          closeMobileMenu();
-        }}
-      />
-    </>
+    <NavigationSidebarActionRow
+      size="sectioned"
+      icon={<PlusCircleIcon />}
+      label="New Chat"
+      active={active}
+      disabled={disabled}
+      minimized={minimized}
+      onClick={() => {
+        useMingoLauncherStore.getState().startNewChat();
+        closeMobileMenu();
+      }}
+    />
   );
 }
 
@@ -95,8 +87,8 @@ interface ManhattanChatsFooterProps {
   /** The lock screen is up: the account keeps Log out only, the controls do nothing. */
   locked: boolean;
   /**
-   * From md up the sidebar owns the time tracker and the bell (one tracker instance: its
-   * popover follows a shared open state); below md the phone top bar does.
+   * From md up the sidebar owns the time tracker, the bell and the support-ticket alerts (one
+   * tracker instance: its popover follows a shared open state); below md the phone top bar does.
    */
   ownsHeaderCells: boolean;
   /** Not in the phone drawer, which stays mounted from md up. */
@@ -113,10 +105,10 @@ const FOOTER_BUTTON_CLASS = cn(
 
 /**
  * The user row (Figma `user`): the account (the avatar alone; its menu shows the name and
- * email over Log out — Settings and Help Center are in the navigation) with the time tracker
- * and the bell beside it, and the collapse button alone at the row's end — one 56px row,
- * everything on one centre line. In the rail a column,
- * each centred: avatar, Worktime, bell, collapse.
+ * email over Log out — Settings and Help Center are in the navigation) with the time tracker,
+ * the bell and, while support replies are unread, the support-ticket alerts beside it, and the
+ * collapse button alone at the row's end — one 56px row, everything on one centre line. In the
+ * rail a column, each centred: avatar, Worktime, bell, alerts, collapse.
  */
 export function ManhattanChatsFooter({
   minimized,
@@ -129,6 +121,10 @@ export function ManhattanChatsFooter({
     <>
       <TimeTrackerHeaderButton variant="compact" disabled={locked} popoverSide="right" popoverAlign="end" />
       <NotificationsBellButton variant="compact" disabled={locked} />
+      {/* The classic header's support-ticket cell (`showTicketAlerts`), which the menu above
+          no longer carries (Log out only): nothing until a reply is unread, then its count,
+          opening the ticket with the newest one. */}
+      <TicketAlertsButton variant="compact" href={routes.helpCenter.tickets} disabled={locked} />
     </>
   );
   const collapse = !inDrawer && (

@@ -525,11 +525,28 @@ const SECTIONED_LAYOUT: { groups: readonly NavGroup[]; secondary: readonly NavMo
   secondary: ['knowledge-base', 'help-center', 'settings'],
 };
 
-/** The sectioned navigation's placeholder rows: the five sections and the bottom three. */
-export const SECTIONED_NAVIGATION_LOADING_ROWS = {
-  primary: SECTIONED_LAYOUT.groups.length,
-  secondary: SECTIONED_LAYOUT.secondary.length,
-} as const;
+/** Every flag on: the placeholder's guess while the flags are unanswered (each gates in the "on shows it" direction). */
+const ALL_FLAGS_ON: NavigationFlags = {
+  insights: true,
+  softwareManagement: true,
+  tenantManagement: true,
+  tenantManagementV2: true,
+};
+
+/**
+ * The sectioned navigation's placeholder: its sections as the loaded navigation draws them, each a
+ * category row over the entries it shows with every flag on (the deployment's own gate is known
+ * at first paint, the flags are not), and the bottom three. A section the user folded is drawn
+ * folded by the core sidebar.
+ */
+export function sectionedNavigationLoadingRows() {
+  const shown = (id: NavModuleId) => moduleShown(NAV_MODULES[id], ALL_FLAGS_ON);
+  return {
+    primary: SECTIONED_LAYOUT.groups.length,
+    sections: SECTIONED_LAYOUT.groups.map(group => ({ id: group.id, rows: group.children.filter(shown).length })),
+    secondary: SECTIONED_LAYOUT.secondary.filter(shown).length,
+  };
+}
 
 /** The Figma names of the sectioned navigation, where they differ from the module's. */
 const SECTIONED_LABELS: Partial<Record<NavModuleId, string>> = { schedules: 'Scheduled Scripts' };

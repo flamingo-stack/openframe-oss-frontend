@@ -10,6 +10,13 @@ describe('SoftwareActionStatusTag', () => {
     expect(html).not.toContain('WAITING');
   });
 
+  it('a waiting update carries the loader glyph, as one in progress does: it is not over yet', () => {
+    const waiting = renderToStaticMarkup(<SoftwareActionStatusTag status={SoftwareActionStatus.WAITING} />);
+    const success = renderToStaticMarkup(<SoftwareActionStatusTag status={SoftwareActionStatus.COMPLETED} />);
+    expect(waiting).toContain('<svg');
+    expect(success).not.toContain('<svg');
+  });
+
   it('the Status funnel says the same word', () => {
     expect(softwareActionStatusLabel(SoftwareActionStatus.WAITING)).toBe('Waiting');
   });

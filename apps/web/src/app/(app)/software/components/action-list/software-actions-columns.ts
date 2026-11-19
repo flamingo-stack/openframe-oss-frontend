@@ -8,8 +8,9 @@ const SOFTWARE_ACTION_COLUMNS = {
   // The three funnels the design puts on this list, fed by `softwareActionFilters`.
   action: { id: 'action', header: 'Action', width: 'flex-1 min-w-0', hideAt: 'md' },
   engine: { id: 'engine', header: 'Engine', width: 'flex-1 min-w-0', hideAt: 'lg' },
-  status: { id: 'status', header: 'Status', width: 'flex-1 min-w-0' },
-  processedDevices: { id: 'processedDevices', header: 'Processed Devices', width: 'w-[120px] content-md:w-[184px]' },
+  // Below md the tag keeps its whole width beside the open button (mobile frame 1049:16193).
+  status: { id: 'status', header: 'Status', width: 'flex-none content-md:flex-1 content-md:min-w-0' },
+  processedDevices: { id: 'processedDevices', header: 'Processed Devices', width: 'w-[184px]', hideAt: 'md' },
   open: { id: 'open', width: 'w-12 shrink-0 flex-none', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;
 

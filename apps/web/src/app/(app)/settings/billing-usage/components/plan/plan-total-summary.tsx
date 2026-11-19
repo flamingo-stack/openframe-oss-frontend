@@ -71,7 +71,8 @@ export function PlanTotalSummary({
         </>
       ) : (
         <>
-          {dueToday(topUp, showAiNote ? ' (AI balance only)' : undefined)}
+          {/* The note says what the figure is for; with no top-up there is nothing to name. */}
+          {dueToday(topUp, showAiNote && topUp > 0 ? ' (AI balance only)' : undefined)}
           <p>Devices are billed on {formatDate(firstBillingDate)}.</p>
         </>
       )}

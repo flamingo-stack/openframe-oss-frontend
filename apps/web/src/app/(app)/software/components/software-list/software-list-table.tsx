@@ -8,8 +8,11 @@ import type { softwareListTable_query$key } from '@/__generated__/softwareListTa
 import type { softwareListTablePaginationQuery as SoftwareListTablePaginationQueryType } from '@/__generated__/softwareListTablePaginationQuery.graphql';
 import type { softwareListTableQuery as SoftwareListTableQueryType } from '@/__generated__/softwareListTableQuery.graphql';
 import { EmptyState, useRetryKey } from '@/app/components/shared';
+import type { SoftwareListFrameRenderProps } from '../shared/software-list-frame';
 import { SOFTWARE_LIST_PAGE_SIZE } from './software-list-columns';
+import { toSoftwareFilter } from './software-list-filters';
 import { SoftwareTable } from './software-table';
+import { useSoftwareListFilters } from './use-software-list-filters';
 
 /**
  * The fleet-wide `softwares` connection — one row per software title,
@@ -17,8 +20,8 @@ import { SoftwareTable } from './software-table';
  * are the shared `SoftwareTable`, the one a device's own inventory draws too.
  */
 const softwareListTableQuery = graphql`
-  query softwareListTableQuery($search: String, $first: Int!, $after: String) {
-    ...softwareListTable_query @arguments(search: $search, first: $first, after: $after)
+  query softwareListTableQuery($filter: SoftwareFilterInput, $search: String, $first: Int!, $after: String) {
+    ...softwareListTable_query @arguments(filter: $filter, search: $search, first: $first, after: $after)
   }
 `;
 
@@ -26,11 +29,13 @@ const softwareListTableFragment = graphql`
   fragment softwareListTable_query on Query
   @refetchable(queryName: "softwareListTablePaginationQuery")
   @argumentDefinitions(
+    filter: { type: "SoftwareFilterInput" }
     search: { type: "String" }
     first: { type: "Int", defaultValue: 20 }
     after: { type: "String" }
   ) {
-    softwares(search: $search, first: $first, after: $after) @connection(key: "softwareListTable_softwares") {
+    softwares(filter: $filter, search: $search, first: $first, after: $after)
+      @connection(key: "softwareListTable_softwares") {
       filteredCount
       edges {
         node {
@@ -45,7 +50,10 @@ const softwareListTableFragment = graphql`
   }
 `;
 
-interface SoftwareListTableProps {
+interface SoftwareListTableProps extends Pick<
+  SoftwareListFrameRenderProps,
+  'deferredSelections' | 'selections' | 'onSelectionsChange' | 'filtersOpen' | 'onFiltersClose'
+> {
   debouncedSearch: string;
   /**
    * True while the deferred query variables lag the live search
@@ -73,22 +81,32 @@ export function SoftwareListTable(props: SoftwareListTableProps) {
 }
 
 function SoftwareListTableReader(props: SoftwareListTableProps) {
-  if (useLoadingScope()) return <SoftwareTable stickyHeaderOffset={props.stickyHeaderOffset} />;
+  if (useLoadingScope()) return <SoftwareTable surface="fleet" stickyHeaderOffset={props.stickyHeaderOffset} />;
   return <SoftwareListTableQuery {...props} />;
 }
 
 function SoftwareListTableQuery({
+  deferredSelections,
+  selections,
+  onSelectionsChange,
   debouncedSearch,
   isPending,
   onEmptyChange,
   stickyHeaderOffset,
   emptyTitle,
   emptyDescription,
+  filtersOpen,
+  onFiltersClose,
 }: SoftwareListTableProps) {
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<SoftwareListTableQueryType>(
     softwareListTableQuery,
-    { search: debouncedSearch || null, first: SOFTWARE_LIST_PAGE_SIZE, after: null },
+    {
+      filter: toSoftwareFilter(deferredSelections),
+      search: debouncedSearch || null,
+      first: SOFTWARE_LIST_PAGE_SIZE,
+      after: null,
+    },
     { fetchPolicy: 'store-or-network', fetchKey: retryKey },
   );
 
@@ -98,6 +116,8 @@ function SoftwareListTableQuery({
   >(softwareListTableFragment, queryData);
 
   const rows = data.softwares.edges.map(edge => edge.node);
+  // The funnels' options: what occurs across the tenant's titles, from the server.
+  const filterOptions = useSoftwareListFilters();
 
   const fetchNextPage = () => {
     if (hasNext && !isLoadingNext) loadNext(SOFTWARE_LIST_PAGE_SIZE);
@@ -105,6 +125,7 @@ function SoftwareListTableQuery({
 
   return (
     <SoftwareTable
+      surface="fleet"
       rows={rows}
       totalCount={data.softwares.filteredCount}
       debouncedSearch={debouncedSearch}
@@ -112,6 +133,11 @@ function SoftwareListTableQuery({
       emptyState={<EmptyState icon={<Parcel02Icon />} title={emptyTitle} description={emptyDescription} />}
       onEmptyChange={onEmptyChange}
       stickyHeaderOffset={stickyHeaderOffset}
+      selections={selections}
+      onSelectionsChange={onSelectionsChange}
+      filterOptions={filterOptions}
+      filtersOpen={filtersOpen}
+      onFiltersClose={onFiltersClose}
       infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
     />
   );

@@ -8,19 +8,20 @@ import type { OSPlatformId } from '@flamingo-stack/openframe-frontend-core/utils
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
 import { useInstallCommand } from '../hooks/use-install-command';
 import type { Device } from '../types/device.types';
-import { isClientOutdated } from '../utils/client-version';
 import { normalizeDevicePlatform } from '../utils/device-command-utils';
 import { isArchiveLifecycle } from '../utils/tool-connection-status';
 
 /**
  * "OpenFrame client is outdated" on the device page, with the install command that updates it.
- * Nothing for a current client or one whose version is unknown, so the install key is fetched
+ * Shown when the server flags the client (`clientOutdated`: its version is below the server's
+ * minimum, a server setting this page never compares against). Nothing for a supported client or
+ * one whose version is unknown (the server does not flag those), so the install key is fetched
  * only for a device that needs it. Nothing on an archived or deleted record either: the agent
  * re-registers under its saved machine id and the server sets it back to PENDING, which would
  * bring a deleted device back.
  */
 export function OutdatedClientBanner({ device }: { device: Device }) {
-  if (!device.organizationId || isArchiveLifecycle(device) || !isClientOutdated(device)) return null;
+  if (!device.organizationId || isArchiveLifecycle(device) || device.clientOutdated !== true) return null;
   return (
     <OutdatedClientReinstall
       organizationId={device.organizationId}

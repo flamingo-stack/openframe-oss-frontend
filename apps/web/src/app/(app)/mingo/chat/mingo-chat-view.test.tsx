@@ -56,6 +56,7 @@ vi.mock('@/lib/active-dialog-views', async () => ({
   registerActiveDialogView: (await import('../providers/__tests__/fake-mingo-chat')).fakeRegisterActiveDialogView,
 }));
 vi.mock('@/app/components/mingo-compaction-watchers', () => ({ MingoCompactionWatchers: () => null }));
+vi.mock('../providers/mingo-usage-hydrator', () => ({ MingoUsageHydrator: () => null }));
 vi.mock('@/lib/runtime-config', () => ({ runtimeEnv: { tenantHostUrl: () => 'https://acme.openframe.ai' } }));
 
 const selectDialog = vi.fn<(id: string | null) => void>();

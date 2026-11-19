@@ -70,19 +70,21 @@ export function MingoSidebarHistory({
   // the sidebar in (a transform) would otherwise become their containing block.
   const canPortal = useSyncExternalStore(subscribeToNothing, onClient, onServer);
 
-  if (!enabled) return null;
-  // The state's first pass, before the dock has registered — or it crashed, which
-  // no retry here can restart.
+  // Before the session is in place (`enabled`: the provider waits for it), the state's first
+  // pass before the dock has registered, or a state that crashed, which no retry here can
+  // restart: the list's loading form. The shell mounts this section only where the session
+  // has a chat (the paywall drops it), so an empty section before the session reads as a
+  // chat list that is not there, then appears.
   // The search is controlled from the first pass: switching it from uncontrolled
   // once the state registers is a React warning.
-  if (!chat)
+  if (!enabled || !chat)
     return (
       <MingoChatRail
         variant="section"
         density={density}
         dialogs={NO_DIALOGS}
-        isLoadingHistory={!error}
-        loadError={!!error}
+        isLoadingHistory={!enabled || !error}
+        loadError={enabled && !!error}
         searchOpen={searchOpen}
         onSearchOpenChange={setSearchOpen}
       />

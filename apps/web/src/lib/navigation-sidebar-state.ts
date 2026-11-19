@@ -160,6 +160,13 @@ const runtimeJoin = (parts: TemplateStringsArray, ...values: Array<string | numb
  * `lg`, so a viewport check here would poison the DESKTOP value for anyone who
  * loaded at tablet width and then widened the window.
  */
+/**
+ * `localStorage` key of the Manhattan v2 chat / page divider (`AppLayoutWorkArea` `storageKey`):
+ * here, beside the other seeds, so the server root layout can seed the divider's place before
+ * paint (`workAreaShareSeedScript` from the core lib's server-safe `utils`).
+ */
+export const MANHATTAN_WORK_AREA_STORAGE_KEY = 'of.manhattan.workArea';
+
 export function sidebarWidthFoucScript(grouped: boolean): string {
   const expanded = grouped ? MANHATTAN_CHATS_EXPANDED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
   const endSeed = grouped
@@ -186,9 +193,14 @@ const LOCAL_STORAGE_UPDATE_EVENT = 'localStorageUpdate';
  * and the preference carries over when the user switches between them.
  */
 export function readSidebarMinimized(): boolean {
+  return readStoredTrue(SIDEBAR_MINIMIZED_STORAGE_KEY);
+}
+
+/** Whether `key` holds `'true'` (JSON `true` reads the same). Client only; `false` on the server and when storage refuses. */
+function readStoredTrue(key: string): boolean {
   if (typeof window === 'undefined') return false;
   try {
-    return window.localStorage.getItem(SIDEBAR_MINIMIZED_STORAGE_KEY) === 'true';
+    return window.localStorage.getItem(key) === 'true';
   } catch {
     return false;
   }
@@ -288,4 +300,42 @@ export function subscribeManhattanNavCollapsed(listener: () => void): () => void
     unsubscribeStorage();
     query?.removeEventListener('change', listener);
   };
+}
+
+// --------------------------------------------------------------------------
+// The Manhattan v2 chat column the user closed
+// --------------------------------------------------------------------------
+
+/**
+ * `localStorage` key of the chat column the user closed or put behind the page (`chatView` `hidden`) on a window wide
+ * enough for two columns: a reload keeps it, as it keeps the divider's place (CU-17tkuw66xzn). `'true'` while closed,
+ * absent otherwise; "chat full screen" is not kept.
+ */
+export const MANHATTAN_CHAT_CLOSED_STORAGE_KEY = 'of.manhattan.chatClosed';
+
+/**
+ * Set on `<html>` before paint while a closed chat column is stored: the stylesheet keeps the split's chat column off
+ * the first frame (`globals.css`), and the centre removes it once its own view holds the choice.
+ */
+export const MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE = 'data-manhattan-chat-closed';
+
+/** For the root layout's `<head>`: marks `<html>` with {@link MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE} when stored. */
+export function manhattanChatClosedSeedScript(): string {
+  return `(function(){try{if(localStorage.getItem('${MANHATTAN_CHAT_CLOSED_STORAGE_KEY}')==='true'){document.documentElement.setAttribute('${MANHATTAN_CHAT_CLOSED_SEED_ATTRIBUTE}','');}}catch(e){}})();`;
+}
+
+/** Whether a closed chat column is stored. Client only; `false` on the server and when storage refuses. */
+export function readManhattanChatClosed(): boolean {
+  return readStoredTrue(MANHATTAN_CHAT_CLOSED_STORAGE_KEY);
+}
+
+/** Stores the closed chat column, or forgets it. Storage refused: the choice lasts for this page only. */
+export function writeManhattanChatClosed(closed: boolean): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (closed) window.localStorage.setItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY, 'true');
+    else window.localStorage.removeItem(MANHATTAN_CHAT_CLOSED_STORAGE_KEY);
+  } catch {
+    // Refused: the store keeps the view in memory.
+  }
 }

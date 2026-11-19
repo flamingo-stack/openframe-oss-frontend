@@ -1,5 +1,6 @@
 /**
- * Pins the device page's outdated-client banner: shown only below the minimum version, with an
+ * Pins the device page's outdated-client banner: shown only when the server flags the client
+ * (`clientOutdated`; the threshold is the server's, never compared here), with an
  * install command for the device's own customer and platform that leaves out the viewer (a
  * re-install keeps who added the device), and copied with a fresh download id each time.
  */
@@ -48,6 +49,7 @@ function device(overrides: Partial<Device>): Device {
     organizationId: 'org-7',
     osType: 'WINDOWS',
     agentVersion: '1.5.2',
+    clientOutdated: true,
     ...overrides,
   } as Device;
 }
@@ -122,17 +124,12 @@ describe('OutdatedClientBanner', () => {
     expect(shownCommand()).toContain('sudo ./openframe-client install');
   });
 
-  it('renders nothing for a current client, an unknown version, a device without a customer or an archive record', () => {
+  it('renders nothing for a client the server does not flag, a device without a customer or an archive record', () => {
     for (const value of [
       ...['ARCHIVED', 'DELETED', 'PENDING_DELETION', 'DECOMMISSIONED'].map(status => device({ status })),
-      device({ agentVersion: '1.6.0' }),
-      device({
-        agentVersion: '1.5.2',
-        installedAgents: [
-          { id: 'a', machineId: 'm-1', agentType: 'openframe-client', version: '1.6.10', createdAt: '', updatedAt: '' },
-        ],
-      }),
-      device({ agentVersion: undefined }),
+      // The flag alone decides: an old version string the server does not flag is not outdated here.
+      device({ clientOutdated: false, agentVersion: '1.5.2' }),
+      device({ clientOutdated: undefined }),
       device({ organizationId: undefined }),
     ]) {
       render(value);

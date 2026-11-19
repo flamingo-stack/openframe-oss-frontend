@@ -11,17 +11,31 @@ const url = vi.hoisted(() => ({
   params: {
     search: '',
     statuses: [] as string[],
+    connectivity: [] as string[],
     osTypes: [] as string[],
     organizationIds: [] as string[],
     userLinks: ['SHARED'],
     directorySources: ['MICROSOFT_365'],
     tags: [] as string[],
     viewMode: 'table',
+    sort: '',
   },
+  statusDisplay: 'lifecycle' as 'lifecycle' | 'legacy',
 }));
 
 vi.mock('@flamingo-stack/openframe-frontend-core/components/features', () => ({
-  DEFAULT_DEVICES_LIST_STATUSES: ['ONLINE', 'OFFLINE'],
+  DEFAULT_DEVICES_LIST_STATUSES: ['MANAGED', 'PENDING_DELETION'],
+  DEVICE_CONNECTIVITY_FILTER_SECTION: 'connectivity',
+  splitStatusFilterValue: (values: string[] | undefined) => ({
+    statuses: (values ?? []).filter(v => !v.startsWith('connectivity:')),
+    connectivity: (values ?? []).filter(v => v.startsWith('connectivity:')).map(v => v.slice('connectivity:'.length)),
+  }),
+  useDeviceStatusDisplay: () => url.statusDisplay,
+  deviceStatusFilterGroups: (statuses: string[], connectivity: string[], display: 'lifecycle' | 'legacy') =>
+    display === 'legacy'
+      ? { status: [...statuses, ...connectivity.map(v => `connectivity:${v}`)] }
+      : { status: statuses, connectivity },
+  DEVICE_FILTER_OUTDATED: 'OUTDATED',
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', () => ({
   useApiParams: () => ({ params: url.params, setParam: vi.fn(), setParams: vi.fn() }),
@@ -30,7 +44,7 @@ vi.mock('@/app/hooks/use-search-param', () => ({
   useSearchParam: () => ({ search: '', setSearch: vi.fn(), debouncedSearch: '' }),
 }));
 
-import { useDevicesUrlParams } from './use-devices-url-params';
+import { translateLegacyDeviceStatuses, useDevicesUrlParams } from './use-devices-url-params';
 
 let container: HTMLDivElement;
 let root: Root;
@@ -79,5 +93,122 @@ describe('useDevicesUrlParams, directory filters in the address', () => {
     // The panel reads these for "is a filter active" and for its checked funnels.
     expect(params).toMatchObject({ userLinks: [], directorySources: [] });
     expect(tableFilters).toMatchObject({ user: [], sources: [] });
+  });
+});
+
+describe('useDevicesUrlParams, lifecycle and connectivity', () => {
+  beforeEach(() => {
+    latest = null;
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+    url.params.statuses = [];
+    url.params.connectivity = [];
+    url.statusDisplay = 'lifecycle';
+  });
+
+  it('queries the default lifecycle and narrows by connectivity from the address', () => {
+    url.params.connectivity = ['ONLINE'];
+    const { filters, tableFilters } = render();
+    expect(filters).toMatchObject({ statuses: ['MANAGED', 'PENDING_DELETION'], connectivity: ['ONLINE'] });
+    // The default statuses are a query-side fallback: nothing reads as checked.
+    expect(tableFilters).toMatchObject({ status: [], connectivity: ['ONLINE'] });
+  });
+
+  it('reads an old ?statuses=ONLINE link as Managed and online', () => {
+    url.params.statuses = ['ONLINE'];
+    const { filters, tableFilters } = render();
+    expect(filters).toMatchObject({ statuses: ['MANAGED'], connectivity: ['ONLINE'] });
+    expect(tableFilters).toMatchObject({ status: ['MANAGED'], connectivity: ['ONLINE'] });
+  });
+
+  // `device-managed-status` off: Online / Offline are STATUS options again, so their picks ride in STATUS.
+  it('hands the filters Online / Offline inside STATUS in the legacy display, and queries the same', () => {
+    url.statusDisplay = 'legacy';
+    url.params.connectivity = ['ONLINE'];
+    const { filters, tableFilters } = render();
+    expect(filters).toMatchObject({ statuses: ['MANAGED', 'PENDING_DELETION'], connectivity: ['ONLINE'] });
+    expect(tableFilters).toMatchObject({ status: ['connectivity:ONLINE'] });
+    expect(tableFilters).not.toHaveProperty('connectivity');
+  });
+});
+
+describe('translateLegacyDeviceStatuses', () => {
+  it.each([
+    [['OFFLINE'], [], ['MANAGED'], ['OFFLINE']],
+    [['ONLINE', 'OFFLINE'], [], ['MANAGED'], []],
+    [['ONLINE', 'PENDING'], [], ['PENDING', 'MANAGED'], ['ONLINE']],
+    [['ONLINE'], ['OFFLINE'], ['MANAGED'], ['OFFLINE']],
+    [['MANAGED'], ['ONLINE'], ['MANAGED'], ['ONLINE']],
+  ])('%j + connectivity %j → %j / %j', (statuses, connectivity, expectedStatuses, expectedConnectivity) => {
+    expect(translateLegacyDeviceStatuses(statuses, connectivity)).toEqual({
+      statuses: expectedStatuses,
+      connectivity: expectedConnectivity,
+    });
+  });
+});
+
+describe("useDevicesUrlParams, the Status funnel's OUTDATED option and the sort", () => {
+  beforeEach(() => {
+    latest = null;
+    url.params.userLinks = [];
+    url.params.directorySources = [];
+    url.params.sort = '';
+    url.params.statuses = [];
+    url.params.connectivity = [];
+    url.statusDisplay = 'lifecycle';
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('sends OUTDATED alone as clientOutdated over the default statuses, and keeps it ticked', () => {
+    url.params.statuses = ['OUTDATED'];
+    const { filters, tableFilters } = render();
+    expect(filters).toMatchObject({ statuses: ['MANAGED', 'PENDING_DELETION'], clientOutdated: true });
+    expect(tableFilters.status).toEqual(['OUTDATED']);
+  });
+
+  it('ANDs OUTDATED with the statuses ticked beside it', () => {
+    url.params.statuses = ['PENDING', 'OUTDATED'];
+    const { filters, tableFilters } = render();
+    expect(filters).toMatchObject({ statuses: ['PENDING'], clientOutdated: true });
+    expect(tableFilters.status).toEqual(['PENDING', 'OUTDATED']);
+  });
+
+  it('keeps OUTDATED beside a selection that spells out the defaults', () => {
+    url.params.statuses = ['MANAGED', 'PENDING_DELETION', 'OUTDATED'];
+    const { filters, tableFilters } = render();
+    expect(filters).toMatchObject({ statuses: ['MANAGED', 'PENDING_DELETION'], clientOutdated: true });
+    expect(tableFilters.status).toEqual(['MANAGED', 'PENDING_DELETION', 'OUTDATED']);
+  });
+
+  it('sends OUTDATED and connectivity together', () => {
+    url.params.statuses = ['OUTDATED'];
+    url.params.connectivity = ['OFFLINE'];
+    expect(render().filters).toMatchObject({ connectivity: ['OFFLINE'], clientOutdated: true });
+  });
+
+  it('sends no clientOutdated when OUTDATED is not ticked', () => {
+    url.params.statuses = ['PENDING'];
+    expect(render().filters).not.toHaveProperty('clientOutdated');
+  });
+
+  it('orders online first by connectivity, and outdated first only for ?sort=clientOutdated', () => {
+    expect(render().sort).toEqual({ field: 'connectivity', direction: 'DESC' });
+    url.params.sort = 'clientOutdated';
+    expect(render().sort).toEqual({ field: 'clientOutdated', direction: 'DESC' });
+    url.params.sort = 'hostname';
+    expect(render().sort).toEqual({ field: 'connectivity', direction: 'DESC' });
   });
 });
