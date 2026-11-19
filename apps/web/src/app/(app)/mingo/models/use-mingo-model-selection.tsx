@@ -47,7 +47,7 @@ export interface MingoModelSelection {
 }
 
 const sameModel = (a: DialogModelChoice | null, b: DialogModelChoice) =>
-  a?.provider === b.provider && a.modelName === b.modelName;
+  a !== null && a.provider === b.provider && a.modelName === b.modelName;
 
 /** The model for one Mingo chat: read from the chat, picked in its ⋯ menus; a new chat keeps its pick in a draft. */
 export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSelection {
