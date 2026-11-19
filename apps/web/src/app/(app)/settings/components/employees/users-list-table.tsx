@@ -1,12 +1,13 @@
 'use client';
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
-import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { usersListTable_query$key } from '@/__generated__/usersListTable_query.graphql';
 import type { usersListTablePaginationQuery } from '@/__generated__/usersListTablePaginationQuery.graphql';
 import type { usersListTableQuery } from '@/__generated__/usersListTableQuery.graphql';
 import { NO_ITEMS, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
+import { type TableLayout, tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import {
   type EmployeeSelections,
   NO_EMPLOYEE_FILTER_OPTIONS,
@@ -62,16 +63,25 @@ interface UsersListTableProps {
  * The tenant's `users` connection, searched, narrowed and paged on the server, with its own boundary. In a loading
  * scope (the boundary's fallback) the reader draws the table over one page of placeholder rows with their real cells;
  * otherwise it runs the query, which suspends under that boundary.
+ *
+ * The table's layout is the app's one table flag: the grid where it is on, card rows where it is off. Until the flag
+ * is answered the list is a loading scope, so one table is never drawn and then replaced by the other.
  */
 export function UsersListTable(props: UsersListTableProps) {
+  const tableGate = useTableGridGate();
   return (
-    <LoadingSuspense label="Loading users">
-      <UsersListReader {...props} />
-    </LoadingSuspense>
+    <LoadingWhen loading={tableGate === 'loading'}>
+      <LoadingSuspense label="Loading users">
+        <UsersListReader {...props} layout={tableLayoutFor(tableGate)} />
+      </LoadingSuspense>
+    </LoadingWhen>
   );
 }
 
-function UsersListReader(props: UsersListTableProps) {
+/** What the reader and the query take: the listing's props and the layout both of their tables draw. */
+type UsersListReaderProps = UsersListTableProps & { layout: TableLayout };
+
+function UsersListReader(props: UsersListReaderProps) {
   if (useLoadingScope()) {
     return (
       <UsersTable
@@ -85,6 +95,7 @@ function UsersListReader(props: UsersListTableProps) {
         isPending={false}
         stickyHeaderOffset={props.stickyHeaderOffset}
         infiniteScroll={NO_NEXT_PAGE}
+        layout={props.layout}
       />
     );
   }
@@ -99,7 +110,8 @@ function UsersListQuery({
   onSelectionsChange,
   isPending,
   stickyHeaderOffset,
-}: UsersListTableProps) {
+  layout,
+}: UsersListReaderProps) {
   const retryKey = useRetryKey();
   const filter = toUserFilter(backendSelections);
   const queryData = useLazyLoadQuery<usersListTableQuery>(
@@ -123,6 +135,7 @@ function UsersListQuery({
       onSelectionsChange={onSelectionsChange}
       isPending={isPending}
       stickyHeaderOffset={stickyHeaderOffset}
+      layout={layout}
       infiniteScroll={{
         hasNextPage: hasNext,
         isFetchingNextPage: isLoadingNext,

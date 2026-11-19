@@ -13,6 +13,8 @@ import {
   CheckboxWithDescription,
   type ColumnDef,
   DataTable,
+  type DataTableSettings,
+  GRID_ACTION_COLUMN_SIZE,
   Input,
   PageError,
   PageLayout,
@@ -28,6 +30,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
+import { tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { routes } from '@/lib/routes';
 import { type AvailableProvider, type ProviderConfig, useSsoConfig } from '../../hooks/use-sso-config';
@@ -42,6 +45,18 @@ import { SsoConfigurationDetailsModal } from '../sso-configuration-details-modal
  */
 const SSO_SKELETON_ROWS = 2;
 
+/**
+ * The grid table's settings: the gear's menu of columns, with the viewer's layout (hidden columns, their order,
+ * resized widths) kept in the browser under this table's own key.
+ */
+const SSO_TABLE_SETTINGS: DataTableSettings = { storageKey: 'settings-sso-providers' };
+
+/** A grid cell's one line of text, with what the card cell says on its second line after it. A bar on a loading row. */
+function GridText({ text, secondary }: { text: string; secondary?: string }) {
+  if (useLoadingScope()) return <DataTable.Cell text="" />;
+  return <DataTable.Cell text={text} secondary={secondary} />;
+}
+
 /** A secondary text cell; a bar of its line on a loading row (a loading scope, no provider yet). */
 function SecondaryText({ text }: { text: string }) {
   if (useLoadingScope()) return <TextLineSkeleton type="h4" className="w-3/4" />;
@@ -52,20 +67,32 @@ function SecondaryText({ text }: { text: string }) {
   );
 }
 
-/** The edit button: static chrome, drawn real and inert on a loading row. */
-function EditProviderButton({ displayName, onEdit }: { displayName: string | undefined; onEdit: () => void }) {
+/**
+ * The edit button: static chrome, drawn real and inert on a loading row. `grid`: its form in the grid table's action
+ * column, the 40px button with no border or fill of its own (the column is its box).
+ */
+function EditProviderButton({
+  displayName,
+  onEdit,
+  grid = false,
+}: {
+  displayName: string | undefined;
+  onEdit: () => void;
+  grid?: boolean;
+}) {
   const loading = useLoadingScope();
   return (
     // A square edit icon button on every breakpoint (designs 1614-66071/66116);
     // it must not trigger the row's Configuration Details click.
     <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
       <Button
-        variant="outline"
+        variant={grid ? 'transparent' : 'outline'}
         size="icon"
         aria-label={`Edit ${displayName ?? 'configuration'}`}
         onClick={loading ? undefined : onEdit}
         leftIcon={<PenEditIcon />}
         disabled={loading}
+        className={grid ? 'size-10 border-0 md:size-10' : undefined}
       />
     </div>
   );
@@ -132,6 +159,8 @@ export function SsoConfigurationTab() {
   const { fetchTenantDomain, updateSharedAutoProvision } = useTenantDomain();
   const { toast } = useToast();
   const handleBack = useSafeBack(routes.settings.root());
+  // The grid table, behind the app's one table flag; card rows while it is off.
+  const tableGate = useTableGridGate();
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -356,10 +385,39 @@ export function SsoConfigurationTab() {
     loadOpenframeSso();
   }, [loadData, loadDomainData, loadOpenframeSso]);
 
-  // Mobile keeps only the provider, status and the edit action; configuration folds
-  // in at tablet and the allowed-domains list at desktop.
-  const columns = useMemo<ColumnDef<UiProviderRow>[]>(
-    () => [
+  // Card rows: mobile keeps only the provider, status and the edit action; configuration folds in at tablet and the
+  // allowed-domains list at desktop. Beside the card layout's `meta.width` each data column states what the grid
+  // layout reads: a `size`, a one-line `gridCell`, a `label`.
+  const columns = useMemo<ColumnDef<UiProviderRow>[]>(() => {
+    /** The row's edit button, in the card row's form or the grid action column's. */
+    const editButton = (row: Row<UiProviderRow>, grid: boolean) => {
+      const openEditModal = () =>
+        setModalState({
+          open: true,
+          mode: 'edit',
+          providerKey: row.original.provider,
+          displayName: row.original.displayName,
+          clientId: row.original.original?.config?.clientId,
+          clientSecret: row.original.original?.config?.clientSecret,
+          msTenantId: row.original.original?.config?.msTenantId,
+          autoProvisionUsers: row.original.autoProvisionUsers,
+          allowedDomains: row.original.allowedDomains,
+        });
+      return <EditProviderButton displayName={row.original.displayName} onEdit={openEditModal} grid={grid} />;
+    };
+    const statusTag = (row: Row<UiProviderRow>) => (
+      <Tag
+        className="self-start"
+        label={row.original.status?.label}
+        variant={row.original.status?.variant}
+        // A loading placeholder row has no status: the tag draws its own loading form.
+        loading={!row.original.status}
+      />
+    );
+    const domainsText = (row: Row<UiProviderRow>) =>
+      row.original.allowedDomains?.length ? row.original.allowedDomains.join(', ') : 'none';
+    const configText = (row: Row<UiProviderRow>) => (row.original.hasConfig ? 'Configured' : 'Not configured');
+    return [
       {
         accessorKey: 'provider',
         header: 'OAuth Provider',
@@ -373,63 +431,57 @@ export function SsoConfigurationTab() {
             </div>
           </div>
         ),
-        meta: { width: 'flex-1 min-w-0' },
+        size: 300,
+        meta: {
+          width: 'flex-1 min-w-0',
+          label: 'OAuth provider',
+          gridCell: ({ row }: { row: Row<UiProviderRow> }) => (
+            <GridText text={row.original.displayName} secondary={row.original.provider} />
+          ),
+        },
       },
       {
         accessorKey: 'status',
         header: 'Status',
-        cell: ({ row }: { row: Row<UiProviderRow> }) => (
-          <Tag
-            className="self-start"
-            label={row.original.status?.label}
-            variant={row.original.status?.variant}
-            // A loading placeholder row has no status: the tag draws its own loading form.
-            loading={!row.original.status}
-          />
-        ),
-        meta: { width: 'w-auto shrink-0 content-md:w-[120px]' },
+        cell: ({ row }: { row: Row<UiProviderRow> }) => statusTag(row),
+        size: 140,
+        meta: {
+          width: 'w-auto shrink-0 content-md:w-[120px]',
+          label: 'Status',
+          gridCell: ({ row }: { row: Row<UiProviderRow> }) => <DataTable.Cell tag={statusTag(row)} />,
+        },
       },
       {
         accessorKey: 'allowedDomains',
         header: 'Allowed Domains',
-        cell: ({ row }: { row: Row<UiProviderRow> }) => (
-          <SecondaryText text={row.original.allowedDomains?.length ? row.original.allowedDomains.join(', ') : 'none'} />
-        ),
-        meta: { width: 'w-[220px] shrink-0', hideAt: 'md' },
+        // One line already: the grid draws the same cell.
+        cell: ({ row }: { row: Row<UiProviderRow> }) => <SecondaryText text={domainsText(row)} />,
+        size: 280,
+        meta: { width: 'w-[220px] shrink-0', hideAt: 'md', label: 'Allowed domains' },
       },
       {
         accessorKey: 'hasConfig',
         header: 'Configuration',
-        cell: ({ row }: { row: Row<UiProviderRow> }) => (
-          <SecondaryText text={row.original.hasConfig ? 'Configured' : 'Not configured'} />
-        ),
+        cell: ({ row }: { row: Row<UiProviderRow> }) => <SecondaryText text={configText(row)} />,
+        size: 180,
         // The tablet keeps Allowed Domains and folds Configuration first (design 1614-66094).
-        meta: { width: 'w-[140px] shrink-0', hideAt: 'lg' },
+        meta: { width: 'w-[140px] shrink-0', hideAt: 'lg', label: 'Configuration' },
       },
       {
         id: 'actions',
-        cell: ({ row }: { row: Row<UiProviderRow> }) => {
-          const openEditModal = () =>
-            setModalState({
-              open: true,
-              mode: 'edit',
-              providerKey: row.original.provider,
-              displayName: row.original.displayName,
-              clientId: row.original.original?.config?.clientId,
-              clientSecret: row.original.original?.config?.clientSecret,
-              msTenantId: row.original.original?.config?.msTenantId,
-              autoProvisionUsers: row.original.autoProvisionUsers,
-              allowedDomains: row.original.allowedDomains,
-            });
-
-          return <EditProviderButton displayName={row.original.displayName} onEdit={openEditModal} />;
-        },
+        cell: ({ row }: { row: Row<UiProviderRow> }) => editButton(row, false),
         enableSorting: false,
-        meta: { width: 'w-11 shrink-0 content-md:w-16', align: 'right' },
+        // The grid's action column, kept by hand: `actionColumn()` would replace the card layout's width.
+        size: GRID_ACTION_COLUMN_SIZE,
+        meta: {
+          width: 'w-11 shrink-0 content-md:w-16',
+          align: 'right',
+          gridKind: 'action',
+          gridCell: ({ row }: { row: Row<UiProviderRow> }) => editButton(row, true),
+        },
       },
-    ],
-    [],
-  );
+    ];
+  }, []);
 
   const filtered = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -438,8 +490,11 @@ export function SsoConfigurationTab() {
   }, [providers, searchTerm]);
 
   // The first read (no provider on screen yet): the table holds placeholder rows, drawn with their real cells
-  // (`loadingCells`), each cell its own loading form. A reload keeps the providers on screen.
-  const loadingRows = isLoading && filtered.length === 0;
+  // (`loadingCells`), each cell its own loading form. A reload keeps the providers on screen. Until the table flag is
+  // answered the table is loading too: one layout is never drawn and then replaced by the other.
+  const gateLoading = tableGate === 'loading';
+  const loadingRows = gateLoading || (isLoading && filtered.length === 0);
+  const layout = tableLayoutFor(tableGate);
   const data = useMemo(
     () => (loadingRows ? loadingPlaceholderRows<UiProviderRow>(SSO_SKELETON_ROWS) : filtered),
     [loadingRows, filtered],
@@ -496,10 +551,21 @@ export function SsoConfigurationTab() {
         className="w-full"
       />
 
-      <DataTable table={table}>
-        <DataTable.Header rightSlot={<DataTable.RowCount itemName="result" loading={loadingRows} />} />
+      {/* A handful of rows under the sign-in card and the search: the grid keeps its natural height and the page
+          scrolls. Card rows do not read the settings. */}
+      <DataTable table={table} layout={layout} settings={SSO_TABLE_SETTINGS}>
+        {/* The grid's count sits above the table; the card header carries its own (`rightSlot`). */}
+        {layout === 'grid' && (
+          <DataTable.Meta>
+            <DataTable.RowCount itemName="result" loading={loadingRows} />
+          </DataTable.Meta>
+        )}
+        <DataTable.Header
+          rightSlot={<DataTable.RowCount itemName="result" loading={loadingRows} />}
+          loading={loadingRows}
+        />
         <DataTable.Body
-          loading={isLoading}
+          loading={isLoading || gateLoading}
           loadingCells={loadingRows}
           skeletonRows={SSO_SKELETON_ROWS}
           emptyState={{

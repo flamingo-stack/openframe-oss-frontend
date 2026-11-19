@@ -1,6 +1,11 @@
 'use client';
 
-import { SquareAvatar, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  DataTable,
+  SquareAvatar,
+  TruncateText,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { invitationEmailCell_invitation$key } from '@/__generated__/invitationEmailCell_invitation.graphql';
 
@@ -21,4 +26,12 @@ export function InvitationEmailCell({ invitation }: { invitation: invitationEmai
       <TruncateText>{email}</TruncateText>
     </div>
   );
+}
+
+/** USER column in the grid layout: the same avatar and email, as the grid's one-line cell. */
+export function InvitationEmailGridCell({ invitation }: { invitation: invitationEmailCell_invitation$key }) {
+  // A row still being read (a loading scope) has no fragment to read: the cell draws its loading form.
+  const data = useFragment(invitationEmailCellFragment, useLoadingScope() ? null : invitation);
+  const email = data?.email ?? '';
+  return <DataTable.Cell leading={{ type: 'avatar', name: email }} text={email} />;
 }

@@ -8,17 +8,36 @@ import {
   TenantsTableView,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { CodingForkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  type DataTableSettings,
+  LoadingWhen,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useLayoutEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { tenantsTableV1_query$key } from '@/__generated__/tenantsTableV1_query.graphql';
 import type { tenantsTableV1PaginationQuery } from '@/__generated__/tenantsTableV1PaginationQuery.graphql';
 import type { tenantsTableV1Query as TenantsTableQueryType } from '@/__generated__/tenantsTableV1Query.graphql';
 import { EmptyState, NO_NEXT_PAGE, useRetryKey, NO_ITEMS } from '@/app/components/shared';
+import { type TableLayout, tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { getFullImageUrl } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
 
 const TENANTS_PAGE_SIZE = 20;
+
+/**
+ * The grid table's settings: the gear's menu of columns, with the viewer's layout (hidden columns, their order,
+ * resized widths) kept in the browser under this table's own key.
+ */
+const TENANTS_TABLE_SETTINGS: DataTableSettings = { storageKey: 'cloud-tenants-v1' };
+
+/**
+ * What both of the table's branches (its loading form and the read rows) hand the view, so a refetch never swaps one
+ * layout for the other. The grid table is the page's scroll area (`fill`); card rows read neither the height nor the
+ * settings.
+ */
+const tenantsTableLayoutProps = (layout: TableLayout) =>
+  ({ layout, tableMaxHeight: 'fill', tableSettings: TENANTS_TABLE_SETTINGS }) as const;
 
 const tenantsTableV1Query = graphql`
   query tenantsTableV1Query($search: String, $first: Int!, $after: String) {
@@ -78,20 +97,31 @@ interface TenantsTableProps {
   stickyHeaderOffset: string;
 }
 
-/** The tenant rows, with their own boundary: in its scope the reader draws its own loading form. */
+/**
+ * The tenant rows, with their own boundary: in its scope the reader draws its own loading form.
+ *
+ * The table's layout is the app's one table flag: the grid where it is on, card rows where it is off. Until the flag
+ * is answered the rows are a loading scope, so one table is never drawn and then replaced by the other.
+ */
 export function TenantsTableV1(props: TenantsTableProps) {
+  const tableGate = useTableGridGate();
   return (
-    <LoadingSuspense label="Loading tenants">
-      <TenantsTableReader {...props} />
-    </LoadingSuspense>
+    <LoadingWhen loading={tableGate === 'loading'}>
+      <LoadingSuspense label="Loading tenants">
+        <TenantsTableReader {...props} layout={tableLayoutFor(tableGate)} />
+      </LoadingSuspense>
+    </LoadingWhen>
   );
 }
+
+/** What the reader and the query take: the table's props and the layout both of their tables draw. */
+type TenantsTableReaderProps = TenantsTableProps & { layout: TableLayout };
 
 /**
  * In a loading scope (its boundary's fallback, or the module's flag window) it draws the table with no rows, which
  * is the table's own loading state; otherwise it runs the query, which suspends.
  */
-function TenantsTableReader(props: TenantsTableProps) {
+function TenantsTableReader(props: TenantsTableReaderProps) {
   if (useLoadingScope()) {
     return (
       <TenantsTableView
@@ -103,13 +133,14 @@ function TenantsTableReader(props: TenantsTableProps) {
         stickyHeaderOffset={props.stickyHeaderOffset}
         skeletonRows={TENANTS_PAGE_SIZE}
         {...NO_NEXT_PAGE}
+        {...tenantsTableLayoutProps(props.layout)}
       />
     );
   }
   return <TenantsTableQuery {...props} />;
 }
 
-function TenantsTableQuery({ search, isPending, onEmptyChange, stickyHeaderOffset }: TenantsTableProps) {
+function TenantsTableQuery({ search, isPending, onEmptyChange, stickyHeaderOffset, layout }: TenantsTableReaderProps) {
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<TenantsTableQueryType>(
     tenantsTableV1Query,
@@ -178,6 +209,7 @@ function TenantsTableQuery({ search, isPending, onEmptyChange, stickyHeaderOffse
       hasNextPage={hasNext}
       isFetchingNextPage={isLoadingNext}
       onLoadMore={fetchNextPage}
+      {...tenantsTableLayoutProps(layout)}
     />
   );
 }

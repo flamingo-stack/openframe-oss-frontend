@@ -5,8 +5,11 @@ import { Filter02Icon, InfoCircleIcon, SearchIcon } from '@flamingo-stack/openfr
 import {
   Button,
   type ColumnDef,
+  DataTable,
+  type DataTableSettings,
   FilterModal,
   Input,
+  LoadingWhen,
   type Row,
   Tag,
   TruncateText,
@@ -24,6 +27,7 @@ import { NO_ITEMS, oneLineEmptyState, useRetryKey } from '@/app/components/share
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
+import { tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { DirectoryLicenseSortField, DirectoryProvider, SortDirection } from '@/generated/schema-enums';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { TenantNotice } from './tenant-notice';
@@ -101,6 +105,26 @@ function AssignedCell({ row }: { row: LicenseRow }) {
   );
 }
 
+/** LICENCE in the grid layout: the name and its "Free" tag on the row's one line. */
+function LicenseGridCell({ row }: { row: LicenseRow }) {
+  return (
+    <DataTable.Cell
+      text={row.name ?? ''}
+      tag={row.free ? <Tag data-loading-optional as="span" variant="grey" label="Free" /> : undefined}
+    />
+  );
+}
+
+/**
+ * The grid table's settings: the gear's menu of columns, with the viewer's layout (hidden columns, their order,
+ * resized widths) kept in the browser under this table's own key.
+ */
+const LICENSES_TABLE_SETTINGS: DataTableSettings = { storageKey: 'tenant-licences' };
+
+/**
+ * The columns. Each states what the grid layout reads beside the card layout's `meta.width`: a `size`, a one-line
+ * `gridCell` where the card cell is not one line already, and a `label` for the settings menu.
+ */
 function licenseColumns(showUnused: boolean): ColumnDef<LicenseRow>[] {
   return [
     {
@@ -108,14 +132,23 @@ function licenseColumns(showUnused: boolean): ColumnDef<LicenseRow>[] {
       header: LICENSE_COLUMNS.license.header,
       cell: ({ row }: { row: Row<LicenseRow> }) => <LicenseCell row={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(LICENSE_COLUMNS.license),
+      size: 360,
+      meta: liveColumnMeta(LICENSE_COLUMNS.license, {
+        label: 'Licence',
+        gridCell: ({ row }: { row: Row<LicenseRow> }) => <LicenseGridCell row={row.original} />,
+      }),
     },
     {
       id: LICENSE_COLUMNS.assigned.id,
       header: LICENSE_COLUMNS.assigned.header,
       cell: ({ row }: { row: Row<LicenseRow> }) => <AssignedCell row={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(LICENSE_COLUMNS.assigned),
+      size: 200,
+      meta: liveColumnMeta(LICENSE_COLUMNS.assigned, {
+        label: 'Assigned',
+        // The card cell says "Assigned" under the number on a phone, where it has no header; the grid always has one.
+        gridCell: ({ row }: { row: Row<LicenseRow> }) => <DataTable.Cell text={row.original.assigned ?? ''} />,
+      }),
     },
     ...(showUnused
       ? [
@@ -128,7 +161,8 @@ function licenseColumns(showUnused: boolean): ColumnDef<LicenseRow>[] {
               </TruncateText>
             ),
             enableSorting: false,
-            meta: liveColumnMeta(LICENSE_COLUMNS.unused),
+            size: 180,
+            meta: liveColumnMeta(LICENSE_COLUMNS.unused, { label: 'Unused' }),
           },
         ]
       : []),
@@ -160,6 +194,9 @@ function LicensesRows({
   isPending,
 }: LicensesTableProps & { rows: readonly LicenseRow[]; notRead: boolean }) {
   const loading = useLoadingScope();
+  // The grid table, behind the app's one table flag; card rows while it is off. Both of the section's branches (its
+  // loading scope and the read rows) draw this table, so both draw the same layout.
+  const layout = tableLayoutFor(useTableGridGate());
   const placeholderRows = useMemo(
     () => (loading ? loadingPlaceholderRows<LicenseRow>(LICENSES_SKELETON_ROWS) : null),
     [loading],
@@ -182,6 +219,10 @@ function LicensesRows({
       skeletonRows={LICENSES_SKELETON_ROWS}
       loadingCells={loading}
       stickyHeader={false}
+      // A section of the tenant's page: the grid keeps its natural height and the page scrolls. Card rows do not read
+      // the settings.
+      layout={layout}
+      settings={LICENSES_TABLE_SETTINGS}
       itemName="result"
       totalCount={rows.length}
       isPending={isPending}
@@ -192,12 +233,18 @@ function LicensesRows({
   );
 }
 
-/** The rows, with their own boundary: the search above them stays live while they are read. */
+/**
+ * The rows, with their own boundary: the search above them stays live while they are read. Until the app's table flag
+ * is answered the rows are a loading scope, so one layout is never drawn and then replaced by the other.
+ */
 function LicensesTable(props: LicensesTableProps) {
+  const tableGate = useTableGridGate();
   return (
-    <LoadingSuspense label="Loading licences">
-      <LicensesTableReader {...props} />
-    </LoadingSuspense>
+    <LoadingWhen loading={tableGate === 'loading'}>
+      <LoadingSuspense label="Loading licences">
+        <LicensesTableReader {...props} />
+      </LoadingSuspense>
+    </LoadingWhen>
   );
 }
 
@@ -237,6 +284,7 @@ function LicensesTableQuery(props: LicensesTableProps) {
  */
 export function TenantLicensesSection({ id, provider }: { id: string; provider: string | null }) {
   const loading = useLoadingScope();
+  const layout = tableLayoutFor(useTableGridGate());
   const [input, setInput] = useState('');
   const search = useDebounce(input, 300).trim();
   const [sort, setSort] = useState<LicenseSort | null>(null);
@@ -272,16 +320,19 @@ export function TenantLicensesSection({ id, provider }: { id: string; provider: 
             className="flex-1"
             startAdornment={<SearchIcon className="h-4 w-4 content-md:h-6 content-md:w-6" />}
           />
-          {/* The header sorts from `content-md`; a phone has no header (Figma 3126-13528). */}
-          <Button
-            variant="outline"
-            size="icon"
-            className="content-md:hidden"
-            onClick={() => setSortOpen(true)}
-            disabled={loading}
-            aria-label="Sort licences"
-            leftIcon={<Filter02Icon className="text-ods-text-primary" />}
-          />
+          {/* Card rows: the header sorts from `content-md`; a phone has no header (Figma 3126-13528). The grid table
+              has its header, with the sort, at every width. */}
+          {layout === 'cards' && (
+            <Button
+              variant="outline"
+              size="icon"
+              className="content-md:hidden"
+              onClick={() => setSortOpen(true)}
+              disabled={loading}
+              aria-label="Sort licences"
+              leftIcon={<Filter02Icon className="text-ods-text-primary" />}
+            />
+          )}
         </div>
         <LicensesTable
           id={id}

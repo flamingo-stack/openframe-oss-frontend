@@ -1,7 +1,7 @@
 'use client';
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
-import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import {
   fetchQuery,
   graphql,
@@ -14,6 +14,7 @@ import type { invitationsListTable_query$key } from '@/__generated__/invitations
 import type { invitationsListTablePaginationQuery } from '@/__generated__/invitationsListTablePaginationQuery.graphql';
 import type { invitationsListTableQuery } from '@/__generated__/invitationsListTableQuery.graphql';
 import { NO_ITEMS, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
+import { type TableLayout, tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import {
   type EmployeeSelections,
   invitationFilterOptions,
@@ -73,16 +74,25 @@ interface InvitationsListTableProps {
  * Open invitations, newest first, searched, narrowed and paged on the server, with their own boundary. In a loading
  * scope (the boundary's fallback) the reader draws the table over one page of placeholder rows with their real cells;
  * otherwise it runs the query, which suspends under that boundary.
+ *
+ * The table's layout is the app's one table flag: the grid where it is on, card rows where it is off. Until the flag
+ * is answered the list is a loading scope, so one table is never drawn and then replaced by the other.
  */
 export function InvitationsListTable(props: InvitationsListTableProps) {
+  const tableGate = useTableGridGate();
   return (
-    <LoadingSuspense label="Loading invitations">
-      <InvitationsListReader {...props} />
-    </LoadingSuspense>
+    <LoadingWhen loading={tableGate === 'loading'}>
+      <LoadingSuspense label="Loading invitations">
+        <InvitationsListReader {...props} layout={tableLayoutFor(tableGate)} />
+      </LoadingSuspense>
+    </LoadingWhen>
   );
 }
 
-function InvitationsListReader(props: InvitationsListTableProps) {
+/** What the reader and the query take: the listing's props and the layout both of their tables draw. */
+type InvitationsListReaderProps = InvitationsListTableProps & { layout: TableLayout };
+
+function InvitationsListReader(props: InvitationsListReaderProps) {
   if (useLoadingScope()) {
     return (
       <InvitationsTable
@@ -97,6 +107,7 @@ function InvitationsListReader(props: InvitationsListTableProps) {
         isPending={false}
         stickyHeaderOffset={props.stickyHeaderOffset}
         infiniteScroll={NO_NEXT_PAGE}
+        layout={props.layout}
       />
     );
   }
@@ -111,7 +122,8 @@ function InvitationsListQuery({
   onSelectionsChange,
   isPending,
   stickyHeaderOffset,
-}: InvitationsListTableProps) {
+  layout,
+}: InvitationsListReaderProps) {
   const environment = useRelayEnvironment();
   const retryKey = useRetryKey();
   const filter = toInvitationFilter(backendSelections);
@@ -150,6 +162,7 @@ function InvitationsListQuery({
       listingIds={affectedInvitationsListings(invitations.__id)}
       isPending={isPending}
       stickyHeaderOffset={stickyHeaderOffset}
+      layout={layout}
       infiniteScroll={{
         hasNextPage: hasNext,
         isFetchingNextPage: isLoadingNext,
