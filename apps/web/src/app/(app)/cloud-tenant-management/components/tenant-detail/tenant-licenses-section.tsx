@@ -238,12 +238,19 @@ function LicensesRows({
  * is answered the rows are a loading scope, so one layout is never drawn and then replaced by the other.
  */
 function LicensesTable(props: LicensesTableProps) {
+  return (
+    <LoadingSuspense label="Loading licences">
+      <LicensesTableGate {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/** Holds the rows in a loading scope until the table flag is answered: the reader then draws its loading form. */
+function LicensesTableGate(props: LicensesTableProps) {
   const tableGate = useTableGridGate();
   return (
     <LoadingWhen loading={tableGate === 'loading'}>
-      <LoadingSuspense label="Loading licences">
-        <LicensesTableReader {...props} />
-      </LoadingSuspense>
+      <LicensesTableReader {...props} />
     </LoadingWhen>
   );
 }

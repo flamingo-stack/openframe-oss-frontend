@@ -79,12 +79,22 @@ interface InvitationsListTableProps {
  * is answered the list is a loading scope, so one table is never drawn and then replaced by the other.
  */
 export function InvitationsListTable(props: InvitationsListTableProps) {
+  return (
+    <LoadingSuspense label="Loading invitations">
+      <InvitationsListGate {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/**
+ * Reads the app's table flag under the boundary, so the boundary's fallback and the read rows draw the same layout.
+ * Until the flag is answered the reader below is in a loading scope: it draws its loading form and does not fetch.
+ */
+function InvitationsListGate(props: InvitationsListTableProps) {
   const tableGate = useTableGridGate();
   return (
     <LoadingWhen loading={tableGate === 'loading'}>
-      <LoadingSuspense label="Loading invitations">
-        <InvitationsListReader {...props} layout={tableLayoutFor(tableGate)} />
-      </LoadingSuspense>
+      <InvitationsListReader {...props} layout={tableLayoutFor(tableGate)} />
     </LoadingWhen>
   );
 }

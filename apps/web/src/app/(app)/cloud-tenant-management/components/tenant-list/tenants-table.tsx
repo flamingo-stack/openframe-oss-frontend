@@ -125,12 +125,22 @@ interface TenantsTableProps {
  * is answered the rows are a loading scope, so one table is never drawn and then replaced by the other.
  */
 export function TenantsTable(props: TenantsTableProps) {
+  return (
+    <LoadingSuspense label="Loading tenants">
+      <TenantsTableGate {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/**
+ * Reads the app's table flag under the boundary, so the boundary's fallback and the read rows draw the same layout.
+ * Until the flag is answered the reader below is in a loading scope: it draws its loading form and does not fetch.
+ */
+function TenantsTableGate(props: TenantsTableProps) {
   const tableGate = useTableGridGate();
   return (
     <LoadingWhen loading={tableGate === 'loading'}>
-      <LoadingSuspense label="Loading tenants">
-        <TenantsTableReader {...props} layout={tableLayoutFor(tableGate)} />
-      </LoadingSuspense>
+      <TenantsTableReader {...props} layout={tableLayoutFor(tableGate)} />
     </LoadingWhen>
   );
 }
