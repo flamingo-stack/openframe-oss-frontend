@@ -21,9 +21,9 @@ import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { type AgentInstallError, canInstallAgentLocally } from '@/lib/native-shell';
 import { AVAILABLE_PLATFORMS, DISABLED_PLATFORMS } from '@/lib/platforms';
 import { AgentNotConnectedNotice } from '../components/agent-not-connected-notice';
-import { CommandBox } from '../components/command-box';
 import { InstallLog } from '../components/install-log';
 import { SetupHeading } from '../components/setup-heading';
+import { StepCommandField } from '../components/step-command-field';
 import { type FirstDevice, useFirstDeviceEnrollment } from '../hooks/use-first-device-enrollment';
 import { useLocalAgentInstall } from '../hooks/use-local-agent-install';
 
@@ -227,9 +227,9 @@ function DeployDeviceLoading() {
         disabledPlatforms={DISABLED_PLATFORMS}
         options={PLATFORM_OPTIONS}
       />
-      <CommandBox>
+      <StepCommandField>
         <TextLineSkeleton type="code" className="min-w-0 flex-1" />
-      </CommandBox>
+      </StepCommandField>
       <DeployActions
         primary={localSupported ? 'deploy' : 'none'}
         canDeployHere={false}
@@ -272,7 +272,6 @@ function DeployDeviceForm({ organizationId, onContinue, persisting }: DeployDevi
   });
 
   const device = useFirstDeviceEnrollment(true);
-  const now = useNow(DEADLINE_TICK_MS);
   const lines = checklistLines(handedOver, device);
   const enrolled = device?.stages.aiReady ?? false;
 
@@ -283,6 +282,9 @@ function DeployDeviceForm({ organizationId, onContinue, persisting }: DeployDevi
   const installedAt = local.status === 'succeeded' ? local.settledAt : null;
   const waitingSince = device?.registeredAt ?? earliest(copiedAt, installedAt);
   const connected = device?.stages.connected ?? false;
+  // The clock ticks only while a deadline is pending: nothing handed over yet,
+  // or the agent already connected, is nothing to time.
+  const now = useNow(DEADLINE_TICK_MS, waitingSince != null && !connected);
   const timedOut = !connected && waitingSince != null && now >= waitingSince + AGENT_CONNECT_TIMEOUT_MS;
 
   // A failed local run says so once, when it settles; the log keeps the detail.
@@ -347,7 +349,7 @@ function DeployDeviceForm({ organizationId, onContinue, persisting }: DeployDevi
             disabledPlatforms={DISABLED_PLATFORMS}
             options={PLATFORM_OPTIONS}
           />
-          <CommandBox>
+          <StepCommandField>
             <p className={cn('min-w-0 flex-1 text-ods-text-primary text-code', expanded ? 'break-all' : 'truncate')}>
               {command}
             </p>
@@ -360,7 +362,7 @@ function DeployDeviceForm({ organizationId, onContinue, persisting }: DeployDevi
             >
               <Chevron01DownIcon className={cn('size-5 transition-transform', expanded && 'rotate-180')} />
             </button>
-          </CommandBox>
+          </StepCommandField>
           <DeployActions
             primary={primary}
             canDeployHere={canDeployHere}

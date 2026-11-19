@@ -10,7 +10,7 @@ import type { OSPlatformId } from '@flamingo-stack/openframe-frontend-core/utils
 import { useState } from 'react';
 import { ContactSupportModal } from '@/app/components/shared/contact-support-modal';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
-import { CommandBox } from './command-box';
+import { StepCommandField } from './step-command-field';
 
 /**
  * Where the OpenFrame client writes its logs, per OS: the client's defaults
@@ -30,7 +30,7 @@ export const CLIENT_LOGS_PATHS: Record<OSPlatformId, string> = {
  * a way to support. Nothing here stops the wait: the step keeps polling and
  * moves on as before when the agent connects.
  *
- * The logs folder sits in the step's command box, not the lib's `PathsDisplay`:
+ * The logs folder sits in the step's command field, not the lib's `PathsDisplay`:
  * the design draws it as the command field's twin (card ground, the same
  * padding), and `PathsDisplay` paints the page ground at a fixed, larger size.
  */
@@ -67,7 +67,7 @@ export function AgentNotConnectedNotice({ platform }: { platform: OSPlatformId }
         <p className="text-ods-text-secondary text-h6">
           Client logs folder — zip it and attach to your support request
         </p>
-        <CommandBox className="items-center">
+        <StepCommandField className="items-center">
           <p className="min-w-0 flex-1 truncate text-ods-text-primary text-code">{logsPath}</p>
           <button
             type="button"
@@ -77,7 +77,7 @@ export function AgentNotConnectedNotice({ platform }: { platform: OSPlatformId }
           >
             <Copy02Icon className="size-5" />
           </button>
-        </CommandBox>
+        </StepCommandField>
       </div>
       <Button variant="outline" leftIcon={<HeadphoneIcon />} onClick={() => setSupportOpen(true)}>
         Contact Support
