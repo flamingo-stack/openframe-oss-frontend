@@ -14,6 +14,13 @@ import { routes } from '@/lib/routes';
 import { ManhattanStartWork } from './manhattan-start-work';
 
 const { router } = vi.hoisted(() => ({ router: { replace: vi.fn(), push: vi.fn(), back: vi.fn() } }));
+/** "What to ask?"'s label as the hub's command catalog names it; null: the hub lists no such command. */
+let whatToAskLabel: string | null = 'What can you do?';
+/** The catalog has not answered yet: whether there is an entry is not known. */
+let whatToAskPending = false;
+vi.mock('../hooks/use-what-to-ask-label', () => ({
+  useWhatToAsk: () => ({ label: whatToAskLabel, pending: whatToAskPending }),
+}));
 vi.mock('next/navigation', () => ({ useRouter: () => router }));
 vi.mock('@flamingo-stack/openframe-frontend-core/components', async importOriginal => ({
   ...(await importOriginal<object>()),
@@ -50,15 +57,42 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  whatToAskLabel = 'What can you do?';
+  whatToAskPending = false;
   act(() => root.unmount());
   container.remove();
 });
 
 describe('ManhattanStartWork', () => {
-  it('greets, leads to "What to ask Mingo?", then "Needs you", without the onboarding banner', () => {
+  it('draws no "What to ask?" when the hub lists no such command', () => {
+    whatToAskLabel = null;
+    act(() => root.render(<ManhattanStartWork />));
+    expect([...container.querySelectorAll('a, button')].some(el => el.textContent === 'What can you do?')).toBe(false);
+    // The catalog has answered: nothing is held for an entry that is not coming.
+    expect(container.querySelector('[data-what-to-ask-place]')).toBeNull();
+  });
+
+  it("holds the button's place while the hub's catalog is read, and hands it to the button", () => {
+    whatToAskLabel = null;
+    whatToAskPending = true;
+    act(() => root.render(<ManhattanStartWork />));
+    // The lib's button skeleton, at the default Button's own height.
+    const place = container.querySelector('[data-what-to-ask-place]');
+    expect(place?.className).toContain('h-11');
+    expect(place?.className).toContain('md:h-12');
+    expect([...container.querySelectorAll('a, button')].some(el => el.textContent === 'What can you do?')).toBe(false);
+
+    whatToAskLabel = 'What can you do?';
+    whatToAskPending = false;
+    act(() => root.render(<ManhattanStartWork />));
+    expect(container.querySelector('[data-what-to-ask-place]')).toBeNull();
+    expect([...container.querySelectorAll('a, button')].some(el => el.textContent === 'What can you do?')).toBe(true);
+  });
+
+  it('greets, leads to "What to ask?" under the label the hub names it, then "Needs you", without the onboarding banner', () => {
     act(() => root.render(<ManhattanStartWork />));
     expect(container.querySelector('h1')?.textContent).toBe('Morning, Ann');
-    const link = [...container.querySelectorAll('a')].find(a => a.textContent === 'What to ask Mingo?');
+    const link = [...container.querySelectorAll('a')].find(a => a.textContent === 'What can you do?');
     expect(link?.getAttribute('href')).toBe(routes.mingo.whatToAsk);
     expect(container.textContent).not.toContain('intro banner');
     expect(container.textContent).toContain('needs you live');

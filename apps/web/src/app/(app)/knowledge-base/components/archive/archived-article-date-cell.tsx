@@ -13,11 +13,17 @@ const archivedArticleDateCellFragment = graphql`
   }
 `;
 
+interface ArchivedArticleDateCellProps {
+  article: archivedArticleDateCell_article$key;
+  /** The cell's one-line form in a grid table (`ItemTimestamp`). */
+  grid?: boolean;
+}
+
 /** ARCHIVED column: when the article was archived. */
-export function ArchivedArticleDateCell({ article }: { article: archivedArticleDateCell_article$key }) {
+export function ArchivedArticleDateCell({ article, grid }: ArchivedArticleDateCellProps) {
   // A row still being read (a loading scope) has no fragment to read: the timestamp draws its bars.
   const data = useFragment(archivedArticleDateCellFragment, useLoadingScope() ? null : article);
-  if (!data) return <ItemTimestamp value={null} />;
+  if (!data) return <ItemTimestamp value={null} grid={grid} />;
   const archivedAt = data.updatedAt ?? data.createdAt;
-  return archivedAt ? <ItemTimestamp value={archivedAt} /> : null;
+  return archivedAt ? <ItemTimestamp value={archivedAt} grid={grid} /> : null;
 }

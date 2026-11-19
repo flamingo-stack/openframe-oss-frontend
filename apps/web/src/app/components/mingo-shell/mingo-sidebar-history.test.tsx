@@ -52,6 +52,8 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({
     return null;
   },
 }));
+// "What to ask?"'s label, as the hub's command catalog names it.
+vi.mock('@/app/(app)/mingo/hooks/use-what-to-ask-label', () => ({ useWhatToAskLabel: () => 'What can you do?' }));
 vi.mock('@/app/(app)/mingo/providers/mingo-chat-provider', () => ({ useMingoChat: () => seen.mingo }));
 vi.mock('@/app/hooks/use-feature-flag', () => ({ useFeatureFlagGate: () => onboarding.v2 }));
 vi.mock('../reset-onboarding-dialog', () => ({
