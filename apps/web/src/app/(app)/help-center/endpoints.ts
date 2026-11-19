@@ -109,6 +109,9 @@ export const EP = {
   downloads: `${CONTENT_BASE}${DOWNLOADS_API_PATH}`,
   // FAQs: the list every lib FAQ block reads (`CONTENT_ENDPOINTS.faqsUrl`), the shared pages' own blocks included.
   faqs: `${CONTENT}/faqs`,
+  // Icon images: `<icons>/<name>?theme=light|dark` draws a library icon as a PNG (`CONTENT_ENDPOINTS.iconsUrl`; the lib's
+  // `entityIconImages` builds the urls).
+  icons: `${CONTENT}/icons`,
   // knowledge base (docs hub) — the lib `<DocsHubPage>` fetches the tree +
   // content from `…/docs/sources/<sourceId>/{structure,content}`, resolves
   // relative in-doc links via `…/docs/resolve-link`, and backs the in-source
@@ -160,6 +163,8 @@ export const CONTENT_ENDPOINTS: EndpointsRuntime = {
   // Where the Help Center's FAQs are served: every shared page (roadmap, releases, legal, …) draws its own
   // FAQ block from it, for the page's topic. No page passes anything.
   faqsUrl: EP.faqs,
+  // Where a library icon is served as an image (`<base>/<name>?theme=light|dark`), for anything that shows an icon outside React.
+  iconsUrl: EP.icons,
   // The YouTube player draws the sharpest poster each video has (`<base>/<videoId>`), else hqdefault.
   youtubePosterBaseUrl: EP.youtubePoster,
 };
