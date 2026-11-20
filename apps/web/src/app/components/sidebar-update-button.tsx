@@ -28,23 +28,30 @@ export function SidebarUpdateButton({ minimized }: SidebarUpdateButtonProps) {
   const label = `Update to v${version}`;
 
   return (
-    // Expanded: the same 16px inset the nav rows carry, so the button sits on
-    // the sidebar's grid rather than beside it. The rail gets 4px, which is what
-    // squares the 48px `icon` button inside 56px.
-    <div className={minimized ? 'flex justify-center p-1' : 'p-[var(--spacing-system-m)]'}>
+    // No side inset: the button spans the same column as the New Chat row below it.
+    // 12px above and below, the gap New Chat keeps to the next row in the rail too.
+    <div className="py-[var(--spacing-system-sf)]">
       <Button
         variant="accent"
         size={minimized ? 'icon' : 'default'}
-        fullWidth={!minimized}
+        fullWidth
+        // In the rail, New Chat's box (40px tall, the column's width) and its 20px glyph, rather
+        // than the 48px icon square with a 24px one.
+        className={
+          minimized ? 'h-10 p-0 md:h-10 md:w-full [&_svg]:h-5 [&_svg]:w-5 md:[&_svg]:h-5 md:[&_svg]:w-5' : undefined
+        }
         onClick={openModal}
         // With the label gone the glyph carries the whole message, so the
-        // accessible name has to come from somewhere; `title` also gives the
-        // rail the hover tooltip every other collapsed row gets.
+        // accessible name has to come from somewhere.
         aria-label={minimized ? label : undefined}
-        title={minimized ? label : undefined}
+        // The rail's hover tooltip, as every other collapsed row has; expanded, the
+        // full version when a narrow sidebar has cut the label short.
+        title={label}
         leftIcon={minimized ? undefined : <Refresh02VrIcon />}
       >
-        {minimized ? <Refresh02VrIcon /> : label}
+        {/* The core Button keeps its label on one line and centred, so a label wider
+            than a sidebar dragged narrow spilled past both edges; it ends in "…" instead. */}
+        {minimized ? <Refresh02VrIcon /> : <span className="min-w-0 truncate">{label}</span>}
       </Button>
     </div>
   );
