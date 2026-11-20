@@ -1,12 +1,18 @@
 'use client';
 
 import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import {
+  ExecutionTimestampGridCell,
+  OpenInNewTabCell,
+  type ScriptsTableColumnLayout,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { ArrowRightUpIcon, Copy01Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   ActionsMenuDropdown,
   type ActionsMenuGroup,
   Button,
   type ColumnDef,
+  DataTable,
   type Row,
   Tag,
   TruncateText,
@@ -14,14 +20,15 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type ReactNode, useCallback, useMemo } from 'react';
-import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
-import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
+import { dateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
+import type { TableLayout } from '@/app/hooks/use-table-layout';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { type Initiator, InitiatorIdentity, toInitiator } from '../../shared/components/initiator-identity';
 import { executionStatusLabel, executionStatusVariant } from '../../shared/utils/execution-helpers';
 import { facetFilter } from '../../shared/utils/facet-options';
+import { scriptsLiveColumnMeta, scriptsLiveColumnSize } from '../../shared/utils/grid-columns';
 
 /** How many runs load per page. */
 export const RUNS_PAGE_SIZE = 20;
@@ -30,15 +37,40 @@ export const RUNS_PAGE_SIZE = 20;
  * Column layout — ONE declaration, read by {@link scheduleRunColumns} (the
  * loaded table and its loading state draw the same columns). Widths and `hideAt` were written out twice
  * before, and the copies drifted. See `table-column-layout.ts`.
+ *
+ * `width` and `hideAt` are the card rows'; `size`, `minSize` (an avatar and text: the table's `GRID_MIN_WIDTH.media`),
+ * `label` and `gridKind` are the grid layout's, in the shape the other Scripts tables use.
  */
 const RUN_COLUMNS = {
-  executionId: { id: 'executionId', header: 'Execution', width: 'flex-1 min-w-0', dateFilterable: true },
-  status: { id: 'status', header: 'Status', width: 'w-[120px]' },
-  responded: { id: 'responded', header: 'Devices', width: 'w-[120px]', hideAt: 'lg' },
-  initiatorId: { id: 'initiatorId', header: 'Executed by', width: 'flex-1 min-w-0', hideAt: 'md' },
-  actions: { id: 'actions', width: 'w-12 shrink-0 flex-none', align: 'right' },
-  open: { id: 'open', width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
-} satisfies Record<string, TableSkeletonColumn>;
+  executionId: {
+    id: 'executionId',
+    header: 'Execution',
+    width: 'flex-1 min-w-0',
+    dateFilterable: true,
+    size: 360,
+    label: 'Execution',
+  },
+  status: { id: 'status', header: 'Status', width: 'w-[120px]', size: 160, label: 'Status' },
+  responded: { id: 'responded', header: 'Devices', width: 'w-[120px]', hideAt: 'lg', size: 140, label: 'Devices' },
+  initiatorId: {
+    id: 'initiatorId',
+    header: 'Executed by',
+    width: 'flex-1 min-w-0',
+    hideAt: 'md',
+    size: 280,
+    minSize: 160,
+    label: 'Executed by',
+  },
+  actions: { id: 'actions', width: 'w-12 shrink-0 flex-none', align: 'right', size: 56, gridKind: 'action' },
+  open: {
+    id: 'open',
+    width: 'w-12 shrink-0 flex-none',
+    hideAt: 'md',
+    align: 'right',
+    size: 56,
+    gridKind: 'action',
+  },
+} satisfies Record<string, ScriptsTableColumnLayout>;
 
 /** One entry of the Status funnel — the core table's `meta.filter.options` shape. */
 export interface RunStatusOption {
@@ -71,10 +103,14 @@ export function runDetailsHref(run: UiRun): string {
 /** A placeholder row's initiator (the table's loading form): nobody, so its avatar and name draw their loading form. */
 const NO_INITIATOR = toInitiator(null);
 
-/** "Executed by" — an avatar plus either the user's name (linked) or "Scheduled". */
-function InitiatorCell({ run }: { run: UiRun }) {
+/**
+ * "Executed by" — an avatar plus either the user's name (linked) or "Scheduled". One line in both layouts; `grid`
+ * draws the grid table's 24px avatar.
+ */
+function InitiatorCell({ run, grid = false }: { run: UiRun; grid?: boolean }) {
+  const size = grid ? 'sm' : 'md';
   // A row still being read: the avatar and the name draw their loading form (most fires are a person's).
-  if (useLoadingScope()) return <InitiatorIdentity initiator={NO_INITIATOR} size="md" inRow />;
+  if (useLoadingScope()) return <InitiatorIdentity initiator={NO_INITIATOR} size={size} inRow />;
   if (run.isScheduled) {
     return (
       <TruncateText tone="secondary" className="flex-1">
@@ -83,17 +119,14 @@ function InitiatorCell({ run }: { run: UiRun }) {
     );
   }
 
-  return <InitiatorIdentity initiator={run.initiator} size="md" inRow />;
+  return <InitiatorIdentity initiator={run.initiator} size={size} inRow />;
 }
 
-/** A fire's status as its tag; the tag's own loading form while the row is read. */
-function RunStatusCell({ status }: { status: string }) {
+/** A fire's status as its tag; the tag's own loading form while the row is read. `grid`: the grid cell's tag. */
+function RunStatusCell({ status, grid = false }: { status: string; grid?: boolean }) {
   const loading = useLoadingScope();
-  return (
-    <div className="flex">
-      <Tag label={executionStatusLabel(status)} variant={executionStatusVariant(status)} loading={loading} />
-    </div>
-  );
+  const tag = <Tag label={executionStatusLabel(status)} variant={executionStatusVariant(status)} loading={loading} />;
+  return grid ? <DataTable.Cell tag={tag} /> : <div className="flex">{tag}</div>;
 }
 
 /**
@@ -139,6 +172,7 @@ function OpenRunButton({ run }: { run: UiRun }) {
 export function useScheduleRunColumns(
   statusOptions: RunStatusOption[],
   dateFilter: TableDateFilter,
+  layout: TableLayout,
 ): ColumnDef<UiRun>[] {
   const { toast } = useToast();
 
@@ -167,8 +201,8 @@ export function useScheduleRunColumns(
   );
 
   return useMemo(
-    () => scheduleRunColumns({ statusOptions, dateFilter, renderRowActions }),
-    [renderRowActions, statusOptions, dateFilter],
+    () => scheduleRunColumns({ statusOptions, dateFilter, renderRowActions, layout }),
+    [renderRowActions, statusOptions, dateFilter, layout],
   );
 }
 
@@ -180,17 +214,21 @@ function scheduleRunColumns({
   statusOptions,
   dateFilter,
   renderRowActions,
+  layout,
 }: {
   statusOptions: RunStatusOption[] | null;
   dateFilter: TableDateFilter | null;
   renderRowActions: (run: UiRun) => ReactNode;
+  /** The table's layout: which of the two date headers the Execution column gets. Default: card rows. */
+  layout?: TableLayout;
 }): ColumnDef<UiRun>[] {
+  // The cell's first line is the fire's dispatchedAt, which is what the calendar (range + newest/oldest first)
+  // narrows and orders.
+  const date = dateColumnHeader(RUN_COLUMNS.executionId.header, dateFilter ?? undefined, layout);
   return [
     {
       accessorKey: 'executionId',
-      // The cell's first line is the fire's dispatchedAt, which is what the
-      // calendar (range + newest/oldest first) narrows and orders.
-      header: () => <DateColumnHeader label={RUN_COLUMNS.executionId.header} filter={dateFilter ?? undefined} />,
+      header: date.header,
       // Stretch column: the execution id is a full uuid and this is the one
       // place it is shown in full (it is what the Execution History drill-down
       // and "Copy Execution ID" key on).
@@ -203,7 +241,13 @@ function scheduleRunColumns({
         </div>
       ),
       enableSorting: false,
-      meta: liveColumnMeta(RUN_COLUMNS.executionId),
+      ...scriptsLiveColumnSize(RUN_COLUMNS.executionId),
+      meta: scriptsLiveColumnMeta(RUN_COLUMNS.executionId, {
+        dateFilter: date.dateFilter,
+        gridCell: ({ row }: { row: Row<UiRun> }) => (
+          <ExecutionTimestampGridCell timestamp={row.original.timestamp} executionId={row.original.executionId} />
+        ),
+      }),
     },
     {
       accessorKey: 'status',
@@ -211,7 +255,11 @@ function scheduleRunColumns({
       cell: ({ row }: { row: Row<UiRun> }) => <RunStatusCell status={row.original.status} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(RUN_COLUMNS.status, { filter: facetFilter(statusOptions) }),
+      ...scriptsLiveColumnSize(RUN_COLUMNS.status),
+      meta: scriptsLiveColumnMeta(RUN_COLUMNS.status, {
+        filter: facetFilter(statusOptions),
+        gridCell: ({ row }: { row: Row<UiRun> }) => <RunStatusCell status={row.original.status} grid />,
+      }),
     },
     {
       accessorKey: 'responded',
@@ -222,7 +270,9 @@ function scheduleRunColumns({
       // value rather than two.
       cell: ({ row }: { row: Row<UiRun> }) => <RunDevicesCell run={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(RUN_COLUMNS.responded),
+      // One line already: the grid draws the same cell.
+      ...scriptsLiveColumnSize(RUN_COLUMNS.responded),
+      meta: scriptsLiveColumnMeta(RUN_COLUMNS.responded),
     },
     {
       // The column's value is the initiator's id so a future server facet can reuse it;
@@ -233,7 +283,11 @@ function scheduleRunColumns({
       header: 'Executed by',
       cell: ({ row }: { row: Row<UiRun> }) => <InitiatorCell run={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(RUN_COLUMNS.initiatorId, { cellClassName: 'self-stretch' }),
+      ...scriptsLiveColumnSize(RUN_COLUMNS.initiatorId),
+      meta: scriptsLiveColumnMeta(RUN_COLUMNS.initiatorId, {
+        cellClassName: 'self-stretch',
+        gridCell: ({ row }: { row: Row<UiRun> }) => <InitiatorCell run={row.original} grid />,
+      }),
     },
     {
       id: 'actions',
@@ -246,13 +300,19 @@ function scheduleRunColumns({
         </div>
       ),
       enableSorting: false,
-      meta: liveColumnMeta(RUN_COLUMNS.actions),
+      ...scriptsLiveColumnSize(RUN_COLUMNS.actions),
+      meta: scriptsLiveColumnMeta(RUN_COLUMNS.actions),
     },
     {
       id: 'open',
       cell: ({ row }: { row: Row<UiRun> }) => <OpenRunButton run={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(RUN_COLUMNS.open),
+      ...scriptsLiveColumnSize(RUN_COLUMNS.open),
+      meta: scriptsLiveColumnMeta(RUN_COLUMNS.open, {
+        gridCell: ({ row }: { row: Row<UiRun> }) => (
+          <OpenInNewTabCell href={runDetailsHref(row.original)} grid label="Open run details in new tab" />
+        ),
+      }),
     },
   ];
 }

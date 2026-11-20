@@ -7,6 +7,8 @@ import {
   type DateRange,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import type { ReactElement } from 'react';
+import type { TableLayout } from '@/app/hooks/use-table-layout';
 
 /**
  * A column header that hosts the date sort + range popover: the label and a
@@ -98,4 +100,19 @@ export function DateColumnHeader({ label, filter, actionHint = 'Sort and filter 
       }
     />
   );
+}
+
+/**
+ * A date column's header for the layout its table draws, as the two column fields it sets. Card rows take
+ * {@link DateColumnHeader} as the header node. The grid draws a date header of its own from `meta.dateFilter` and
+ * names the column by its string header, so there the header is the label and the filter goes into the column's meta.
+ * With no `filter` (a loading table) the card header is inert and the grid column has no date menu.
+ */
+export function dateColumnHeader(
+  label: string,
+  filter: TableDateFilter | undefined,
+  layout: TableLayout = 'cards',
+): { header: string | (() => ReactElement); dateFilter: TableDateFilter | undefined } {
+  if (layout === 'grid') return { header: label, dateFilter: filter };
+  return { header: () => <DateColumnHeader label={label} filter={filter} />, dateFilter: undefined };
 }

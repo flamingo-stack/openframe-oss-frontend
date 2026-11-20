@@ -10,7 +10,9 @@ import {
   RowActionsCell,
   SCHEDULE_COLUMNS,
   ScheduleDateTimeCell,
+  ScheduleDateTimeGridCell,
   ScriptNameCell,
+  ScriptNameGridCell,
   isDeviceLocalTime,
   isEventTrigger,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
@@ -38,6 +40,7 @@ import {
   type DateRange,
   FilterModal,
   Input,
+  LoadingWhen,
   PageLayout,
   type Row,
   TruncateText,
@@ -63,14 +66,13 @@ import { useGenerateWithAiAction } from '@/app/(app)/mingo/hooks/use-generate-wi
 import { useMingoCreatedEpoch } from '@/app/(app)/mingo/stores/mingo-created-entities-store';
 import { DIALOG_INTENT } from '@/app/(app)/tickets/constants';
 import {
-  DateColumnHeader,
   EmptyState,
-  liveColumnMeta,
   onboardingGuideButton,
   oneLineEmptyState,
   type TableDateFilter,
   useRetryKey,
 } from '@/app/components/shared';
+import { dateColumnHeader } from '@/app/components/shared/date-column-header';
 import { LiveTable } from '@/app/components/shared/live-table';
 import { ValueText } from '@/app/components/shared/value-text';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
@@ -78,6 +80,7 @@ import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { type TableLayout, tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { ScriptStatus } from '@/generated/schema-enums';
 import { archiveScriptScheduleMutation } from '@/graphql/scripts/archive-script-schedule-mutation';
 import { scriptScheduleFiltersRefreshRelayQuery } from '@/graphql/scripts/script-schedule-filters-refresh-relay';
@@ -91,6 +94,7 @@ import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { type FacetOption, facetFilter, facetToMappedOptions } from '../../shared/utils/facet-options';
+import { SCRIPTS_TABLE_SETTINGS, scriptsLiveColumnMeta, scriptsLiveColumnSize } from '../../shared/utils/grid-columns';
 import { platformsToEnums, platformsToIds } from '../../shared/utils/script-mappers';
 import { DEVICE_LOCAL_TIME_NOTE, formatScheduleStartAt, repeatToLabel } from '../utils/schedule-timing';
 import { ArchiveScheduleModal } from './archive-schedule-modal';
@@ -135,15 +139,22 @@ interface UiScheduleEntry {
 }
 
 /**
- * When a schedule starts: the date over the time. A row still being read draws the date and time lines as bars (most
- * schedules have a start).
+ * When a schedule starts: the date over the time, or beside it in the grid layout (`grid`: one line). A row still
+ * being read draws the date and time as bars (most schedules have a start).
  */
-function ScheduleStartCell({ schedule }: { schedule: UiScheduleEntry }) {
-  if (useLoadingScope()) return <ScheduleDateTimeCell date="" time="" />;
+function ScheduleStartCell({ schedule, grid = false }: { schedule: UiScheduleEntry; grid?: boolean }) {
+  const DateTime = grid ? ScheduleDateTimeGridCell : ScheduleDateTimeCell;
+  if (useLoadingScope()) return <DateTime date="" time="" />;
   // Event-driven schedules have no date/time — name the trigger instead
   // of showing an em dash that reads as "not configured yet".
   if (isEventTrigger(schedule.trigger)) {
-    return <TruncateText tone="secondary">Device Online</TruncateText>;
+    return grid ? (
+      <TruncateText as="span" variant="h4" tone="secondary">
+        Device Online
+      </TruncateText>
+    ) : (
+      <TruncateText tone="secondary">Device Online</TruncateText>
+    );
   }
   if (!schedule.startAt) {
     return <ValueText value={null} />;
@@ -153,7 +164,7 @@ function ScheduleStartCell({ schedule }: { schedule: UiScheduleEntry }) {
   // row shows the wall clock each device reads on its own timezone, and
   // an unmarked "6:00 PM" here reads as the viewer's.
   return (
-    <ScheduleDateTimeCell
+    <DateTime
       date={date}
       time={isDeviceLocalTime(schedule.timeReference) ? `${time} · ${DEVICE_LOCAL_TIME_NOTE.toLowerCase()}` : time}
     />
@@ -181,12 +192,18 @@ function scheduleColumns({
   options,
   dateFilter,
   renderRowActions,
+  layout,
 }: {
   options: { platform: FacetOption[] } | null;
   /** The Date/Time header's calendar; absent while loading (the header draws inert). */
   dateFilter?: TableDateFilter;
   renderRowActions: (schedule: UiScheduleEntry) => ReactNode;
+  /** The table's layout: which of the two date headers the Date/Time column gets. Default: card rows. */
+  layout?: TableLayout;
 }): ColumnDef<UiScheduleEntry>[] {
+  // The Date/Time cell IS `startAt`, the field the calendar filters and orders by, so the date menu sits on its header
+  // rather than on a column of its own.
+  const date = dateColumnHeader(SCHEDULE_COLUMNS.dateTime.header, dateFilter, layout);
   return [
     {
       accessorKey: 'name',
@@ -195,7 +212,12 @@ function scheduleColumns({
         <ScriptNameCell name={row.original.name} description={row.original.description} />
       ),
       enableSorting: false,
-      meta: liveColumnMeta(SCHEDULE_COLUMNS.name),
+      ...scriptsLiveColumnSize(SCHEDULE_COLUMNS.name),
+      meta: scriptsLiveColumnMeta(SCHEDULE_COLUMNS.name, {
+        gridCell: ({ row }: { row: Row<UiScheduleEntry> }) => (
+          <ScriptNameGridCell name={row.original.name} description={row.original.description} />
+        ),
+      }),
     },
     {
       accessorKey: 'supportedPlatforms',
@@ -205,30 +227,42 @@ function scheduleColumns({
       ),
       enableSorting: false,
       filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(SCHEDULE_COLUMNS.supportedPlatforms, { filter: facetFilter(options?.platform) }),
+      ...scriptsLiveColumnSize(SCHEDULE_COLUMNS.supportedPlatforms),
+      meta: scriptsLiveColumnMeta(SCHEDULE_COLUMNS.supportedPlatforms, {
+        filter: facetFilter(options?.platform),
+        gridCell: ({ row }: { row: Row<UiScheduleEntry> }) => (
+          <OSTypeBadgeGroup osTypes={row.original.supportedPlatforms} iconSize="w-5 h-5" className="flex-nowrap" />
+        ),
+      }),
     },
     {
       id: 'dateTime',
-      // The cell IS `startAt`, the field the calendar filters and orders by —
-      // so the popover sits on this header rather than on a column of its own.
-      header: () => <DateColumnHeader label={SCHEDULE_COLUMNS.dateTime.header} filter={dateFilter} />,
+      header: date.header,
       cell: ({ row }: { row: Row<UiScheduleEntry> }) => <ScheduleStartCell schedule={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(SCHEDULE_COLUMNS.dateTime),
+      ...scriptsLiveColumnSize(SCHEDULE_COLUMNS.dateTime),
+      meta: scriptsLiveColumnMeta(SCHEDULE_COLUMNS.dateTime, {
+        dateFilter: date.dateFilter,
+        gridCell: ({ row }: { row: Row<UiScheduleEntry> }) => <ScheduleStartCell schedule={row.original} grid />,
+      }),
     },
     {
       id: 'repeat',
       header: SCHEDULE_COLUMNS.repeat.header,
       cell: ({ row }: { row: Row<UiScheduleEntry> }) => <ScheduleRepeatCell schedule={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(SCHEDULE_COLUMNS.repeat),
+      // One line already: the grid draws the same cell.
+      ...scriptsLiveColumnSize(SCHEDULE_COLUMNS.repeat),
+      meta: scriptsLiveColumnMeta(SCHEDULE_COLUMNS.repeat),
     },
     {
       accessorKey: 'deviceCount',
       header: SCHEDULE_COLUMNS.deviceCount.header,
       cell: ({ row }: { row: Row<UiScheduleEntry> }) => <ScheduleDeviceCountCell schedule={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(SCHEDULE_COLUMNS.deviceCount),
+      // One line already: the grid draws the same cell.
+      ...scriptsLiveColumnSize(SCHEDULE_COLUMNS.deviceCount),
+      meta: scriptsLiveColumnMeta(SCHEDULE_COLUMNS.deviceCount),
     },
     {
       id: 'actions',
@@ -236,7 +270,8 @@ function scheduleColumns({
         <RowActionsCell>{renderRowActions(row.original)}</RowActionsCell>
       ),
       enableSorting: false,
-      meta: liveColumnMeta(SCHEDULE_COLUMNS.actions),
+      ...scriptsLiveColumnSize(SCHEDULE_COLUMNS.actions),
+      meta: scriptsLiveColumnMeta(SCHEDULE_COLUMNS.actions),
     },
     {
       id: 'open',
@@ -244,7 +279,12 @@ function scheduleColumns({
         <OpenInNewTabCell href={routes.scripts.schedules.details(row.original.id)} />
       ),
       enableSorting: false,
-      meta: liveColumnMeta(SCHEDULE_COLUMNS.open),
+      ...scriptsLiveColumnSize(SCHEDULE_COLUMNS.open),
+      meta: scriptsLiveColumnMeta(SCHEDULE_COLUMNS.open, {
+        gridCell: ({ row }: { row: Row<UiScheduleEntry> }) => (
+          <OpenInNewTabCell href={routes.scripts.schedules.details(row.original.id)} grid />
+        ),
+      }),
     },
   ];
 }
@@ -276,6 +316,8 @@ interface SchedulesTableContentProps {
   onMobileFilterClose: () => void;
   stickyHeaderOffset: string;
   archived: boolean;
+  /** The table's layout, from the app's one table flag: read once by the page and handed to every form of the list. */
+  tableLayout: TableLayout;
 }
 
 function SchedulesTableContent({
@@ -293,6 +335,7 @@ function SchedulesTableContent({
   onMobileFilterClose,
   stickyHeaderOffset,
   archived,
+  tableLayout,
 }: SchedulesTableContentProps) {
   const { toast } = useToast();
   const environment = useRelayEnvironment();
@@ -489,8 +532,9 @@ function SchedulesTableContent({
   }, [confirmTarget, connectionId, archived, commitArchive, commitUnarchive, toast, refreshFilterMeta]);
 
   const columns = useMemo<ColumnDef<UiScheduleEntry>[]>(
-    () => scheduleColumns({ options: { platform: platformOptions }, dateFilter, renderRowActions }),
-    [renderRowActions, platformOptions, dateFilter],
+    () =>
+      scheduleColumns({ options: { platform: platformOptions }, dateFilter, renderRowActions, layout: tableLayout }),
+    [renderRowActions, platformOptions, dateFilter, tableLayout],
   );
 
   const filterGroups = useMemo(
@@ -576,6 +620,7 @@ function SchedulesTableContent({
         table={table}
         pageSize={PAGE_SIZE}
         stickyHeaderOffset={stickyHeaderOffset}
+        {...gridTableProps(tableLayout)}
         sort={sortState}
         onSortChange={onSortChange}
         emptyState={oneLineEmptyState(
@@ -630,6 +675,15 @@ function SchedulesTableContent({
 /** The columns before the first answer: the OS funnel pending, the calendar inert, no row to act on. */
 const LOADING_COLUMNS = scheduleColumns({ options: null, renderRowActions: () => null });
 
+/**
+ * The table's layout props, the same for the loaded table and its loading form. In the grid layout the table is the
+ * page's scroll area (it fills the height under the toolbar) and keeps the viewer's column layout under the list's
+ * key; `LiveTable` passes neither on while the table draws card rows.
+ */
+function gridTableProps(tableLayout: TableLayout) {
+  return { layout: tableLayout, maxHeight: 'fill', settings: SCRIPTS_TABLE_SETTINGS.schedules } as const;
+}
+
 /** The schedules list, with its own boundary: in its scope the reader draws the table's loading form. */
 function SchedulesTable(props: SchedulesTableContentProps) {
   return (
@@ -642,7 +696,14 @@ function SchedulesTable(props: SchedulesTableContentProps) {
 function SchedulesTableReader(props: SchedulesTableContentProps) {
   // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
   if (useLoadingScope())
-    return <LiveTable columns={LOADING_COLUMNS} pageSize={PAGE_SIZE} stickyHeaderOffset={props.stickyHeaderOffset} />;
+    return (
+      <LiveTable
+        columns={LOADING_COLUMNS}
+        pageSize={PAGE_SIZE}
+        stickyHeaderOffset={props.stickyHeaderOffset}
+        {...gridTableProps(props.tableLayout)}
+      />
+    );
   return <SchedulesTableContent {...props} />;
 }
 
@@ -684,6 +745,8 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
   const [isEmpty, setIsEmpty] = useState(false);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
+  // The new grid table, behind the app's one table flag; card rows while it is off.
+  const tableGate = useTableGridGate();
 
   // Applied first-run range, restored from the URL.
   const dateRange: DateRange | undefined = useMemo(
@@ -879,22 +942,26 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
           </div>
         )}
 
-        <SchedulesTable
-          backendFilters={deferredVars.filter}
-          debouncedSearch={deferredSearch}
-          sort={deferredVars.sort}
-          tableFilters={tableFilters}
-          sortState={sortState}
-          onSortChange={handleSortChange}
-          isPending={isPending}
-          onFilterChange={handleFilterChange}
-          dateFilter={dateFilter}
-          onEmptyChange={setIsEmpty}
-          mobileFilterOpen={mobileFilterOpen}
-          onMobileFilterClose={() => setMobileFilterOpen(false)}
-          stickyHeaderOffset={stickyHeaderOffset}
-          archived={archived}
-        />
+        {/* Until the flag answers the list is its loading form: a guess would draw one table and replace it. */}
+        <LoadingWhen loading={tableGate === 'loading'}>
+          <SchedulesTable
+            backendFilters={deferredVars.filter}
+            debouncedSearch={deferredSearch}
+            sort={deferredVars.sort}
+            tableFilters={tableFilters}
+            sortState={sortState}
+            onSortChange={handleSortChange}
+            isPending={isPending}
+            onFilterChange={handleFilterChange}
+            dateFilter={dateFilter}
+            onEmptyChange={setIsEmpty}
+            mobileFilterOpen={mobileFilterOpen}
+            onMobileFilterClose={() => setMobileFilterOpen(false)}
+            stickyHeaderOffset={stickyHeaderOffset}
+            archived={archived}
+            tableLayout={tableLayoutFor(tableGate)}
+          />
+        </LoadingWhen>
       </div>
     </PageLayout>
   );

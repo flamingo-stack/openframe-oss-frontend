@@ -7,7 +7,7 @@ import {
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { type ReactNode, useEffect } from 'react';
+import { type ReactNode, use, useEffect } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type {
   softwareTable_software$data,
@@ -18,8 +18,10 @@ import { LiveTable } from '@/app/components/shared/live-table';
 import { openRowColumn } from '@/app/components/shared/open-row-column';
 import { useTableGrid } from '@/app/components/shared/table-layout-scope';
 import { routes } from '@/lib/routes';
+import { useSoftwareAdoptGate } from '../adopt/use-software-adopt-gate';
 import { multiColumnFilter } from '../shared/column-filters';
 import type { ListSelections } from '../shared/software-list-frame';
+import { SoftwareAdoptionCell, SoftwareAdoptionRefsContext } from './software-adoption-cell';
 import { SoftwareAutoUpdateCell } from './software-auto-update-cell';
 import { SoftwareEngineCell } from './software-engine-cell';
 import { SOFTWARE_LIST_COLUMNS, SOFTWARE_LIST_PAGE_SIZE } from './software-list-columns';
@@ -91,8 +93,7 @@ const OPEN_COLUMN = openRowColumn<SoftwareRow>(SOFTWARE_LIST_COLUMNS.open, row =
 /**
  * Which list the table is: the fleet-wide inventory (All Software, design 1076:16413) or a device's own. The fleet's
  * says where each title runs and how it is managed — its OS, engine and auto-update, each with a funnel; a device's
- * keeps the CVE count of the copy it has. The design's Adoption column is not drawn: there is no Adopt yet, and the
- * count is never filled.
+ * keeps the CVE count of the copy it has. With Adopt on, the fleet's also counts the devices Adopt would reach.
  */
 export type SoftwareTableSurface = 'fleet' | 'device';
 
@@ -113,8 +114,25 @@ const DEVICE_COLUMNS: ColumnDef<SoftwareRow>[] = [
   OPEN_COLUMN,
 ];
 
-/** The surface's columns; the fleet's funnels offer `filterOptions` (`useSoftwareListFilters`). */
-function columnsFor(surface: SoftwareTableSurface, filterOptions: SoftwareListFilterOptions): ColumnDef<SoftwareRow>[] {
+const ADOPTION_COLUMN: ColumnDef<SoftwareRow> = {
+  id: SOFTWARE_LIST_COLUMNS.adoption.id,
+  header: SOFTWARE_LIST_COLUMNS.adoption.header,
+  cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareAdoptionCell softwareId={row.original.id} />,
+  enableSorting: false,
+  // One line in both layouts: the grid draws the same cell.
+  size: 120,
+  meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.adoption),
+};
+
+/**
+ * The surface's columns; the fleet's funnels offer `filterOptions` (`useSoftwareListFilters`), and its Adoption column
+ * is there while Adopt is on.
+ */
+function columnsFor(
+  surface: SoftwareTableSurface,
+  filterOptions: SoftwareListFilterOptions,
+  adopt: boolean,
+): ColumnDef<SoftwareRow>[] {
   if (surface === 'device') return DEVICE_COLUMNS;
   return [
     NAME_COLUMN,
@@ -143,6 +161,7 @@ function columnsFor(surface: SoftwareTableSurface, filterOptions: SoftwareListFi
       size: 200,
       meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.autoUpdate, { filter: { options: filterOptions.autoUpdate } }),
     },
+    ...(adopt ? [ADOPTION_COLUMN] : []),
     OPEN_COLUMN,
   ];
 }
@@ -199,6 +218,8 @@ function LoadedSoftwareTable({
 }: SoftwareTableProps) {
   // The rows have not answered yet: the table draws its own loading state, never the empty one.
   const loading = useLoadingScope();
+  // The rows came from the Adopt list query (it provides their reads): the gate was on, as the loading table drew it.
+  const adopt = use(SoftwareAdoptionRefsContext) !== null;
   const tableGrid = useTableGrid(SETTINGS_KEY[surface]);
   const rows = useFragment(softwareTableFragment, rowRefs);
   const { columnFilters, onColumnFiltersChange } = multiColumnFilter(selections, onSelectionsChange);
@@ -207,7 +228,7 @@ function LoadedSoftwareTable({
   const table = useDataTable<SoftwareRow>({
     // The fragment reads back a readonly page; the table only ever reads it too.
     data: rows as SoftwareRow[],
-    columns: columnsFor(surface, filterOptions),
+    columns: columnsFor(surface, filterOptions, adopt),
     getRowId,
     enableSorting: false,
     state: { columnFilters },
@@ -273,11 +294,13 @@ function SoftwareTableLoading({
   surface: SoftwareTableSurface;
   stickyHeaderOffset: string;
 }) {
+  // The loading table has the loaded one's columns: unanswered, the Adoption column waits with it.
+  const adopt = useSoftwareAdoptGate() !== 'off';
   const tableGrid = useTableGrid(SETTINGS_KEY[surface]);
   return (
     <LiveTable
       {...tableGrid}
-      columns={columnsFor(surface, NO_SOFTWARE_LIST_FILTER_OPTIONS)}
+      columns={columnsFor(surface, NO_SOFTWARE_LIST_FILTER_OPTIONS, adopt)}
       pageSize={SOFTWARE_LIST_PAGE_SIZE}
       stickyHeaderOffset={stickyHeaderOffset}
       itemName="result"
