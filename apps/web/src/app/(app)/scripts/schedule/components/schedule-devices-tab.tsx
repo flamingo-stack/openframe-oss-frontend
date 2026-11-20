@@ -8,7 +8,11 @@ import {
   EMPTY_DEVICES_NARROWING,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { MonitorOffIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  type DataTableSettings,
+  LoadingWhen,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
@@ -20,6 +24,7 @@ import type { Device } from '@/app/(app)/devices/types/device.types';
 import { machineRowToDevice } from '@/app/(app)/devices/utils/device-transform';
 import { ContentErrorBoundary, NO_ITEMS, useRetryKey } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
+import { type TableLayout, tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { type DeviceConnectivity, type DeviceStatus, ScheduleDeviceSelectionMode } from '@/generated/schema-enums';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
 import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedule-detail-relay';
@@ -40,6 +45,17 @@ const EMPTY_STATE = {
   title: 'No Assigned Devices',
   description: 'Devices added to this schedule will be displayed here.',
 };
+
+/** The grid table's settings: the viewer's column layout, kept in the browser under this list's own key. */
+const TABLE_SETTINGS: DataTableSettings = { storageKey: 'schedule-assigned-devices' };
+
+/**
+ * The list's table props for a layout. The grid has its settings and no height of its own: the tab is one section of
+ * the schedule's page, so the page scrolls, not the table.
+ */
+function tableProps(tableLayout: TableLayout) {
+  return { tableLayout, tableSettings: tableLayout === 'grid' ? TABLE_SETTINGS : undefined };
+}
 
 /**
  * The `DeviceFilterInput` fields this list can set. Declared here rather than
@@ -97,7 +113,7 @@ function toDeviceFilter(narrowing: Omit<DevicesListNarrowing, 'search'>): Assign
  * every option in them narrows something. Tag chips are the one exception, still
  * fleet-fed; see `useScheduleDeviceFilters`.
  */
-function ScheduleDevicesTabContent({ scheduleId }: { scheduleId: string }) {
+function ScheduleDevicesTabContent({ scheduleId, tableLayout }: { scheduleId: string; tableLayout: TableLayout }) {
   const retryKey = useRetryKey();
   const detail = useLazyLoadQuery<ScheduleDetailQueryType>(
     scriptScheduleDetailRelayQuery,
@@ -163,6 +179,7 @@ function ScheduleDevicesTabContent({ scheduleId }: { scheduleId: string }) {
       totalCount={data?.assignedDevices?.filteredCount ?? undefined}
       emptyState={EMPTY_STATE}
       skeletonRows={PAGE_SIZE}
+      {...tableProps(tableLayout)}
       infiniteScroll={{
         hasNextPage: hasNext,
         isFetchingNextPage: isLoadingNext,
@@ -199,11 +216,17 @@ function ScheduleDevicesTabContent({ scheduleId }: { scheduleId: string }) {
   );
 }
 
-/** The tab before its devices: the same list in its loading state. */
-function ScheduleDevicesTabLoading() {
+/** The tab before its devices: the same list in its loading state, in the layout the loaded list will draw. */
+function ScheduleDevicesTabLoading({ tableLayout }: { tableLayout: TableLayout }) {
   return (
     <div className="pt-[var(--spacing-system-l)]">
-      <DevicesList devices={NO_ITEMS} isLoading emptyState={EMPTY_STATE} skeletonRows={PAGE_SIZE} />
+      <DevicesList
+        devices={NO_ITEMS}
+        isLoading
+        emptyState={EMPTY_STATE}
+        skeletonRows={PAGE_SIZE}
+        {...tableProps(tableLayout)}
+      />
     </div>
   );
 }
@@ -218,16 +241,30 @@ function ScheduleDevicesTabLoading() {
  * `memo` for the reason given in `schedule-detail-tabs.ts`.
  */
 export const ScheduleDevicesTab = memo(function ScheduleDevicesTabImpl({ scheduleId }: { scheduleId: string }) {
+  // The new grid table, behind the app's one table flag; card rows while it is off. Read ONCE here and handed to
+  // every form of the list (its loading state too), so the two never draw different tables.
+  const tableGate = useTableGridGate();
+  const tableLayout = tableLayoutFor(tableGate);
   return (
-    <LoadingSuspense label="Loading devices">
-      <ScheduleDevicesTabReader scheduleId={scheduleId} />
-    </LoadingSuspense>
+    // Until the flag answers the tab is its loading state: a guess would draw one table and replace it with the other.
+    <LoadingWhen loading={tableGate === 'loading'}>
+      <ScheduleDevicesTabBoundary scheduleId={scheduleId} tableLayout={tableLayout} />
+    </LoadingWhen>
   );
 });
 ScheduleDevicesTab.displayName = 'ScheduleDevicesTab';
 
-function ScheduleDevicesTabReader({ scheduleId }: { scheduleId: string }) {
+/** The tab's list, with its own boundary: in its scope the reader draws the list's loading form. */
+function ScheduleDevicesTabBoundary(props: { scheduleId: string; tableLayout: TableLayout }) {
+  return (
+    <LoadingSuspense label="Loading devices">
+      <ScheduleDevicesTabReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function ScheduleDevicesTabReader({ scheduleId, tableLayout }: { scheduleId: string; tableLayout: TableLayout }) {
   // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
-  if (useLoadingScope()) return <ScheduleDevicesTabLoading />;
-  return <ScheduleDevicesTabContent scheduleId={scheduleId} />;
+  if (useLoadingScope()) return <ScheduleDevicesTabLoading tableLayout={tableLayout} />;
+  return <ScheduleDevicesTabContent scheduleId={scheduleId} tableLayout={tableLayout} />;
 }
