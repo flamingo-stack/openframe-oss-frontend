@@ -205,8 +205,11 @@ describe('useMingoModelSelection', () => {
     await vi.waitFor(() => expect(selection.menu?.disabled).toBe(false));
 
     expect(choice('chat-model-default')).toMatchObject({ label: 'Use default model', disabled: false });
+    expect(choice('chat-model-ANTHROPIC').checked).toBe(false);
+    expect(choice('chat-model-ANTHROPIC-claude-sonnet-5').checked).toBe(false);
     await act(async () => choice('chat-model-default').onClick?.());
     expect(env.updateDialogModel).toHaveBeenCalledExactlyOnceWith('d-1', null);
+    await vi.waitFor(() => expect(env.toast).toHaveBeenCalledWith(expect.objectContaining({ variant: 'success' })));
   });
 
   it('skips writing and announcing the model that already answers', async () => {

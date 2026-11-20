@@ -100,21 +100,17 @@ export function ModelComparisonRow({
 }) {
   return (
     <div className="min-w-0 flex-1">
-      <div className="flex min-w-0 flex-wrap items-center gap-x-3">
-        <span className="min-w-0 break-words text-base font-medium leading-5 text-ods-text-primary">{label}</span>
+      <div className="flex min-w-0 flex-wrap items-center gap-x-[var(--spacing-system-sf)]">
+        <span className="min-w-0 break-words text-[length:var(--font-size-menu-label)] font-medium leading-[var(--font-line-space-menu-label)] text-ods-text-primary">
+          {label}
+        </span>
         {details?.recommended && (
-          <Tag
-            as="span"
-            label={<span>Recommended</span>}
-            variant="primary"
-            className="h-auto shrink-0"
-            style={{ padding: '1px 6px', fontSize: 11, lineHeight: '16px' }}
-          />
+          <Tag as="span" label={<span>Recommended</span>} variant="primary" size="stamp" className="shrink-0" />
         )}
       </div>
-      <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 text-sm leading-5 text-ods-text-panel-secondary">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-[var(--spacing-system-sf)] text-[length:var(--font-size-menu-description)] leading-[var(--font-line-space-menu-label)] text-ods-text-panel-secondary">
         {details && <span className="flex-auto">{details.description}</span>}
-        <span className="ml-auto flex flex-wrap justify-end gap-x-2">
+        <span className="ml-auto flex flex-wrap justify-end gap-x-[var(--spacing-system-xsf)]">
           <span className="whitespace-nowrap">{pricing.rates}</span>
           <span className="whitespace-nowrap">{pricing.prices}</span>
         </span>
@@ -125,7 +121,7 @@ export function ModelComparisonRow({
 
 export function ModelComparisonFooter() {
   return (
-    <div className="min-w-0 break-words text-xs text-ods-text-panel-secondary">
+    <div className="min-w-0 break-words text-[length:var(--font-size-menu-note)] leading-[var(--font-line-space-menu-note)] text-ods-text-panel-secondary">
       <div className="px-[var(--spacing-system-mf)] py-[var(--spacing-system-sf)]">
         <p>Rate: OpenFrame tokens charged per token read / written.</p>
         <p>Price: per 1M tokens, read / write.</p>
@@ -133,8 +129,7 @@ export function ModelComparisonFooter() {
       <div className="flex items-start gap-[var(--spacing-system-xsf)] border-t border-ods-border px-[var(--spacing-system-mf)] py-[var(--spacing-system-sf)]">
         <ShieldCheckIcon size={16} className="shrink-0" aria-hidden />
         <p>
-          Your chats aren’t used to train AI models. Model providers may retain requests and responses for up to 30
-          days.
+          Your chats aren’t used to train AI models. Model providers keep requests for up to 30 days, then delete them.
         </p>
       </div>
     </div>

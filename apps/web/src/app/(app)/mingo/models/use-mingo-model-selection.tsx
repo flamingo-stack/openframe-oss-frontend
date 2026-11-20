@@ -54,7 +54,7 @@ export interface MingoModelSelection {
 type ModelIdentity = Pick<AiModel, 'provider' | 'modelName'>;
 
 function isSameModel(previous: ModelIdentity | null, next: ModelIdentity) {
-  return previous?.provider === next.provider && previous.modelName === next.modelName;
+  return previous !== null && previous.provider === next.provider && previous.modelName === next.modelName;
 }
 
 /** The model for one Mingo chat: read from the chat, picked from its composer; a new chat keeps its pick in a draft. */
@@ -108,8 +108,8 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
   const saved = activeDialogId ? query.data : undefined;
   const selected = activeDialogId ? (saved?.model ?? null) : draft;
   const current = activeDialogId ? (saved?.effectiveModel ?? null) : draft;
-  // The model that answers: the chat's, else the tenant default a new chat starts on.
-  const answering = current ?? aiModel;
+  // The tenant default fills a new chat only. A saved chat uses its own server-resolved model.
+  const answering = activeDialogId === null ? (current ?? aiModel ?? null) : current;
   const selectionKnown = activeDialogId === null || saved !== undefined;
   const followsDefault = selectionKnown && selected === null;
   const locked =
