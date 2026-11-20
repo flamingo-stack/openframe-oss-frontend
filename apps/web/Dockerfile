@@ -32,6 +32,18 @@ RUN --mount=type=cache,target=/app/dist/cache \
       rm -rf dist/standalone/node_modules/@img dist/standalone/node_modules/sharp; \
     fi
 
+# Inject Debug IDs and keep source maps out of the runtime image.
+RUN node scripts/sentry-sourcemaps.mjs prepare /sourcemaps
+
+# Keep the upload cache separate from the application build.
+FROM builder AS sentry-upload
+
+RUN --mount=type=secret,id=SENTRY_AUTH_TOKEN \
+    if [ -s /run/secrets/SENTRY_AUTH_TOKEN ]; then \
+      SENTRY_AUTH_TOKEN="$(cat /run/secrets/SENTRY_AUTH_TOKEN)" node_modules/.bin/sentry-cli sourcemaps upload \
+        --org flamingoai --project openframe-oss-frontend --release "$OPENFRAME_BUNDLE_VERSION" /sourcemaps/dist; \
+    else echo "sentry-upload: no SENTRY_AUTH_TOKEN secret, upload skipped"; fi
+
 FROM node:26.13.0-alpine3.24 AS runner
 WORKDIR /app
 ENV NODE_ENV=production \
@@ -47,10 +59,10 @@ RUN apk upgrade --no-cache && \
     addgroup -S -g 1001 nodejs && \
     adduser  -S -u 1001 -G nodejs nextjs
 
-COPY --from=builder --chown=nextjs:nodejs /app/dist/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/dist/static      ./dist/static
-COPY --from=builder --chown=nextjs:nodejs /app/public           ./public
-COPY --from=builder --chown=nextjs:nodejs /app/scripts/server-entry.js ./server-entry.js
+COPY --from=sentry-upload --chown=nextjs:nodejs /app/dist/standalone ./
+COPY --from=sentry-upload --chown=nextjs:nodejs /app/dist/static      ./dist/static
+COPY --from=sentry-upload --chown=nextjs:nodejs /app/public           ./public
+COPY --from=sentry-upload --chown=nextjs:nodejs /app/scripts/server-entry.js ./server-entry.js
 
 USER nextjs
 EXPOSE 3000

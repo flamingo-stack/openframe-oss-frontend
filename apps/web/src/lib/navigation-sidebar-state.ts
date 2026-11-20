@@ -135,9 +135,9 @@ const runtimeJoin = (parts: TemplateStringsArray, ...values: Array<string | numb
  * Inline FOUC-prevention script. Runs synchronously in `<head>` before first
  * paint: reads the persisted collapse state and seeds the sidebar width var.
  * `grouped`: the Mingo-first sidebar (a SaaS tenant), which is wider. The root
- * layout answers it from the app mode on the SERVER: in the browser the runtime env
- * (`window.__ENV`) lands after this script — `PublicEnvScript` goes through Next's
- * `beforeInteractive` queue — so the script cannot ask it.
+ * layout answers it from the app mode on the SERVER, which also holds in the
+ * native shells' static export, where no `PublicEnvScript` renders and the shell
+ * injects the runtime env itself.
  *
  * This is the whole mechanism by which a preference that only `localStorage`
  * knows reaches the first frame. It cannot travel through React: the server

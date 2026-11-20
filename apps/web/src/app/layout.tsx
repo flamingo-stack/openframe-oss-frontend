@@ -116,12 +116,15 @@ export function generateViewport(): Viewport {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   // Static-export (native-shell) builds have no server to populate
   // next-runtime-env, so the Capacitor/Tauri shell injects window.__ENV before
-  // the bundle loads. The SSR/standalone web build keeps <PublicEnvScript />.
+  // the bundle loads. The SSR/standalone web build keeps <PublicEnvScript />,
+  // as a plain inline script (`disableNextScript`): through next/script's
+  // `beforeInteractive` queue it would run after `src/instrumentation-client.ts`,
+  // which reads the runtime env to decide whether to report errors.
   const isStaticExport = process.env.OPENFRAME_BUILD_TARGET === 'export';
   return (
     <html lang="en" suppressHydrationWarning className="dark">
       <head>
-        {!isStaticExport && <PublicEnvScript />}
+        {!isStaticExport && <PublicEnvScript disableNextScript />}
         {/* Seeds the sidebar width before first paint so the real `NavigationSidebar`
             honors the persisted collapsed state instead of flashing expanded. The
             server cannot read localStorage, so this is the only channel by which the

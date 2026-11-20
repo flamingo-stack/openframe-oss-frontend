@@ -68,6 +68,18 @@ export const runtimeEnv = {
   gtmContainerId(): string | undefined {
     return getEnvVar('NEXT_PUBLIC_GTM_CONTAINER_ID');
   },
+  /**
+   * Sentry DSN for application error reporting; unset (the default everywhere) keeps the SDK from
+   * loading at all. Only a `saas-tenant` web deployment reads it (`lib/error-reporting.ts`). A DSN is
+   * a public ingest key, which is why it may travel in `window.__ENV`.
+   */
+  sentryDsn(): string {
+    return getEnvVar('NEXT_PUBLIC_SENTRY_DSN') || '';
+  },
+  /** Sentry environment (`dev`, `qa`, `stage`, `prod`) the events of this deployment are filed under. */
+  sentryEnvironment(): string {
+    return getEnvVar('NEXT_PUBLIC_SENTRY_ENVIRONMENT') || '';
+  },
   appMode(): string {
     const mode = getEnvVar('NEXT_PUBLIC_APP_MODE');
     return mode || 'oss-tenant';

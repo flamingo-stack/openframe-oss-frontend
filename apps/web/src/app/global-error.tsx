@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'react';
 import { OpenframeLockup } from '@/app/components/shared/openframe-lockup';
 import './globals.css';
 import { PoweredByFlamingo } from '@/app/components/shared/powered-by-flamingo';
+import { reportBoundaryError } from '@/lib/error-reporting-client';
 import { hideSplashScreen } from '@/lib/native-shell';
 
 /**
@@ -19,6 +20,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
 
   useEffect(() => {
     console.error('[Global Error Boundary]', error);
+    reportBoundaryError(error, 'Global Error Boundary');
   }, [error]);
 
   // A crash during shell boot can land here BEFORE the initializer's
