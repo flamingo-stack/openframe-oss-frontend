@@ -22,9 +22,14 @@ describe('dockViewOf(…).floats', () => {
 });
 
 describe('showsDockQuickActions', () => {
-  it("draws the quick actions over the dock on Mingo's home only", () => {
-    expect(showsDockQuickActions(composerRouteOf('/mingo/'))).toBe(true);
-    for (const pathname of ['/devices/', '/dashboard/', '/devices/details/file-manager/', '/mingo/chat/']) {
+  it("draws the quick actions over the dock on Mingo's home and every page", () => {
+    for (const pathname of ['/mingo/', '/devices/', '/dashboard/', '/tickets/', '/help-center/tickets/']) {
+      expect(showsDockQuickActions(composerRouteOf(pathname))).toBe(true);
+    }
+  });
+
+  it('leaves them out on the chat page and on full-width pages', () => {
+    for (const pathname of ['/mingo/chat/', '/devices/details/file-manager/', '/devices/details/remote-desktop/']) {
       expect(showsDockQuickActions(composerRouteOf(pathname))).toBe(false);
     }
   });
