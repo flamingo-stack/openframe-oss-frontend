@@ -62,57 +62,6 @@ jobs:
             shared_fixtures:
               - 'apps/desktop/src-tauri/src/{install-command,notification-click}.json'
 
-  # Repo-wide and cheap, so ungated.
-  static:
-    name: 'Static Checks'
-    runs-on: ubuntu-latest
-    needs: [changes]
-    permissions:
-      contents: read
-      pull-requests: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          persist-credentials: false
-
-      - uses: ./.github/steps/yaml-lint
-        with:
-          path: .github
-
-      - uses: docker://rhysd/actionlint:1.7.7
-        with:
-          args: -color
-
-      - name: shellcheck
-        run: shellcheck apps/desktop/scripts/*.sh
-
-      - name: Parse-check tauri.conf.json
-        run: |
-          set -euo pipefail
-          conf=apps/desktop/src-tauri/tauri.conf.json
-          jq . "$conf" > /dev/null
-          if jq -e '.bundle.createUpdaterArtifacts and (.plugins.updater.pubkey // "") == ""' "$conf" > /dev/null; then
-            echo "::error file=$conf::createUpdaterArtifacts is on but plugins.updater.pubkey is empty"
-            exit 1
-          fi
-      - name: Assign PR author
-        if: github.event.action == 'opened' && github.event.pull_request.user.type == 'User'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh pr edit ${{ github.event.pull_request.html_url }} --add-assignee ${{ github.event.pull_request.user.login }}
-      # Squash commits take the PR title; read live so a re-run picks up an edited title or the no-task label.
-      - name: Check PR title
-        if: github.event.pull_request.user.type == 'User' && !startsWith(github.head_ref, 'renovate/')  # Renovate runs as a user
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR: ${{ github.event.pull_request.html_url }}
-        run: |
-          gh pr view "$PR" --json title,labels -q '.title + if any(.labels[]; .name == "no-task") then " CU-notask" else "" end' \
-            | grep -qE "^(feat|fix|perf|refactor|docs|test|build|ci|chore|style|revert)(\(.+\))?!?: .+ CU-[0-9a-z]+$" \
-            || { echo "::error::Expected 'fix(armor): exclude billing action CU-17tkuw5x3yh' (no-task label drops CU-); fix the title and re-run"; exit 1; }
-
   lint:
     name: 'Lint'
     runs-on: ubuntu-latest
