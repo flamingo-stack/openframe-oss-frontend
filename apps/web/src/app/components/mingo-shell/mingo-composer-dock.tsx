@@ -59,7 +59,6 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useMingoContextMemory } from '@/app/(app)/mingo/context/use-context-memory';
 import type { MingoUnifiedChat } from '@/app/(app)/mingo/hooks/use-mingo-unified-chat-state';
-import { MingoModelPicker } from '@/app/(app)/mingo/models/mingo-model-picker';
 import { useMingoChatSurface } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { useMingoTour } from '@/app/(app)/mingo/tour/use-mingo-tour';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
@@ -526,7 +525,6 @@ function DockChat({ route, chat }: DockChatProps) {
     ...devOnboardingItems,
   ];
   const modelGate = chat.modelSelection?.gate ?? 'off';
-  const modelPicker = chat.modelSelection?.picker;
   const chatMenuExtraItems = onboardingV2 === 'on' && onboardingItems.length > 0 ? onboardingItems : undefined;
 
   return (
@@ -592,18 +590,7 @@ function DockChat({ route, chat }: DockChatProps) {
           renameMode="inline"
           onModelClick={modelGate === 'off' ? () => navigate(routes.settings.aiSettings({ tab: 'mingo' })) : undefined}
           modelTooltip={modelGate === 'off' ? 'Change in Settings → AI Settings' : undefined}
-          renderComposerModelLabel={
-            modelPicker
-              ? ({ name, provider }) => (
-                  <MingoModelPicker
-                    key={chat.state.activeDialogId}
-                    selection={modelPicker}
-                    name={name}
-                    provider={provider}
-                  />
-                )
-              : undefined
-          }
+          composerModelMenu={chat.modelSelection?.menu ?? undefined}
           // Over the page the thread is the chat's: its prompt; behind it, "continue or ask anew".
           composerPlaceholder={
             startWorkColumn

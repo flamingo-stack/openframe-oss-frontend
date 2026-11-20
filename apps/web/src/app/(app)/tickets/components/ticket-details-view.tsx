@@ -301,6 +301,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
       orgAiConfig?.llmProvider && orgAiConfig.providerModel
         ? {
             provider: orgAiConfig.llmProvider,
+            modelName: orgAiConfig.providerModel,
             displayName: getProviderModelLabel(modelsByProvider, orgAiConfig.llmProvider, orgAiConfig.providerModel),
           }
         : null,

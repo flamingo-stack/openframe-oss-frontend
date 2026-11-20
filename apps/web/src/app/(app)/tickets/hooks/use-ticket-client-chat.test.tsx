@@ -39,7 +39,7 @@ function Probe({ dialogId, isDirectMode }: { dialogId: string | null; isDirectMo
     dialogId,
     isDirectMode,
     assistantName: 'Fae',
-    baselineModel: { provider: 'Claude', displayName: 'Sonnet' },
+    baselineModel: { provider: 'Claude', modelName: 'claude-sonnet', displayName: 'Sonnet' },
     modelsByProvider: undefined,
     onApprovalAnswered,
   });

@@ -1,7 +1,8 @@
 /**
- * A Mingo chat's model: a new chat keeps its pick in a draft, a saved chat reads and changes its own, and the composer picker
+ * A Mingo chat's model: a new chat keeps its pick in a draft, a saved chat reads and changes its own, and the composer's model menu
  * is locked while the server would refuse the change.
  */
+import type { ActionsMenuItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -22,8 +23,10 @@ const env = vi.hoisted(() => ({
 }));
 
 vi.mock('@/app/hooks/use-feature-flag', () => ({ useFeatureFlagGate: () => env.gate }));
-vi.mock('@/app/(app)/settings/ai-settings/hooks/use-agent-ai-config', () => ({
-  useAdminAiConfig: () => ({ config: { llmProvider: 'ANTHROPIC', providerModel: 'claude-sonnet-5' } }),
+vi.mock('@/app/hooks/use-ai-model', () => ({
+  useAiModelStatus: () => ({
+    aiModel: { provider: 'ANTHROPIC', modelName: 'claude-sonnet-5', displayName: 'Claude Sonnet 5' },
+  }),
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', () => ({ useToast: () => ({ toast: env.toast }) }));
 vi.mock('@/app/(app)/settings/ai-settings/hooks/use-supported-models', () => ({
@@ -75,10 +78,11 @@ async function render(chat: Partial<MingoModelChatState> = {}) {
   );
 }
 
-const modelOption = (id: string) => {
-  const model = selection.picker?.providers.flatMap(provider => provider.models).find(option => option.id === id);
-  if (!model) throw new Error('no model option ' + id);
-  return model;
+const choice = (id: string): ActionsMenuItem => {
+  const items = (selection.menu?.groups ?? []).flatMap(group => group.items);
+  const found = items.flatMap(item => [item, ...(item.submenu ?? [])]).find(item => item.id === id);
+  if (!found) throw new Error(`no menu item ${id}`);
+  return found;
 };
 
 beforeEach(() => {
@@ -101,32 +105,32 @@ describe('useMingoModelSelection', () => {
     env.gate = 'off';
     await render({ activeDialogId: 'd-1' });
 
-    expect(selection.picker).toBeNull();
+    expect(selection.menu).toBeNull();
     expect(selection.current).toBeNull();
     expect(env.fetchDialogModel).not.toHaveBeenCalled();
   });
 
   it("keeps a new chat's pick in the draft and names it", async () => {
     await render();
-    expect(selection.picker?.followsDefault).toBe(true);
-    expect(selection.picker?.providers[0]).toMatchObject({ provider: 'ANTHROPIC', current: true });
+    expect(choice('chat-model-default').checked).toBe(true);
+    expect(choice('chat-model-ANTHROPIC').checked).toBe(true);
 
-    await act(async () => modelOption('gpt-5.5').choose());
+    await act(async () => choice('chat-model-OPENAI-gpt-5.5').onClick?.());
     await render();
 
     expect(useMingoModelDraftStore.getState().draft).toEqual(GPT);
     expect(selection.current).toEqual(GPT);
-    expect(selection.picker?.providers[1]).toMatchObject({ provider: 'OPENAI', current: true });
-    expect(modelOption('gpt-5.5').current).toBe(true);
+    expect(choice('chat-model-OPENAI').checked).toBe(true);
+    expect(choice('chat-model-OPENAI-gpt-5.5').checked).toBe(true);
     expect(env.updateDialogModel).not.toHaveBeenCalled();
   });
 
   it('marks only the default model ID even when two choices share their display name', async () => {
     await render();
 
-    expect(selection.picker?.followsDefault).toBe(true);
-    expect(modelOption('claude-sonnet-5').current).toBe(true);
-    expect(modelOption('claude-sonnet-5-alt').current).toBe(false);
+    expect(choice('chat-model-default').checked).toBe(true);
+    expect(choice('chat-model-ANTHROPIC-claude-sonnet-5').checked).toBe(true);
+    expect(choice('chat-model-ANTHROPIC-claude-sonnet-5-alt').checked).toBe(false);
   });
 
   it("reads a saved chat's model and changes it on the server", async () => {
@@ -137,17 +141,17 @@ describe('useMingoModelSelection', () => {
     await vi.waitFor(() => expect(selection.current).toEqual(GPT));
 
     expect(env.fetchDialogModel).toHaveBeenCalledWith('d-1');
-    expect(selection.picker?.disabled).toBe(false);
+    expect(selection.menu?.disabled).toBe(false);
     expect(selection.contextSize).toBe(150_000);
-    expect(selection.picker?.followsDefault).toBe(true);
-    expect(modelOption('gpt-5.5').current).toBe(true);
+    expect(choice('chat-model-default').checked).toBe(true);
+    expect(choice('chat-model-OPENAI-gpt-5.5').checked).toBe(true);
 
-    await act(async () => modelOption('claude-sonnet-5').choose());
+    await act(async () => choice('chat-model-ANTHROPIC-claude-sonnet-5').onClick?.());
     await vi.waitFor(() => expect(selection.current).toEqual(SONNET));
 
     expect(env.updateDialogModel).toHaveBeenCalledWith('d-1', SONNET);
     expect(selection.contextSize).toBe(200_000);
-    expect(modelOption('claude-sonnet-5').current).toBe(true);
+    expect(choice('chat-model-ANTHROPIC-claude-sonnet-5').checked).toBe(true);
   });
 
   it('puts a saved chat back on the default', async () => {
@@ -156,7 +160,7 @@ describe('useMingoModelSelection', () => {
     await render({ activeDialogId: 'd-1' });
     await vi.waitFor(() => expect(selection.current).toEqual(SONNET));
 
-    await act(async () => selection.picker?.chooseDefault());
+    await act(async () => choice('chat-model-default').onClick?.());
 
     expect(env.updateDialogModel).toHaveBeenCalledWith('d-1', null);
   });
@@ -167,7 +171,7 @@ describe('useMingoModelSelection', () => {
     await render({ activeDialogId: 'd-1' });
     await vi.waitFor(() => expect(selection.current).toEqual(GPT));
 
-    await act(async () => modelOption('claude-sonnet-5').choose());
+    await act(async () => choice('chat-model-ANTHROPIC-claude-sonnet-5').onClick?.());
 
     await vi.waitFor(() =>
       expect(env.toast).toHaveBeenCalledWith(
@@ -188,6 +192,6 @@ describe('useMingoModelSelection', () => {
     await render({ activeDialogId: 'd-1', ...chat });
     await vi.waitFor(() => expect(selection.current).toEqual(GPT));
 
-    expect(selection.picker?.disabled).toBe(true);
+    expect(selection.menu?.disabled).toBe(true);
   });
 });
