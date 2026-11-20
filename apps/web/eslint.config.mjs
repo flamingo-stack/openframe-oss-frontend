@@ -173,7 +173,7 @@ export default defineConfig([
 
   {
     // `must-colocate-fragment-spreads` wants the module that SPREADS a fragment to
-    // be the module that renders its consumer. Neither of these two shapes can be:
+    // be the module that renders its consumer. None of these shapes can be:
     //
     //  - `src/graphql/**` holds operation and `@inline` fragment definitions and
     //    renders nothing at all. That is the architecture CLAUDE.md mandates: a row
@@ -188,6 +188,8 @@ export default defineConfig([
     //  - `vulnerability-devices-table` is the same shape once more: its rows are
     //    `Machine` nodes drawn by the shared devices table, so it spreads the
     //    ladder's row step for `machineRowToDevice` and reads nothing itself.
+    //  - `adopt-device-picker` (Adopt <software>) spreads the ladder's selector step
+    //    for `machineSelectorToDevice` and hands the rows to the core lib's picker.
     //  - `needs-you-insights-source` (Mingo's home) spreads the Incidents table's row
     //    step for `toIncidentRow`, renders nothing, and reports the mapped rows.
     //
@@ -199,6 +201,7 @@ export default defineConfig([
       'src/graphql/**/*.ts',
       'src/app/(app)/software/components/action-form/*-picker-lists.tsx',
       'src/app/(app)/software/components/vulnerability-detail/vulnerability-devices-table.tsx',
+      'src/app/(app)/software/components/adopt/adopt-device-picker.tsx',
       'src/app/(app)/mingo/home/needs-you/needs-you-insights-source.tsx',
     ],
     rules: { 'relay/must-colocate-fragment-spreads': 'off' },

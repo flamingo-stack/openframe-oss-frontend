@@ -6,17 +6,23 @@ import { graphql, useFragment } from 'react-relay';
 import type { softwareDeviceInstalledByCell_softwareOnDevice$key } from '@/__generated__/softwareDeviceInstalledByCell_softwareOnDevice.graphql';
 import { ValueText } from '@/app/components/shared';
 import { presentationFor } from '@/lib/exhaustive-map';
+import { SoftwareDeviceAdoptionTag } from './software-device-adoption-tag';
 
 const softwareDeviceInstalledByCellFragment = graphql`
   fragment softwareDeviceInstalledByCell_softwareOnDevice on SoftwareOnDevice {
     installedBy
+    device {
+      id
+    }
   }
 `;
 
 /**
  * MANAGED BY column (design 1100:444): the package manager that installed the copy on this device, Unmanaged for one
  * installed by hand; the empty mark when it is not known. The design's "Manageable" (installed by hand, can be adopted)
- * is not drawn: the API does not say which copies can be adopted yet.
+ * is not drawn: whether a copy can be adopted is known per title (`Software.adoptionPackage`), not per device.
+ *
+ * While an adoption runs, or after it failed, its chip takes the installer's place (design 1227:45730), when Adopt is on.
  */
 export function SoftwareDeviceInstalledByCell({
   softwareOnDevice,
@@ -26,9 +32,15 @@ export function SoftwareDeviceInstalledByCell({
   // A row still being read (a loading scope) has no fragment to read: `ValueText` draws its bar.
   const data = useFragment(softwareDeviceInstalledByCellFragment, useLoadingScope() ? null : softwareOnDevice);
   const source = data?.installedBy;
+  // Without an adoption (or without Adopt) the column is the installer, as it was before it.
   return (
-    <ValueText
-      value={data ? (source ? (presentationFor(SOFTWARE_SOURCE_LABEL, source) ?? source) : null) : undefined}
+    <SoftwareDeviceAdoptionTag
+      deviceId={data?.device.id}
+      fallback={
+        <ValueText
+          value={data ? (source ? (presentationFor(SOFTWARE_SOURCE_LABEL, source) ?? source) : null) : undefined}
+        />
+      }
     />
   );
 }

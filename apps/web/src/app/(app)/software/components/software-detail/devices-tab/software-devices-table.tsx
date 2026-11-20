@@ -12,10 +12,13 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
+import type { softwareDevicesTable_adoptQuery$key } from '@/__generated__/softwareDevicesTable_adoptQuery.graphql';
 import type {
   softwareDevicesTable_query$data,
   softwareDevicesTable_query$key,
 } from '@/__generated__/softwareDevicesTable_query.graphql';
+import type { softwareDevicesTableAdoptPaginationQuery as SoftwareDevicesTableAdoptPaginationQueryType } from '@/__generated__/softwareDevicesTableAdoptPaginationQuery.graphql';
+import type { softwareDevicesTableAdoptQuery as SoftwareDevicesTableAdoptQueryType } from '@/__generated__/softwareDevicesTableAdoptQuery.graphql';
 import type { softwareDevicesTablePaginationQuery as SoftwareDevicesTablePaginationQueryType } from '@/__generated__/softwareDevicesTablePaginationQuery.graphql';
 import type {
   SoftwareOnDeviceFilterInput,
@@ -36,7 +39,9 @@ import { openRowColumn } from '@/app/components/shared/open-row-column';
 import { useTableGrid } from '@/app/components/shared/table-layout-scope';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
+import { useSoftwareAdoptGate } from '../../adopt/use-software-adopt-gate';
 import { singleColumnFilter } from '../../shared/column-filters';
+import { type SoftwareDeviceAdoptionRefs, SoftwareDeviceAdoptionRefsContext } from './software-device-adoption-tag';
 import { SoftwareDeviceAutoUpdateCell } from './software-device-auto-update-cell';
 import { SoftwareDeviceCell, SoftwareDeviceGridCell } from './software-device-cell';
 import { SoftwareDeviceInstalledByCell } from './software-device-installed-by-cell';
@@ -97,6 +102,66 @@ const softwareDevicesTableFragment = graphql`
           ...softwareDeviceVersionCell_softwareOnDevice
           ...softwareDeviceInstalledByCell_softwareOnDevice
           ...softwareDeviceAutoUpdateCell_softwareOnDevice
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
+
+/**
+ * The same rows with Adopt on: each also reads its adoption. A separate operation, not an `@include` on the shared one:
+ * a backend without Adopt rejects any document that names `adoption`, even a skipped one.
+ */
+const softwareDevicesTableAdoptQuery = graphql`
+  query softwareDevicesTableAdoptQuery(
+    $softwareId: ID!
+    $filter: SoftwareOnDeviceFilterInput
+    $search: String
+    $sort: SortInput
+    $first: Int!
+    $after: String
+  ) {
+    ...softwareDevicesTable_adoptQuery
+      @arguments(softwareId: $softwareId, filter: $filter, search: $search, sort: $sort, first: $first, after: $after)
+  }
+`;
+
+const softwareDevicesTableAdoptFragment = graphql`
+  fragment softwareDevicesTable_adoptQuery on Query
+  @refetchable(queryName: "softwareDevicesTableAdoptPaginationQuery")
+  @argumentDefinitions(
+    softwareId: { type: "ID!" }
+    filter: { type: "SoftwareOnDeviceFilterInput" }
+    search: { type: "String" }
+    sort: { type: "SortInput" }
+    first: { type: "Int", defaultValue: 20 }
+    after: { type: "String" }
+  ) {
+    softwareDevices(
+      softwareId: $softwareId
+      filter: $filter
+      search: $search
+      sort: $sort
+      first: $first
+      after: $after
+    ) @connection(key: "softwareDevicesTableAdopt_softwareDevices") {
+      filteredCount
+      edges {
+        node {
+          status
+          device {
+            id
+            machineId
+            ...softwareDeviceCell_machine
+          }
+          ...softwareDeviceVersionCell_softwareOnDevice
+          ...softwareDeviceInstalledByCell_softwareOnDevice
+          ...softwareDeviceAutoUpdateCell_softwareOnDevice
+          ...softwareDeviceAdoptionTag_softwareOnDevice
         }
       }
       pageInfo {
@@ -227,41 +292,85 @@ function SoftwareDevicesTableReader(props: SoftwareDevicesTableProps) {
   return <SoftwareDevicesTableQuery {...props} />;
 }
 
+/** Adopt's fields only on a backend that has them: with the flag off, the operation does not name them at all. */
 function SoftwareDevicesTableQuery(props: SoftwareDevicesTableProps) {
-  const { softwareId, backendFilters, debouncedSearch, sort } = props;
+  return useSoftwareAdoptGate() === 'on' ? (
+    <SoftwareDevicesAdoptQuery {...props} />
+  ) : (
+    <SoftwareDevicesPlainQuery {...props} />
+  );
+}
+
+const devicesVariables = ({ softwareId, backendFilters, debouncedSearch, sort }: SoftwareDevicesTableProps) => ({
+  softwareId,
+  filter: backendFilters,
+  search: debouncedSearch || null,
+  sort,
+  first: SOFTWARE_DEVICES_PAGE_SIZE,
+  after: null,
+});
+
+function SoftwareDevicesPlainQuery(props: SoftwareDevicesTableProps) {
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<SoftwareDevicesTableQueryType>(
     softwareDevicesTableQuery,
+    devicesVariables(props),
     {
-      softwareId,
-      filter: backendFilters,
-      search: debouncedSearch || null,
-      sort,
-      first: SOFTWARE_DEVICES_PAGE_SIZE,
-      after: null,
+      fetchPolicy: 'store-or-network',
+      fetchKey: retryKey,
     },
-    { fetchPolicy: 'store-or-network', fetchKey: retryKey },
   );
-
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
     SoftwareDevicesTablePaginationQueryType,
     softwareDevicesTable_query$key
   >(softwareDevicesTableFragment, queryData);
 
   const rows = (data.softwareDevices?.edges ?? []).map(edge => edge.node);
-  const totalCount = data.softwareDevices?.filteredCount ?? rows.length;
-
-  const fetchNextPage = () => {
-    if (hasNext && !isLoadingNext) loadNext(SOFTWARE_DEVICES_PAGE_SIZE);
-  };
-
   return (
     <SoftwareDevicesTableRows
       {...props}
       rows={rows}
-      totalCount={totalCount}
-      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+      totalCount={data.softwareDevices?.filteredCount ?? rows.length}
+      infiniteScroll={{
+        hasNextPage: hasNext,
+        isFetchingNextPage: isLoadingNext,
+        onLoadMore: () => {
+          if (hasNext && !isLoadingNext) loadNext(SOFTWARE_DEVICES_PAGE_SIZE);
+        },
+      }}
     />
+  );
+}
+
+function SoftwareDevicesAdoptQuery(props: SoftwareDevicesTableProps) {
+  const retryKey = useRetryKey();
+  const queryData = useLazyLoadQuery<SoftwareDevicesTableAdoptQueryType>(
+    softwareDevicesTableAdoptQuery,
+    devicesVariables(props),
+    { fetchPolicy: 'store-or-network', fetchKey: retryKey },
+  );
+  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
+    SoftwareDevicesTableAdoptPaginationQueryType,
+    softwareDevicesTable_adoptQuery$key
+  >(softwareDevicesTableAdoptFragment, queryData);
+
+  const rows = (data.softwareDevices?.edges ?? []).map(edge => edge.node);
+  const adoption: SoftwareDeviceAdoptionRefs = new Map(rows.map(row => [row.device.id, row]));
+  return (
+    <SoftwareDeviceAdoptionRefsContext value={adoption}>
+      <SoftwareDevicesTableRows
+        {...props}
+        rows={rows}
+        totalCount={data.softwareDevices?.filteredCount ?? rows.length}
+        infiniteScroll={{
+          hasNextPage: hasNext,
+          isFetchingNextPage: isLoadingNext,
+          onLoadMore: () => {
+            if (hasNext && !isLoadingNext) loadNext(SOFTWARE_DEVICES_PAGE_SIZE);
+          },
+        }}
+      />
+    </SoftwareDeviceAdoptionRefsContext>
   );
 }
 
