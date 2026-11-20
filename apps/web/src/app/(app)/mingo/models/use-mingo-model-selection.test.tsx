@@ -20,6 +20,7 @@ const env = vi.hoisted(() => ({
   fetchDialogModel: vi.fn(),
   updateDialogModel: vi.fn(),
   toast: vi.fn(),
+  rateFor: vi.fn(),
 }));
 
 vi.mock('@/app/hooks/use-feature-flag', () => ({ useFeatureFlagGate: () => env.gate }));
@@ -35,10 +36,17 @@ vi.mock('@/app/(app)/settings/ai-settings/hooks/use-supported-models', () => ({
       ANTHROPIC: [
         { value: 'claude-sonnet-5', label: 'Claude Sonnet 5' },
         { value: 'claude-sonnet-5-alt', label: 'Claude Sonnet 5' },
+        { value: 'claude-opus-5-5', label: 'Claude Opus 5.5' },
       ],
-      OPENAI: [{ value: 'gpt-5.5', label: 'GPT-5.5' }],
+      OPENAI: [
+        { value: 'gpt-5.5', label: 'GPT-5.5' },
+        { value: 'gpt-6.1-terra', label: 'GPT-6.1 Terra' },
+      ],
     },
   }),
+}));
+vi.mock('./use-mingo-model-pricing', () => ({
+  useMingoModelPricing: () => ({ rateFor: env.rateFor, usdPerMillionOpenFrameTokens: 10 }),
 }));
 vi.mock('./dialog-model-api', async importOriginal => ({
   ...(await importOriginal<object>()),
@@ -90,6 +98,7 @@ beforeEach(() => {
   env.fetchDialogModel.mockReset();
   env.updateDialogModel.mockReset();
   env.toast.mockReset();
+  env.rateFor.mockReset();
   useMingoModelDraftStore.setState({ draft: null });
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   container = document.createElement('div');
@@ -110,9 +119,28 @@ describe('useMingoModelSelection', () => {
     expect(env.fetchDialogModel).not.toHaveBeenCalled();
   });
 
+  it('builds comparison rows in release order with exact-provider pricing and mobile drill-down', async () => {
+    env.rateFor.mockImplementation((provider, model) =>
+      provider === 'OPENAI' && model === 'gpt-6.1-terra' ? { input: 0.3333, output: 1.6667 } : undefined,
+    );
+    await render();
+
+    expect(selection.menu?.mobileDrillDown).toBe(true);
+    expect(choice('chat-model-ANTHROPIC').submenu?.map(item => item.label)).toEqual([
+      'Claude Opus 5.5',
+      'Claude Sonnet 5',
+      'Claude Sonnet 5',
+    ]);
+    expect(choice('chat-model-OPENAI').submenu?.map(item => item.label)).toEqual(['GPT-6.1 Terra', 'GPT-5.5']);
+    expect(choice('chat-model-OPENAI-gpt-6.1-terra').description).toContain(
+      'Recommended. Visual reasoning. Read and write rates: 0.33× / 1.67×. USD per million: $3.33 / $17.',
+    );
+    expect(choice('chat-model-OPENAI-gpt-5.5').description).toContain('USD per million: — / —.');
+  });
+
   it("keeps a new chat's pick in the draft and names it", async () => {
     await render();
-    expect(choice('chat-model-default').checked).toBe(true);
+    expect(choice('chat-model-default')).toMatchObject({ label: 'Using default model', disabled: true });
     expect(choice('chat-model-ANTHROPIC').checked).toBe(true);
 
     await act(async () => choice('chat-model-OPENAI-gpt-5.5').onClick?.());
@@ -128,7 +156,7 @@ describe('useMingoModelSelection', () => {
   it('marks only the default model ID even when two choices share their display name', async () => {
     await render();
 
-    expect(choice('chat-model-default').checked).toBe(true);
+    expect(choice('chat-model-default')).toMatchObject({ label: 'Using default model', disabled: true });
     expect(choice('chat-model-ANTHROPIC-claude-sonnet-5').checked).toBe(true);
     expect(choice('chat-model-ANTHROPIC-claude-sonnet-5-alt').checked).toBe(false);
   });
@@ -143,7 +171,7 @@ describe('useMingoModelSelection', () => {
     expect(env.fetchDialogModel).toHaveBeenCalledWith('d-1');
     expect(selection.menu?.disabled).toBe(false);
     expect(selection.contextSize).toBe(150_000);
-    expect(choice('chat-model-default').checked).toBe(true);
+    expect(choice('chat-model-default')).toMatchObject({ label: 'Using default model', disabled: true });
     expect(choice('chat-model-OPENAI-gpt-5.5').checked).toBe(true);
 
     await act(async () => choice('chat-model-ANTHROPIC-claude-sonnet-5').onClick?.());
@@ -152,6 +180,11 @@ describe('useMingoModelSelection', () => {
     expect(env.updateDialogModel).toHaveBeenCalledWith('d-1', SONNET);
     expect(selection.contextSize).toBe(200_000);
     expect(choice('chat-model-ANTHROPIC-claude-sonnet-5').checked).toBe(true);
+    expect(env.toast).toHaveBeenCalledExactlyOnceWith({
+      title: 'Chat model changed',
+      description: 'Claude Sonnet 5 answers from your next message. Your other chats keep their model.',
+      variant: 'success',
+    });
   });
 
   it('puts a saved chat back on the default', async () => {
@@ -163,6 +196,27 @@ describe('useMingoModelSelection', () => {
     await act(async () => choice('chat-model-default').onClick?.());
 
     expect(env.updateDialogModel).toHaveBeenCalledWith('d-1', null);
+  });
+
+  it('offers reset after a saved model read fails', async () => {
+    env.fetchDialogModel.mockRejectedValue(new Error('Temporary network failure'));
+    env.updateDialogModel.mockResolvedValue({ model: null, effectiveModel: SONNET, modelTokenBudget: 200_000 });
+    await render({ activeDialogId: 'd-1' });
+    await vi.waitFor(() => expect(selection.menu?.disabled).toBe(false));
+
+    expect(choice('chat-model-default')).toMatchObject({ label: 'Use default model', disabled: false });
+    await act(async () => choice('chat-model-default').onClick?.());
+    expect(env.updateDialogModel).toHaveBeenCalledExactlyOnceWith('d-1', null);
+  });
+
+  it('skips writing and announcing the model that already answers', async () => {
+    env.fetchDialogModel.mockResolvedValue({ model: null, effectiveModel: SONNET, modelTokenBudget: 200_000 });
+    await render({ activeDialogId: 'd-1' });
+    await vi.waitFor(() => expect(selection.current).toEqual(SONNET));
+
+    await act(async () => choice('chat-model-ANTHROPIC-claude-sonnet-5').onClick?.());
+    expect(env.updateDialogModel).not.toHaveBeenCalled();
+    expect(env.toast).not.toHaveBeenCalled();
   });
 
   it('says why a change failed', async () => {

@@ -12,6 +12,7 @@ import { useMingoSheetStore } from './mingo-sheet-store';
 
 const { push } = vi.hoisted(() => ({ push: vi.fn<(href: string) => void>() }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
+vi.mock('@/app/(app)/mingo/models/use-mingo-model-pricing', () => ({ useMingoModelPricing: vi.fn() }));
 vi.mock('@/app/(app)/mingo/providers/mingo-chat-provider', () => ({
   useMingoChat: () => ({
     chat: { state: { dialogs: [], loadMoreDialogs: vi.fn(), dialogCapabilities: { onCopyLink: vi.fn() } } },

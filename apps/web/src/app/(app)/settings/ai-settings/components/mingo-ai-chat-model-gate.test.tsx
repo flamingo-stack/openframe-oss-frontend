@@ -5,6 +5,7 @@ import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 import type { AgentAiConfig } from '../types/ai-settings';
 import { MingoAiChatTab } from './mingo-ai-chat-tab';
 
+vi.mock('@/app/(app)/mingo/models/use-mingo-model-pricing', () => ({ useMingoModelPricing: vi.fn() }));
 vi.mock('../hooks/use-supported-models', () => ({
   useSupportedModels: () => ({ modelsByProvider: { ANTHROPIC: [{ value: 'claude-test', label: 'Test Claude' }] } }),
   getProviderModelLabel: () => 'Test Claude',

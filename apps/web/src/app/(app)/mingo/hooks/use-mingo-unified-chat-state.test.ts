@@ -1,8 +1,10 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useMingoSheetStore } from '@/app/components/mingo-shell/mingo-sheet-store';
 import { useMingoContextStore } from '../stores/mingo-context-store';
 import type { MingoDialogRow } from '../stores/mingo-dialog-rows-store';
 import { awaitsOwnReply, snapshotSendContext } from './use-mingo-unified-chat-state';
+
+vi.mock('../models/use-mingo-model-pricing', () => ({ useMingoModelPricing: vi.fn() }));
 
 /**
  * The rail's scope is a filter over the LIST, but a dialog can arrive without going
