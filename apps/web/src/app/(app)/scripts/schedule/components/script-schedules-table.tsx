@@ -66,13 +66,13 @@ import { useGenerateWithAiAction } from '@/app/(app)/mingo/hooks/use-generate-wi
 import { useMingoCreatedEpoch } from '@/app/(app)/mingo/stores/mingo-created-entities-store';
 import { DIALOG_INTENT } from '@/app/(app)/tickets/constants';
 import {
-  DateColumnHeader,
   EmptyState,
   onboardingGuideButton,
   oneLineEmptyState,
   type TableDateFilter,
   useRetryKey,
 } from '@/app/components/shared';
+import { dateColumnHeader } from '@/app/components/shared/date-column-header';
 import { LiveTable } from '@/app/components/shared/live-table';
 import { ValueText } from '@/app/components/shared/value-text';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
@@ -192,12 +192,18 @@ function scheduleColumns({
   options,
   dateFilter,
   renderRowActions,
+  layout,
 }: {
   options: { platform: FacetOption[] } | null;
   /** The Date/Time header's calendar; absent while loading (the header draws inert). */
   dateFilter?: TableDateFilter;
   renderRowActions: (schedule: UiScheduleEntry) => ReactNode;
+  /** The table's layout: which of the two date headers the Date/Time column gets. Default: card rows. */
+  layout?: TableLayout;
 }): ColumnDef<UiScheduleEntry>[] {
+  // The Date/Time cell IS `startAt`, the field the calendar filters and orders by, so the date menu sits on its header
+  // rather than on a column of its own.
+  const date = dateColumnHeader(SCHEDULE_COLUMNS.dateTime.header, dateFilter, layout);
   return [
     {
       accessorKey: 'name',
@@ -231,13 +237,12 @@ function scheduleColumns({
     },
     {
       id: 'dateTime',
-      // The cell IS `startAt`, the field the calendar filters and orders by —
-      // so the popover sits on this header rather than on a column of its own.
-      header: () => <DateColumnHeader label={SCHEDULE_COLUMNS.dateTime.header} filter={dateFilter} />,
+      header: date.header,
       cell: ({ row }: { row: Row<UiScheduleEntry> }) => <ScheduleStartCell schedule={row.original} />,
       enableSorting: false,
       ...scriptsLiveColumnSize(SCHEDULE_COLUMNS.dateTime),
       meta: scriptsLiveColumnMeta(SCHEDULE_COLUMNS.dateTime, {
+        dateFilter: date.dateFilter,
         gridCell: ({ row }: { row: Row<UiScheduleEntry> }) => <ScheduleStartCell schedule={row.original} grid />,
       }),
     },
@@ -527,8 +532,9 @@ function SchedulesTableContent({
   }, [confirmTarget, connectionId, archived, commitArchive, commitUnarchive, toast, refreshFilterMeta]);
 
   const columns = useMemo<ColumnDef<UiScheduleEntry>[]>(
-    () => scheduleColumns({ options: { platform: platformOptions }, dateFilter, renderRowActions }),
-    [renderRowActions, platformOptions, dateFilter],
+    () =>
+      scheduleColumns({ options: { platform: platformOptions }, dateFilter, renderRowActions, layout: tableLayout }),
+    [renderRowActions, platformOptions, dateFilter, tableLayout],
   );
 
   const filterGroups = useMemo(

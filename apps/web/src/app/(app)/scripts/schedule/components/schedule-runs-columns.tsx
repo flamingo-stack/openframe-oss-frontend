@@ -20,7 +20,8 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type ReactNode, useCallback, useMemo } from 'react';
-import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
+import { dateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
+import type { TableLayout } from '@/app/hooks/use-table-layout';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
@@ -171,6 +172,7 @@ function OpenRunButton({ run }: { run: UiRun }) {
 export function useScheduleRunColumns(
   statusOptions: RunStatusOption[],
   dateFilter: TableDateFilter,
+  layout: TableLayout,
 ): ColumnDef<UiRun>[] {
   const { toast } = useToast();
 
@@ -199,8 +201,8 @@ export function useScheduleRunColumns(
   );
 
   return useMemo(
-    () => scheduleRunColumns({ statusOptions, dateFilter, renderRowActions }),
-    [renderRowActions, statusOptions, dateFilter],
+    () => scheduleRunColumns({ statusOptions, dateFilter, renderRowActions, layout }),
+    [renderRowActions, statusOptions, dateFilter, layout],
   );
 }
 
@@ -212,17 +214,21 @@ function scheduleRunColumns({
   statusOptions,
   dateFilter,
   renderRowActions,
+  layout,
 }: {
   statusOptions: RunStatusOption[] | null;
   dateFilter: TableDateFilter | null;
   renderRowActions: (run: UiRun) => ReactNode;
+  /** The table's layout: which of the two date headers the Execution column gets. Default: card rows. */
+  layout?: TableLayout;
 }): ColumnDef<UiRun>[] {
+  // The cell's first line is the fire's dispatchedAt, which is what the calendar (range + newest/oldest first)
+  // narrows and orders.
+  const date = dateColumnHeader(RUN_COLUMNS.executionId.header, dateFilter ?? undefined, layout);
   return [
     {
       accessorKey: 'executionId',
-      // The cell's first line is the fire's dispatchedAt, which is what the
-      // calendar (range + newest/oldest first) narrows and orders.
-      header: () => <DateColumnHeader label={RUN_COLUMNS.executionId.header} filter={dateFilter ?? undefined} />,
+      header: date.header,
       // Stretch column: the execution id is a full uuid and this is the one
       // place it is shown in full (it is what the Execution History drill-down
       // and "Copy Execution ID" key on).
@@ -237,6 +243,7 @@ function scheduleRunColumns({
       enableSorting: false,
       ...scriptsLiveColumnSize(RUN_COLUMNS.executionId),
       meta: scriptsLiveColumnMeta(RUN_COLUMNS.executionId, {
+        dateFilter: date.dateFilter,
         gridCell: ({ row }: { row: Row<UiRun> }) => (
           <ExecutionTimestampGridCell timestamp={row.original.timestamp} executionId={row.original.executionId} />
         ),

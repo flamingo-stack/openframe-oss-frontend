@@ -45,7 +45,7 @@ import type { executionFacets_filters$key as ExecutionFacetsKey } from '@/__gene
 import type { executionFields_execution$key as ExecutionFieldsKey } from '@/__generated__/executionFields_execution.graphql';
 import type { ScriptExecutionFilterInput, SortInput } from '@/__generated__/scriptExecutionsRelayQuery.graphql';
 import { ValueText } from '@/app/components/shared';
-import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
+import { dateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
 import { LiveTable } from '@/app/components/shared/live-table';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
@@ -312,24 +312,28 @@ function executionColumns({
   facetOptions,
   dateFilter,
   renderRowActions,
+  layout,
 }: {
   facetOptions: ExecutionFacetOptions | null;
   dateFilter: TableDateFilter | null;
   renderRowActions: (execution: UiExecution) => ReactNode;
+  /** The table's layout: which of the two date headers the Execution column gets. Default: card rows. */
+  layout?: TableLayout;
 }): ColumnDef<UiExecution>[] {
+  // The cell's first line IS the dispatched timestamp, so the calendar (date range + newest/oldest first) belongs on
+  // this header rather than on a column of its own.
+  const date = dateColumnHeader(EXECUTION_COLUMNS.executionId.header, dateFilter ?? undefined, layout);
   return [
     {
       accessorKey: 'executionId',
-      // The cell's first line IS the dispatched timestamp, so the calendar
-      // (date range + newest/oldest first) belongs on this header rather than
-      // on a column of its own.
-      header: () => <DateColumnHeader label={EXECUTION_COLUMNS.executionId.header} filter={dateFilter ?? undefined} />,
+      header: date.header,
       cell: ({ row }: { row: Row<UiExecution> }) => (
         <ExecutionTimestampCell timestamp={row.original.timestamp} executionId={row.original.executionId} />
       ),
       enableSorting: false,
       ...scriptsLiveColumnSize(EXECUTION_COLUMNS.executionId),
       meta: scriptsLiveColumnMeta(EXECUTION_COLUMNS.executionId, {
+        dateFilter: date.dateFilter,
         gridCell: ({ row }: { row: Row<UiExecution> }) => (
           <ExecutionTimestampGridCell timestamp={row.original.timestamp} executionId={row.original.executionId} />
         ),
@@ -492,8 +496,9 @@ export function ExecutionsTable({
         facetOptions: { statusOptions, machineOptions, initiatorOptions },
         dateFilter,
         renderRowActions,
+        layout: tableLayout,
       }),
-    [statusOptions, machineOptions, initiatorOptions, dateFilter, renderRowActions],
+    [statusOptions, machineOptions, initiatorOptions, dateFilter, renderRowActions, tableLayout],
   );
 
   const filterGroups = useMemo(

@@ -8,11 +8,13 @@ import { GRID_ACTION_COLUMN_SIZE, LoadingWhen } from '@flamingo-stack/openframe-
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { TableDateFilter } from '@/app/components/shared/date-column-header';
 import type { LiveTableProps } from '@/app/components/shared/live-table';
+import type { TableLayout } from '@/app/hooks/use-table-layout';
 import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 
 const env = vi.hoisted(() => ({
-  /** What the loading table was drawn with. */
+  /** What the table (its loading form, or the loaded one) was drawn with. */
   loadingTable: null as Record<string, unknown> | null,
 }));
 
@@ -33,7 +35,7 @@ vi.mock('@/app/components/shared/live-table', async importOriginal => ({
   },
 }));
 
-import { type ExecutionsTabState, ExecutionsTabShell } from './executions-table';
+import { type ExecutionsTabState, ExecutionsTabShell, ExecutionsTable, type UiExecution } from './executions-table';
 
 const SETTINGS = { storageKey: 'script-executions' };
 
@@ -69,6 +71,36 @@ function render({ held = false, unnamed = false } = {}): Drawn {
   );
   drawn.loading = env.loadingTable as LiveTableProps<{ id: string }> | null;
   return drawn;
+}
+
+const DATE_FILTER: TableDateFilter = { sortDirection: 'asc', range: undefined, onApply: vi.fn() };
+
+/** The loaded table's Execution column (the one the date sort and range belong to), in a layout. */
+function loadedExecutionColumn(tableLayout: TableLayout) {
+  env.loadingTable = null;
+  act(() =>
+    root.render(
+      <ExecutionsTable
+        executions={[]}
+        facetOptions={{ statusOptions: [], machineOptions: [], initiatorOptions: [] }}
+        tableFilters={{}}
+        onFilterChange={vi.fn()}
+        isPending={false}
+        hasNext={false}
+        isLoadingNext={false}
+        onLoadMore={vi.fn()}
+        search=""
+        dateFilter={DATE_FILTER}
+        emptyState={{ title: 'No executions' }}
+        stickyHeaderOffset=""
+        mobileFilterOpen={false}
+        onMobileFilterClose={vi.fn()}
+        tableLayout={tableLayout}
+      />,
+    ),
+  );
+  const table = (env.loadingTable as unknown as LiveTableProps<UiExecution>).table;
+  return table?.getColumn('executionId')?.columnDef;
 }
 
 const serve = (enabled: boolean) => useFeatureFlagsStore.getState().setFlags([{ name: 'data-table-grid', enabled }]);
@@ -140,6 +172,19 @@ describe('the executions list and the table flag', () => {
     // And it does not wait for the flag: with the flags out it is read at once.
     useFeatureFlagsStore.getState().reset();
     expect(render({ unnamed: true }).loaded?.tableLayout).toBe('cards');
+  });
+
+  it('gives the grid the Execution column’s date sort and range for its own date header', () => {
+    const column = loadedExecutionColumn('grid');
+    // The grid names the column by its string header and draws the date menu from the column's meta.
+    expect(column?.header).toBe('Execution');
+    expect(column?.meta?.dateFilter).toBe(DATE_FILTER);
+  });
+
+  it('keeps the date control as the Execution header of card rows', () => {
+    const column = loadedExecutionColumn('cards');
+    expect(column?.header).toBeTypeOf('function');
+    expect(column?.meta?.dateFilter).toBeUndefined();
   });
 
   it('gives every column what the grid reads: a width, a name, a one-line cell; the row actions as action columns', () => {

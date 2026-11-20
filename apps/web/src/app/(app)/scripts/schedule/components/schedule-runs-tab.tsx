@@ -163,7 +163,7 @@ function ScheduleRunsContent({
     if (hasNext && !isLoadingNext) loadNext(RUNS_PAGE_SIZE);
   }, [hasNext, isLoadingNext, loadNext]);
 
-  const columns = useScheduleRunColumns(statusOptions, dateFilter);
+  const columns = useScheduleRunColumns(statusOptions, dateFilter, tableLayout);
 
   // The SAME options the desktop column funnel gets — the server facet, not the
   // whole enum, so the mobile modal cannot offer a status these runs never
