@@ -92,13 +92,28 @@ function ProviderModels({
     };
 
     alignToProviderMenu();
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(alignToProviderMenu);
+
+    // Placement changes sizing. Defer updates from ResizeObserver to avoid
+    // changing an observed box during notification delivery.
+    let frame: number | null = null;
+    const scheduleAlignment = () => {
+      if (frame !== null) return;
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        alignToProviderMenu();
+      });
+    };
+
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(scheduleAlignment);
     observer?.observe(menu);
     observer?.observe(content);
-    window.addEventListener('resize', alignToProviderMenu);
+    menu.addEventListener('animationend', scheduleAlignment);
+    window.addEventListener('resize', scheduleAlignment);
     return () => {
+      if (frame !== null) cancelAnimationFrame(frame);
       observer?.disconnect();
-      window.removeEventListener('resize', alignToProviderMenu);
+      menu.removeEventListener('animationend', scheduleAlignment);
+      window.removeEventListener('resize', scheduleAlignment);
     };
   }, [open, providerMenu, submenu]);
 
@@ -137,12 +152,17 @@ function ProviderModels({
         className={`${menuClassName} flex w-[440px] min-w-0 flex-col overflow-hidden`}
         onKeyDown={event => {
           const note = retentionNote.current;
-          if (event.key !== 'Tab' || !note || note.scrollHeight <= note.clientHeight) return;
+          if (event.key !== 'Tab' || !note) return;
           // Radix manages Tab inside menus. Give the separately scrollable note a focus path when it overflows.
           if (event.target === note && event.shiftKey) {
             event.preventDefault();
             noteReturnFocus.current?.focus();
-          } else if (event.target !== note && !event.shiftKey && event.target instanceof HTMLElement) {
+          } else if (
+            event.target !== note &&
+            !event.shiftKey &&
+            note.scrollHeight > note.clientHeight &&
+            event.target instanceof HTMLElement
+          ) {
             event.preventDefault();
             noteReturnFocus.current = event.target;
             note.focus();
@@ -172,6 +192,12 @@ function ProviderModels({
           role="region"
           aria-label="Model data retention"
           tabIndex={-1}
+          onKeyDown={event => {
+            if (event.key !== 'Home' && event.key !== 'End') return;
+            event.preventDefault();
+            const note = event.currentTarget;
+            note.scrollTo({ top: event.key === 'Home' ? 0 : note.scrollHeight });
+          }}
           className="flex shrink-0 items-start gap-2 overflow-y-auto overscroll-contain border-t border-[color:var(--ods-borders-subtle)] px-4 py-3 font-body text-xs text-ods-text-secondary [scrollbar-width:none] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ods-focus"
           // Leave room for a model row even when a narrow viewport wraps the note.
           style={{ maxHeight: `max(0px, calc(${menuMaxHeight} - 4rem - 2px))` }}
