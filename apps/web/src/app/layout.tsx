@@ -146,9 +146,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body suppressHydrationWarning className="min-h-screen font-body antialiased" data-app-type="openframe">
-        {/* Each page's own Tailwind rules, written into its HTML by `next-styles build`; the complete sheet
-            loads after paint. Every page here is prerendered, so no path is needed (the lib's route-styles). */}
-        <RouteStyles />
+        {/* The complete Tailwind sheet, inline in every page's HTML (the lib's route-styles, `complete`). The app
+            mode comes at runtime, so pages prerender as oss-tenant: a per-route sheet would miss the SaaS shell's
+            classes, and a SaaS page would paint unstyled until the complete sheet loaded. */}
+        <RouteStyles complete />
         <GoogleTagManager noscriptFallback={!isStaticExport} />
         <RegistrationAttributionCapture />
         <EmbedShimRegistration />
