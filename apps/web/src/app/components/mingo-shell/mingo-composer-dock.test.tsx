@@ -9,8 +9,11 @@
 import type { ActionsMenuItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { act, forwardRef, type ReactNode, useEffect, useImperativeHandle } from 'react';
 import { createPortal } from 'react-dom';
-import { createRoot, type Root } from 'react-dom/client';
+import { createRoot, hydrateRoot, type Root } from 'react-dom/client';
+import { renderToString } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ContextRefWithLabel } from '@/app/(app)/mingo/context/context-types';
+import { useMingoContextStore } from '@/app/(app)/mingo/stores/mingo-context-store';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { routes } from '@/lib/routes';
 import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
@@ -110,9 +113,18 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => {
       identity.enabled = enabled;
       return children;
     },
+    // Draws what its props say about the context strip, so a server render and a hydration that
+    // were handed different strips differ in their markup, as the real composer's do.
     ChatComposer: (props: Record<string, unknown>) => {
       panel.loading = props;
-      return <p>locked composer</p>;
+      const memory = (props.contextMemoryItems as unknown[] | undefined) ?? [];
+      return (
+        <>
+          <p>locked composer</p>
+          {memory.length > 0 && <i>{memory.length} in context</i>}
+          {props.contextLeading ? <b>{props.contextLeading as ReactNode}</b> : null}
+        </>
+      );
     },
     ModelDisplay: () => null,
   };
@@ -1062,6 +1074,56 @@ describe('MingoComposerDock', () => {
       act(() => root.render(<MingoComposerDock held />));
       expect(panel.props).toBeNull();
       expect(panel.loading).toMatchObject({ lock: { placeholder: 'Ask Mingo or describe a task…' } });
+    });
+
+    // CU-17tkuw65g9r: the server has neither the saved recent context (localStorage) nor the page a
+    // chat page was opened from (sessionStorage); the browser has both before its first render.
+    describe('hydrating the server markup', () => {
+      const RECENT: ContextRefWithLabel[] = [{ type: 'ORGANIZATION', id: 'o-1', label: 'Acme' }];
+
+      /** The server's markup with nothing saved, then a hydration in a browser that holds `client`. */
+      function hydrateWith(href: string, client: { recents?: typeof RECENT; chip?: ReactNode }) {
+        setSurface({ enabled: false });
+        const [pathname, search = ''] = href.split('?');
+        nav.pathname = pathname;
+        nav.search = search;
+        useMingoContextStore.setState({ openView: null, recentViews: [] });
+        pageChip.node = null;
+        const html = renderToString(<MingoComposerDock />);
+
+        useMingoContextStore.setState({ recentViews: client.recents ?? [] });
+        pageChip.node = client.chip ?? null;
+        act(() => root.unmount());
+        container.innerHTML = html;
+        const recoverable = vi.fn();
+        act(() => {
+          root = hydrateRoot(container, <MingoComposerDock />, { onRecoverableError: recoverable });
+        });
+        return recoverable;
+      }
+
+      afterEach(() => {
+        useMingoContextStore.setState({ openView: null, recentViews: [] });
+      });
+
+      it('matches with recent context saved, then shows it (the ticket: chat beside Customers)', () => {
+        // A page's own chip comes from its URL: the same on both sides, so not part of this case.
+        const recoverable = hydrateWith('/customers/', { recents: RECENT });
+        expect(recoverable).not.toHaveBeenCalled();
+        expect(container.textContent).toContain('1 in context');
+      });
+
+      it("matches on a chat page opened from another page, then shows that page's chip", () => {
+        const recoverable = hydrateWith('/mingo/chat/?id=d-1', { chip: <span>Customers</span> });
+        expect(recoverable).not.toHaveBeenCalled();
+        expect(container.textContent).toContain('Customers');
+      });
+
+      it('matches on Mingo home with recent context saved, then shows it', () => {
+        const recoverable = hydrateWith('/mingo/', { recents: RECENT });
+        expect(recoverable).not.toHaveBeenCalled();
+        expect(container.textContent).toContain('1 in context');
+      });
     });
 
     it('keeps it until the chat module has loaded, then hands over — and tells the chat page', () => {
