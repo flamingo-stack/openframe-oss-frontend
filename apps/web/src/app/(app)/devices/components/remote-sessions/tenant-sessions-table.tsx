@@ -370,12 +370,14 @@ function TenantSessionsContentQuery({ variables, pager, pageVariables, ...tableP
     isPending: tableProps.isPending,
   });
 
-  // The running sessions polled and merged into the first page, one row per session.
+  // The running sessions polled and merged into the first page, one row per session. "First page" is the page these
+  // rows were READ for (the deferred cursor), not the URL's: while the next page is read the rows on screen are still
+  // page 1's, and their running sessions keep being polled and merged until page 2 arrives.
   const { rows, totalCount } = useTenantSessionRows({
     pageRows,
     totalCount: queryData.remoteSessions.totalCount,
     filter: variables.filter,
-    firstPage: pager.isFirstPage,
+    firstPage: readCursor(pageVariables) === null,
     onRefresh: refetchPage,
   });
 
