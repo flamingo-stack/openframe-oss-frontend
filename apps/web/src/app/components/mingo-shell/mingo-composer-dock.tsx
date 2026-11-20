@@ -62,6 +62,7 @@ import type { MingoUnifiedChat } from '@/app/(app)/mingo/hooks/use-mingo-unified
 import { useMingoChatSurface } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { useMingoTour } from '@/app/(app)/mingo/tour/use-mingo-tour';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
+import { useHydrated } from '@/app/hooks/use-hydrated';
 import { isMobileShell } from '@/lib/platform';
 import { isMingoWhatToAsk, routes } from '@/lib/routes';
 import { ResetInitialSetupDialog, useDevOnboardingMenuItems } from '../dev-onboarding-shortcuts';
@@ -135,9 +136,15 @@ function ContextChipRow({ children }: { children: ReactNode }) {
 function DockComposerLoading({ route, quickActions = false }: { route: ComposerRoute; quickActions?: boolean }) {
   const view = dockViewOf(route);
   const memory = useMingoContextMemory();
+  // The live composer's side inset, so the card is as wide in its loading form as when it lands.
+  const inset = useDockComposerInset();
   // The page's chip, known from the URL at once: the strip it heads is drawn from the first
   // frame, as the live composer draws it, so the dock does not grow when the chat lands.
-  const pageChip = usePageChip(route, noop);
+  const chip = usePageChip(route, noop);
+  // Mingo's home and the chat page name the page they were opened from (`lastPage`), which only
+  // the browser holds (sessionStorage): none in the server's markup, so none until it hydrates.
+  const hydrated = useHydrated();
+  const pageChip = hydrated || (route !== 'home' && route !== 'chat') ? chip : null;
   return (
     <LoadingRegion label="Loading Mingo">
       {/* The home's quick actions in their loading form (the scope), so the dock is its
@@ -145,6 +152,7 @@ function DockComposerLoading({ route, quickActions = false }: { route: ComposerR
       {quickActions && <MingoDockQuickActions onSend={noop} />}
       <ChatComposer
         lock={{ placeholder: view.placeholder }}
+        inset={inset}
         inputRef={null}
         onSend={noop}
         onStop={noop}
