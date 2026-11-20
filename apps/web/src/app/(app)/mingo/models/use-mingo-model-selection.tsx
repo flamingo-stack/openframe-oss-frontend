@@ -1,6 +1,5 @@
 import { NamedIcon } from '@flamingo-stack/openframe-frontend-core/components';
 import type { ModelMenu } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { ShieldCheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -12,7 +11,7 @@ import {
   LLM_PROVIDER_LABEL,
   LLM_PROVIDER_OPTIONS,
 } from '@/app/(app)/settings/ai-settings/utils/ai-settings-display';
-import { useAiModelStatus } from '@/app/hooks/use-ai-model';
+import { type AiModel, useAiModelStatus } from '@/app/hooks/use-ai-model';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import type { FeatureFlagGate } from '@/lib/feature-flags';
 import {
@@ -22,7 +21,15 @@ import {
   fetchDialogModel,
   updateDialogModel,
 } from './dialog-model-api';
+import {
+  comparisonDescription,
+  comparisonOptions,
+  comparisonPrices,
+  ModelComparisonFooter,
+  ModelComparisonRow,
+} from './mingo-model-comparison';
 import { useMingoModelDraftStore } from './mingo-model-draft-store';
+import { useMingoModelPricing } from './use-mingo-model-pricing';
 
 export const MINGO_MODEL_FLAG = 'ai-mingo-chat-model-selection';
 
@@ -44,12 +51,11 @@ export interface MingoModelSelection {
   menu: ModelMenu | null;
 }
 
-const RETENTION_NOTE = (
-  <div className="flex max-w-[440px] items-start gap-[var(--spacing-system-xsf)] p-[var(--spacing-system-mf)] text-ods-text-secondary text-h6">
-    <ShieldCheckIcon aria-hidden size={16} className="shrink-0" />
-    <p>Your chats aren’t used to train AI models. Model providers keep requests for up to 30 days, then delete them.</p>
-  </div>
-);
+type ModelIdentity = Pick<AiModel, 'provider' | 'modelName'>;
+
+function isSameModel(previous: ModelIdentity | null, next: ModelIdentity) {
+  return previous !== null && previous.provider === next.provider && previous.modelName === next.modelName;
+}
 
 /** The model for one Mingo chat: read from the chat, picked from its composer; a new chat keeps its pick in a draft. */
 export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSelection {
@@ -58,10 +64,17 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
   const { activeDialogId } = chat;
   const { modelsByProvider } = useSupportedModels();
   const { aiModel } = useAiModelStatus();
+  const pricing = useMingoModelPricing(enabled);
   const draft = useMingoModelDraftStore(s => s.draft);
   const setDraft = useMingoModelDraftStore(s => s.setDraft);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const showChange = (label: string) =>
+    toast({
+      title: 'Chat model changed',
+      description: `${label} answers from your next message. Your other chats keep their model.`,
+      variant: 'success',
+    });
 
   const query = useQuery({
     queryKey: dialogModelQueryKey(activeDialogId ?? ''),
@@ -69,9 +82,19 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
     enabled: enabled && activeDialogId !== null,
   });
   const mutation = useMutation({
-    mutationFn: ({ dialogId, model }: { dialogId: string; model: DialogModelChoice | null }) =>
-      updateDialogModel(dialogId, model),
-    onSuccess: (state, { dialogId }) => queryClient.setQueryData(dialogModelQueryKey(dialogId), state),
+    mutationFn: ({
+      dialogId,
+      model,
+    }: {
+      dialogId: string;
+      model: DialogModelChoice | null;
+      previousModel: ModelIdentity | null;
+    }) => updateDialogModel(dialogId, model),
+    onSuccess: (state, { dialogId, previousModel }) => {
+      queryClient.setQueryData(dialogModelQueryKey(dialogId), state);
+      if (!isSameModel(previousModel, state.effectiveModel))
+        showChange(labelOf(state.effectiveModel, modelsByProvider));
+    },
     onError: error =>
       toast({
         title: 'Could not change chat model',
@@ -85,8 +108,10 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
   const saved = activeDialogId ? query.data : undefined;
   const selected = activeDialogId ? (saved?.model ?? null) : draft;
   const current = activeDialogId ? (saved?.effectiveModel ?? null) : draft;
-  // The model that answers: the chat's, else the tenant default a new chat starts on.
-  const answering = current ?? aiModel;
+  // The tenant default fills a new chat only. A saved chat uses its own server-resolved model.
+  const answering = activeDialogId === null ? (current ?? aiModel ?? null) : current;
+  const selectionKnown = activeDialogId === null || saved !== undefined;
+  const followsDefault = selectionKnown && selected === null;
   const locked =
     mutation.isPending ||
     (activeDialogId !== null && query.isPending) ||
@@ -95,8 +120,16 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
     chat.isCompacting;
 
   const choose = (model: DialogModel | null) => {
-    if (activeDialogId) mutation.mutate({ dialogId: activeDialogId, model });
-    else setDraft(model);
+    if (locked || (model ? selectionKnown && isSameModel(answering, model) : followsDefault)) return;
+    if (activeDialogId) {
+      mutation.mutate({ dialogId: activeDialogId, model, previousModel: answering });
+      return;
+    }
+    setDraft(model);
+    const next = model ?? aiModel;
+    if (next && !isSameModel(answering, next)) {
+      showChange(model ? labelOf(model, modelsByProvider) : (aiModel?.displayName ?? next.modelName));
+    }
   };
 
   return {
@@ -105,15 +138,15 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
     contextSize: saved?.modelTokenBudget ?? null,
     menu: {
       disabled: locked,
+      mobileDrillDown: true,
       groups: [
         {
           separator: true,
           items: [
             {
               id: 'chat-model-default',
-              label: 'Use Default Model',
-              type: 'radio',
-              checked: selected === null,
+              label: followsDefault ? 'Using default model' : 'Use default model',
+              disabled: followsDefault,
               onClick: () => choose(null),
             },
           ],
@@ -129,14 +162,21 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
               type: 'submenu' as const,
               submenuBoundary: 'viewport' as const,
               checked: answering?.provider === provider,
-              footer: RETENTION_NOTE,
-              submenu: options.map(option => {
+              submenuWidth: 440,
+              footer: <ModelComparisonFooter />,
+              submenu: comparisonOptions(provider, options).map(option => {
                 const model = { provider, modelName: option.value, displayName: option.label };
+                const prices = comparisonPrices(
+                  pricing.rateFor(provider, option.value),
+                  pricing.usdPerMillionOpenFrameTokens,
+                );
                 return {
                   id: `chat-model-${provider}-${option.value}`,
                   label: option.label,
+                  description: comparisonDescription(option.details, prices),
+                  content: <ModelComparisonRow label={option.label} details={option.details} pricing={prices} />,
                   type: 'radio' as const,
-                  checked: answering?.provider === provider && answering.modelName === option.value,
+                  checked: isSameModel(answering, model),
                   onClick: () => choose(model),
                 };
               }),
