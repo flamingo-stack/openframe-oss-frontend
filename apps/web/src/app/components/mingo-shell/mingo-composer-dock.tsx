@@ -136,6 +136,8 @@ function ContextChipRow({ children }: { children: ReactNode }) {
 function DockComposerLoading({ route, quickActions = false }: { route: ComposerRoute; quickActions?: boolean }) {
   const view = dockViewOf(route);
   const memory = useMingoContextMemory();
+  // The live composer's side inset, so the card is as wide in its loading form as when it lands.
+  const inset = useDockComposerInset();
   // The page's chip, known from the URL at once: the strip it heads is drawn from the first
   // frame, as the live composer draws it, so the dock does not grow when the chat lands.
   const chip = usePageChip(route, noop);
@@ -150,6 +152,7 @@ function DockComposerLoading({ route, quickActions = false }: { route: ComposerR
       {quickActions && <MingoDockQuickActions onSend={noop} />}
       <ChatComposer
         lock={{ placeholder: view.placeholder }}
+        inset={inset}
         inputRef={null}
         onSend={noop}
         onStop={noop}

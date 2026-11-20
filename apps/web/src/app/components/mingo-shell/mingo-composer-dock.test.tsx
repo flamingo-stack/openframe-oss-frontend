@@ -33,6 +33,7 @@ const {
   identity,
   chips,
   viewport,
+  composer,
   tour,
   CONTEXT_MEMORY,
   RENDER_MENTION,
@@ -62,6 +63,8 @@ const {
   chips: { onSend: null as ((text: string) => void) | null },
   /** `useMdUp()`: false on a phone. */
   viewport: { mdUp: true as boolean | undefined },
+  /** The slot the v2 composer hangs in (`useManhattanComposerPlace`). */
+  composer: { place: null as 'page' | 'column' | null },
   /** What the dock handed the tour: where its conversation is on screen, and the block's ×. */
   tour: {
     input: null as { onScreen?: boolean; onClose?: () => void } | null,
@@ -150,6 +153,7 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/ui', () => ({
   ),
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', () => ({ useMdUp: () => viewport.mdUp }));
+vi.mock('../manhattan-shell/manhattan-composer-host', () => ({ useManhattanComposerPlace: () => composer.place }));
 vi.mock('@flamingo-stack/openframe-frontend-core/utils', () => ({
   cn: (...classes: unknown[]) => classes.filter(Boolean).join(' '),
 }));
@@ -313,6 +317,7 @@ describe('MingoComposerDock', () => {
       outsidePage: null,
     });
     viewport.mdUp = true;
+    composer.place = null;
     tour.input = null;
     tour.block = null;
     container = document.createElement('div');
@@ -728,7 +733,7 @@ describe('MingoComposerDock', () => {
         composerPlaceholder: 'Ask Mingo or describe a task…',
         contextMemory: CONTEXT_MEMORY,
       });
-      expect(container.querySelector('section')?.className).toContain('max-w-[880px]');
+      expect(container.querySelector('section')?.className).toContain('max-w-[calc(800px+2*var(--spacing-system-l))]');
     });
 
     it('no other page carries the quick actions, a full-width one included', () => {
@@ -761,7 +766,7 @@ describe('MingoComposerDock', () => {
         composerPlaceholder: 'Ask Mingo about this page…',
         contextMemory: CONTEXT_MEMORY,
       });
-      expect(container.querySelector('section')?.className).toContain('max-w-[880px]');
+      expect(container.querySelector('section')?.className).toContain('max-w-[calc(800px+2*var(--spacing-system-l))]');
     });
 
     it('full-width pages: no memory strip, the model row kept', () => {
@@ -801,6 +806,26 @@ describe('MingoComposerDock', () => {
         whatToAskInColumn: false,
         threadNode: columnNode,
       });
+    });
+
+    // CU-17tkuw68taa: under a page the composer keeps its side inset at every width (it touched the sidebars below
+    // 720px of content); only the chat column, which pads it itself, takes it away there. Its loading form alike.
+    it.each([
+      ['under a page', 'page', undefined, 'always'],
+      ['in the chat column', 'column', 'wide', 'wide'],
+    ] as const)('insets the composer and its loading form %s', (_name, place, live, loading) => {
+      composer.place = place;
+      useManhattanCentreStore.setState({ chatView: 'hidden' });
+      renderV2('/devices/');
+      expect(props().composerInset).toBe(live);
+      act(() =>
+        root.render(
+          <ManhattanDockContext.Provider value>
+            <MingoComposerDock held />
+          </ManhattanDockContext.Provider>,
+        ),
+      );
+      expect(panel.loading?.inset).toBe(loading);
     });
 
     it('with no chat open, Start Work holds the column: no thread portalled, a new chat composer, the quick actions', () => {

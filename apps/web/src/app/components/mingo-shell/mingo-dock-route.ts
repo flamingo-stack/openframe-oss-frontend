@@ -94,16 +94,22 @@ export interface DockView {
 }
 
 const CHAT_WIDTH = 'max-w-[760px]';
-const PAGE_WIDTH = 'max-w-[880px]';
+/**
+ * Under a page: the composer card at most 800px (Figma `chat/composer`, node 4368:13203), with
+ * `spacing-system-l` beside it on each side, as Start Work's column has: the card lines up with
+ * the page above it. The composer insets itself by `spacing-system-m` (`always`), so the column
+ * adds the rest (CU-17tkuw68taa).
+ */
+const PAGE_WIDTH =
+  'max-w-[calc(800px+2*var(--spacing-system-l))] px-[calc(var(--spacing-system-l)-var(--spacing-system-m))]';
 
 /**
- * The sheet over a page: the composer card's width, not the dock column's. The chat
- * insets its composer by \`spacing-system-m\` on each side of the column, so the sheet
- * does the same (the column is \`PAGE_WIDTH\` at most): its edges meet the composer's
- * and the blocks above it (Getting Started), as the design's sheet holds its composer.
+ * The sheet over a page: the composer card's width, not the dock column's. The card sits
+ * \`spacing-system-l\` in from each side of the column and is 800px at most (\`PAGE_WIDTH\`), so the
+ * sheet does the same: its edges meet the composer's and the blocks above it (Getting Started),
+ * as the design's sheet holds its composer.
  */
-export const SHEET_WIDTH_CLASS_NAME =
-  'w-[calc(100%-2*var(--spacing-system-m))] max-w-[calc(880px-2*var(--spacing-system-m))]';
+export const SHEET_WIDTH_CLASS_NAME = 'w-[calc(100%-2*var(--spacing-system-l))] max-w-[800px]';
 
 const DOCK_VIEWS: Record<ComposerRoute, DockView> = {
   // A new chat: the greeting sits in the middle of what is left above the composer.
