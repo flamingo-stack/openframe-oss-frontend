@@ -551,8 +551,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             onNavigate: handleNavigate,
             // Desktop shell only: renders nothing until the shell reports an update
             // waiting. The slot is a render prop because the same node also draws in
-            // the mobile burger menu, where there is no rail to collapse into.
-            topSlot: ({ minimized }) => <SidebarUpdateButton minimized={minimized} />,
+            // the mobile burger menu, where there is no rail to collapse into. `inset`: this
+            // sidebar's body pads only top and bottom, so the button brings its own side inset.
+            topSlot: ({ minimized }) => <SidebarUpdateButton minimized={minimized} inset />,
             // `h-full` (not `h-screen`) so the sidebar fills the layout row below the
             // optional top bar rather than overflowing the viewport by its height.
             className: 'h-full',
