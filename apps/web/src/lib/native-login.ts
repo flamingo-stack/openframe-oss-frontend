@@ -62,6 +62,23 @@ export class AppleRegisterError extends Error {
   }
 }
 
+/**
+ * A failed SSO signup from a ticket. `ticketSpent` is false only for a 400 with a reason (a taken domain), which the
+ * form can correct in place. Any other answer can have used the ticket, so a retry would only repeat "Signup
+ * session expired". `organizationCreated` is true when the server answered with a devTicket and a later step
+ * failed: the organization exists, and the next sign-in opens it.
+ */
+export class SsoSignupTicketError extends Error {
+  readonly ticketSpent: boolean;
+  readonly organizationCreated: boolean;
+  constructor(message: string, ticketSpent: boolean, organizationCreated = false) {
+    super(message);
+    this.name = 'SsoSignupTicketError';
+    this.ticketSpent = ticketSpent;
+    this.organizationCreated = organizationCreated;
+  }
+}
+
 /** A browser sign-in that ended without a result, toasted under its own title rather than the generic one. */
 export class NativeLoginError extends Error {
   readonly title = 'Sign-in didn’t finish';
@@ -534,23 +551,27 @@ export async function completeNativeSsoSignup(options: {
   if (!res.ok || !body?.devTicket) {
     // A 400 carries the actual reason ("This domain is already in use…") and is correctable in the
     // form; `requestPublic` only synthesises a status line, so read the body before falling back.
-    throw new Error(
-      (typeof body?.error === 'string' && body.error) ||
-        'Could not finish creating your organization. Please try again.',
-    );
+    const reason = typeof body?.error === 'string' && body.error ? body.error : null;
+    const correctable = res.status === 400 && reason !== null;
+    throw new SsoSignupTicketError(reason ?? 'Your sign-up session has ended.', !correctable);
   }
   const devTicket = body.devTicket;
 
-  const exchangeBase = trimBase(runtimeEnv.sharedHostUrl());
-  const { accessToken, refreshToken } = await plugin.exchangeTicket({
-    url: `${exchangeBase}/oauth/dev-exchange?ticket=${encodeURIComponent(devTicket)}`,
-  });
-  if (!accessToken && !refreshToken) {
-    throw new Error('Ticket exchange returned no tokens');
-  }
+  try {
+    const exchangeBase = trimBase(runtimeEnv.sharedHostUrl());
+    const { accessToken, refreshToken } = await plugin.exchangeTicket({
+      url: `${exchangeBase}/oauth/dev-exchange?ticket=${encodeURIComponent(devTicket)}`,
+    });
+    if (!accessToken && !refreshToken) {
+      throw new Error('Ticket exchange returned no tokens');
+    }
 
-  await setTokens({ accessToken, refreshToken });
-  await persistTenantHost(plugin, new URL(tenantOrigin(options.tenantDomain)).origin);
+    await setTokens({ accessToken, refreshToken });
+    await persistTenantHost(plugin, new URL(tenantOrigin(options.tenantDomain)).origin);
+  } catch (error) {
+    console.error('[native-login] SSO signup created the organization, but sign-in did not finish:', error);
+    throw new SsoSignupTicketError("Signing you in to it didn't finish.", true, true);
+  }
 }
 
 /**

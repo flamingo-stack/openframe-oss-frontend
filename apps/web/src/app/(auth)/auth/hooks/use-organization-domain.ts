@@ -43,11 +43,11 @@ export interface OrganizationDomainState {
  * cluster-capacity case, which is not a "pick another name" error and was previously handled on
  * only one of the three.
  */
-export function useOrganizationDomain(organizationName: string): OrganizationDomainState {
+export function useOrganizationDomain(organizationName: string, initialDomain = ''): OrganizationDomainState {
   const { toast } = useToast();
   const isSharedAuth = isSharedAuthUi();
 
-  const [domain, setDomainState] = useState('');
+  const [domain, setDomainState] = useState(initialDomain);
   const [isChecking, setIsChecking] = useState(false);
   const [submitSuggestions, setSubmitSuggestions] = useState<string[]>([]);
 

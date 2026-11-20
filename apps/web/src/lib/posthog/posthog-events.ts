@@ -63,21 +63,34 @@ export interface SignInRequiredClick {
  * checked against what the tap did. Captured on the GTM-loaded `window.posthog` directly rather
  * than through the dataLayer: it needs no GTM trigger, and `sendBeacon` lets it survive the
  * cross-origin navigation the same tap starts.
- *
- * Best-effort and silent: a no-op until the SDK has loaded (on desktop `window.posthog` is a
- * plain call queue until GTM runs, see {@link queueDesktopPostHogSetup}), and in the native
- * shells, whose store privacy labels this event is not part of.
  */
 export function captureSignInRequiredClick(properties: SignInRequiredClick): void {
+  captureOnPostHog(SIGN_IN_REQUIRED_CLICK_EVENT, properties, { transport: 'sendBeacon' });
+}
+
+/** PostHog event for `/auth/sso-continue` opening with the details typed before a new sign-in. */
+export const SSO_SETUP_RESTORED_EVENT = 'sso_setup_restored';
+
+/**
+ * Record that the SSO organization form came back filled after its sign-in session expired, so the recovery
+ * (`sso-setup-draft.ts`) can be counted against the expiries. Web only: the native shells never open that page.
+ */
+export function captureSsoSetupRestored(): void {
+  captureOnPostHog(SSO_SETUP_RESTORED_EVENT, {});
+}
+
+/**
+ * Captures on the GTM-loaded `window.posthog` directly: no GTM trigger is needed. Best-effort and silent: a no-op
+ * until the SDK has loaded (on desktop `window.posthog` is a plain call queue until GTM runs, see
+ * {@link queueDesktopPostHogSetup}), and in the native shells, whose store privacy labels these events are not
+ * part of.
+ */
+function captureOnPostHog(event: string, properties: object, options: object = {}): void {
   if (typeof window === 'undefined' || isAppShell()) return;
   try {
     const posthog = (window as unknown as { posthog?: { capture?: unknown } }).posthog;
     if (typeof posthog?.capture !== 'function') return;
-    (posthog.capture as (event: string, props: object, options: object) => void)(
-      SIGN_IN_REQUIRED_CLICK_EVENT,
-      properties,
-      { transport: 'sendBeacon' },
-    );
+    (posthog.capture as (event: string, props: object, options: object) => void)(event, properties, options);
   } catch {
     // Analytics is best-effort — never break sign-in.
   }

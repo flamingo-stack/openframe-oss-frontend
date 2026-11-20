@@ -48,6 +48,11 @@ interface SsoOrganizationSetupProps {
   /** Held disabled after a submit that navigates away, so the form cannot re-arm under it. */
   isSubmitting?: boolean;
   /**
+   * Details from an earlier submit, in the shape `onSubmit` received them. Read on mount only: a caller that gets
+   * them later remounts the form (`key`). The terms box stays clear, so the user agrees again.
+   */
+  initialValues?: { tenantName: string; tenantDomain: string };
+  /**
    * Abandons the flow. Supplied by the native Apple path, where this form is the only thing on
    * screen and the tab selector leads to a different form rather than out of it — without a way
    * back the user is stuck holding a credential they cannot use here.
@@ -66,7 +71,13 @@ interface SsoOrganizationSetupProps {
  * While the identity is read (`identity` null, or a loading scope) the form draws itself with its static copy real,
  * the subtitle a text bar and the submit held off; its fields draw their own loading form.
  */
-export function SsoOrganizationSetup({ identity, onSubmit, isSubmitting = false, onBack }: SsoOrganizationSetupProps) {
+export function SsoOrganizationSetup({
+  identity,
+  onSubmit,
+  isSubmitting = false,
+  initialValues,
+  onBack,
+}: SsoOrganizationSetupProps) {
   const { toast } = useToast();
   const loading = useLoadingScope() || !identity;
   const label = identity ? ssoProviderLabel(identity.provider) : '';
@@ -74,10 +85,16 @@ export function SsoOrganizationSetup({ identity, onSubmit, isSubmitting = false,
   const email = identity ? identity.email : '';
   const isSharedAuth = isSharedAuthUi();
 
-  const [organizationName, setOrganizationName] = useState('');
+  const [organizationName, setOrganizationName] = useState(initialValues?.tenantName ?? '');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
-  const domainField = useOrganizationDomain(organizationName);
+  // The field holds the subdomain alone when the suffix is drawn beside it.
+  const suffix = `.${SAAS_DOMAIN_SUFFIX}`;
+  const initialDomain = initialValues?.tenantDomain ?? '';
+  const domainField = useOrganizationDomain(
+    organizationName,
+    isSharedAuth && initialDomain.endsWith(suffix) ? initialDomain.slice(0, -suffix.length) : initialDomain,
+  );
 
   const isOrgNameValid = ORG_NAME_REGEX.test(organizationName.trim());
   const isValid = isOrgNameValid && !!domainField.domain.trim() && !domainField.isBlocked && agreedToTerms;
@@ -126,7 +143,7 @@ export function SsoOrganizationSetup({ identity, onSubmit, isSubmitting = false,
       onBack={onBack}
       submitDisabled={loading || !isValid || busy}
       loading={busy}
-      domainSuffix={isSharedAuth ? `.${SAAS_DOMAIN_SUFFIX}` : undefined}
+      domainSuffix={isSharedAuth ? suffix : undefined}
       termsUrl={TERMS_URL}
       privacyPolicyUrl={PRIVACY_POLICY_URL}
       domainSlot={
