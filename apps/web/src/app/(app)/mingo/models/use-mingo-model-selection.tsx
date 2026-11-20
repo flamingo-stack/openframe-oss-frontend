@@ -1,5 +1,6 @@
 import { NamedIcon } from '@flamingo-stack/openframe-frontend-core/components';
-import type { ActionsMenuItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import type { ModelMenu } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { ShieldCheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -39,14 +40,18 @@ export interface MingoModelSelection {
   current: DialogModel | null;
   /** The answering model's context, once the server said. */
   contextSize: number | null;
-  /** "Chat Model" for the chat's and the composer's ⋯ menus; empty while the flag is not on. */
-  menuItems: ActionsMenuItem[];
+  /** The composer's model menu; null while the flag is not on. */
+  menu: ModelMenu | null;
 }
 
-const sameModel = (a: DialogModelChoice | null, b: DialogModelChoice) =>
-  a !== null && a.provider === b.provider && a.modelName === b.modelName;
+const RETENTION_NOTE = (
+  <div className="flex max-w-[440px] items-start gap-[var(--spacing-system-xsf)] p-[var(--spacing-system-mf)] text-ods-text-secondary text-h6">
+    <ShieldCheckIcon aria-hidden size={16} className="shrink-0" />
+    <p>Your chats aren’t used to train AI models. Model providers keep requests for up to 30 days, then delete them.</p>
+  </div>
+);
 
-/** The model for one Mingo chat: read from the chat, picked in its ⋯ menus; a new chat keeps its pick in a draft. */
+/** The model for one Mingo chat: read from the chat, picked from its composer; a new chat keeps its pick in a draft. */
 export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSelection {
   const gate = useFeatureFlagGate(MINGO_MODEL_FLAG);
   const enabled = gate === 'on';
@@ -75,22 +80,19 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
       }),
   });
 
-  if (!enabled) return { gate, current: null, contextSize: null, menuItems: [] };
+  if (!enabled) return { gate, current: null, contextSize: null, menu: null };
 
   const saved = activeDialogId ? query.data : undefined;
   const selected = activeDialogId ? (saved?.model ?? null) : draft;
   const current = activeDialogId ? (saved?.effectiveModel ?? null) : draft;
+  // The model that answers: the chat's, else the tenant default a new chat starts on.
+  const answering = current ?? aiModel;
   const locked =
     mutation.isPending ||
     (activeDialogId !== null && query.isPending) ||
     chat.streamingPhase !== 'idle' ||
     chat.archived ||
     chat.isCompacting;
-
-  // The entry names the model that answers: the chat's, else the tenant default a new chat starts on.
-  const shown = current
-    ? { label: labelOf(current, modelsByProvider), provider: current.provider }
-    : aiModel && { label: aiModel.displayName, provider: LLM_PROVIDER_OPTIONS.find(p => p === aiModel.provider) };
 
   const choose = (model: DialogModel | null) => {
     if (activeDialogId) mutation.mutate({ dialogId: activeDialogId, model });
@@ -101,47 +103,48 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
     gate,
     current: current && { ...current, displayName: labelOf(current, modelsByProvider) },
     contextSize: saved?.modelTokenBudget ?? null,
-    menuItems: [
-      {
-        id: 'chat-model',
-        label: shown?.label ?? 'Chat Model',
-        description: shown ? 'Chat Model' : undefined,
-        icon: shown?.provider ? <NamedIcon icon={LLM_PROVIDER_ICON[shown.provider]} className="h-5 w-5" /> : undefined,
-        type: 'submenu',
-        // The cascade is three menus wide: it may leave the chat's column, which is narrower than that.
-        submenuBoundary: 'viewport',
-        disabled: locked,
-        submenu: [
-          {
-            id: 'chat-model-default',
-            label: 'Use Default Model',
-            type: 'radio',
-            checked: selected === null,
-            onClick: () => choose(null),
-          },
-          ...LLM_PROVIDER_OPTIONS.flatMap(provider => {
+    menu: {
+      disabled: locked,
+      groups: [
+        {
+          separator: true,
+          items: [
+            {
+              id: 'chat-model-default',
+              label: 'Use Default Model',
+              type: 'radio',
+              checked: selected === null,
+              onClick: () => choose(null),
+            },
+          ],
+        },
+        {
+          items: LLM_PROVIDER_OPTIONS.flatMap(provider => {
             const options = modelsByProvider?.[provider] ?? [];
             if (options.length === 0) return [];
             return {
               id: `chat-model-${provider}`,
               label: LLM_PROVIDER_LABEL[provider],
-              icon: <NamedIcon icon={LLM_PROVIDER_ICON[provider]} className="h-5 w-5" />,
+              icon: <NamedIcon icon={LLM_PROVIDER_ICON[provider]} />,
               type: 'submenu' as const,
+              submenuBoundary: 'viewport' as const,
+              checked: answering?.provider === provider,
+              footer: RETENTION_NOTE,
               submenu: options.map(option => {
                 const model = { provider, modelName: option.value, displayName: option.label };
                 return {
                   id: `chat-model-${provider}-${option.value}`,
                   label: option.label,
                   type: 'radio' as const,
-                  checked: sameModel(selected, model),
+                  checked: answering?.provider === provider && answering.modelName === option.value,
                   onClick: () => choose(model),
                 };
               }),
             };
           }),
-        ],
-      },
-    ],
+        },
+      ],
+    },
   };
 }
 

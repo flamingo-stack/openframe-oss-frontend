@@ -6,7 +6,7 @@
  * holds its place while the chat loads, and its own crash fallback.
  */
 
-import type { ActionsMenuItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import type { ModelMenu } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { act, forwardRef, type ReactNode, useEffect, useImperativeHandle } from 'react';
 import { createPortal } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
@@ -213,15 +213,13 @@ function setSurface({
   enabled = true,
   error = null as Error | null,
   identityEnabled = true,
-  modelMenuItems = null as ActionsMenuItem[] | null,
+  modelMenu = null as ModelMenu | null,
 } = {}) {
   surface.value = {
     chat: error
       ? null
       : {
-          ...(modelMenuItems
-            ? { modelSelection: { gate: 'on', current: null, contextSize: null, menuItems: modelMenuItems } }
-            : {}),
+          ...(modelMenu ? { modelSelection: { gate: 'on', current: null, contextSize: null, menu: modelMenu } } : {}),
           state: {
             activeDialogId,
             dialogs: [],
@@ -899,13 +897,17 @@ describe('MingoComposerDock', () => {
     expect(props().composerMenuItems).toBeUndefined();
   });
 
-  it("puts the chat's model in both ⋯ menus and leaves the footer name display-only", () => {
-    const menuItems: ActionsMenuItem[] = [{ id: 'chat-model', label: 'GPT-5.5', type: 'submenu', submenu: [] }];
-    setSurface({ activeDialogId: 'a', modelMenuItems: menuItems });
+  it("opens the chat's model menu from the composer's model name only", () => {
+    const menu: ModelMenu = {
+      disabled: false,
+      groups: [{ items: [{ id: 'chat-model-default', label: 'Use Default Model' }] }],
+    };
+    setSurface({ activeDialogId: 'a', modelMenu: menu });
     render('/mingo/chat/');
 
-    expect(props().chatMenuExtraItems).toEqual(expect.arrayContaining(menuItems));
-    expect(props().composerMenuItems).toEqual(menuItems);
+    expect(props().composerModelMenu).toBe(menu);
+    expect(props().chatMenuExtraItems).toBeUndefined();
+    expect(props().composerMenuItems).toBeUndefined();
     expect(props().onModelClick).toBeUndefined();
     expect(props().modelTooltip).toBeUndefined();
   });
