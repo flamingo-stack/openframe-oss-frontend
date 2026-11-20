@@ -64,6 +64,8 @@ function ProviderModels({
 }) {
   const [placement, setPlacement] = useState(initialPlacement);
   const trigger = useRef<HTMLDivElement>(null);
+  const retentionNote = useRef<HTMLDivElement>(null);
+  const noteReturnFocus = useRef<HTMLElement>(null);
   const [submenu, setSubmenu] = useState<HTMLDivElement | null>(null);
 
   useLayoutEffect(() => {
@@ -133,6 +135,19 @@ function ProviderModels({
         collisionBoundary={[]}
         collisionPadding={{ top: menuTopInset, right: menuEdgePadding, bottom: menuEdgePadding, left: menuEdgePadding }}
         className={`${menuClassName} flex w-[440px] min-w-0 flex-col overflow-hidden`}
+        onKeyDown={event => {
+          const note = retentionNote.current;
+          if (event.key !== 'Tab' || !note || note.scrollHeight <= note.clientHeight) return;
+          // Radix manages Tab inside menus. Give the separately scrollable note a focus path when it overflows.
+          if (event.target === note && event.shiftKey) {
+            event.preventDefault();
+            noteReturnFocus.current?.focus();
+          } else if (event.target !== note && !event.shiftKey && event.target instanceof HTMLElement) {
+            event.preventDefault();
+            noteReturnFocus.current = event.target;
+            note.focus();
+          }
+        }}
         style={{
           maxWidth: placement.maxWidth,
           maxHeight: menuMaxHeight,
@@ -153,7 +168,11 @@ function ProviderModels({
           ))}
         </div>
         <div
-          className="flex shrink-0 items-start gap-2 overflow-y-auto overscroll-contain border-t border-[color:var(--ods-borders-subtle)] px-4 py-3 font-body text-xs text-ods-text-secondary [scrollbar-width:none]"
+          ref={retentionNote}
+          role="region"
+          aria-label="Model data retention"
+          tabIndex={-1}
+          className="flex shrink-0 items-start gap-2 overflow-y-auto overscroll-contain border-t border-[color:var(--ods-borders-subtle)] px-4 py-3 font-body text-xs text-ods-text-secondary [scrollbar-width:none] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ods-focus"
           // Leave room for a model row even when a narrow viewport wraps the note.
           style={{ maxHeight: `max(0px, calc(${menuMaxHeight} - 4rem - 2px))` }}
         >
