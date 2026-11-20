@@ -7,6 +7,7 @@
 
 import { act } from 'react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { FIRST_PAGE_FOOTER } from '@/app/hooks/cursor-pager.fixtures';
 import {
   FIXTURE_PAGE_SIZE,
   LoadedLiveTable,
@@ -230,5 +231,32 @@ describe('LiveTable, grid layout', () => {
       const { container } = mount(<LoadedLiveTable layout="grid" footer={null} />);
       expect(sentinel(container)).toBeNull();
     });
+  });
+});
+
+describe('LiveTable pager', () => {
+  const PAGE_2 = {
+    ...FIRST_PAGE_FOOTER,
+    isFirstPage: false,
+    hasNextPage: true,
+    hasPreviousPage: true,
+    startCursor: 's2',
+    endCursor: 'e2',
+    rangeStart: 21,
+  };
+  const disabled = (container: HTMLElement) =>
+    ['Go to first page', 'Go to previous page', 'Go to next page'].map(
+      label => container.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)?.disabled,
+    );
+
+  it('pages while the rows on screen are its page, and waits while the next one is read', () => {
+    const { container, rerender } = mount(<LoadedLiveTable pager={PAGE_2} />);
+    expect(disabled(container)).toEqual([false, false, false]);
+
+    // The next page is read: the rows on screen are the last page's, so a second Next would resend its cursor.
+    rerender(<LoadedLiveTable pager={PAGE_2} isPending />);
+    expect(disabled(container)).toEqual([true, true, true]);
+    // The count stays while the buttons wait.
+    expect(container.textContent).toContain('21–');
   });
 });

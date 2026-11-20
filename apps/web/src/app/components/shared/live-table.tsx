@@ -10,7 +10,10 @@ import {
   type DataTableSettings,
   type DataTableSortState,
   useDataTable,
+  AutoRefreshControl,
+  type AutoRefreshControlProps,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import type { CursorPagerFooterProps } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useMemo } from 'react';
 
@@ -113,6 +116,16 @@ interface LiveTableShellProps<T> {
   /** The next page's infinite-scroll sentinel; `null` (or omitted) draws none. */
   footer?: Omit<DataTableInfiniteFooterProps, 'skeletonRows'> | null;
   /**
+   * The First · Prev · Next footer of a paged list (`useCursorPager`'s `footerProps`), with the range ("21–40 of
+   * 340"). Wins over `footer`: a paged list has no infinite scroll.
+   */
+  pager?: CursorPagerFooterProps | null;
+  /**
+   * The auto-refresh picker in the header (`useAutoRefresh`'s `control`). Opt-in: only a list that refetches its page
+   * silently passes it (a paged or load-all list), never one still on infinite scroll.
+   */
+  refresh?: AutoRefreshControlProps | null;
+  /**
    * The table holds placeholder rows while it loads (`loadingPlaceholderRows`, one page): the body draws them with
    * their real cells in its loading scope. Set by the `columns` form itself; a list that builds its own table over
    * placeholder rows while loading sets it too.
@@ -185,6 +198,8 @@ function LiveTableShell<T>({
   loadingSubRows,
   rowHeightClassName,
   footer,
+  pager,
+  refresh,
   loadingCells = false,
   layout = 'cards',
   maxHeight,
@@ -195,6 +210,9 @@ function LiveTableShell<T>({
   const rowCount = showRowCount && (
     <DataTable.RowCount itemName={itemName} totalCount={totalCount} loading={loadingCells} />
   );
+  // The card header's right slot is drawn OVER the column titles: it fits the short count, not a control. A table
+  // with auto-refresh moves its count, with the control, into the row above the table, as a grid table keeps it.
+  const metaRow = showHeader && (grid || refresh) && (rowCount || refresh);
   return (
     <PendingDim isPending={isPending}>
       {/* The height and the settings belong to the grid: a list left on cards passes neither. */}
@@ -206,12 +224,17 @@ function LiveTableShell<T>({
       >
         {/* The grid's results count sits above the table (a direct child: the table keeps it out of its scroll area);
             the card header carries its own in `rightSlot`, which the grid header does not draw. */}
-        {grid && showHeader && rowCount && <DataTable.Meta>{rowCount}</DataTable.Meta>}
+        {metaRow && (
+          <DataTable.Meta>
+            {rowCount}
+            {refresh && <AutoRefreshControl {...refresh} className="ml-auto" />}
+          </DataTable.Meta>
+        )}
         {showHeader && (
           <DataTable.Header
             stickyHeader={stickyHeader}
             stickyHeaderOffset={stickyHeaderOffset}
-            rightSlot={rowCount}
+            rightSlot={refresh ? undefined : rowCount}
             sort={sort}
             onSortChange={onSortChange}
             // What the body gets: a loading grid table names no column (the card header does not read it).
@@ -229,7 +252,20 @@ function LiveTableShell<T>({
           loadingSubRows={loadingSubRows}
           rowHeightClassName={rowHeightClassName}
         />
-        {footer && <DataTable.InfiniteFooter {...footer} skeletonRows={rows} />}
+        {pager ? (
+          <DataTable.CursorFooter
+            {...pager}
+            // The footer's noun follows the total ("21–40 of 340 results", "1–1 of 1 result"); the row count
+            // pluralizes its own.
+            itemName={totalCount === 1 ? (itemName ?? 'result') : `${itemName ?? 'result'}s`}
+            totalCount={totalCount}
+            // While the next page (or a filter's) is read the rows on screen are the last ones: the buttons wait (the
+            // count stays), so a second Next cannot resend the same cursor under the next page's index.
+            loading={loadingCells || isPending}
+          />
+        ) : (
+          footer && <DataTable.InfiniteFooter {...footer} skeletonRows={rows} />
+        )}
       </DataTable>
     </PendingDim>
   );

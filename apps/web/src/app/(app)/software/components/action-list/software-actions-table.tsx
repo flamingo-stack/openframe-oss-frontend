@@ -3,34 +3,32 @@
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { Refresh02HrIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  type AutoRefreshControlProps,
   type ColumnDef,
   type Row,
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useEffect, useMemo } from 'react';
-import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type {
-  softwareActionsTable_query$data,
-  softwareActionsTable_query$key,
-} from '@/__generated__/softwareActionsTable_query.graphql';
-import type { softwareActionsTablePaginationQuery as SoftwareActionsTablePaginationQueryType } from '@/__generated__/softwareActionsTablePaginationQuery.graphql';
+  CursorPagerFooterProps,
+  CursorPagerVariables,
+  UseCursorPagerReturn,
+} from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useEffect, useMemo } from 'react';
+import { graphql, useLazyLoadQuery } from 'react-relay';
 import type {
   SoftwareActionFilterInput,
   softwareActionsTableQuery as SoftwareActionsTableQueryType,
+  softwareActionsTableQuery$data,
 } from '@/__generated__/softwareActionsTableQuery.graphql';
-import {
-  EmptyState,
-  type InfiniteScroll,
-  liveColumnMeta,
-  NO_ITEMS,
-  NO_NEXT_PAGE,
-  oneLineEmptyState,
-  useRetryKey,
-} from '@/app/components/shared';
+import { EmptyState, liveColumnMeta, NO_ITEMS, oneLineEmptyState, useRetryKey } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { openRowColumn } from '@/app/components/shared/open-row-column';
+import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
 import { useTableGrid } from '@/app/components/shared/table-layout-scope';
+import { forwardPage } from '@/app/hooks/forward-page';
+import { usePagedTable } from '@/app/hooks/use-paged-table';
+import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { SoftwareActionStatus } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
@@ -47,25 +45,13 @@ import { type SoftwareActionFilterOptions, useSoftwareActionFilters } from './us
  * Software → Software Actions: one row per install/update of one package across
  * its target devices — the runs already dispatched plus the ones a schedule has
  * yet to fire (the backend lists those first). Search and the three funnels go
- * to the server; the list keeps the backend's own order, newest first.
+ * to the server; the list keeps the backend's own order, newest first. One page
+ * at a time, its cursor in the URL (no `@connection`: a cursor from a link must
+ * read exactly its page).
  */
 const softwareActionsTableQuery = graphql`
   query softwareActionsTableQuery($filter: SoftwareActionFilterInput, $search: String, $first: Int!, $after: String) {
-    ...softwareActionsTable_query @arguments(filter: $filter, search: $search, first: $first, after: $after)
-  }
-`;
-
-const softwareActionsTableFragment = graphql`
-  fragment softwareActionsTable_query on Query
-  @refetchable(queryName: "softwareActionsTablePaginationQuery")
-  @argumentDefinitions(
-    filter: { type: "SoftwareActionFilterInput" }
-    search: { type: "String" }
-    first: { type: "Int", defaultValue: 20 }
-    after: { type: "String" }
-  ) {
-    softwareActions(filter: $filter, search: $search, first: $first, after: $after)
-      @connection(key: "softwareActionsTable_softwareActions") {
+    softwareActions(filter: $filter, search: $search, first: $first, after: $after) {
       filteredCount
       edges {
         node {
@@ -87,13 +73,15 @@ const softwareActionsTableFragment = graphql`
       }
       pageInfo {
         hasNextPage
+        hasPreviousPage
+        startCursor
         endCursor
       }
     }
   }
 `;
 
-type SoftwareActionRow = NonNullable<softwareActionsTable_query$data['softwareActions']>['edges'][number]['node'];
+type SoftwareActionRow = NonNullable<softwareActionsTableQuery$data['softwareActions']>['edges'][number]['node'];
 
 /** The selection of each funnel, keyed by its column id — the shape the URL keeps. */
 export interface SoftwareActionSelections {
@@ -190,6 +178,10 @@ interface SoftwareActionsTableProps {
   /** No run at all (not a search or funnel miss) — the view drops its toolbar. */
   onEmptyChange: (isEmpty: boolean) => void;
   stickyHeaderOffset: string;
+  /** The list's position in the URL: footer props, the stale check, the cursor drop. */
+  pager: UseCursorPagerReturn;
+  /** Deferred — the page variables to spread into the query (lag the URL while the next page is read). */
+  pageVariables: CursorPagerVariables;
 }
 
 /** The filter options before the query has read them (the loading state's): none known yet. */
@@ -201,6 +193,16 @@ const UNREAD_FILTER_OPTIONS: SoftwareActionFilterOptions = { actions: [], engine
  * form; otherwise it runs the query, which suspends under that boundary.
  */
 export function SoftwareActionsTable(props: SoftwareActionsTableProps) {
+  return (
+    <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
+      <SoftwareActionsTableLoading {...props} />
+    </StaleCursorBoundary>
+  );
+}
+
+/** The rows' loading boundary, the whole output of its own component (the loading standard), under the
+ * stale-cursor boundary above. */
+function SoftwareActionsTableLoading(props: SoftwareActionsTableProps) {
   return (
     <LoadingSuspense label="Loading software actions">
       <SoftwareActionsTableReader {...props} />
@@ -216,7 +218,7 @@ function SoftwareActionsTableReader(props: SoftwareActionsTableProps) {
         rows={NO_ITEMS}
         totalCount={0}
         filterOptions={UNREAD_FILTER_OPTIONS}
-        infiniteScroll={NO_NEXT_PAGE}
+        pager={null}
       />
     );
   }
@@ -224,25 +226,28 @@ function SoftwareActionsTableReader(props: SoftwareActionsTableProps) {
 }
 
 function SoftwareActionsTableQuery(props: SoftwareActionsTableProps) {
-  const { backendFilters, debouncedSearch } = props;
+  const { backendFilters, debouncedSearch, isPending, pager, pageVariables } = props;
   const retryKey = useRetryKey();
-  const queryData = useLazyLoadQuery<SoftwareActionsTableQueryType>(
-    softwareActionsTableQuery,
-    { filter: backendFilters, search: debouncedSearch || null, first: SOFTWARE_ACTIONS_PAGE_SIZE, after: null },
-    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
-  );
-
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
-    SoftwareActionsTablePaginationQueryType,
-    softwareActionsTable_query$key
-  >(softwareActionsTableFragment, queryData);
+  const variables = {
+    filter: backendFilters,
+    search: debouncedSearch || null,
+    ...forwardPage(pageVariables, SOFTWARE_ACTIONS_PAGE_SIZE),
+  };
+  const data = useLazyLoadQuery<SoftwareActionsTableQueryType>(softwareActionsTableQuery, variables, {
+    fetchPolicy: 'store-and-network',
+    fetchKey: retryKey,
+  });
+  const refetch = useRefetchPage<SoftwareActionsTableQueryType>(softwareActionsTableQuery, variables);
 
   const rows = (data.softwareActions?.edges ?? []).map(edge => edge.node);
   const totalCount = data.softwareActions?.filteredCount ?? rows.length;
-
-  const fetchNextPage = () => {
-    if (hasNext && !isLoadingNext) loadNext(SOFTWARE_ACTIONS_PAGE_SIZE);
-  };
+  const paged = usePagedTable({
+    pager,
+    pageInfo: data.softwareActions?.pageInfo,
+    rowCount: rows.length,
+    refetch,
+    isPending,
+  });
 
   // The funnels' options: what actually occurs across the tenant's runs, from
   // the server, so a value no run has is never offered.
@@ -254,16 +259,20 @@ function SoftwareActionsTableQuery(props: SoftwareActionsTableProps) {
       rows={rows}
       totalCount={totalCount}
       filterOptions={filterOptions}
-      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+      pager={paged.pager}
+      refresh={paged.refresh}
     />
   );
 }
 
-interface SoftwareActionsRowsProps extends SoftwareActionsTableProps {
+interface SoftwareActionsRowsProps extends Omit<SoftwareActionsTableProps, 'pager' | 'pageVariables'> {
   rows: readonly SoftwareActionRow[];
   totalCount: number;
   filterOptions: SoftwareActionFilterOptions;
-  infiniteScroll: InfiniteScroll;
+  /** The First · Prev · Next footer (`usePagedTable`); `null` while the first page is read. */
+  pager: CursorPagerFooterProps | null;
+  /** The auto-refresh picker in the header (`usePagedTable`). */
+  refresh?: AutoRefreshControlProps;
 }
 
 /** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
@@ -271,7 +280,8 @@ function SoftwareActionsRows({
   rows,
   totalCount,
   filterOptions,
-  infiniteScroll,
+  pager,
+  refresh,
   backendFilters,
   debouncedSearch,
   selections,
@@ -300,8 +310,10 @@ function SoftwareActionsRows({
   });
 
   // A search or a funnel that finds nothing keeps the table (its own "no match"
-  // row); a tenant with no run at all gets the page's empty state instead.
-  const showEmptyState = !loading && !debouncedSearch && !backendFilters && !isPending && rows.length === 0;
+  // row); a tenant with no run at all gets the page's empty state instead. An empty LATER page keeps the table, so
+  // First stays reachable.
+  const showEmptyState =
+    !loading && !debouncedSearch && !backendFilters && !isPending && rows.length === 0 && (pager?.isFirstPage ?? true);
 
   useEffect(() => {
     onEmptyChange(showEmptyState);
@@ -333,8 +345,8 @@ function SoftwareActionsRows({
           : 'No software actions match the selected filters. Try adjusting your filters.',
       )}
       rowHref={detailsHref}
-      // Zero rows plus a next page: see vulnerability-table.tsx.
-      footer={rows.length > 0 ? infiniteScroll : null}
+      pager={pager}
+      refresh={refresh}
     />
   );
 }

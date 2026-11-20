@@ -3,6 +3,7 @@
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  type AutoRefreshControlProps,
   type ColumnDef,
   type DataTableSortState,
   type Row,
@@ -10,30 +11,27 @@ import {
   useLoadingScope,
   GRID_MIN_WIDTH,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useEffect, useMemo } from 'react';
-import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type {
-  softwareDevicesTable_query$data,
-  softwareDevicesTable_query$key,
-} from '@/__generated__/softwareDevicesTable_query.graphql';
-import type { softwareDevicesTablePaginationQuery as SoftwareDevicesTablePaginationQueryType } from '@/__generated__/softwareDevicesTablePaginationQuery.graphql';
+  CursorPagerFooterProps,
+  CursorPagerVariables,
+  UseCursorPagerReturn,
+} from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useEffect, useMemo } from 'react';
+import { graphql, useLazyLoadQuery } from 'react-relay';
 import type {
   SoftwareOnDeviceFilterInput,
   softwareDevicesTableQuery as SoftwareDevicesTableQueryType,
+  softwareDevicesTableQuery$data,
   SortInput,
 } from '@/__generated__/softwareDevicesTableQuery.graphql';
-import {
-  EmptyState,
-  type InfiniteScroll,
-  liveColumnMeta,
-  NO_ITEMS,
-  NO_NEXT_PAGE,
-  oneLineEmptyState,
-  useRetryKey,
-} from '@/app/components/shared';
+import { EmptyState, liveColumnMeta, NO_ITEMS, oneLineEmptyState, useRetryKey } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { openRowColumn } from '@/app/components/shared/open-row-column';
+import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
 import { useTableGrid } from '@/app/components/shared/table-layout-scope';
+import { forwardPage } from '@/app/hooks/forward-page';
+import { usePagedTable } from '@/app/hooks/use-paged-table';
+import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { singleColumnFilter } from '../../shared/column-filters';
@@ -48,7 +46,9 @@ import { SOFTWARE_ON_DEVICE_STATUS_OPTIONS } from './software-on-device-status';
  * Software → Devices: the machines carrying this title, each with its OWN
  * installed version and per-device status (OUTDATED / SCHEDULED_UPDATE / …).
  * The Status funnel offers the states the backend can report — a fixed list,
- * see `SOFTWARE_ON_DEVICE_STATUS_OPTIONS`.
+ * see `SOFTWARE_ON_DEVICE_STATUS_OPTIONS`. One page at a time, its cursor in the
+ * URL (`deviceCursor`; no `@connection`: a cursor from a link must read exactly
+ * its page).
  */
 const softwareDevicesTableQuery = graphql`
   query softwareDevicesTableQuery(
@@ -59,22 +59,6 @@ const softwareDevicesTableQuery = graphql`
     $first: Int!
     $after: String
   ) {
-    ...softwareDevicesTable_query
-      @arguments(softwareId: $softwareId, filter: $filter, search: $search, sort: $sort, first: $first, after: $after)
-  }
-`;
-
-const softwareDevicesTableFragment = graphql`
-  fragment softwareDevicesTable_query on Query
-  @refetchable(queryName: "softwareDevicesTablePaginationQuery")
-  @argumentDefinitions(
-    softwareId: { type: "ID!" }
-    filter: { type: "SoftwareOnDeviceFilterInput" }
-    search: { type: "String" }
-    sort: { type: "SortInput" }
-    first: { type: "Int", defaultValue: 20 }
-    after: { type: "String" }
-  ) {
     softwareDevices(
       softwareId: $softwareId
       filter: $filter
@@ -82,7 +66,7 @@ const softwareDevicesTableFragment = graphql`
       sort: $sort
       first: $first
       after: $after
-    ) @connection(key: "softwareDevicesTable_softwareDevices") {
+    ) {
       filteredCount
       edges {
         node {
@@ -101,13 +85,15 @@ const softwareDevicesTableFragment = graphql`
       }
       pageInfo {
         hasNextPage
+        hasPreviousPage
+        startCursor
         endCursor
       }
     }
   }
 `;
 
-type SoftwareDeviceRow = NonNullable<softwareDevicesTable_query$data['softwareDevices']>['edges'][number]['node'];
+type SoftwareDeviceRow = NonNullable<softwareDevicesTableQuery$data['softwareDevices']>['edges'][number]['node'];
 
 /**
  * The device's page — by its agent machine id, or the global id for a device with no agent yet. A loading placeholder
@@ -185,7 +171,8 @@ function buildColumns(): ColumnDef<SoftwareDeviceRow>[] {
  * The row's position tells the two apart until the backend either dedupes the
  * rows or gives `SoftwareOnDevice` an id of its own — then this goes back to
  * `row.device.id`. Position is a safe tiebreaker here and nowhere else: the
- * list only ever appends pages, and a sort or funnel change rebuilds it whole.
+ * table only ever shows one page, and a page, sort or funnel change rebuilds it
+ * whole.
  */
 const getRowId = (row: SoftwareDeviceRow, index: number) =>
   // A loading placeholder (`loadingPlaceholderRows`) has no device yet: it keys on its own id.
@@ -205,6 +192,12 @@ interface SoftwareDevicesTableProps {
   /** No device carries this title at all (not a search or funnel miss) — the tab drops its toolbar. */
   onEmptyChange: (isEmpty: boolean) => void;
   stickyHeaderOffset: string;
+  /** The list's position in the URL: footer props, the stale check, the cursor drop. */
+  pager: UseCursorPagerReturn;
+  /** Deferred — the page variables to spread into the query (lag the URL while the next page is read). */
+  pageVariables: CursorPagerVariables;
+  /** The URL prefix of the tab's params (its auto-refresh interval sits beside them). */
+  paramPrefix: string;
 }
 
 /**
@@ -214,6 +207,16 @@ interface SoftwareDevicesTableProps {
  */
 export function SoftwareDevicesTable(props: SoftwareDevicesTableProps) {
   return (
+    <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
+      <SoftwareDevicesTableLoading {...props} />
+    </StaleCursorBoundary>
+  );
+}
+
+/** The rows' loading boundary, the whole output of its own component (the loading standard), under the
+ * stale-cursor boundary above. */
+function SoftwareDevicesTableLoading(props: SoftwareDevicesTableProps) {
+  return (
     <LoadingSuspense label="Loading devices">
       <SoftwareDevicesTableReader {...props} />
     </LoadingSuspense>
@@ -222,60 +225,67 @@ export function SoftwareDevicesTable(props: SoftwareDevicesTableProps) {
 
 function SoftwareDevicesTableReader(props: SoftwareDevicesTableProps) {
   if (useLoadingScope()) {
-    return <SoftwareDevicesTableRows {...props} rows={NO_ITEMS} totalCount={0} infiniteScroll={NO_NEXT_PAGE} />;
+    return <SoftwareDevicesTableRows {...props} rows={NO_ITEMS} totalCount={0} pager={null} />;
   }
   return <SoftwareDevicesTableQuery {...props} />;
 }
 
 function SoftwareDevicesTableQuery(props: SoftwareDevicesTableProps) {
-  const { softwareId, backendFilters, debouncedSearch, sort } = props;
+  const { softwareId, backendFilters, debouncedSearch, sort, isPending, pager, pageVariables, paramPrefix } = props;
   const retryKey = useRetryKey();
-  const queryData = useLazyLoadQuery<SoftwareDevicesTableQueryType>(
-    softwareDevicesTableQuery,
-    {
-      softwareId,
-      filter: backendFilters,
-      search: debouncedSearch || null,
-      sort,
-      first: SOFTWARE_DEVICES_PAGE_SIZE,
-      after: null,
-    },
-    { fetchPolicy: 'store-or-network', fetchKey: retryKey },
-  );
-
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
-    SoftwareDevicesTablePaginationQueryType,
-    softwareDevicesTable_query$key
-  >(softwareDevicesTableFragment, queryData);
+  const variables = {
+    softwareId,
+    filter: backendFilters,
+    search: debouncedSearch || null,
+    sort,
+    ...forwardPage(pageVariables, SOFTWARE_DEVICES_PAGE_SIZE),
+  };
+  const data = useLazyLoadQuery<SoftwareDevicesTableQueryType>(softwareDevicesTableQuery, variables, {
+    fetchPolicy: 'store-or-network',
+    fetchKey: retryKey,
+  });
+  const refetch = useRefetchPage<SoftwareDevicesTableQueryType>(softwareDevicesTableQuery, variables);
 
   const rows = (data.softwareDevices?.edges ?? []).map(edge => edge.node);
   const totalCount = data.softwareDevices?.filteredCount ?? rows.length;
-
-  const fetchNextPage = () => {
-    if (hasNext && !isLoadingNext) loadNext(SOFTWARE_DEVICES_PAGE_SIZE);
-  };
+  const paged = usePagedTable({
+    pager,
+    pageInfo: data.softwareDevices?.pageInfo,
+    rowCount: rows.length,
+    prefix: paramPrefix,
+    refetch,
+    isPending,
+  });
 
   return (
     <SoftwareDevicesTableRows
       {...props}
       rows={rows}
       totalCount={totalCount}
-      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+      pager={paged.pager}
+      refresh={paged.refresh}
     />
   );
 }
 
-interface SoftwareDevicesTableRowsProps extends SoftwareDevicesTableProps {
+interface SoftwareDevicesTableRowsProps extends Omit<
+  SoftwareDevicesTableProps,
+  'pager' | 'pageVariables' | 'paramPrefix'
+> {
   rows: readonly SoftwareDeviceRow[];
   totalCount: number;
-  infiniteScroll: InfiniteScroll;
+  /** The First · Prev · Next footer (`usePagedTable`); `null` while the first page is read. */
+  pager: CursorPagerFooterProps | null;
+  /** The auto-refresh picker in the header (`usePagedTable`). */
+  refresh?: AutoRefreshControlProps;
 }
 
 /** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
 function SoftwareDevicesTableRows({
   rows,
   totalCount,
-  infiniteScroll,
+  pager,
+  refresh,
   backendFilters,
   debouncedSearch,
   sortState,
@@ -312,8 +322,10 @@ function SoftwareDevicesTableRows({
   });
 
   // A search or a funnel that finds nothing keeps the table (its own "no match"
-  // row); a title on no device at all gets the section's empty state instead.
-  const showEmptyState = !loading && !debouncedSearch && !backendFilters && !isPending && rows.length === 0;
+  // row); a title on no device at all gets the section's empty state instead. An empty LATER page keeps the table, so
+  // First stays reachable.
+  const showEmptyState =
+    !loading && !debouncedSearch && !backendFilters && !isPending && rows.length === 0 && (pager?.isFirstPage ?? true);
 
   useEffect(() => {
     onEmptyChange(showEmptyState);
@@ -347,8 +359,8 @@ function SoftwareDevicesTableRows({
           : 'No devices with the selected status. Try adjusting your filter.',
       )}
       rowHref={deviceHref}
-      // Zero rows plus a next page: see vulnerability-table.tsx.
-      footer={rows.length > 0 ? infiniteScroll : null}
+      pager={pager}
+      refresh={refresh}
     />
   );
 }
