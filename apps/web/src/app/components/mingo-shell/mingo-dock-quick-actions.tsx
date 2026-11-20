@@ -34,8 +34,8 @@ export function MingoDockQuickActions({ onSend }: MingoDockQuickActionsProps) {
   if (chips.length === 0 && !loading) return null;
   return (
     // Inset exactly like the composer card under it, so the two line up at every width
-    // (`useDockComposerInset`): from md in v2 it is `wide`, none under 720px of content (a narrow
-    // column, the 800–911px one-column layout) and `spacing-system-m` from there; on a phone, and
+    // (`useDockComposerInset`): in the v2 chat column from md it is `wide`, none under 720px of
+    // content (the column pads it) and `spacing-system-m` from there; under a page, on a phone and
     // outside v2, always `spacing-system-m`. The
     // row's distance to it as the design's dock draws it (`spacing-system-xs`). The row names
     // itself ("Quick actions").

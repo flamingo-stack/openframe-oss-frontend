@@ -168,10 +168,10 @@ describe('the composer host', () => {
           <ManhattanComposerPortal>
             <Composer onMount={onMount} />
           </ManhattanComposerPortal>
-          <ManhattanComposerSlot active={!inColumn} />
+          <ManhattanComposerSlot place="page" active={!inColumn} />
         </section>
         <section aria-label="column">
-          <ManhattanComposerSlot active={inColumn} />
+          <ManhattanComposerSlot place="column" active={inColumn} />
         </section>
       </>
     );

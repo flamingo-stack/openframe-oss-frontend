@@ -14,18 +14,32 @@ import { create } from 'zustand';
  * the active slot moves that element (the DOM node, not the React tree) into itself.
  * React never sees the move: the portal's container is the same node wherever it hangs.
  */
+/** Where the composer is: the dock under the page, or the bottom of the chat column. */
+export type ManhattanComposerPlace = 'page' | 'column';
+
 interface ComposerHostStore {
   host: HTMLDivElement | null;
   /** The host has hung in a slot once: the portal renders from then on (its first layout reads a laid-out box). */
   attached: boolean;
-  markAttached: () => void;
+  /** The slot the host hangs in now; `null` before the first one takes it. */
+  place: ManhattanComposerPlace | null;
+  attach: (place: ManhattanComposerPlace) => void;
 }
 
 const useComposerHostStore = create<ComposerHostStore>()(set => ({
   host: typeof document === 'undefined' ? null : document.createElement('div'),
   attached: false,
-  markAttached: () => set({ attached: true }),
+  place: null,
+  attach: place => set({ attached: true, place }),
 }));
+
+/**
+ * The slot the composer hangs in, for what draws it differently there (its side inset). Known on
+ * the dock's first render: the portal renders only once a slot holds the host.
+ */
+export function useManhattanComposerPlace(): ManhattanComposerPlace | null {
+  return useComposerHostStore(s => s.place);
+}
 
 /** Renders `children` (the dock) once, into the moving host. Keep it mounted for the session. */
 export function ManhattanComposerPortal({ children }: { children: ReactNode }) {
@@ -40,18 +54,26 @@ export function ManhattanComposerPortal({ children }: { children: ReactNode }) {
  * active at a time (the caller derives both from the same mode). The old slot lets go
  * in its effect cleanup, which React runs before the new slot's effect in the same commit.
  */
-export function ManhattanComposerSlot({ active, className }: { active: boolean; className?: string }) {
+export function ManhattanComposerSlot({
+  place,
+  active,
+  className,
+}: {
+  place: ManhattanComposerPlace;
+  active: boolean;
+  className?: string;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const host = useComposerHostStore(s => s.host);
-  const markAttached = useComposerHostStore(s => s.markAttached);
+  const attach = useComposerHostStore(s => s.attach);
   useLayoutEffect(() => {
     const slot = ref.current;
     if (!active || !host || !slot) return undefined;
     slot.appendChild(host);
-    markAttached();
+    attach(place);
     return () => {
       if (host.parentNode === slot) slot.removeChild(host);
     };
-  }, [active, host, markAttached]);
+  }, [active, host, attach, place]);
   return <div ref={ref} className={className} data-composer-slot={active ? 'active' : undefined} />;
 }

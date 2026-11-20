@@ -303,7 +303,7 @@ export function ManhattanCentre({
         wrapDock: dock => (
           <>
             <ManhattanComposerPortal>{dock}</ManhattanComposerPortal>
-            <ManhattanComposerSlot active={shown === 'page'} />
+            <ManhattanComposerSlot place="page" active={shown === 'page'} />
           </>
         ),
         // Start Work is a page of blocks ("Needs you"), not a centred greeting: the dock lies
@@ -400,7 +400,7 @@ function ManhattanChatColumn({
         data-testid="manhattan-column-dock"
         className={cn('shrink-0', startWork && 'pointer-events-none absolute inset-x-0 bottom-0 z-10')}
       >
-        <ManhattanComposerSlot active={shown} className={COLUMN_COMPOSER_SECTION} />
+        <ManhattanComposerSlot place="column" active={shown} className={COLUMN_COMPOSER_SECTION} />
       </div>
     </div>
   );
