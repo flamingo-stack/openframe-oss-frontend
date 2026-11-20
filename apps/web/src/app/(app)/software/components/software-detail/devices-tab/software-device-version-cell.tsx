@@ -11,7 +11,9 @@ const softwareDeviceVersionCellFragment = graphql`
   fragment softwareDeviceVersionCell_softwareOnDevice on SoftwareOnDevice {
     softwareVersion
     status
-    ...softwareDeviceAdoptionTag_softwareOnDevice
+    device {
+      id
+    }
   }
 `;
 
@@ -32,7 +34,7 @@ export function SoftwareDeviceVersionCell({
     <div className="flex min-w-0 flex-wrap items-center gap-[var(--spacing-system-xxs)]">
       <ValueText value={data?.softwareVersion} />
       <SoftwareOnDeviceStatusTag status={data?.status} />
-      <SoftwareDeviceAdoptionTag softwareOnDevice={data ?? null} className="content-md:hidden" />
+      <SoftwareDeviceAdoptionTag deviceId={data?.device.id} className="content-md:hidden" />
     </div>
   );
 }

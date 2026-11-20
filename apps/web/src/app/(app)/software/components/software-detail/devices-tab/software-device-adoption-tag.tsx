@@ -3,10 +3,10 @@
 import { DotsLoaderIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { FloatingTooltip, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import { createContext, type ReactNode, use } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type { softwareDeviceAdoptionTag_softwareOnDevice$key } from '@/__generated__/softwareDeviceAdoptionTag_softwareOnDevice.graphql';
 import { DeviceConnectivity, SoftwareAdoptionStatus } from '@/generated/schema-enums';
-import { useSoftwareAdoptGate } from '../../adopt/use-software-adopt-gate';
 
 const softwareDeviceAdoptionTagFragment = graphql`
   fragment softwareDeviceAdoptionTag_softwareOnDevice on SoftwareOnDevice {
@@ -21,21 +21,35 @@ const softwareDeviceAdoptionTagFragment = graphql`
 `;
 
 /**
+ * The rows' adoption reads, by device id. Only the Devices query run with Adopt on selects `adoption`
+ * (`softwareDevicesTableAdoptQuery`): a backend without Adopt rejects any operation that names it, even under a skipped
+ * `@include`, so the cells' own fragments cannot carry it. That query hands its rows' references in here.
+ */
+export type SoftwareDeviceAdoptionRefs = ReadonlyMap<string, softwareDeviceAdoptionTag_softwareOnDevice$key>;
+
+export const SoftwareDeviceAdoptionRefsContext = createContext<SoftwareDeviceAdoptionRefs | null>(null);
+
+/**
  * The device's adoption of the title (design 1227:45730): ADOPTING, with "Starts when online" under it on an offline
- * device, or ADOPTION FAILED with the device's reason on hover. Nothing when there is no adoption, while the row is
- * read (null), or while Adopt is not on (`useSoftwareAdoptGate`).
+ * device, or ADOPTION FAILED with the device's reason on hover. `fallback` (nothing by default) when there is no
+ * adoption, while the row is read, or while Adopt is off: its read comes from the Adopt query, by device id
+ * (`SoftwareDeviceAdoptionRefsContext`), which runs only with the flag on.
  */
 export function SoftwareDeviceAdoptionTag({
-  softwareOnDevice,
+  deviceId,
   className,
+  fallback = null,
 }: {
-  softwareOnDevice: softwareDeviceAdoptionTag_softwareOnDevice$key | null;
+  /** The row's device; undefined while the row is read. */
+  deviceId: string | undefined;
   /** Where it is drawn: the host's visibility for it, e.g. only while its own column is hidden. */
   className?: string;
+  /** What the host draws in its place without an adoption. */
+  fallback?: ReactNode;
 }) {
-  const adoptOn = useSoftwareAdoptGate() === 'on';
-  const data = useFragment(softwareDeviceAdoptionTagFragment, softwareOnDevice);
-  const adoption = adoptOn ? data?.adoption : null;
+  const refs = use(SoftwareDeviceAdoptionRefsContext);
+  const data = useFragment(softwareDeviceAdoptionTagFragment, (deviceId && refs?.get(deviceId)) || null);
+  const adoption = data?.adoption;
 
   if (adoption?.status === SoftwareAdoptionStatus.ADOPTING) {
     const offline = data?.device.connectivity === DeviceConnectivity.OFFLINE;
@@ -56,5 +70,5 @@ export function SoftwareDeviceAdoptionTag({
       </div>
     );
   }
-  return null;
+  return fallback;
 }

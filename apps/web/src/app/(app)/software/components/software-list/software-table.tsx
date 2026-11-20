@@ -7,7 +7,7 @@ import {
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { type ReactNode, useEffect } from 'react';
+import { type ReactNode, use, useEffect } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type {
   softwareTable_software$data,
@@ -21,7 +21,7 @@ import { routes } from '@/lib/routes';
 import { useSoftwareAdoptGate } from '../adopt/use-software-adopt-gate';
 import { multiColumnFilter } from '../shared/column-filters';
 import type { ListSelections } from '../shared/software-list-frame';
-import { SoftwareAdoptionCell } from './software-adoption-cell';
+import { SoftwareAdoptionCell, SoftwareAdoptionRefsContext } from './software-adoption-cell';
 import { SoftwareAutoUpdateCell } from './software-auto-update-cell';
 import { SoftwareEngineCell } from './software-engine-cell';
 import { SOFTWARE_LIST_COLUMNS, SOFTWARE_LIST_PAGE_SIZE } from './software-list-columns';
@@ -52,7 +52,6 @@ const softwareTableFragment = graphql`
     ...softwareOsCell_software
     ...softwareEngineCell_software
     ...softwareAutoUpdateCell_software
-    ...softwareAdoptionCell_software
   }
 `;
 
@@ -118,7 +117,7 @@ const DEVICE_COLUMNS: ColumnDef<SoftwareRow>[] = [
 const ADOPTION_COLUMN: ColumnDef<SoftwareRow> = {
   id: SOFTWARE_LIST_COLUMNS.adoption.id,
   header: SOFTWARE_LIST_COLUMNS.adoption.header,
-  cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareAdoptionCell software={row.original} />,
+  cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareAdoptionCell softwareId={row.original.id} />,
   enableSorting: false,
   // One line in both layouts: the grid draws the same cell.
   size: 120,
@@ -219,8 +218,8 @@ function LoadedSoftwareTable({
 }: SoftwareTableProps) {
   // The rows have not answered yet: the table draws its own loading state, never the empty one.
   const loading = useLoadingScope();
-  // Not off, like the loading table below: the column does not come and go while the gate answers.
-  const adopt = useSoftwareAdoptGate() !== 'off';
+  // The rows came from the Adopt list query (it provides their reads): the gate was on, as the loading table drew it.
+  const adopt = use(SoftwareAdoptionRefsContext) !== null;
   const tableGrid = useTableGrid(SETTINGS_KEY[surface]);
   const rows = useFragment(softwareTableFragment, rowRefs);
   const { columnFilters, onColumnFiltersChange } = multiColumnFilter(selections, onSelectionsChange);

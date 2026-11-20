@@ -167,7 +167,7 @@ describe('Software list', () => {
     const { container } = mountInScope(softwareTable('fleet'), { fill: true });
 
     expect(gridRoot(container)).not.toBeNull();
-    expect(gridColumns(container)).toEqual(['name', 'currentVersion', 'os', 'engine', 'autoUpdate', 'adoption']);
+    expect(gridColumns(container)).toEqual(['name', 'currentVersion', 'os', 'engine', 'autoUpdate']);
     expect(fixedViewport(container)).not.toBeNull();
     expect(settingsGear(container)).not.toBeNull();
     expect(twoLineCells(container)).toHaveLength(0);
