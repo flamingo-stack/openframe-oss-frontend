@@ -519,12 +519,11 @@ describe('MingoComposerDock', () => {
       setSurface({ activeDialogId: 'a' });
       const sheetNode = document.createElement('div');
       useMingoSheetStore.setState({ open: true, node: sheetNode });
-      chips.onSend = null;
       render('/mingo/');
       expect(props().threadContainer).toBe(sheetNode);
       expect(headerActions().map(action => action.label)).toEqual(['Open as full chat', 'Back to page']);
       // The composer replies to the chat in the sheet: no quick actions for a new one.
-      expect(chips.onSend).toBeNull();
+      expect(props().composerQuickActions).toBe(false);
       expect(selectDialog).not.toHaveBeenCalledWith(null);
     });
   });
@@ -681,17 +680,11 @@ describe('MingoComposerDock', () => {
     }
   });
 
-  it('sends a quick action at once, in a new chat', () => {
+  it("sends a quick action from the chat's row at once, in a new chat", () => {
     render('/mingo/');
-    act(() => chips.onSend?.('List every online machine'));
+    act(() => (props().onQuickActionSend as (text: string) => void)('List every online machine'));
     expect(startNewDialog).toHaveBeenCalledWith({ prompt: 'List every online machine' });
     expect(panel.prefillDraft).not.toHaveBeenCalled();
-  });
-
-  it('leaves the keyboard in the composer after a quick action: its row goes away with the send', () => {
-    render('/mingo/');
-    act(() => chips.onSend?.('List every online machine'));
-    expect(panel.focusComposer).toHaveBeenCalledTimes(1);
   });
 
   it("draws the session's engine as it is, and is told of the panel's sends", () => {
@@ -707,9 +700,8 @@ describe('MingoComposerDock', () => {
 
   describe('per route', () => {
     it('home: a new chat — its own prompt, the model row, the quick actions', () => {
-      chips.onSend = null;
       render('/mingo/');
-      expect(chips.onSend).toBeTypeOf('function');
+      expect(props().composerQuickActions).toBe(true);
       // The lib's default: the model row is on every route, so the composer keeps its height.
       expect(props().showModel).toBeUndefined();
       expect(props()).toMatchObject({
@@ -719,19 +711,22 @@ describe('MingoComposerDock', () => {
       expect(container.querySelector('section')?.className).toContain('max-w-[880px]');
     });
 
-    it('no other page carries the quick actions, a full-width one included', () => {
-      for (const pathname of ['/devices/', '/devices/details/file-manager/']) {
-        chips.onSend = null;
+    it('every page carries its quick actions', () => {
+      for (const pathname of ['/devices/', '/tickets/', '/help-center/tickets/']) {
         render(pathname);
-        expect(chips.onSend).toBeNull();
+        expect(props().composerQuickActions).toBe(true);
       }
     });
 
+    it('a full-width page carries none: it keeps its height', () => {
+      render('/devices/details/file-manager/');
+      expect(props().composerQuickActions).toBe(false);
+    });
+
     it('the chat page carries none: its new chat draws them in its empty state', () => {
-      chips.onSend = null;
       setSurface({ activeDialogId: 'd-1' });
       render('/mingo/chat/');
-      expect(chips.onSend).toBeNull();
+      expect(props().composerQuickActions).toBe(false);
     });
 
     it('chat: the 760px column and the model row', () => {
@@ -795,7 +790,7 @@ describe('MingoComposerDock', () => {
       renderV2('/devices/');
       expect(props().threadContainer).toBeNull();
       expect(props().composerPlaceholder).toBe(dockViewOf('home').placeholder);
-      expect(chips.onSend).not.toBeNull();
+      expect(props().composerQuickActions).toBe(true);
     });
 
     it("draws no Getting Started block on Start Work, and the tour's block beside a page", () => {

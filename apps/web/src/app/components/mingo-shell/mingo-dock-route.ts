@@ -68,13 +68,16 @@ export function canShowSheet(route: ComposerRoute): boolean {
 }
 
 /**
- * Where the dock draws Mingo's quick actions over its composer: Mingo's home only, a new
- * chat. On a page they took its height for actions that are not about it; the chat page's
- * new chat draws them in its own empty state. The caller also leaves them out while the
- * sheet is up: the composer then replies to the chat in it.
+ * Where the dock draws Mingo's quick actions over its composer: Mingo's home (a new chat) and
+ * every page. The hub answers each page with the actions written for it (the page's topic,
+ * read from its address), so a page shows its own, and one with none shows none (only its
+ * topic stamp, where the host asks for it). Not on the chat page, whose new chat draws them in
+ * its own empty state, nor on a full-width page (a remote screen or an editor keeps its
+ * height). The caller also leaves them out while the sheet is up: the composer then replies
+ * to the chat in it.
  */
 export function showsDockQuickActions(route: ComposerRoute): boolean {
-  return route === 'home';
+  return route === 'home' || route === 'page';
 }
 
 /** How the dock draws itself on a route. */
