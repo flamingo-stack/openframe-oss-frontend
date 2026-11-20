@@ -3,6 +3,7 @@
 import { TagIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
+  type DataTableSettings,
   LoadingWhen,
   PageError,
   SearchInput,
@@ -13,6 +14,7 @@ import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo, useState } from 'react';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import type { TableLayout } from '@/app/hooks/use-table-layout';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import {
   getTicketOpenColumn,
@@ -25,11 +27,23 @@ import type { Dialog } from '../../../tickets/types/dialog.types';
 import type { Device } from '../../types/device.types';
 import { TabEmptyState } from './tab-empty-state';
 
+/**
+ * The grid table's settings: the gear's menu of columns, with the viewer's layout (hidden columns, their order, resized
+ * widths) kept in the browser under this table's own key (the Tickets page's table has another).
+ */
+const DEVICE_TICKETS_TABLE_SETTINGS: DataTableSettings = { storageKey: 'device-tickets' };
+
 interface TicketsTabProps {
   device: Device | null;
+  /**
+   * The table's layout. `grid` draws the lib's grid table (48px one-line rows, the ticket column pinned, the open
+   * action pinned right, the gear menu), at the tab's natural height: the page scrolls. The columns' grid form (sizes,
+   * one-line cells, the open action column) is the shared ticket columns' own. Default `cards`.
+   */
+  tableLayout?: TableLayout;
 }
 
-export function TicketsTab({ device }: TicketsTabProps) {
+export function TicketsTab({ device, tableLayout = 'cards' }: TicketsTabProps) {
   // The device has not answered (the page's loading scope), or the first page has not.
   const scoped = useLoadingScope();
   const [search, setSearch] = useState('');
@@ -158,6 +172,9 @@ export function TicketsTab({ device }: TicketsTabProps) {
           rowHref={ticketRowHref}
           footer={{ hasNextPage, isFetchingNextPage, onLoadMore: handleLoadMore }}
           loadingCells={loading}
+          // The grid table keeps the tab's natural height (the page scrolls); the card rows take neither option.
+          layout={tableLayout}
+          settings={DEVICE_TICKETS_TABLE_SETTINGS}
         />
       </LoadingWhen>
     </div>

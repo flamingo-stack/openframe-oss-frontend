@@ -5,7 +5,7 @@ import {
   DeviceLifecycleTag,
   formatLastOnline,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { DataTable, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { softwareLogDeviceCell_device$key } from '@/__generated__/softwareLogDeviceCell_device.graphql';
 import { ValueText } from '@/app/components/shared';
@@ -47,5 +47,33 @@ export function SoftwareLogDeviceCell({ device }: { device: softwareLogDeviceCel
         </TruncateText>
       </div>
     </div>
+  );
+}
+
+/**
+ * DEVICE column in the grid layout: one line, the connectivity icon, the device, its status chip, then when it was
+ * last online.
+ */
+export function SoftwareLogDeviceGridCell({ device }: { device: softwareLogDeviceCell_device$key | null | undefined }) {
+  // A row still being read (a loading scope) has no fragment to read: the icon and the name draw their loading forms.
+  const data = useFragment(softwareLogDeviceCellFragment, useLoadingScope() ? null : device);
+  return (
+    <DataTable.Cell
+      leading={{
+        type: 'icon',
+        icon: (
+          <DeviceConnectivityIcon
+            connectivity={data?.connectivity}
+            lastSeen={data?.lastSeen}
+            size={20}
+            className="size-5"
+          />
+        ),
+      }}
+      // The run knows the device by its hostname; one that never reported a name reads as its id.
+      text={data ? data.hostname || data.machineId : ''}
+      tag={data?.deviceStatus && <DeviceLifecycleTag status={data.deviceStatus} connectivity={data.connectivity} />}
+      secondary={data ? formatLastOnline(data.lastSeen) : undefined}
+    />
   );
 }

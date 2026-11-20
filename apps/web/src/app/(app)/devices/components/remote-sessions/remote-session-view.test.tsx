@@ -33,6 +33,12 @@ const playback = vi.hoisted<{
   seekToTime: vi.fn(),
 }));
 const linked = vi.hoisted(() => ({ tickets: [] as RecordingTicket[] }));
+// The app's one table flag (`data-table-grid`), as the real hook answers it.
+const tableFlag = vi.hoisted(() => ({ gate: 'off' as 'loading' | 'on' | 'off' }));
+vi.mock('@/app/hooks/use-table-layout', () => ({
+  useTableGridGate: () => tableFlag.gate,
+  tableLayoutFor: (gate: string) => (gate === 'on' ? 'grid' : 'cards'),
+}));
 const T0 = Date.parse('2026-10-14T08:00:00.000Z');
 const timeline = vi.hoisted(() => ({
   events: [] as { id: string; atMs: number; offsetMs: number | null; title: string; detail: string | null }[],
@@ -121,6 +127,7 @@ beforeEach(() => {
   playback.currentMs = 0;
   timeline.events = [];
   linked.tickets = [];
+  tableFlag.gate = 'off';
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -323,5 +330,25 @@ describe('RemoteSessionView tickets', () => {
     render();
     expect(container.textContent).toContain('Assigned Tickets');
     expect(container.textContent).toContain('Page not found error');
+  });
+
+  it('lists them on card rows while the table flag is off, and in the grid table while it is on', () => {
+    linked.tickets = [TICKET];
+    render();
+    expect(container.querySelector('[data-grid-root]')).toBeNull();
+
+    tableFlag.gate = 'on';
+    render();
+    expect(container.textContent).toContain('Page not found error');
+    expect(container.querySelector('[data-grid-root]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Table settings"]')).not.toBeNull();
+  });
+
+  it('holds the section back while the table flag is read, so its table never swaps layouts', () => {
+    linked.tickets = [TICKET];
+    tableFlag.gate = 'loading';
+    render();
+    expect(container.textContent).not.toContain('Assigned Tickets');
+    expect(container.querySelector('[data-grid-root]')).toBeNull();
   });
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { DataTable, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { softwareNameCell_software$key } from '@/__generated__/softwareNameCell_software.graphql';
 
@@ -28,4 +28,11 @@ export function SoftwareNameCell({ software }: { software: softwareNameCell_soft
       )}
     </div>
   );
+}
+
+/** SOFTWARE column in the grid layout: one line, the title and its publisher after it. */
+export function SoftwareNameGridCell({ software }: { software: softwareNameCell_software$key }) {
+  // A row still being read (a loading scope) has no fragment to read: the cell draws the title as a bar.
+  const data = useFragment(softwareNameCellFragment, useLoadingScope() ? null : software);
+  return <DataTable.Cell text={data?.name ?? ''} secondary={data?.publisher ?? undefined} />;
 }

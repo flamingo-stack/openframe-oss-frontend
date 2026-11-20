@@ -1,0 +1,2310 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`assignments tables, card rows (the flag off) > assigned articles 1`] = `
+<div>
+  <div
+    class="flex flex-col gap-[var(--spacing-system-mf)]"
+  >
+    <label
+      class="flex w-full cursor-text items-center gap-2 border px-3 h-11 md:h-12 rounded-[6px] has-[:focus-visible]:outline-none group transition-colors duration-200 border-ods-border bg-ods-card has-[:focus]:border-ods-accent hover:border-ods-border-hover hover:bg-ods-bg-hover active:border-ods-border-active active:bg-ods-bg-active [&>span]:has-[:disabled]:text-ods-text-disabled [&_svg]:has-[:disabled]:text-ods-text-disabled"
+    >
+      <span
+        class="flex-shrink-0 text-ods-text-secondary transition-colors duration-200 text-h6 group-has-[:focus]:text-ods-accent group-data-[invalid]:text-ods-error [&_svg]:size-4 md:[&_svg]:size-6"
+      >
+        <svg
+          class="h-4 w-4 content-md:h-6 content-md:w-6"
+          fill="none"
+          height="24"
+          viewBox="0 0 24 24"
+          width="24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M6.548 15.861a1.125 1.125 0 1 1 1.59 1.591l-4.343 4.343a1.125 1.125 0 1 1-1.59-1.59z"
+            fill="currentColor"
+          />
+          <path
+            d="M19.875 11a6.876 6.876 0 1 0-13.751.002A6.876 6.876 0 0 0 19.876 11Zm2.25 0a9.126 9.126 0 1 1-18.25 0 9.126 9.126 0 0 1 18.25 0"
+            fill="currentColor"
+          />
+        </svg>
+      </span>
+      <input
+        class="min-w-0 flex-1 border-none bg-transparent outline-none text-h4 text-ods-text-primary placeholder:text-ods-text-secondary file:border-0 file:bg-transparent disabled:cursor-not-allowed disabled:text-ods-text-disabled disabled:placeholder:text-ods-border touch-manipulation [&:-webkit-autofill]:[-webkit-box-shadow:0_0_0_9999px_transparent_inset] [&:-webkit-autofill]:[-webkit-text-fill-color:var(--color-text-primary)] [&:-webkit-autofill]:[caret-color:var(--color-text-primary)] [&:-webkit-autofill]:[transition:background-color_9999s_ease-in-out_0s]"
+        placeholder="Search for Knowledge Article"
+        value=""
+      />
+    </label>
+    <div
+      class="flex w-full flex-col"
+    >
+      <div
+        class="hidden content-md:flex content-md:flex-col"
+      >
+        <div
+          class="relative flex items-stretch gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)]"
+        >
+          <div
+            class="items-stretch hidden content-lg:flex flex-1 min-w-0"
+          >
+            <div
+              class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left"
+            >
+              <span
+                class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+              >
+                Name
+              </span>
+            </div>
+          </div>
+          <div
+            class="items-stretch hidden content-lg:flex w-[140px]"
+          >
+            <div
+              class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left"
+            >
+              <span
+                class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+              >
+                Created
+              </span>
+            </div>
+          </div>
+          <div
+            class="items-stretch hidden content-lg:flex w-12 flex-none"
+          >
+            <div
+              class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-end text-right"
+            />
+          </div>
+          <div
+            class="flex items-center content-max-lg:ml-auto content-max-lg:h-12 content-lg:absolute content-lg:inset-y-0 content-lg:right-[var(--spacing-system-mf)]"
+          >
+            <span
+              class="whitespace-nowrap text-ods-text-secondary text-h6"
+            >
+              2
+               
+              items
+            </span>
+          </div>
+        </div>
+      </div>
+      <div
+        class="flex w-full flex-col gap-[var(--spacing-system-xsf)]"
+      >
+        <a
+          class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block cursor-pointer transition-colors hover:bg-ods-bg-active"
+          data-loading-item="true"
+          href="/knowledge-base/details?id=kb-2"
+        >
+          <div
+            class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+          >
+            <div
+              class="flex flex-col overflow-hidden justify-start text-left flex-1 min-w-0"
+            >
+              <div
+                class="flex h-20 w-full items-center gap-[var(--spacing-system-m)]"
+              >
+                <div
+                  class="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] border border-ods-border"
+                >
+                  <svg
+                    class="shrink-0 text-ods-text-secondary"
+                    fill="none"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M18.875 4A.876.876 0 0 0 18 3.125H7c-1.036 0-1.875.84-1.875 1.875v12.002c.278-.081.57-.127.875-.127h12a.877.877 0 0 0 .875-.876zM5.143 20.176a.875.875 0 0 0 .857.699h11.875v-1.75H6a.875.875 0 0 0-.875.875zM21.125 16c0 .904-.386 1.715-1 2.286v2.596a1.126 1.126 0 0 1-.01 2.237l-.114.006H6a3.125 3.125 0 0 1-3.109-2.806L2.875 20V5A4.125 4.125 0 0 1 7 .875h11A3.126 3.126 0 0 1 21.125 4z"
+                      fill="currentColor"
+                    />
+                    <path
+                      d="m13 10.876.115.005a1.125 1.125 0 0 1 0 2.239l-.116.006H8a1.125 1.125 0 0 1 0-2.25zm3-4.001.115.006a1.125 1.125 0 0 1 0 2.238L16 9.125H8a1.125 1.125 0 0 1 0-2.25z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </div>
+                <div
+                  class="flex min-w-0 flex-1 flex-col"
+                >
+                  <div
+                    class="flex min-w-0 items-center gap-[var(--spacing-system-xsf)]"
+                  >
+                    <div
+                      class="min-w-0"
+                    >
+                      <div
+                        class="min-w-0 max-w-full"
+                      >
+                        <span
+                          class="text-h4 text-ods-text-primary truncate block"
+                        >
+                          Reset a user password
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="min-w-0 max-w-full"
+                  >
+                    <span
+                      class="text-h6 text-ods-text-secondary truncate block"
+                    >
+                      Steps for the service desk when a user is locked out of their account
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="flex-col overflow-hidden justify-start text-left w-[140px] hidden content-lg:flex"
+            >
+              <div
+                class="flex min-w-0 flex-col"
+              >
+                <div
+                  class="min-w-0 max-w-full"
+                >
+                  <span
+                    class="text-h4 text-ods-text-primary truncate block"
+                  >
+                    1/12/26
+                  </span>
+                </div>
+                <div
+                  class="min-w-0 max-w-full"
+                >
+                  <span
+                    class="text-h6 text-ods-text-secondary truncate block"
+                  >
+                    2:05 PM
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div
+              class="flex-col overflow-hidden justify-end text-right w-12 flex-none hidden content-md:flex"
+            >
+              <div
+                class="pointer-events-auto flex items-center justify-end"
+                data-no-row-click="true"
+              >
+                <button
+                  aria-label="Open in new tab"
+                  class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:bg-ods-card disabled:text-ods-text-disabled aria-disabled:bg-ods-card aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-11 w-11 p-[var(--spacing-system-sf)] md:h-12 md:w-12 [&_svg]:h-4 [&_svg]:w-4 md:[&_svg]:h-6 md:[&_svg]:w-6 bg-ods-card"
+                >
+                  <span
+                    class="contents"
+                  >
+                    <span
+                      class="inline-flex items-center"
+                    >
+                      <svg
+                        class="h-5 w-5"
+                        fill="none"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        width="24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="m16.154 6.255.086-.078a1.125 1.125 0 0 1 1.583 1.583l-.078.086-9.9 9.899a1.125 1.125 0 1 1-1.59-1.591z"
+                          fill="currentColor"
+                        />
+                        <path
+                          d="M7.34 7.05c0-.582.442-1.062 1.01-1.12l.115-.005h8.485a1.124 1.124 0 0 1 1.125 1.125v8.485a1.125 1.125 0 1 1-2.25 0v-7.36h-7.36L8.35 8.17a1.125 1.125 0 0 1-1.01-1.12"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </a>
+        <a
+          class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block cursor-pointer transition-colors hover:bg-ods-bg-active"
+          data-loading-item="true"
+          href="/knowledge-base/details?id=kb-3"
+        >
+          <div
+            class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+          >
+            <div
+              class="flex flex-col overflow-hidden justify-start text-left flex-1 min-w-0"
+            >
+              <div
+                class="flex h-20 w-full items-center gap-[var(--spacing-system-m)]"
+              >
+                <div
+                  class="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] border border-ods-border"
+                >
+                  <svg
+                    class="shrink-0 text-ods-text-secondary"
+                    fill="none"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M18.875 4A.876.876 0 0 0 18 3.125H7c-1.036 0-1.875.84-1.875 1.875v12.002c.278-.081.57-.127.875-.127h12a.877.877 0 0 0 .875-.876zM5.143 20.176a.875.875 0 0 0 .857.699h11.875v-1.75H6a.875.875 0 0 0-.875.875zM21.125 16c0 .904-.386 1.715-1 2.286v2.596a1.126 1.126 0 0 1-.01 2.237l-.114.006H6a3.125 3.125 0 0 1-3.109-2.806L2.875 20V5A4.125 4.125 0 0 1 7 .875h11A3.126 3.126 0 0 1 21.125 4z"
+                      fill="currentColor"
+                    />
+                    <path
+                      d="m13 10.876.115.005a1.125 1.125 0 0 1 0 2.239l-.116.006H8a1.125 1.125 0 0 1 0-2.25zm3-4.001.115.006a1.125 1.125 0 0 1 0 2.238L16 9.125H8a1.125 1.125 0 0 1 0-2.25z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </div>
+                <div
+                  class="flex min-w-0 flex-1 flex-col"
+                >
+                  <div
+                    class="flex min-w-0 items-center gap-[var(--spacing-system-xsf)]"
+                  >
+                    <div
+                      class="min-w-0"
+                    >
+                      <div
+                        class="min-w-0 max-w-full"
+                      >
+                        <span
+                          class="text-h4 text-ods-text-primary truncate block"
+                        >
+                          VPN setup
+                        </span>
+                      </div>
+                    </div>
+                    <div
+                      class="inline-flex items-center justify-center rounded-md transition-colors duration-150 h-8 gap-[var(--spacing-system-xs)] p-[var(--spacing-system-xsf)] text-h5 bg-ods-warning-secondary text-ods-warning hover:bg-ods-warning-secondary-hover active:bg-ods-warning-secondary-active shrink-0"
+                    >
+                      <span
+                        class="min-w-0 max-w-full"
+                      >
+                        <span
+                          class="block truncate"
+                        >
+                          DRAFT
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="flex-col overflow-hidden justify-start text-left w-[140px] hidden content-lg:flex"
+            />
+            <div
+              class="flex-col overflow-hidden justify-end text-right w-12 flex-none hidden content-md:flex"
+            >
+              <div
+                class="pointer-events-auto flex items-center justify-end"
+                data-no-row-click="true"
+              >
+                <button
+                  aria-label="Open in new tab"
+                  class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:bg-ods-card disabled:text-ods-text-disabled aria-disabled:bg-ods-card aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-11 w-11 p-[var(--spacing-system-sf)] md:h-12 md:w-12 [&_svg]:h-4 [&_svg]:w-4 md:[&_svg]:h-6 md:[&_svg]:w-6 bg-ods-card"
+                >
+                  <span
+                    class="contents"
+                  >
+                    <span
+                      class="inline-flex items-center"
+                    >
+                      <svg
+                        class="h-5 w-5"
+                        fill="none"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        width="24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="m16.154 6.255.086-.078a1.125 1.125 0 0 1 1.583 1.583l-.078.086-9.9 9.899a1.125 1.125 0 1 1-1.59-1.591z"
+                          fill="currentColor"
+                        />
+                        <path
+                          d="M7.34 7.05c0-.582.442-1.062 1.01-1.12l.115-.005h8.485a1.124 1.124 0 0 1 1.125 1.125v8.485a1.125 1.125 0 1 1-2.25 0v-7.36h-7.36L8.35 8.17a1.125 1.125 0 0 1-1.01-1.12"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`assignments tables, card rows (the flag off) > assigned articles, loading 1`] = `
+<div>
+  <div
+    class="flex flex-col gap-[var(--spacing-system-mf)]"
+  >
+    <label
+      class="flex w-full cursor-text items-center gap-2 border px-3 h-11 md:h-12 rounded-[6px] has-[:focus-visible]:outline-none group transition-colors duration-200 border-ods-border bg-ods-card has-[:focus]:border-ods-accent hover:border-ods-border-hover hover:bg-ods-bg-hover active:border-ods-border-active active:bg-ods-bg-active [&>span]:has-[:disabled]:text-ods-text-disabled [&_svg]:has-[:disabled]:text-ods-text-disabled"
+    >
+      <span
+        class="flex-shrink-0 text-ods-text-secondary transition-colors duration-200 text-h6 group-has-[:focus]:text-ods-accent group-data-[invalid]:text-ods-error [&_svg]:size-4 md:[&_svg]:size-6"
+      >
+        <svg
+          class="h-4 w-4 content-md:h-6 content-md:w-6"
+          fill="none"
+          height="24"
+          viewBox="0 0 24 24"
+          width="24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M6.548 15.861a1.125 1.125 0 1 1 1.59 1.591l-4.343 4.343a1.125 1.125 0 1 1-1.59-1.59z"
+            fill="currentColor"
+          />
+          <path
+            d="M19.875 11a6.876 6.876 0 1 0-13.751.002A6.876 6.876 0 0 0 19.876 11Zm2.25 0a9.126 9.126 0 1 1-18.25 0 9.126 9.126 0 0 1 18.25 0"
+            fill="currentColor"
+          />
+        </svg>
+      </span>
+      <input
+        class="min-w-0 flex-1 border-none bg-transparent outline-none text-h4 text-ods-text-primary placeholder:text-ods-text-secondary file:border-0 file:bg-transparent disabled:cursor-not-allowed disabled:text-ods-text-disabled disabled:placeholder:text-ods-border touch-manipulation [&:-webkit-autofill]:[-webkit-box-shadow:0_0_0_9999px_transparent_inset] [&:-webkit-autofill]:[-webkit-text-fill-color:var(--color-text-primary)] [&:-webkit-autofill]:[caret-color:var(--color-text-primary)] [&:-webkit-autofill]:[transition:background-color_9999s_ease-in-out_0s]"
+        placeholder="Search for Knowledge Article"
+        value=""
+      />
+    </label>
+    <div
+      class="flex w-full flex-col"
+    >
+      <div
+        class="hidden content-md:flex content-md:flex-col"
+      >
+        <div
+          class="relative flex items-stretch gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)]"
+        >
+          <div
+            class="items-stretch hidden content-lg:flex flex-1 min-w-0"
+          >
+            <div
+              class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left"
+            >
+              <span
+                class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+              >
+                Name
+              </span>
+            </div>
+          </div>
+          <div
+            class="items-stretch hidden content-lg:flex w-[140px]"
+          >
+            <div
+              class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left"
+            >
+              <span
+                class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+              >
+                Created
+              </span>
+            </div>
+          </div>
+          <div
+            class="items-stretch hidden content-lg:flex w-12 flex-none"
+          >
+            <div
+              class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-end text-right"
+            />
+          </div>
+          <div
+            class="flex items-center content-max-lg:ml-auto content-max-lg:h-12 content-lg:absolute content-lg:inset-y-0 content-lg:right-[var(--spacing-system-mf)]"
+          />
+        </div>
+      </div>
+      <div
+        aria-busy="true"
+        class="flex w-full flex-col gap-[var(--spacing-system-xsf)]"
+      >
+        <div
+          aria-hidden="true"
+          class="overflow-hidden rounded-md border border-ods-border bg-ods-card"
+          data-loading-item="true"
+        >
+          <div
+            class="hidden content-md:flex py-0 items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] h-[66px] content-md:h-[78px]"
+          >
+            <div
+              class="flex flex-col justify-center flex-1 min-w-0"
+            >
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h4 h-[1lh] w-3/4"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h6 h-[1lh] w-1/2"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+            </div>
+            <div
+              class="shrink-0 flex-col justify-center w-[140px] hidden content-lg:flex"
+            >
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h4 h-[1lh] w-3/4"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+            </div>
+            <div
+              class="flex-col justify-center w-12 flex-none hidden content-md:flex"
+            >
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h4 h-[1lh] w-3/4"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            class="flex justify-start content-md:hidden py-0 items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] h-[66px]"
+          >
+            <div
+              class="flex min-w-0 flex-1 flex-col justify-center py-[var(--spacing-system-sf)]"
+            >
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h4 h-[1lh] w-3/4"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h6 h-[1lh] w-1/2"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          aria-hidden="true"
+          class="overflow-hidden rounded-md border border-ods-border bg-ods-card"
+          data-loading-item="true"
+        >
+          <div
+            class="hidden content-md:flex py-0 items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] h-[66px] content-md:h-[78px]"
+          >
+            <div
+              class="flex flex-col justify-center flex-1 min-w-0"
+            >
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h4 h-[1lh] w-3/4"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+            </div>
+            <div
+              class="shrink-0 flex-col justify-center w-[140px] hidden content-lg:flex"
+            >
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h4 h-[1lh] w-3/4"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+            </div>
+            <div
+              class="flex-col justify-center w-12 flex-none hidden content-md:flex"
+            >
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h4 h-[1lh] w-3/4"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            class="flex justify-start content-md:hidden py-0 items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] h-[66px]"
+          >
+            <div
+              class="flex min-w-0 flex-1 flex-col justify-center py-[var(--spacing-system-sf)]"
+            >
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h4 h-[1lh] w-3/4"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h6 h-[1lh] w-1/2"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          aria-hidden="true"
+          class="overflow-hidden rounded-md border border-ods-border bg-ods-card"
+          data-loading-item="true"
+        >
+          <div
+            class="hidden content-md:flex py-0 items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] h-[66px] content-md:h-[78px]"
+          >
+            <div
+              class="flex flex-col justify-center flex-1 min-w-0"
+            >
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h4 h-[1lh] w-3/4"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h6 h-[1lh] w-1/2"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+            </div>
+            <div
+              class="shrink-0 flex-col justify-center w-[140px] hidden content-lg:flex"
+            >
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h4 h-[1lh] w-3/4"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+            </div>
+            <div
+              class="flex-col justify-center w-12 flex-none hidden content-md:flex"
+            >
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h4 h-[1lh] w-3/4"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            class="flex justify-start content-md:hidden py-0 items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] h-[66px]"
+          >
+            <div
+              class="flex min-w-0 flex-1 flex-col justify-center py-[var(--spacing-system-sf)]"
+            >
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h4 h-[1lh] w-3/4"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h6 h-[1lh] w-1/2"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          aria-hidden="true"
+          class="overflow-hidden rounded-md border border-ods-border bg-ods-card"
+          data-loading-item="true"
+        >
+          <div
+            class="hidden content-md:flex py-0 items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] h-[66px] content-md:h-[78px]"
+          >
+            <div
+              class="flex flex-col justify-center flex-1 min-w-0"
+            >
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h4 h-[1lh] w-3/4"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+            </div>
+            <div
+              class="shrink-0 flex-col justify-center w-[140px] hidden content-lg:flex"
+            >
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h4 h-[1lh] w-3/4"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+            </div>
+            <div
+              class="flex-col justify-center w-12 flex-none hidden content-md:flex"
+            >
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h4 h-[1lh] w-3/4"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            class="flex justify-start content-md:hidden py-0 items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] h-[66px]"
+          >
+            <div
+              class="flex min-w-0 flex-1 flex-col justify-center py-[var(--spacing-system-sf)]"
+            >
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h4 h-[1lh] w-3/4"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h6 h-[1lh] w-1/2"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          aria-hidden="true"
+          class="overflow-hidden rounded-md border border-ods-border bg-ods-card"
+          data-loading-item="true"
+        >
+          <div
+            class="hidden content-md:flex py-0 items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] h-[66px] content-md:h-[78px]"
+          >
+            <div
+              class="flex flex-col justify-center flex-1 min-w-0"
+            >
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h4 h-[1lh] w-3/4"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h6 h-[1lh] w-1/2"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+            </div>
+            <div
+              class="shrink-0 flex-col justify-center w-[140px] hidden content-lg:flex"
+            >
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h4 h-[1lh] w-3/4"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+            </div>
+            <div
+              class="flex-col justify-center w-12 flex-none hidden content-md:flex"
+            >
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h4 h-[1lh] w-3/4"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            class="flex justify-start content-md:hidden py-0 items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] h-[66px]"
+          >
+            <div
+              class="flex min-w-0 flex-1 flex-col justify-center py-[var(--spacing-system-sf)]"
+            >
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h4 h-[1lh] w-3/4"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+              <div
+                aria-hidden="true"
+                class="flex flex-col text-h6 h-[1lh] w-1/2"
+              >
+                <div
+                  class="flex h-[1lh] items-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <span
+          aria-live="polite"
+          class="sr-only"
+          role="status"
+        >
+          Loading results
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`assignments tables, card rows (the flag off) > assigned tickets 1`] = `
+<div>
+  <div
+    class="flex flex-col gap-[var(--spacing-system-mf)]"
+  >
+    <label
+      class="flex w-full cursor-text items-center gap-2 border px-3 h-11 md:h-12 rounded-[6px] has-[:focus-visible]:outline-none group transition-colors duration-200 border-ods-border bg-ods-card has-[:focus]:border-ods-accent hover:border-ods-border-hover hover:bg-ods-bg-hover active:border-ods-border-active active:bg-ods-bg-active [&>span]:has-[:disabled]:text-ods-text-disabled [&_svg]:has-[:disabled]:text-ods-text-disabled"
+    >
+      <span
+        class="flex-shrink-0 text-ods-text-secondary transition-colors duration-200 text-h6 group-has-[:focus]:text-ods-accent group-data-[invalid]:text-ods-error [&_svg]:size-4 md:[&_svg]:size-6"
+      >
+        <svg
+          class="h-4 w-4 content-md:h-6 content-md:w-6"
+          fill="none"
+          height="24"
+          viewBox="0 0 24 24"
+          width="24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M6.548 15.861a1.125 1.125 0 1 1 1.59 1.591l-4.343 4.343a1.125 1.125 0 1 1-1.59-1.59z"
+            fill="currentColor"
+          />
+          <path
+            d="M19.875 11a6.876 6.876 0 1 0-13.751.002A6.876 6.876 0 0 0 19.876 11Zm2.25 0a9.126 9.126 0 1 1-18.25 0 9.126 9.126 0 0 1 18.25 0"
+            fill="currentColor"
+          />
+        </svg>
+      </span>
+      <input
+        class="min-w-0 flex-1 border-none bg-transparent outline-none text-h4 text-ods-text-primary placeholder:text-ods-text-secondary file:border-0 file:bg-transparent disabled:cursor-not-allowed disabled:text-ods-text-disabled disabled:placeholder:text-ods-border touch-manipulation [&:-webkit-autofill]:[-webkit-box-shadow:0_0_0_9999px_transparent_inset] [&:-webkit-autofill]:[-webkit-text-fill-color:var(--color-text-primary)] [&:-webkit-autofill]:[caret-color:var(--color-text-primary)] [&:-webkit-autofill]:[transition:background-color_9999s_ease-in-out_0s]"
+        placeholder="Search for Ticket"
+        value=""
+      />
+    </label>
+    <div
+      class="transition-opacity duration-200"
+    >
+      <div
+        class="flex w-full flex-col"
+      >
+        <div
+          class="hidden content-md:flex content-md:flex-col"
+        >
+          <div
+            class="relative flex items-stretch gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)]"
+          >
+            <div
+              class="items-stretch hidden content-lg:flex w-[60%] content-md:flex-1 min-w-0"
+            >
+              <div
+                class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left"
+              >
+                <span
+                  class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+                >
+                  TICKET
+                </span>
+              </div>
+            </div>
+            <div
+              class="items-stretch hidden content-lg:flex min-w-0 flex-1"
+            >
+              <div
+                class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left"
+              >
+                <span
+                  class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+                >
+                  SOURCE
+                </span>
+              </div>
+            </div>
+            <div
+              class="items-stretch hidden content-lg:flex min-w-0 flex-1"
+            >
+              <div
+                class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left"
+              >
+                <span
+                  class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+                >
+                  ASSIGNEE
+                </span>
+              </div>
+            </div>
+            <div
+              class="items-stretch flex min-w-0 flex-1 content-max-lg:[&&]:w-auto content-max-lg:[&&]:flex-none content-max-lg:[&&]:basis-auto"
+            >
+              <div
+                class="relative inline-block !block w-full"
+              >
+                <div>
+                  <div
+                    aria-label="Filter by STATUS"
+                    class="group flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left cursor-pointer"
+                  >
+                    <span
+                      class="whitespace-nowrap text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+                    >
+                      STATUS
+                    </span>
+                    <svg
+                      class="h-4 w-4 transition-colors text-ods-text-secondary group-hover:text-ods-text-primary"
+                      fill="none"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      width="24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M15 16.875a1.125 1.125 0 0 1 0 2.25H9a1.125 1.125 0 0 1 0-2.25zm3-6a1.125 1.125 0 0 1 0 2.25H6a1.125 1.125 0 0 1 0-2.25zm3-6a1.125 1.125 0 0 1 0 2.25H3a1.125 1.125 0 0 1 0-2.25z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="items-stretch hidden content-lg:flex w-12 flex-none"
+            >
+              <div
+                class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-end text-right"
+              />
+            </div>
+            <div
+              class="flex items-center absolute inset-y-0 right-[var(--spacing-system-mf)]"
+            >
+              <span
+                class="whitespace-nowrap text-ods-text-secondary text-h6"
+              >
+                2
+                 
+                results
+              </span>
+            </div>
+          </div>
+        </div>
+        <div
+          class="flex w-full flex-col gap-[var(--spacing-system-xsf)]"
+        >
+          <a
+            class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block cursor-pointer transition-colors hover:bg-ods-bg-active mb-1"
+            data-loading-item="true"
+            href="/tickets/dialog?id=t-1"
+          >
+            <div
+              class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+            >
+              <div
+                class="flex flex-col overflow-hidden justify-start text-left w-[60%] content-md:flex-1 min-w-0"
+              >
+                <div
+                  class="flex min-w-0 flex-col justify-center"
+                >
+                  <div
+                    class="min-w-0 max-w-full"
+                  >
+                    <span
+                      class="text-h4 text-ods-text-primary truncate block"
+                    >
+                      Printer on the second floor prints blank pages
+                    </span>
+                  </div>
+                  <div
+                    class="min-w-0"
+                    title="01/15/2026, 11:55 AM"
+                  >
+                    <div
+                      class="min-w-0 max-w-full"
+                    >
+                      <span
+                        class="text-h6 text-ods-text-secondary truncate block"
+                      >
+                        3891 • 5 min ago
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-md:flex"
+              >
+                <div
+                  class="flex min-h-[60px] flex-col justify-center gap-1 py-2"
+                >
+                  <span
+                    class="truncate text-ods-text-primary text-h6"
+                    title="front-desk-pc"
+                  >
+                    front-desk-pc
+                  </span>
+                  <span
+                    class="truncate text-ods-text-secondary text-h6"
+                    title="Acme Corp"
+                  >
+                    Acme Corp
+                  </span>
+                </div>
+              </div>
+              <div
+                class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-lg:flex"
+              >
+                <div
+                  class="flex min-w-0 items-center gap-2"
+                >
+                  <div
+                    class="relative flex items-center justify-center overflow-hidden border border-ods-border bg-ods-bg h-8 w-8 rounded-full shrink-0"
+                  >
+                    <div
+                      class="flex items-center justify-center text-xs font-medium text-[color:var(--ods-avatar-initials,var(--color-text-primary))]"
+                    >
+                      MC
+                    </div>
+                  </div>
+                  <div
+                    class="min-w-0 max-w-full"
+                  >
+                    <span
+                      class="text-h4 text-ods-text-primary truncate block"
+                    >
+                      Maya Chen
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="flex flex-col overflow-hidden justify-start text-left min-w-0 flex-1"
+              >
+                <div
+                  class="inline-flex items-center justify-center rounded-md transition-colors duration-150 h-8 gap-[var(--spacing-system-xs)] p-[var(--spacing-system-xsf)] text-h5 border border-ods-border text-ods-text-primary hover:border-ods-border-hover active:border-ods-border-active w-fit shrink-0 bg-[var(--tag-bg)] hover:bg-[var(--tag-bg-hover)] active:bg-[var(--tag-bg-active)]"
+                  style="--tag-bg: blue; --tag-bg-hover: blue; --tag-bg-active: blue; color: rgb(250, 250, 250);"
+                >
+                  <span
+                    class="min-w-0 max-w-full"
+                  >
+                    <span
+                      class="block truncate"
+                    >
+                      In progress
+                    </span>
+                  </span>
+                </div>
+              </div>
+              <div
+                class="flex-col overflow-hidden justify-end text-right w-12 flex-none hidden content-md:flex"
+              >
+                <div
+                  class="pointer-events-auto flex items-center justify-end"
+                  data-no-row-click="true"
+                >
+                  <button
+                    aria-label="Open in new tab"
+                    class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:bg-ods-card disabled:text-ods-text-disabled aria-disabled:bg-ods-card aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-11 w-11 p-[var(--spacing-system-sf)] md:h-12 md:w-12 [&_svg]:h-4 [&_svg]:w-4 md:[&_svg]:h-6 md:[&_svg]:w-6 bg-ods-card"
+                  >
+                    <span
+                      class="contents"
+                    >
+                      <span
+                        class="inline-flex items-center"
+                      >
+                        <svg
+                          class="h-5 w-5"
+                          fill="none"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          width="24"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="m16.154 6.255.086-.078a1.125 1.125 0 0 1 1.583 1.583l-.078.086-9.9 9.899a1.125 1.125 0 1 1-1.59-1.591z"
+                            fill="currentColor"
+                          />
+                          <path
+                            d="M7.34 7.05c0-.582.442-1.062 1.01-1.12l.115-.005h8.485a1.124 1.124 0 0 1 1.125 1.125v8.485a1.125 1.125 0 1 1-2.25 0v-7.36h-7.36L8.35 8.17a1.125 1.125 0 0 1-1.01-1.12"
+                            fill="currentColor"
+                          />
+                        </svg>
+                      </span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </a>
+          <a
+            class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block cursor-pointer transition-colors hover:bg-ods-bg-active mb-1"
+            data-loading-item="true"
+            href="/tickets/dialog?id=t-2"
+          >
+            <div
+              class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+            >
+              <div
+                class="flex flex-col overflow-hidden justify-start text-left w-[60%] content-md:flex-1 min-w-0"
+              >
+                <div
+                  class="flex min-w-0 flex-col justify-center"
+                >
+                  <div
+                    class="min-w-0 max-w-full"
+                  >
+                    <span
+                      class="text-h4 text-ods-text-primary truncate block"
+                    >
+                      VPN drops every hour
+                    </span>
+                  </div>
+                  <div
+                    class="min-w-0"
+                    title="01/14/2026, 9:00 AM"
+                  >
+                    <div
+                      class="min-w-0 max-w-full"
+                    >
+                      <span
+                        class="text-h6 text-ods-text-secondary truncate block"
+                      >
+                        3890 • 01/14/2026
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-md:flex"
+              >
+                <div
+                  class="flex min-h-[60px] flex-col justify-center gap-1 py-2"
+                >
+                  <span
+                    class="truncate text-ods-text-primary text-h6"
+                    title="—"
+                  >
+                    —
+                  </span>
+                </div>
+              </div>
+              <div
+                class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-lg:flex"
+              >
+                <span
+                  data-unassigned="pick"
+                >
+                  Unassigned
+                </span>
+              </div>
+              <div
+                class="flex flex-col overflow-hidden justify-start text-left min-w-0 flex-1"
+              >
+                <div
+                  class="inline-flex items-center justify-center rounded-md transition-colors duration-150 h-8 gap-[var(--spacing-system-xs)] p-[var(--spacing-system-xsf)] text-h5 border border-ods-border text-ods-text-primary hover:border-ods-border-hover active:border-ods-border-active w-fit shrink-0 bg-[var(--tag-bg)] hover:bg-[var(--tag-bg-hover)] active:bg-[var(--tag-bg-active)]"
+                  style="--tag-bg: grey; --tag-bg-hover: grey; --tag-bg-active: grey; color: rgb(250, 250, 250);"
+                >
+                  <span
+                    class="min-w-0 max-w-full"
+                  >
+                    <span
+                      class="block truncate"
+                    >
+                      New
+                    </span>
+                  </span>
+                </div>
+              </div>
+              <div
+                class="flex-col overflow-hidden justify-end text-right w-12 flex-none hidden content-md:flex"
+              >
+                <div
+                  class="pointer-events-auto flex items-center justify-end"
+                  data-no-row-click="true"
+                >
+                  <button
+                    aria-label="Open in new tab"
+                    class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:bg-ods-card disabled:text-ods-text-disabled aria-disabled:bg-ods-card aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-11 w-11 p-[var(--spacing-system-sf)] md:h-12 md:w-12 [&_svg]:h-4 [&_svg]:w-4 md:[&_svg]:h-6 md:[&_svg]:w-6 bg-ods-card"
+                  >
+                    <span
+                      class="contents"
+                    >
+                      <span
+                        class="inline-flex items-center"
+                      >
+                        <svg
+                          class="h-5 w-5"
+                          fill="none"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          width="24"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="m16.154 6.255.086-.078a1.125 1.125 0 0 1 1.583 1.583l-.078.086-9.9 9.899a1.125 1.125 0 1 1-1.59-1.591z"
+                            fill="currentColor"
+                          />
+                          <path
+                            d="M7.34 7.05c0-.582.442-1.062 1.01-1.12l.115-.005h8.485a1.124 1.124 0 0 1 1.125 1.125v8.485a1.125 1.125 0 1 1-2.25 0v-7.36h-7.36L8.35 8.17a1.125 1.125 0 0 1-1.01-1.12"
+                            fill="currentColor"
+                          />
+                        </svg>
+                      </span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`assignments tables, card rows (the flag off) > assigned tickets, loading 1`] = `
+<div>
+  <div
+    class="flex flex-col gap-[var(--spacing-system-mf)]"
+  >
+    <label
+      class="flex w-full cursor-text items-center gap-2 border px-3 h-11 md:h-12 rounded-[6px] has-[:focus-visible]:outline-none group transition-colors duration-200 border-ods-border bg-ods-card has-[:focus]:border-ods-accent hover:border-ods-border-hover hover:bg-ods-bg-hover active:border-ods-border-active active:bg-ods-bg-active [&>span]:has-[:disabled]:text-ods-text-disabled [&_svg]:has-[:disabled]:text-ods-text-disabled"
+    >
+      <span
+        class="flex-shrink-0 text-ods-text-secondary transition-colors duration-200 text-h6 group-has-[:focus]:text-ods-accent group-data-[invalid]:text-ods-error [&_svg]:size-4 md:[&_svg]:size-6"
+      >
+        <svg
+          class="h-4 w-4 content-md:h-6 content-md:w-6"
+          fill="none"
+          height="24"
+          viewBox="0 0 24 24"
+          width="24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M6.548 15.861a1.125 1.125 0 1 1 1.59 1.591l-4.343 4.343a1.125 1.125 0 1 1-1.59-1.59z"
+            fill="currentColor"
+          />
+          <path
+            d="M19.875 11a6.876 6.876 0 1 0-13.751.002A6.876 6.876 0 0 0 19.876 11Zm2.25 0a9.126 9.126 0 1 1-18.25 0 9.126 9.126 0 0 1 18.25 0"
+            fill="currentColor"
+          />
+        </svg>
+      </span>
+      <input
+        class="min-w-0 flex-1 border-none bg-transparent outline-none text-h4 text-ods-text-primary placeholder:text-ods-text-secondary file:border-0 file:bg-transparent disabled:cursor-not-allowed disabled:text-ods-text-disabled disabled:placeholder:text-ods-border touch-manipulation [&:-webkit-autofill]:[-webkit-box-shadow:0_0_0_9999px_transparent_inset] [&:-webkit-autofill]:[-webkit-text-fill-color:var(--color-text-primary)] [&:-webkit-autofill]:[caret-color:var(--color-text-primary)] [&:-webkit-autofill]:[transition:background-color_9999s_ease-in-out_0s]"
+        placeholder="Search for Ticket"
+        value=""
+      />
+    </label>
+    <div
+      class="transition-opacity duration-200"
+    >
+      <div
+        class="flex w-full flex-col"
+      >
+        <div
+          class="hidden content-md:flex content-md:flex-col"
+        >
+          <div
+            class="relative flex items-stretch gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)]"
+          >
+            <div
+              class="items-stretch hidden content-lg:flex w-[60%] content-md:flex-1 min-w-0"
+            >
+              <div
+                class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left"
+              >
+                <span
+                  class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+                >
+                  TICKET
+                </span>
+              </div>
+            </div>
+            <div
+              class="items-stretch hidden content-lg:flex min-w-0 flex-1"
+            >
+              <div
+                class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left"
+              >
+                <span
+                  class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+                >
+                  SOURCE
+                </span>
+              </div>
+            </div>
+            <div
+              class="items-stretch hidden content-lg:flex min-w-0 flex-1"
+            >
+              <div
+                class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left"
+              >
+                <span
+                  class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+                >
+                  ASSIGNEE
+                </span>
+              </div>
+            </div>
+            <div
+              class="items-stretch flex min-w-0 flex-1 content-max-lg:[&&]:w-auto content-max-lg:[&&]:flex-none content-max-lg:[&&]:basis-auto"
+            >
+              <div
+                class="relative inline-block !block w-full"
+              >
+                <div>
+                  <div
+                    aria-label="Filter by STATUS"
+                    class="group flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-start text-left cursor-pointer"
+                  >
+                    <span
+                      class="whitespace-nowrap text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
+                    >
+                      STATUS
+                    </span>
+                    <svg
+                      class="h-4 w-4 transition-colors text-ods-text-secondary group-hover:text-ods-text-primary"
+                      fill="none"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      width="24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M15 16.875a1.125 1.125 0 0 1 0 2.25H9a1.125 1.125 0 0 1 0-2.25zm3-6a1.125 1.125 0 0 1 0 2.25H6a1.125 1.125 0 0 1 0-2.25zm3-6a1.125 1.125 0 0 1 0 2.25H3a1.125 1.125 0 0 1 0-2.25z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="items-stretch hidden content-lg:flex w-12 flex-none"
+            >
+              <div
+                class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-end text-right"
+              />
+            </div>
+            <div
+              class="flex items-center absolute inset-y-0 right-[var(--spacing-system-mf)]"
+            >
+              <span
+                aria-hidden="true"
+                class="whitespace-nowrap text-ods-text-secondary text-h6"
+              >
+                <span
+                  aria-hidden="true"
+                  class="flex-col h-[1lh] inline-block w-6 align-top"
+                >
+                  <span
+                    class="flex h-[1lh] items-center"
+                  >
+                    <span
+                      aria-hidden="true"
+                      class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                    />
+                  </span>
+                </span>
+                 
+                results
+              </span>
+            </div>
+          </div>
+        </div>
+        <div
+          aria-hidden="true"
+          class="pointer-events-none select-none flex w-full flex-col gap-[var(--spacing-system-xsf)]"
+          inert=""
+        >
+          <div
+            class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block mb-1"
+            data-loading-item="true"
+          >
+            <div
+              class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+            >
+              <div
+                class="flex flex-col overflow-hidden justify-start text-left w-[60%] content-md:flex-1 min-w-0"
+              >
+                <div
+                  class="flex min-w-0 flex-col justify-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="flex flex-col text-h4 h-[1lh] w-3/4"
+                  >
+                    <div
+                      class="flex h-[1lh] items-center"
+                    >
+                      <div
+                        aria-hidden="true"
+                        class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                      />
+                    </div>
+                  </div>
+                  <div
+                    class="min-w-0"
+                  >
+                    <div
+                      aria-hidden="true"
+                      class="flex flex-col text-h6 h-[1lh] w-3/4"
+                    >
+                      <div
+                        class="flex h-[1lh] items-center"
+                      >
+                        <div
+                          aria-hidden="true"
+                          class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-md:flex"
+              >
+                <div
+                  class="flex min-h-[60px] flex-col justify-center gap-1 py-2"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="flex flex-col text-h6 h-[1lh] w-3/4"
+                  >
+                    <div
+                      class="flex h-[1lh] items-center"
+                    >
+                      <div
+                        aria-hidden="true"
+                        class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                      />
+                    </div>
+                  </div>
+                  <div
+                    aria-hidden="true"
+                    class="flex flex-col text-h6 h-[1lh] w-1/2"
+                  >
+                    <div
+                      class="flex h-[1lh] items-center"
+                    >
+                      <div
+                        aria-hidden="true"
+                        class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-lg:flex"
+              >
+                <div
+                  class="flex min-w-0 items-center gap-2"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none h-8 w-8 rounded-full shrink-0"
+                  />
+                  <div
+                    aria-hidden="true"
+                    class="flex flex-col text-h4 h-[1lh] w-3/4"
+                  >
+                    <div
+                      class="flex h-[1lh] items-center"
+                    >
+                      <div
+                        aria-hidden="true"
+                        class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="flex flex-col overflow-hidden justify-start text-left min-w-0 flex-1"
+              >
+                <span
+                  aria-hidden="true"
+                  class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none inline-flex items-center justify-center rounded-md h-8 gap-[var(--spacing-system-xs)] p-[var(--spacing-system-xsf)] text-h5 w-fit shrink-0"
+                />
+              </div>
+              <div
+                class="flex-col overflow-hidden justify-end text-right w-12 flex-none hidden content-md:flex"
+              >
+                <div
+                  class="pointer-events-auto flex items-center justify-end"
+                  data-no-row-click="true"
+                >
+                  <button
+                    aria-label="Open in new tab"
+                    class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:bg-ods-card disabled:text-ods-text-disabled aria-disabled:bg-ods-card aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-11 w-11 p-[var(--spacing-system-sf)] md:h-12 md:w-12 [&_svg]:h-4 [&_svg]:w-4 md:[&_svg]:h-6 md:[&_svg]:w-6 bg-ods-card"
+                    disabled=""
+                  >
+                    <span
+                      class="contents"
+                    >
+                      <span
+                        class="inline-flex items-center"
+                      >
+                        <svg
+                          class="h-5 w-5"
+                          fill="none"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          width="24"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="m16.154 6.255.086-.078a1.125 1.125 0 0 1 1.583 1.583l-.078.086-9.9 9.899a1.125 1.125 0 1 1-1.59-1.591z"
+                            fill="currentColor"
+                          />
+                          <path
+                            d="M7.34 7.05c0-.582.442-1.062 1.01-1.12l.115-.005h8.485a1.124 1.124 0 0 1 1.125 1.125v8.485a1.125 1.125 0 1 1-2.25 0v-7.36h-7.36L8.35 8.17a1.125 1.125 0 0 1-1.01-1.12"
+                            fill="currentColor"
+                          />
+                        </svg>
+                      </span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block mb-1"
+            data-loading-item="true"
+          >
+            <div
+              class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+            >
+              <div
+                class="flex flex-col overflow-hidden justify-start text-left w-[60%] content-md:flex-1 min-w-0"
+              >
+                <div
+                  class="flex min-w-0 flex-col justify-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="flex flex-col text-h4 h-[1lh] w-3/4"
+                  >
+                    <div
+                      class="flex h-[1lh] items-center"
+                    >
+                      <div
+                        aria-hidden="true"
+                        class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                      />
+                    </div>
+                  </div>
+                  <div
+                    class="min-w-0"
+                  >
+                    <div
+                      aria-hidden="true"
+                      class="flex flex-col text-h6 h-[1lh] w-3/4"
+                    >
+                      <div
+                        class="flex h-[1lh] items-center"
+                      >
+                        <div
+                          aria-hidden="true"
+                          class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-md:flex"
+              >
+                <div
+                  class="flex min-h-[60px] flex-col justify-center gap-1 py-2"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="flex flex-col text-h6 h-[1lh] w-3/4"
+                  >
+                    <div
+                      class="flex h-[1lh] items-center"
+                    >
+                      <div
+                        aria-hidden="true"
+                        class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                      />
+                    </div>
+                  </div>
+                  <div
+                    aria-hidden="true"
+                    class="flex flex-col text-h6 h-[1lh] w-1/2"
+                  >
+                    <div
+                      class="flex h-[1lh] items-center"
+                    >
+                      <div
+                        aria-hidden="true"
+                        class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-lg:flex"
+              >
+                <div
+                  class="flex min-w-0 items-center gap-2"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none h-8 w-8 rounded-full shrink-0"
+                  />
+                  <div
+                    aria-hidden="true"
+                    class="flex flex-col text-h4 h-[1lh] w-3/4"
+                  >
+                    <div
+                      class="flex h-[1lh] items-center"
+                    >
+                      <div
+                        aria-hidden="true"
+                        class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="flex flex-col overflow-hidden justify-start text-left min-w-0 flex-1"
+              >
+                <span
+                  aria-hidden="true"
+                  class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none inline-flex items-center justify-center rounded-md h-8 gap-[var(--spacing-system-xs)] p-[var(--spacing-system-xsf)] text-h5 w-fit shrink-0"
+                />
+              </div>
+              <div
+                class="flex-col overflow-hidden justify-end text-right w-12 flex-none hidden content-md:flex"
+              >
+                <div
+                  class="pointer-events-auto flex items-center justify-end"
+                  data-no-row-click="true"
+                >
+                  <button
+                    aria-label="Open in new tab"
+                    class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:bg-ods-card disabled:text-ods-text-disabled aria-disabled:bg-ods-card aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-11 w-11 p-[var(--spacing-system-sf)] md:h-12 md:w-12 [&_svg]:h-4 [&_svg]:w-4 md:[&_svg]:h-6 md:[&_svg]:w-6 bg-ods-card"
+                    disabled=""
+                  >
+                    <span
+                      class="contents"
+                    >
+                      <span
+                        class="inline-flex items-center"
+                      >
+                        <svg
+                          class="h-5 w-5"
+                          fill="none"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          width="24"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="m16.154 6.255.086-.078a1.125 1.125 0 0 1 1.583 1.583l-.078.086-9.9 9.899a1.125 1.125 0 1 1-1.59-1.591z"
+                            fill="currentColor"
+                          />
+                          <path
+                            d="M7.34 7.05c0-.582.442-1.062 1.01-1.12l.115-.005h8.485a1.124 1.124 0 0 1 1.125 1.125v8.485a1.125 1.125 0 1 1-2.25 0v-7.36h-7.36L8.35 8.17a1.125 1.125 0 0 1-1.01-1.12"
+                            fill="currentColor"
+                          />
+                        </svg>
+                      </span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block mb-1"
+            data-loading-item="true"
+          >
+            <div
+              class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+            >
+              <div
+                class="flex flex-col overflow-hidden justify-start text-left w-[60%] content-md:flex-1 min-w-0"
+              >
+                <div
+                  class="flex min-w-0 flex-col justify-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="flex flex-col text-h4 h-[1lh] w-3/4"
+                  >
+                    <div
+                      class="flex h-[1lh] items-center"
+                    >
+                      <div
+                        aria-hidden="true"
+                        class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                      />
+                    </div>
+                  </div>
+                  <div
+                    class="min-w-0"
+                  >
+                    <div
+                      aria-hidden="true"
+                      class="flex flex-col text-h6 h-[1lh] w-3/4"
+                    >
+                      <div
+                        class="flex h-[1lh] items-center"
+                      >
+                        <div
+                          aria-hidden="true"
+                          class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-md:flex"
+              >
+                <div
+                  class="flex min-h-[60px] flex-col justify-center gap-1 py-2"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="flex flex-col text-h6 h-[1lh] w-3/4"
+                  >
+                    <div
+                      class="flex h-[1lh] items-center"
+                    >
+                      <div
+                        aria-hidden="true"
+                        class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                      />
+                    </div>
+                  </div>
+                  <div
+                    aria-hidden="true"
+                    class="flex flex-col text-h6 h-[1lh] w-1/2"
+                  >
+                    <div
+                      class="flex h-[1lh] items-center"
+                    >
+                      <div
+                        aria-hidden="true"
+                        class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-lg:flex"
+              >
+                <div
+                  class="flex min-w-0 items-center gap-2"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none h-8 w-8 rounded-full shrink-0"
+                  />
+                  <div
+                    aria-hidden="true"
+                    class="flex flex-col text-h4 h-[1lh] w-3/4"
+                  >
+                    <div
+                      class="flex h-[1lh] items-center"
+                    >
+                      <div
+                        aria-hidden="true"
+                        class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="flex flex-col overflow-hidden justify-start text-left min-w-0 flex-1"
+              >
+                <span
+                  aria-hidden="true"
+                  class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none inline-flex items-center justify-center rounded-md h-8 gap-[var(--spacing-system-xs)] p-[var(--spacing-system-xsf)] text-h5 w-fit shrink-0"
+                />
+              </div>
+              <div
+                class="flex-col overflow-hidden justify-end text-right w-12 flex-none hidden content-md:flex"
+              >
+                <div
+                  class="pointer-events-auto flex items-center justify-end"
+                  data-no-row-click="true"
+                >
+                  <button
+                    aria-label="Open in new tab"
+                    class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:bg-ods-card disabled:text-ods-text-disabled aria-disabled:bg-ods-card aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-11 w-11 p-[var(--spacing-system-sf)] md:h-12 md:w-12 [&_svg]:h-4 [&_svg]:w-4 md:[&_svg]:h-6 md:[&_svg]:w-6 bg-ods-card"
+                    disabled=""
+                  >
+                    <span
+                      class="contents"
+                    >
+                      <span
+                        class="inline-flex items-center"
+                      >
+                        <svg
+                          class="h-5 w-5"
+                          fill="none"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          width="24"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="m16.154 6.255.086-.078a1.125 1.125 0 0 1 1.583 1.583l-.078.086-9.9 9.899a1.125 1.125 0 1 1-1.59-1.591z"
+                            fill="currentColor"
+                          />
+                          <path
+                            d="M7.34 7.05c0-.582.442-1.062 1.01-1.12l.115-.005h8.485a1.124 1.124 0 0 1 1.125 1.125v8.485a1.125 1.125 0 1 1-2.25 0v-7.36h-7.36L8.35 8.17a1.125 1.125 0 0 1-1.01-1.12"
+                            fill="currentColor"
+                          />
+                        </svg>
+                      </span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block mb-1"
+            data-loading-item="true"
+          >
+            <div
+              class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+            >
+              <div
+                class="flex flex-col overflow-hidden justify-start text-left w-[60%] content-md:flex-1 min-w-0"
+              >
+                <div
+                  class="flex min-w-0 flex-col justify-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="flex flex-col text-h4 h-[1lh] w-3/4"
+                  >
+                    <div
+                      class="flex h-[1lh] items-center"
+                    >
+                      <div
+                        aria-hidden="true"
+                        class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                      />
+                    </div>
+                  </div>
+                  <div
+                    class="min-w-0"
+                  >
+                    <div
+                      aria-hidden="true"
+                      class="flex flex-col text-h6 h-[1lh] w-3/4"
+                    >
+                      <div
+                        class="flex h-[1lh] items-center"
+                      >
+                        <div
+                          aria-hidden="true"
+                          class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-md:flex"
+              >
+                <div
+                  class="flex min-h-[60px] flex-col justify-center gap-1 py-2"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="flex flex-col text-h6 h-[1lh] w-3/4"
+                  >
+                    <div
+                      class="flex h-[1lh] items-center"
+                    >
+                      <div
+                        aria-hidden="true"
+                        class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                      />
+                    </div>
+                  </div>
+                  <div
+                    aria-hidden="true"
+                    class="flex flex-col text-h6 h-[1lh] w-1/2"
+                  >
+                    <div
+                      class="flex h-[1lh] items-center"
+                    >
+                      <div
+                        aria-hidden="true"
+                        class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-lg:flex"
+              >
+                <div
+                  class="flex min-w-0 items-center gap-2"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none h-8 w-8 rounded-full shrink-0"
+                  />
+                  <div
+                    aria-hidden="true"
+                    class="flex flex-col text-h4 h-[1lh] w-3/4"
+                  >
+                    <div
+                      class="flex h-[1lh] items-center"
+                    >
+                      <div
+                        aria-hidden="true"
+                        class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="flex flex-col overflow-hidden justify-start text-left min-w-0 flex-1"
+              >
+                <span
+                  aria-hidden="true"
+                  class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none inline-flex items-center justify-center rounded-md h-8 gap-[var(--spacing-system-xs)] p-[var(--spacing-system-xsf)] text-h5 w-fit shrink-0"
+                />
+              </div>
+              <div
+                class="flex-col overflow-hidden justify-end text-right w-12 flex-none hidden content-md:flex"
+              >
+                <div
+                  class="pointer-events-auto flex items-center justify-end"
+                  data-no-row-click="true"
+                >
+                  <button
+                    aria-label="Open in new tab"
+                    class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:bg-ods-card disabled:text-ods-text-disabled aria-disabled:bg-ods-card aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-11 w-11 p-[var(--spacing-system-sf)] md:h-12 md:w-12 [&_svg]:h-4 [&_svg]:w-4 md:[&_svg]:h-6 md:[&_svg]:w-6 bg-ods-card"
+                    disabled=""
+                  >
+                    <span
+                      class="contents"
+                    >
+                      <span
+                        class="inline-flex items-center"
+                      >
+                        <svg
+                          class="h-5 w-5"
+                          fill="none"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          width="24"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="m16.154 6.255.086-.078a1.125 1.125 0 0 1 1.583 1.583l-.078.086-9.9 9.899a1.125 1.125 0 1 1-1.59-1.591z"
+                            fill="currentColor"
+                          />
+                          <path
+                            d="M7.34 7.05c0-.582.442-1.062 1.01-1.12l.115-.005h8.485a1.124 1.124 0 0 1 1.125 1.125v8.485a1.125 1.125 0 1 1-2.25 0v-7.36h-7.36L8.35 8.17a1.125 1.125 0 0 1-1.01-1.12"
+                            fill="currentColor"
+                          />
+                        </svg>
+                      </span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            class="overflow-hidden rounded-md border border-ods-border bg-ods-card text-inherit no-underline block mb-1"
+            data-loading-item="true"
+          >
+            <div
+              class="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-0 h-[66px] content-md:h-[78px]"
+            >
+              <div
+                class="flex flex-col overflow-hidden justify-start text-left w-[60%] content-md:flex-1 min-w-0"
+              >
+                <div
+                  class="flex min-w-0 flex-col justify-center"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="flex flex-col text-h4 h-[1lh] w-3/4"
+                  >
+                    <div
+                      class="flex h-[1lh] items-center"
+                    >
+                      <div
+                        aria-hidden="true"
+                        class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                      />
+                    </div>
+                  </div>
+                  <div
+                    class="min-w-0"
+                  >
+                    <div
+                      aria-hidden="true"
+                      class="flex flex-col text-h6 h-[1lh] w-3/4"
+                    >
+                      <div
+                        class="flex h-[1lh] items-center"
+                      >
+                        <div
+                          aria-hidden="true"
+                          class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-md:flex"
+              >
+                <div
+                  class="flex min-h-[60px] flex-col justify-center gap-1 py-2"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="flex flex-col text-h6 h-[1lh] w-3/4"
+                  >
+                    <div
+                      class="flex h-[1lh] items-center"
+                    >
+                      <div
+                        aria-hidden="true"
+                        class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                      />
+                    </div>
+                  </div>
+                  <div
+                    aria-hidden="true"
+                    class="flex flex-col text-h6 h-[1lh] w-1/2"
+                  >
+                    <div
+                      class="flex h-[1lh] items-center"
+                    >
+                      <div
+                        aria-hidden="true"
+                        class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="flex-col overflow-hidden justify-start text-left min-w-0 flex-1 hidden content-lg:flex"
+              >
+                <div
+                  class="flex min-w-0 items-center gap-2"
+                >
+                  <div
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none h-8 w-8 rounded-full shrink-0"
+                  />
+                  <div
+                    aria-hidden="true"
+                    class="flex flex-col text-h4 h-[1lh] w-3/4"
+                  >
+                    <div
+                      class="flex h-[1lh] items-center"
+                    >
+                      <div
+                        aria-hidden="true"
+                        class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="flex flex-col overflow-hidden justify-start text-left min-w-0 flex-1"
+              >
+                <span
+                  aria-hidden="true"
+                  class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none inline-flex items-center justify-center rounded-md h-8 gap-[var(--spacing-system-xs)] p-[var(--spacing-system-xsf)] text-h5 w-fit shrink-0"
+                />
+              </div>
+              <div
+                class="flex-col overflow-hidden justify-end text-right w-12 flex-none hidden content-md:flex"
+              >
+                <div
+                  class="pointer-events-auto flex items-center justify-end"
+                  data-no-row-click="true"
+                >
+                  <button
+                    aria-label="Open in new tab"
+                    class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:bg-ods-card disabled:text-ods-text-disabled aria-disabled:bg-ods-card aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-11 w-11 p-[var(--spacing-system-sf)] md:h-12 md:w-12 [&_svg]:h-4 [&_svg]:w-4 md:[&_svg]:h-6 md:[&_svg]:w-6 bg-ods-card"
+                    disabled=""
+                  >
+                    <span
+                      class="contents"
+                    >
+                      <span
+                        class="inline-flex items-center"
+                      >
+                        <svg
+                          class="h-5 w-5"
+                          fill="none"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          width="24"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="m16.154 6.255.086-.078a1.125 1.125 0 0 1 1.583 1.583l-.078.086-9.9 9.899a1.125 1.125 0 1 1-1.59-1.591z"
+                            fill="currentColor"
+                          />
+                          <path
+                            d="M7.34 7.05c0-.582.442-1.062 1.01-1.12l.115-.005h8.485a1.124 1.124 0 0 1 1.125 1.125v8.485a1.125 1.125 0 1 1-2.25 0v-7.36h-7.36L8.35 8.17a1.125 1.125 0 0 1-1.01-1.12"
+                            fill="currentColor"
+                          />
+                        </svg>
+                      </span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;

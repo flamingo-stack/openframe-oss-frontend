@@ -9,6 +9,7 @@ import type { userGroupsTabPaginationQuery as UserGroupsTabPaginationQueryType }
 import type { userGroupsTabQuery as UserGroupsTabQueryType } from '@/__generated__/userGroupsTabQuery.graphql';
 import { type InfiniteScroll, NO_NEXT_PAGE, oneLineEmptyState, useRetryKey } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { useTableGrid } from '@/app/components/shared/table-layout-scope';
 import { getGroupRowId, type GroupRow, groupColumns, groupRowHref, toGroupRow } from '../groups-list/group-row';
 import { UserTabHeading } from './user-tab-heading';
 
@@ -57,6 +58,7 @@ function GroupsTable({
   infiniteScroll: InfiniteScroll;
 }) {
   const loading = useLoadingScope();
+  const tableGrid = useTableGrid('user-groups');
   const placeholderRows = useMemo(
     () => (loading ? loadingPlaceholderRows<GroupRow>(GROUPS_PAGE_SIZE) : null),
     [loading],
@@ -71,6 +73,7 @@ function GroupsTable({
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
       <UserTabHeading title="Groups" />
       <LiveTable
+        {...tableGrid}
         table={table}
         pageSize={GROUPS_PAGE_SIZE}
         loadingCells={loading}

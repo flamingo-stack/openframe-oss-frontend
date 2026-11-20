@@ -1,6 +1,6 @@
 'use client';
 
-import { TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { DataTable, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { softwareActionTypeCell_action$key } from '@/__generated__/softwareActionTypeCell_action.graphql';
 import { softwareActionKindLabel } from './software-action-kind';
@@ -25,5 +25,17 @@ export function SoftwareActionTypeCell({ action }: { action: softwareActionTypeC
         </TruncateText>
       )}
     </div>
+  );
+}
+
+/** ACTION column in the grid layout: one line, the action and the version it goes to after it. */
+export function SoftwareActionTypeGridCell({ action }: { action: softwareActionTypeCell_action$key }) {
+  // A row still being read (a loading scope) has no fragment to read: the cell draws its bar.
+  const data = useFragment(softwareActionTypeCellFragment, useLoadingScope() ? null : action);
+  return (
+    <DataTable.Cell
+      text={data ? (softwareActionKindLabel(data.kind) ?? data.kind) : ''}
+      secondary={data?.version ?? undefined}
+    />
   );
 }
