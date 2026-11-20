@@ -16,7 +16,7 @@ import {
 } from '@/lib/navigation-sidebar-state';
 import { ManhattanCentre } from './manhattan-centre';
 import { useManhattanCentreStore, workAreaModeOf } from './manhattan-centre-store';
-import { ManhattanComposerPortal, ManhattanComposerSlot } from './manhattan-composer-host';
+import { ManhattanComposerPortal, ManhattanComposerSlot, useManhattanComposerPlace } from './manhattan-composer-host';
 
 const { nav, chatState, viewport } = vi.hoisted(() => ({
   nav: { pathname: '/devices', search: '', push: vi.fn() },
@@ -155,7 +155,14 @@ describe('workAreaModeOf', () => {
 describe('the composer host', () => {
   function Composer({ onMount }: { onMount: () => void }) {
     useEffect(onMount, [onMount]);
-    return <textarea aria-label="Draft" />;
+    // The slot holding it, as the dock reads it for its side inset (`useDockComposerInset`).
+    const place = useManhattanComposerPlace();
+    return (
+      <>
+        <textarea aria-label="Draft" />
+        <output aria-label="place">{place}</output>
+      </>
+    );
   }
   function Host({ onMount }: { onMount: () => void }) {
     const [inColumn, setInColumn] = useState(false);
@@ -196,6 +203,20 @@ describe('the composer host', () => {
     expect(container.querySelector('textarea')).toBe(draft);
     expect(draft.value).toBe('keep me');
     expect(onMount).toHaveBeenCalledOnce();
+  });
+
+  // CU-17tkuw68taa: the composer's side inset follows the slot it hangs in (none below 720px of content only in
+  // the column, which pads it itself), so the place must follow every move, both ways.
+  it('publishes the slot that holds it, on every move', () => {
+    render(<Host onMount={() => {}} />);
+    const place = () => container.querySelector('[aria-label="place"]')?.textContent;
+    expect(place()).toBe('page');
+
+    click('move');
+    expect(place()).toBe('column');
+
+    click('move');
+    expect(place()).toBe('page');
   });
 });
 

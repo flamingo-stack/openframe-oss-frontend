@@ -4,6 +4,9 @@ import { type ReactNode, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { create } from 'zustand';
 
+/** Where the composer is: the dock under the page, or the bottom of the chat column. */
+export type ManhattanComposerPlace = 'page' | 'column';
+
 /**
  * The Manhattan v2 composer moves between two places with the work-area mode: the
  * bottom of the chat column (`chat`, `split`) and the dock under the page (`page`).
@@ -14,9 +17,6 @@ import { create } from 'zustand';
  * the active slot moves that element (the DOM node, not the React tree) into itself.
  * React never sees the move: the portal's container is the same node wherever it hangs.
  */
-/** Where the composer is: the dock under the page, or the bottom of the chat column. */
-export type ManhattanComposerPlace = 'page' | 'column';
-
 interface ComposerHostStore {
   host: HTMLDivElement | null;
   /** The host has hung in a slot once: the portal renders from then on (its first layout reads a laid-out box). */
