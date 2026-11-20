@@ -56,6 +56,18 @@ describe('SidebarUpdateButton', () => {
       }
     });
 
+    it('with `inset` (the flat sidebar, no side padding of its own), keeps its own inset and the 48px rail square', () => {
+      act(() => root.render(<SidebarUpdateButton minimized={false} inset />));
+      expect(container.querySelector('button')?.parentElement?.className).toBe('p-[var(--spacing-system-m)]');
+      expect(container.querySelector('button')?.classList.contains('w-full')).toBe(true);
+
+      act(() => root.render(<SidebarUpdateButton minimized inset />));
+      const rail = container.querySelector('button');
+      expect(rail?.parentElement?.className).toBe('flex justify-center p-1');
+      expect(rail?.classList.contains('h-10')).toBe(false);
+      expect(rail?.classList.contains('w-full')).toBe(false);
+    });
+
     it('in the rail, shows the glyph alone, named by its aria-label and title', () => {
       const button = render(true);
 
