@@ -43,11 +43,17 @@ export interface OrganizationDomainState {
  * cluster-capacity case, which is not a "pick another name" error and was previously handled on
  * only one of the three.
  */
-export function useOrganizationDomain(organizationName: string, initialDomain = ''): OrganizationDomainState {
+/** `initialTenantDomain` is a full tenant domain, as `confirmAvailability` resolves it. */
+export function useOrganizationDomain(organizationName: string, initialTenantDomain = ''): OrganizationDomainState {
   const { toast } = useToast();
   const isSharedAuth = isSharedAuthUi();
 
-  const [domain, setDomainState] = useState(initialDomain);
+  const [domain, setDomainState] = useState(() => {
+    const suffix = `.${SAAS_DOMAIN_SUFFIX}`;
+    return isSharedAuth && initialTenantDomain.endsWith(suffix)
+      ? initialTenantDomain.slice(0, -suffix.length)
+      : initialTenantDomain;
+  });
   const [isChecking, setIsChecking] = useState(false);
   const [submitSuggestions, setSubmitSuggestions] = useState<string[]>([]);
 

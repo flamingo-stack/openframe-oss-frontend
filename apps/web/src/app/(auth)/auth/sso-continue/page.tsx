@@ -44,12 +44,12 @@ export default function SsoContinuePage() {
     (res: AuthApiResponse<PendingSsoIdentity>, detailsKept: boolean) => {
       // 409 is the documented expiry signal and carries copy worth showing; anything else gets a
       // generic line rather than a raw status.
-      const reason = res.status === 409 && res.error ? res.error : null;
+      const reason = res.status === 409 && res.error ? res.error : 'Your sign-in session has expired.';
       toast({
         title: 'Sign-in session expired',
         description: detailsKept
-          ? `${reason ?? 'Your sign-in session has expired.'} Sign in again to continue. Your organization details are kept.`
-          : (reason ?? 'Your sign-in session has expired. Please sign in again.'),
+          ? `${reason} Sign in again to continue. Your organization details are kept.`
+          : `${reason} Please sign in again.`,
         variant: 'destructive',
       });
       router.replace(routes.auth.login);
