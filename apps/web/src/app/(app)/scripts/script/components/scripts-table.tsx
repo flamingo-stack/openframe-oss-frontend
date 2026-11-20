@@ -12,7 +12,9 @@ import {
   RowActionsCell,
   SCRIPT_COLUMNS,
   ScriptNameCell,
+  ScriptNameGridCell,
   ScriptShellBadge,
+  ScriptShellGridCell,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
@@ -31,6 +33,7 @@ import {
   Button,
   type ColumnDef,
   FilterModal,
+  LoadingWhen,
   PageLayout,
   type Row,
   SquareAvatar,
@@ -58,13 +61,7 @@ import { useGenerateWithAiAction } from '@/app/(app)/mingo/hooks/use-generate-wi
 import { useMingoCreatedEpoch } from '@/app/(app)/mingo/stores/mingo-created-entities-store';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
 import { DIALOG_INTENT } from '@/app/(app)/tickets/constants';
-import {
-  EmptyState,
-  liveColumnMeta,
-  onboardingGuideButton,
-  oneLineEmptyState,
-  useRetryKey,
-} from '@/app/components/shared';
+import { EmptyState, onboardingGuideButton, oneLineEmptyState, useRetryKey } from '@/app/components/shared';
 import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { LiveTable } from '@/app/components/shared/live-table';
 import { ValueText } from '@/app/components/shared/value-text';
@@ -72,6 +69,7 @@ import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { type TableLayout, tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { ScriptStatus } from '@/generated/schema-enums';
 import { archiveScriptMutation } from '@/graphql/scripts/archive-script-mutation';
 import { scriptFiltersRefreshRelayQuery } from '@/graphql/scripts/script-filters-refresh-relay';
@@ -91,6 +89,7 @@ import {
   facetToMappedOptions,
   facetToSortedOptions,
 } from '../../shared/utils/facet-options';
+import { SCRIPTS_TABLE_SETTINGS, scriptsLiveColumnMeta, scriptsLiveColumnSize } from '../../shared/utils/grid-columns';
 import { platformsToEnums, platformsToIds, shellToEnum, shellToId } from '../../shared/utils/script-mappers';
 import { ArchiveScriptModal } from './archive-script-modal';
 import { RestoreScriptModal } from './restore-script-modal';
@@ -235,7 +234,12 @@ function scriptColumns({
         <ScriptNameCell name={row.original.name} description={row.original.description} />
       ),
       enableSorting: false,
-      meta: liveColumnMeta(SCRIPT_COLUMNS.name),
+      ...scriptsLiveColumnSize(SCRIPT_COLUMNS.name),
+      meta: scriptsLiveColumnMeta(SCRIPT_COLUMNS.name, {
+        gridCell: ({ row }: { row: Row<UiScriptEntry> }) => (
+          <ScriptNameGridCell name={row.original.name} description={row.original.description} />
+        ),
+      }),
     },
     {
       accessorKey: 'shellType',
@@ -243,7 +247,11 @@ function scriptColumns({
       cell: ({ row }: { row: Row<UiScriptEntry> }) => <ScriptShellCell shellType={row.original.shellType} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(SCRIPT_COLUMNS.shellType, { filter: facetFilter(options?.shell) }),
+      ...scriptsLiveColumnSize(SCRIPT_COLUMNS.shellType),
+      meta: scriptsLiveColumnMeta(SCRIPT_COLUMNS.shellType, {
+        filter: facetFilter(options?.shell),
+        gridCell: ({ row }: { row: Row<UiScriptEntry> }) => <ScriptShellGridCell value={row.original.shellType} />,
+      }),
     },
     {
       accessorKey: 'supportedPlatforms',
@@ -253,7 +261,13 @@ function scriptColumns({
       ),
       enableSorting: false,
       filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(SCRIPT_COLUMNS.supportedPlatforms, { filter: facetFilter(options?.platform) }),
+      ...scriptsLiveColumnSize(SCRIPT_COLUMNS.supportedPlatforms),
+      meta: scriptsLiveColumnMeta(SCRIPT_COLUMNS.supportedPlatforms, {
+        filter: facetFilter(options?.platform),
+        gridCell: ({ row }: { row: Row<UiScriptEntry> }) => (
+          <OSTypeBadgeGroup osTypes={row.original.supportedPlatforms} iconSize="w-5 h-5" className="flex-nowrap" />
+        ),
+      }),
     },
     {
       // "Added by" = Script.author. Server filter via `authorIds`; the dropdown
@@ -267,7 +281,9 @@ function scriptColumns({
       // Rightmost filterable column: anchor the dropdown to the right edge so it
       // never flips placement (start↔end) on open/close — that flip makes the
       // panel jump sideways as it animates out.
-      meta: liveColumnMeta(SCRIPT_COLUMNS.authorId, {
+      // One line already (the avatar and the linked name): the grid draws the same cell, clipped to its line.
+      ...scriptsLiveColumnSize(SCRIPT_COLUMNS.authorId),
+      meta: scriptsLiveColumnMeta(SCRIPT_COLUMNS.authorId, {
         cellClassName: 'self-stretch',
         filter: { ...facetFilter(options?.author), placement: 'bottom-end' },
       }),
@@ -276,7 +292,8 @@ function scriptColumns({
       id: 'actions',
       cell: ({ row }: { row: Row<UiScriptEntry> }) => <RowActionsCell>{renderRowActions(row.original)}</RowActionsCell>,
       enableSorting: false,
-      meta: liveColumnMeta(SCRIPT_COLUMNS.actions),
+      ...scriptsLiveColumnSize(SCRIPT_COLUMNS.actions),
+      meta: scriptsLiveColumnMeta(SCRIPT_COLUMNS.actions),
     },
     {
       id: 'open',
@@ -284,7 +301,12 @@ function scriptColumns({
         <OpenInNewTabCell href={routes.scripts.details(row.original.id)} />
       ),
       enableSorting: false,
-      meta: liveColumnMeta(SCRIPT_COLUMNS.open),
+      ...scriptsLiveColumnSize(SCRIPT_COLUMNS.open),
+      meta: scriptsLiveColumnMeta(SCRIPT_COLUMNS.open, {
+        gridCell: ({ row }: { row: Row<UiScriptEntry> }) => (
+          <OpenInNewTabCell href={routes.scripts.details(row.original.id)} grid />
+        ),
+      }),
     },
   ];
 }
@@ -311,6 +333,8 @@ interface ScriptsTableContentProps {
   onMobileFilterClose: () => void;
   stickyHeaderOffset: string;
   archived: boolean;
+  /** The table's layout, from the app's one table flag: read once by the page and handed to every form of the list. */
+  tableLayout: TableLayout;
 }
 
 function ScriptsTableContent({
@@ -325,6 +349,7 @@ function ScriptsTableContent({
   onMobileFilterClose,
   stickyHeaderOffset,
   archived,
+  tableLayout,
 }: ScriptsTableContentProps) {
   const { toast } = useToast();
   const environment = useRelayEnvironment();
@@ -644,6 +669,7 @@ function ScriptsTableContent({
         table={table}
         pageSize={PAGE_SIZE}
         stickyHeaderOffset={stickyHeaderOffset}
+        {...gridTableProps(tableLayout)}
         emptyState={oneLineEmptyState(
           debouncedSearch
             ? `No scripts found matching "${debouncedSearch}". Try adjusting your search.`
@@ -687,6 +713,15 @@ function ScriptsTableContent({
 /** The columns before the first answer: the funnels pending, no row to act on. */
 const LOADING_COLUMNS = scriptColumns({ options: null, renderRowActions: () => null });
 
+/**
+ * The table's layout props, the same for the loaded table and its loading form. In the grid layout the table is the
+ * page's scroll area (it fills the height under the toolbar) and keeps the viewer's column layout under the list's
+ * key; `LiveTable` passes neither on while the table draws card rows.
+ */
+function gridTableProps(tableLayout: TableLayout) {
+  return { layout: tableLayout, maxHeight: 'fill', settings: SCRIPTS_TABLE_SETTINGS.scripts } as const;
+}
+
 /** The scripts list, with its own boundary: in its scope the reader draws the table's loading form. */
 function ScriptsTableList(props: ScriptsTableContentProps) {
   return (
@@ -699,7 +734,14 @@ function ScriptsTableList(props: ScriptsTableContentProps) {
 function ScriptsTableListReader(props: ScriptsTableContentProps) {
   // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
   if (useLoadingScope())
-    return <LiveTable columns={LOADING_COLUMNS} pageSize={PAGE_SIZE} stickyHeaderOffset={props.stickyHeaderOffset} />;
+    return (
+      <LiveTable
+        columns={LOADING_COLUMNS}
+        pageSize={PAGE_SIZE}
+        stickyHeaderOffset={props.stickyHeaderOffset}
+        {...gridTableProps(props.tableLayout)}
+      />
+    );
   return <ScriptsTableContent {...props} />;
 }
 
@@ -735,6 +777,8 @@ export function ScriptsTable({ archived = false }: ScriptsTableProps = {}) {
   const [isEmpty, setIsEmpty] = useState(false);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
+  // The new grid table, behind the app's one table flag; card rows while it is off.
+  const tableGate = useTableGridGate();
 
   const backendFilters: ScriptFilterInput = useMemo(() => {
     const shells = params.shellType.map(shellToEnum);
@@ -847,19 +891,23 @@ export function ScriptsTable({ archived = false }: ScriptsTableProps = {}) {
           </div>
         )}
 
-        <ScriptsTableList
-          backendFilters={deferredFilters}
-          debouncedSearch={deferredSearch}
-          tableFilters={tableFilters}
-          hasTagFilter={params.tagIds.length > 0}
-          isPending={isPending}
-          onFilterChange={handleFilterChange}
-          onEmptyChange={setIsEmpty}
-          mobileFilterOpen={mobileFilterOpen}
-          onMobileFilterClose={() => setMobileFilterOpen(false)}
-          stickyHeaderOffset={stickyHeaderOffset}
-          archived={archived}
-        />
+        {/* Until the flag answers the list is its loading form: a guess would draw one table and replace it. */}
+        <LoadingWhen loading={tableGate === 'loading'}>
+          <ScriptsTableList
+            backendFilters={deferredFilters}
+            debouncedSearch={deferredSearch}
+            tableFilters={tableFilters}
+            hasTagFilter={params.tagIds.length > 0}
+            isPending={isPending}
+            onFilterChange={handleFilterChange}
+            onEmptyChange={setIsEmpty}
+            mobileFilterOpen={mobileFilterOpen}
+            onMobileFilterClose={() => setMobileFilterOpen(false)}
+            stickyHeaderOffset={stickyHeaderOffset}
+            archived={archived}
+            tableLayout={tableLayoutFor(tableGate)}
+          />
+        </LoadingWhen>
       </div>
     </PageLayout>
   );
