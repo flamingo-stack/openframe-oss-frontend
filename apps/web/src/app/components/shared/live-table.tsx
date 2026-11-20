@@ -259,7 +259,9 @@ function LiveTableShell<T>({
             // pluralizes its own.
             itemName={totalCount === 1 ? (itemName ?? 'result') : `${itemName ?? 'result'}s`}
             totalCount={totalCount}
-            loading={loadingCells}
+            // While the next page (or a filter's) is read the rows on screen are the last ones: the buttons wait (the
+            // count stays), so a second Next cannot resend the same cursor under the next page's index.
+            loading={loadingCells || isPending}
           />
         ) : (
           footer && <DataTable.InfiniteFooter {...footer} skeletonRows={rows} />
