@@ -10,6 +10,7 @@ import { SOFTWARE_LIST_PAGE_SIZE } from '@/app/(app)/software/components/softwar
 import { SoftwareTable } from '@/app/(app)/software/components/software-list/software-table';
 import { useRetryKey } from '@/app/components/shared';
 import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
+import { TableLayoutScope } from '@/app/components/shared/table-layout-scope';
 import { forwardPage } from '@/app/hooks/forward-page';
 import { usePagedTable } from '@/app/hooks/use-paged-table';
 import { useRefetchPage } from '@/app/hooks/use-refetch-page';
@@ -57,15 +58,21 @@ interface DeviceSoftwareTableProps extends Pick<
 /** The Software tab's rows, with their own boundary: in its scope the reader draws its own loading form. */
 export function DeviceSoftwareTable(props: DeviceSoftwareTableProps) {
   return (
-    <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
-      <DeviceSoftwareTableLoading {...props} />
-    </StaleCursorBoundary>
+    // The Software module's table: its layout follows the app's table flag here, as on the module's own pages. A
+    // section of the device's page, so the page scrolls, not the table.
+    <TableLayoutScope>
+      <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
+        <DeviceSoftwareTableBoundary {...props} />
+      </StaleCursorBoundary>
+    </TableLayoutScope>
   );
 }
 
-/** The rows' loading boundary, the whole output of its own component (the loading standard), under the
- * stale-cursor boundary above. */
-function DeviceSoftwareTableLoading(props: DeviceSoftwareTableProps) {
+/**
+ * The rows' own boundary, the whole output of its own component (the loading standard), under the stale-cursor
+ * boundary above: in its scope the reader draws its own loading form.
+ */
+function DeviceSoftwareTableBoundary(props: DeviceSoftwareTableProps) {
   return (
     <LoadingSuspense label="Loading software">
       <DeviceSoftwareTableReader {...props} />

@@ -293,8 +293,8 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
   //   - name and glyph: the server's (see below; both requests are the ones the
   //     chat panel and the "Meet Mingo" step make, cached per URL). With no name
   //     the lib renders no card;
-  //   - `askPromptsUrl`: the hub's general questions, picked by the topic each
-  //     FAQ passes;
+  //   - `askPromptsUrl`: the hub chat's quick actions ("Ask Mingo" questions),
+  //     picked by the topic each surface passes;
   //   - `open`: `openMingo` below, this app's own launcher.
   const chatCanOpen = useMingoLauncherStore(state => state.dockMounted);
   // Identity, from the SERVER, in the hub's own order: the platform's chat
@@ -326,7 +326,7 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
       available: chatCanOpen,
       name: assistantName,
       icon: assistantIconNode,
-      askPromptsUrl: `${CONTENT_ORIGIN}/content/api/faqs/questions`,
+      askPromptsUrl: `${CONTENT_ORIGIN}/content/api/quick-actions/questions`,
       open: openMingo,
     }),
     [chatCanOpen, assistantName, assistantIconNode],

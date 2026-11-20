@@ -5,6 +5,7 @@ import { LoadingFallback, LoadingSuspense } from '@flamingo-stack/openframe-fron
 import { BellCheckIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Input,
+  LoadingWhen,
   type NoDataProps,
   type PageActionButton,
   PageLayout,
@@ -21,6 +22,7 @@ import type { notificationsSectionRelayQuery as NotificationsSectionRelayQueryTy
 import { EmptyState, type InfiniteScroll, NO_ITEMS } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { useGridTableProps } from '@/app/hooks/use-table-layout';
 import { NotificationReadStatus } from '@/generated/schema-enums';
 import {
   isReadStatus,
@@ -46,6 +48,12 @@ export interface NotificationsScope {
 }
 
 const SCOPE_TAG = 'entity';
+
+/**
+ * The key the grid table keeps the viewer's column layout under (hidden columns, their order, resized widths): one per
+ * list, so the unread list and the history are laid out apart.
+ */
+const tableStorageKey = (rowVariant: 'unread' | 'read') => `notifications-${rowVariant}`;
 
 interface NotificationsSectionProps {
   title: string;
@@ -161,7 +169,12 @@ function SectionTableReader({ queryRef, ...props }: SectionTableProps) {
   const loadingTable = (
     <SectionTableLoading rowVariant={props.rowVariant} stickyHeaderOffset={props.stickyHeaderOffset} />
   );
-  if (useLoadingScope()) return loadingTable;
+  const scoped = useLoadingScope();
+  // While the table flag is read the table draws its loading state too (and reads nothing): it never draws one layout
+  // and swaps to the other.
+  const { loading: flagLoading } = useGridTableProps(tableStorageKey(props.rowVariant));
+  if (scoped) return loadingTable;
+  if (flagLoading) return <LoadingWhen loading>{loadingTable}</LoadingWhen>;
   if (!queryRef) return <LoadingFallback label={sectionLoadingLabel(props.rowVariant)}>{loadingTable}</LoadingFallback>;
   return <SectionTableLive queryRef={queryRef} {...props} />;
 }
@@ -248,6 +261,18 @@ function SectionTableLoading({
   );
 }
 
+/** The approval block under a row: an approval request's own, and its loading form under a placeholder row. */
+function approvalBlock(
+  item: NotificationRow,
+  { loading, onResolved }: { loading: boolean; onResolved?: (id: string) => void },
+) {
+  // A placeholder row (the table still loading) carries no notification: it draws the approval block's loading
+  // form, because a typical notification is an approval request (45 of 50 in a measured tenant).
+  if (!item.notification) return loading ? <NotificationApprovalSubRow notification={null} /> : null;
+  if (!isApprovalNotification(item.notification) || !getApprovalMeta(item.notification)) return null;
+  return <NotificationApprovalSubRow notification={item.notification} onResolved={onResolved} />;
+}
+
 interface SectionTableViewProps {
   rows: NotificationRow[];
   rowVariant: 'unread' | 'read';
@@ -273,25 +298,21 @@ export function SectionTableView({
   stickyHeaderOffset,
 }: SectionTableViewProps) {
   const loading = useLoadingScope();
+  // Card rows, or the grid table where the app's table flag is on. The list is one section of its page (the history
+  // has a note under it), so the grid states no height: the page scrolls and the header sticks.
+  const tableGrid = useGridTableProps(tableStorageKey(rowVariant));
 
   const columns = useMemo(
-    () => buildNotificationColumns({ rowVariant, onMarkRead, onDelete }),
-    [rowVariant, onMarkRead, onDelete],
+    () => buildNotificationColumns({ rowVariant, onMarkRead, onDelete, layout: tableGrid.layout }),
+    [rowVariant, onMarkRead, onDelete, tableGrid.layout],
   );
 
+  // The block under a row. In the grid the table gives it the visible table's width (the lib's sub-row, from 0.0.911):
+  // a long line wraps and never widens the table, and on a narrow screen the block stays in view while the cells
+  // scroll sideways. So it takes no width of its own here.
   const renderSubRow = useCallback(
-    (item: NotificationRow) => {
-      // A placeholder row (the table still loading) carries no notification: it draws the approval block's loading
-      // form, because a typical notification is an approval request (45 of 50 in a measured tenant).
-      if (!item.notification) return loading ? <NotificationApprovalSubRow notification={null} /> : null;
-      if (!isApprovalNotification(item.notification) || !getApprovalMeta(item.notification)) return null;
-      return (
-        <NotificationApprovalSubRow
-          notification={item.notification}
-          onResolved={rowVariant === 'unread' ? onMarkRead : undefined}
-        />
-      );
-    },
+    (item: NotificationRow) =>
+      approvalBlock(item, { loading, onResolved: rowVariant === 'unread' ? onMarkRead : undefined }),
     [rowVariant, onMarkRead, loading],
   );
 
@@ -331,6 +352,8 @@ export function SectionTableView({
         table={table}
         pageSize={NOTIFICATIONS_SECTION_PAGE_SIZE}
         stickyHeaderOffset={stickyHeaderOffset}
+        layout={tableGrid.layout}
+        settings={tableGrid.settings}
         itemName="result"
         renderSubRow={renderSubRow}
         loadingSubRows

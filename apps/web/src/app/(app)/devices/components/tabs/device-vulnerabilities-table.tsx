@@ -10,6 +10,7 @@ import { VULNERABILITY_LIST_PAGE_SIZE } from '@/app/(app)/software/components/vu
 import { VulnerabilityTable } from '@/app/(app)/software/components/vulnerability-list/vulnerability-table';
 import { useRetryKey } from '@/app/components/shared';
 import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
+import { TableLayoutScope } from '@/app/components/shared/table-layout-scope';
 import { forwardPage } from '@/app/hooks/forward-page';
 import { usePagedTable } from '@/app/hooks/use-paged-table';
 import { useRefetchPage } from '@/app/hooks/use-refetch-page';
@@ -54,18 +55,27 @@ interface DeviceVulnerabilitiesTableProps extends Pick<
   stickyHeaderOffset: string;
 }
 
+/** The viewer's saved column layout of this tab's table, apart from the fleet-wide list's. */
+const SETTINGS_KEY = 'device-vulnerabilities';
+
 /** The Vulnerabilities tab's rows, with their own boundary: in its scope the reader draws its own loading form. */
 export function DeviceVulnerabilitiesTable(props: DeviceVulnerabilitiesTableProps) {
   return (
-    <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
-      <DeviceVulnerabilitiesTableLoading {...props} />
-    </StaleCursorBoundary>
+    // The Software module's table: its layout follows the app's table flag here, as on the module's own pages. A
+    // section of the device's page, so the page scrolls, not the table.
+    <TableLayoutScope>
+      <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
+        <DeviceVulnerabilitiesTableBoundary {...props} />
+      </StaleCursorBoundary>
+    </TableLayoutScope>
   );
 }
 
-/** The rows' loading boundary, the whole output of its own component (the loading standard), under the
- * stale-cursor boundary above. */
-function DeviceVulnerabilitiesTableLoading(props: DeviceVulnerabilitiesTableProps) {
+/**
+ * The rows' own boundary, the whole output of its own component (the loading standard), under the stale-cursor
+ * boundary above: in its scope the reader draws its own loading form.
+ */
+function DeviceVulnerabilitiesTableBoundary(props: DeviceVulnerabilitiesTableProps) {
   return (
     <LoadingSuspense label="Loading vulnerabilities">
       <DeviceVulnerabilitiesTableReader {...props} />
@@ -78,7 +88,9 @@ function DeviceVulnerabilitiesTableLoading(props: DeviceVulnerabilitiesTableProp
  * fallback) it draws the table's own loading state and runs no query; otherwise the query below.
  */
 function DeviceVulnerabilitiesTableReader(props: DeviceVulnerabilitiesTableProps) {
-  if (useLoadingScope()) return <VulnerabilityTable stickyHeaderOffset={props.stickyHeaderOffset} />;
+  if (useLoadingScope()) {
+    return <VulnerabilityTable stickyHeaderOffset={props.stickyHeaderOffset} settingsKey={SETTINGS_KEY} />;
+  }
   return <DeviceVulnerabilitiesTableQuery {...props} />;
 }
 
@@ -125,6 +137,7 @@ function DeviceVulnerabilitiesTableQuery({
       emptyState={emptyState}
       onEmptyChange={onEmptyChange}
       stickyHeaderOffset={stickyHeaderOffset}
+      settingsKey={SETTINGS_KEY}
       pager={paged.pager}
       refresh={paged.refresh}
     />

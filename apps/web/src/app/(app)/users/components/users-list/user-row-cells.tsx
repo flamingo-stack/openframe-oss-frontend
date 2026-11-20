@@ -2,6 +2,7 @@
 
 import { providerMark } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
+  DataTable,
   EntityImage,
   FloatingTooltip,
   SquareAvatar,
@@ -74,6 +75,25 @@ export function UserCell({ row }: { row: UserRow }) {
 }
 
 /**
+ * USER column in the grid layout: one line. The avatar, the name, the role tag, then the address; the provider marks
+ * close the line (the cell has one leading mark, and that is the avatar).
+ */
+export function UserGridCell({ row }: { row: UserRow }) {
+  const name = row.name ?? '';
+  const providers = row.providers ?? [];
+  return (
+    <DataTable.Cell
+      leading={{ type: 'avatar', name }}
+      // A row still being read has no name: the cell draws it as a bar.
+      text={name}
+      tag={row.roleTag ? <Tag label={row.roleTag} variant="grey" /> : undefined}
+      secondary={row.email === undefined ? undefined : (row.email ?? EMPTY_VALUE)}
+      trailing={providers.length > 0 && <ProviderMarks providers={providers} />}
+    />
+  );
+}
+
+/**
  * "Microsoft 365 E3 +3" (Figma 733:98943): the first name, the rest counted. A row's customers, devices, licences or
  * groups.
  */
@@ -118,6 +138,25 @@ export function CustomerCell({ row, showTenant = true }: { row: UserRow; showTen
   );
 }
 
+/**
+ * CUSTOMER column in the grid layout: one line. The first customer's logo and name, the others behind `+N` (each with
+ * the rule that brought it in, as the card's tooltip names them), then the tenant.
+ */
+export function CustomerGridCell({ row, showTenant = true }: { row: UserRow; showTenant?: boolean }) {
+  const loading = useLoadingScope();
+  // A row still being read: the logo's skeleton and the name as a bar.
+  if (loading) return <DataTable.Cell leading={{ type: 'image', alt: '' }} text="" />;
+  const [first, ...others] = row.customers ?? [];
+  return (
+    <DataTable.Cell
+      leading={first && { type: 'image', src: first.imageUrl, alt: first.name }}
+      text={first?.name ?? EMPTY_VALUE}
+      moreTags={others.map(customer => (customer.claim ? `${customer.name} — ${customer.claim}` : customer.name))}
+      secondary={showTenant ? (row.tenant?.name ?? 'Added in OpenFrame') : undefined}
+    />
+  );
+}
+
 export function StatusCell({ row }: { row: UserRow }) {
   const loading = useLoadingScope();
   return (
@@ -132,5 +171,21 @@ export function StatusCell({ row }: { row: UserRow }) {
         </TruncateText>
       </div>
     </div>
+  );
+}
+
+/** STATUS column in the grid layout: one line, the tag with the last sign-in after it. */
+export function StatusGridCell({ row }: { row: UserRow }) {
+  const loading = useLoadingScope();
+  return (
+    <DataTable.Cell
+      tag={
+        <FloatingTooltip content={row.statusTooltip} disabled={!row.statusTooltip} as="span">
+          <Tag label={row.status?.label ?? ''} variant={row.status?.variant} loading={loading} />
+        </FloatingTooltip>
+      }
+      // While the row is read there is no sign-in to print: the tag's own skeleton is the cell.
+      secondary={loading ? undefined : `Last sign-in: ${row.lastSignIn ?? 'Never'}`}
+    />
   );
 }

@@ -25,15 +25,18 @@ import type {
 } from '@/__generated__/softwareVulnerabilitiesTableQuery.graphql';
 import { EmptyState, liveColumnMeta, NO_ITEMS, oneLineEmptyState, useRetryKey } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
-import { OpenRowButton } from '@/app/components/shared/open-row-button';
+import { openRowColumn } from '@/app/components/shared/open-row-column';
 import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
+import { useTableGrid } from '@/app/components/shared/table-layout-scope';
 import { forwardPage } from '@/app/hooks/forward-page';
 import { usePagedTable } from '@/app/hooks/use-paged-table';
 import { useRefetchPage } from '@/app/hooks/use-refetch-page';
-import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { SOFTWARE_VULNERABILITIES_PAGE_SIZE, SOFTWARE_VULNERABILITY_COLUMNS } from './software-vulnerabilities-columns';
-import { SoftwareVulnerabilityDiscoveredCell } from './software-vulnerability-discovered-cell';
+import {
+  SoftwareVulnerabilityDiscoveredCell,
+  SoftwareVulnerabilityDiscoveredGridCell,
+} from './software-vulnerability-discovered-cell';
 import { SoftwareVulnerabilityVersionCell } from './software-vulnerability-version-cell';
 
 /**
@@ -86,6 +89,7 @@ const COLUMNS: ColumnDef<SoftwareVulnerabilityRow>[] = [
     header: SOFTWARE_VULNERABILITY_COLUMNS.cveId.header,
     cell: ({ row }: { row: Row<SoftwareVulnerabilityRow> }) => <TruncateText>{row.original.cveId}</TruncateText>,
     enableSorting: false,
+    size: 280,
     meta: liveColumnMeta(SOFTWARE_VULNERABILITY_COLUMNS.cveId),
   },
   {
@@ -95,6 +99,7 @@ const COLUMNS: ColumnDef<SoftwareVulnerabilityRow>[] = [
       <SoftwareVulnerabilityVersionCell vulnerability={row.original} />
     ),
     enableSorting: false,
+    size: 220,
     meta: liveColumnMeta(SOFTWARE_VULNERABILITY_COLUMNS.affectedVersion),
   },
   {
@@ -104,19 +109,17 @@ const COLUMNS: ColumnDef<SoftwareVulnerabilityRow>[] = [
       <SoftwareVulnerabilityDiscoveredCell vulnerability={row.original} />
     ),
     enableSorting: false,
-    meta: liveColumnMeta(SOFTWARE_VULNERABILITY_COLUMNS.discoveredAt),
+    size: 260,
+    meta: liveColumnMeta(SOFTWARE_VULNERABILITY_COLUMNS.discoveredAt, {
+      gridCell: ({ row }: { row: Row<SoftwareVulnerabilityRow> }) => (
+        <SoftwareVulnerabilityDiscoveredGridCell vulnerability={row.original} />
+      ),
+    }),
   },
-  {
-    id: SOFTWARE_VULNERABILITY_COLUMNS.open.id,
-    cell: ({ row }: { row: Row<SoftwareVulnerabilityRow> }) => (
-      <OpenRowButton
-        label={`Open ${row.original.cveId} in new tab`}
-        onClick={openInNewTab(routes.software.vulnerability(row.original.cveId))}
-      />
-    ),
-    enableSorting: false,
-    meta: liveColumnMeta(SOFTWARE_VULNERABILITY_COLUMNS.open),
-  },
+  openRowColumn<SoftwareVulnerabilityRow>(SOFTWARE_VULNERABILITY_COLUMNS.open, row => ({
+    label: `Open ${row.cveId} in new tab`,
+    href: routes.software.vulnerability(row.cveId),
+  })),
 ];
 
 /**
@@ -240,6 +243,7 @@ function SoftwareVulnerabilitiesTableRows({
   stickyHeaderOffset,
 }: SoftwareVulnerabilitiesTableRowsProps) {
   const loading = useLoadingScope();
+  const tableGrid = useTableGrid('software-vulnerabilities');
   // While the page is read the table holds one page of placeholder rows, drawn with their real cells.
   const placeholderRows = useMemo(
     () => (loading ? loadingPlaceholderRows<SoftwareVulnerabilityRow>(SOFTWARE_VULNERABILITIES_PAGE_SIZE) : null),
@@ -276,6 +280,7 @@ function SoftwareVulnerabilitiesTableRows({
 
   return (
     <LiveTable
+      {...tableGrid}
       table={table}
       pageSize={SOFTWARE_VULNERABILITIES_PAGE_SIZE}
       loadingCells={loading}

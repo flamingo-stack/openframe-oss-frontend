@@ -23,21 +23,21 @@ import type {
 } from '@/__generated__/softwareActionsTableQuery.graphql';
 import { EmptyState, liveColumnMeta, NO_ITEMS, oneLineEmptyState, useRetryKey } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
-import { OpenRowButton } from '@/app/components/shared/open-row-button';
+import { openRowColumn } from '@/app/components/shared/open-row-column';
 import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
+import { useTableGrid } from '@/app/components/shared/table-layout-scope';
 import { forwardPage } from '@/app/hooks/forward-page';
 import { usePagedTable } from '@/app/hooks/use-paged-table';
 import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { SoftwareActionStatus } from '@/generated/schema-enums';
-import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { multiColumnFilter } from '../shared/column-filters';
 import { SoftwareActionEngineCell } from './software-action-engine-cell';
-import { SoftwareActionNameCell } from './software-action-name-cell';
+import { SoftwareActionNameCell, SoftwareActionNameGridCell } from './software-action-name-cell';
 import { SoftwareActionProcessedCell } from './software-action-processed-cell';
-import { SoftwareActionStatusCell } from './software-action-status-cell';
-import { SoftwareActionTypeCell } from './software-action-type-cell';
+import { SoftwareActionStatusCell, SoftwareActionStatusGridCell } from './software-action-status-cell';
+import { SoftwareActionTypeCell, SoftwareActionTypeGridCell } from './software-action-type-cell';
 import { SOFTWARE_ACTION_COLUMNS, SOFTWARE_ACTIONS_PAGE_SIZE } from './software-actions-columns';
 import { type SoftwareActionFilterOptions, useSoftwareActionFilters } from './use-software-action-filters';
 
@@ -107,7 +107,10 @@ function buildColumns(options: SoftwareActionFilterOptions): ColumnDef<SoftwareA
       header: SOFTWARE_ACTION_COLUMNS.software.header,
       cell: ({ row }: { row: Row<SoftwareActionRow> }) => <SoftwareActionNameCell action={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(SOFTWARE_ACTION_COLUMNS.software),
+      size: 320,
+      meta: liveColumnMeta(SOFTWARE_ACTION_COLUMNS.software, {
+        gridCell: ({ row }: { row: Row<SoftwareActionRow> }) => <SoftwareActionNameGridCell action={row.original} />,
+      }),
     },
     {
       id: SOFTWARE_ACTION_COLUMNS.action.id,
@@ -116,7 +119,11 @@ function buildColumns(options: SoftwareActionFilterOptions): ColumnDef<SoftwareA
       cell: ({ row }: { row: Row<SoftwareActionRow> }) => <SoftwareActionTypeCell action={row.original} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(SOFTWARE_ACTION_COLUMNS.action, { filter: { options: options.actions } }),
+      size: 260,
+      meta: liveColumnMeta(SOFTWARE_ACTION_COLUMNS.action, {
+        filter: { options: options.actions },
+        gridCell: ({ row }: { row: Row<SoftwareActionRow> }) => <SoftwareActionTypeGridCell action={row.original} />,
+      }),
     },
     {
       id: SOFTWARE_ACTION_COLUMNS.engine.id,
@@ -125,6 +132,7 @@ function buildColumns(options: SoftwareActionFilterOptions): ColumnDef<SoftwareA
       cell: ({ row }: { row: Row<SoftwareActionRow> }) => <SoftwareActionEngineCell action={row.original} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,
+      size: 200,
       meta: liveColumnMeta(SOFTWARE_ACTION_COLUMNS.engine, { filter: { options: options.engines } }),
     },
     {
@@ -134,25 +142,25 @@ function buildColumns(options: SoftwareActionFilterOptions): ColumnDef<SoftwareA
       cell: ({ row }: { row: Row<SoftwareActionRow> }) => <SoftwareActionStatusCell action={row.original} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(SOFTWARE_ACTION_COLUMNS.status, { filter: { options: options.statuses } }),
+      size: 340,
+      meta: liveColumnMeta(SOFTWARE_ACTION_COLUMNS.status, {
+        filter: { options: options.statuses },
+        gridCell: ({ row }: { row: Row<SoftwareActionRow> }) => <SoftwareActionStatusGridCell action={row.original} />,
+      }),
     },
     {
       id: SOFTWARE_ACTION_COLUMNS.processedDevices.id,
       header: SOFTWARE_ACTION_COLUMNS.processedDevices.header,
       cell: ({ row }: { row: Row<SoftwareActionRow> }) => <SoftwareActionProcessedCell action={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(SOFTWARE_ACTION_COLUMNS.processedDevices),
+      size: 220,
+      meta: liveColumnMeta(SOFTWARE_ACTION_COLUMNS.processedDevices, { label: 'Processed devices' }),
     },
-    {
-      id: SOFTWARE_ACTION_COLUMNS.open.id,
-      cell: ({ row }: { row: Row<SoftwareActionRow> }) => {
-        const href = detailsHref(row.original);
-        if (!href) return null;
-        return <OpenRowButton label={`Open ${row.original.software} in new tab`} onClick={openInNewTab(href)} />;
-      },
-      enableSorting: false,
-      meta: liveColumnMeta(SOFTWARE_ACTION_COLUMNS.open),
-    },
+    // A run still waiting on its schedule has nothing to open: no button, as in its card row.
+    openRowColumn<SoftwareActionRow>(SOFTWARE_ACTION_COLUMNS.open, row => {
+      const href = detailsHref(row);
+      return href ? { label: `Open ${row.software} in new tab`, href } : null;
+    }),
   ];
 }
 
@@ -283,6 +291,7 @@ function SoftwareActionsRows({
   stickyHeaderOffset,
 }: SoftwareActionsRowsProps) {
   const loading = useLoadingScope();
+  const tableGrid = useTableGrid('software-actions');
   const { columnFilters, onColumnFiltersChange } = multiColumnFilter(selections, onSelectionsChange);
   // While the page is read the table holds one page of placeholder rows, drawn with their real cells.
   const placeholderRows = useMemo(
@@ -322,6 +331,7 @@ function SoftwareActionsRows({
 
   return (
     <LiveTable
+      {...tableGrid}
       table={table}
       pageSize={SOFTWARE_ACTIONS_PAGE_SIZE}
       loadingCells={loading}

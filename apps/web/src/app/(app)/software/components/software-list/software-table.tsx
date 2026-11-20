@@ -17,8 +17,8 @@ import type {
 } from '@/__generated__/softwareTable_software.graphql';
 import { liveColumnMeta, oneLineEmptyState } from '@/app/components/shared';
 import { LiveTable } from '@/app/components/shared/live-table';
-import { OpenRowButton } from '@/app/components/shared/open-row-button';
-import { openInNewTab } from '@/lib/open-in-new-tab';
+import { openRowColumn } from '@/app/components/shared/open-row-column';
+import { useTableGrid } from '@/app/components/shared/table-layout-scope';
 import { routes } from '@/lib/routes';
 import { multiColumnFilter } from '../shared/column-filters';
 import type { ListSelections } from '../shared/software-list-frame';
@@ -31,10 +31,10 @@ import {
   type SoftwareListFilterOptions,
   softwareListFilterGroups,
 } from './software-list-filters';
-import { SoftwareNameCell } from './software-name-cell';
+import { SoftwareNameCell, SoftwareNameGridCell } from './software-name-cell';
 import { SoftwareOsCell } from './software-os-cell';
-import { SoftwareVersionCell } from './software-version-cell';
-import { SoftwareVulnerabilitiesCell } from './software-vulnerabilities-cell';
+import { SoftwareVersionCell, SoftwareVersionGridCell } from './software-version-cell';
+import { SoftwareVulnerabilitiesCell, SoftwareVulnerabilitiesGridCell } from './software-vulnerabilities-cell';
 
 /**
  * The software table — one row per `Software` title, the same on every surface
@@ -57,12 +57,20 @@ const softwareTableFragment = graphql`
 
 type SoftwareRow = softwareTable_software$data[number];
 
+/*
+ * The columns. Each data column states what the grid layout reads beside the card layout's `meta.width`: a `size` (its
+ * designed width), a `label` for the settings menu where the header is not its name, and a one-line `gridCell` where
+ * the card cell has a second line. A column without a `gridCell` is one line already: the grid draws the same cell.
+ */
 const NAME_COLUMN: ColumnDef<SoftwareRow> = {
   id: SOFTWARE_LIST_COLUMNS.name.id,
   header: SOFTWARE_LIST_COLUMNS.name.header,
   cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareNameCell software={row.original} />,
   enableSorting: false,
-  meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.name),
+  size: 320,
+  meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.name, {
+    gridCell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareNameGridCell software={row.original} />,
+  }),
 };
 
 const VERSION_COLUMN: ColumnDef<SoftwareRow> = {
@@ -70,17 +78,17 @@ const VERSION_COLUMN: ColumnDef<SoftwareRow> = {
   header: SOFTWARE_LIST_COLUMNS.currentVersion.header,
   cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareVersionCell software={row.original} />,
   enableSorting: false,
-  meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.currentVersion),
+  size: 340,
+  meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.currentVersion, {
+    label: 'Current version',
+    gridCell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareVersionGridCell software={row.original} />,
+  }),
 };
 
-const OPEN_COLUMN: ColumnDef<SoftwareRow> = {
-  id: SOFTWARE_LIST_COLUMNS.open.id,
-  cell: ({ row }: { row: Row<SoftwareRow> }) => (
-    <OpenRowButton label="Open in new tab" onClick={openInNewTab(routes.software.details(row.original.id))} />
-  ),
-  enableSorting: false,
-  meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.open),
-};
+const OPEN_COLUMN = openRowColumn<SoftwareRow>(SOFTWARE_LIST_COLUMNS.open, row => ({
+  label: 'Open in new tab',
+  href: routes.software.details(row.id),
+}));
 
 /**
  * Which list the table is: the fleet-wide inventory (All Software, design 1076:16413) or a device's own. The fleet's
@@ -98,7 +106,11 @@ const DEVICE_COLUMNS: ColumnDef<SoftwareRow>[] = [
     header: SOFTWARE_LIST_COLUMNS.vulnerabilities.header,
     cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareVulnerabilitiesCell software={row.original} />,
     enableSorting: false,
-    meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.vulnerabilities),
+    size: 220,
+    meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.vulnerabilities, {
+      label: 'Vulnerabilities',
+      gridCell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareVulnerabilitiesGridCell software={row.original} />,
+    }),
   },
   OPEN_COLUMN,
 ];
@@ -114,6 +126,7 @@ function columnsFor(surface: SoftwareTableSurface, filterOptions: SoftwareListFi
       header: SOFTWARE_LIST_COLUMNS.os.header,
       cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareOsCell software={row.original} />,
       enableSorting: false,
+      size: 120,
       meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.os, { filter: { options: filterOptions.os } }),
     },
     {
@@ -121,6 +134,7 @@ function columnsFor(surface: SoftwareTableSurface, filterOptions: SoftwareListFi
       header: SOFTWARE_LIST_COLUMNS.engine.header,
       cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareEngineCell software={row.original} />,
       enableSorting: false,
+      size: 200,
       meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.engine, { filter: { options: filterOptions.engine } }),
     },
     {
@@ -128,11 +142,15 @@ function columnsFor(surface: SoftwareTableSurface, filterOptions: SoftwareListFi
       header: SOFTWARE_LIST_COLUMNS.autoUpdate.header,
       cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareAutoUpdateCell software={row.original} />,
       enableSorting: false,
+      size: 200,
       meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.autoUpdate, { filter: { options: filterOptions.autoUpdate } }),
     },
     OPEN_COLUMN,
   ];
 }
+
+/** The viewer's saved column layout, one per surface: the two draw different columns. */
+const SETTINGS_KEY: Record<SoftwareTableSurface, string> = { fleet: 'software', device: 'device-software' };
 
 const getRowId = (row: SoftwareRow) => row.id;
 const rowHref = (row: SoftwareRow) => routes.software.details(row.id);
@@ -187,6 +205,7 @@ function LoadedSoftwareTable({
 }: SoftwareTableProps) {
   // The rows have not answered yet: the table draws its own loading state, never the empty one.
   const loading = useLoadingScope();
+  const tableGrid = useTableGrid(SETTINGS_KEY[surface]);
   const rows = useFragment(softwareTableFragment, rowRefs);
   const { columnFilters, onColumnFiltersChange } = multiColumnFilter(selections, onSelectionsChange);
   const filtered = Object.values(selections).some(values => values.length > 0);
@@ -217,6 +236,7 @@ function LoadedSoftwareTable({
   return (
     <>
       <LiveTable
+        {...tableGrid}
         table={table}
         pageSize={SOFTWARE_LIST_PAGE_SIZE}
         stickyHeaderOffset={stickyHeaderOffset}
@@ -260,8 +280,10 @@ function SoftwareTableLoading({
   surface: SoftwareTableSurface;
   stickyHeaderOffset: string;
 }) {
+  const tableGrid = useTableGrid(SETTINGS_KEY[surface]);
   return (
     <LiveTable
+      {...tableGrid}
       columns={columnsFor(surface, NO_SOFTWARE_LIST_FILTER_OPTIONS)}
       pageSize={SOFTWARE_LIST_PAGE_SIZE}
       stickyHeaderOffset={stickyHeaderOffset}
