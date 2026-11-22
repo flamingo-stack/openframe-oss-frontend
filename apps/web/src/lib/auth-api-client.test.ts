@@ -13,6 +13,7 @@ const shell = vi.hoisted(() => ({
   mode: 'oss-tenant',
 }));
 vi.mock('./native-shell', () => ({ nativeAuthPlugin: () => shell.plugin, nativeShellVersion: () => null }));
+vi.mock('./recaptcha', () => ({ recaptchaHeaders: async () => ({ 'X-Recaptcha-Token': 'token' }) }));
 vi.mock('./platform', () => ({ isAppShell: () => false, mobilePlatform: () => null, shellKind: () => 'web' }));
 vi.mock('./runtime-config', () => ({
   runtimeEnv: { appMode: () => shell.mode, sharedHostUrl: () => 'https://auth.test', tenantHostUrl: () => '' },
@@ -142,6 +143,7 @@ describe('authApiClient.requestDownloadLink', () => {
     expect(init.method).toBe('POST');
     expect(init.credentials).toBe('omit');
     expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json');
+    expect((init.headers as Record<string, string>)['X-Recaptcha-Token']).toBe('token');
     const body = JSON.parse(String(init.body)) as {
       email: string;
       website: string;

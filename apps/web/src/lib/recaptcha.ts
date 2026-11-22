@@ -1,7 +1,7 @@
 /**
- * reCAPTCHA Enterprise action tokens for the password signup and reset requests. The edge firewall
- * reads the `X-Recaptcha-Token` header itself and refuses those two POSTs without a token scoring
- * 0.5 or more, so nothing on the backend sees or verifies it.
+ * reCAPTCHA Enterprise action tokens for the password signup, reset and download-link requests. The
+ * edge firewall reads the `X-Recaptcha-Token` header itself and refuses those POSTs without a token
+ * scoring 0.5 or more, so nothing on the backend sees or verifies it.
  *
  * Web only: the shells' CSP does not admit Google's script, and a key only answers for the domains
  * it lists, none of which is a shell origin. No site key (self-hosted OSS, local dev) sends nothing.
@@ -80,7 +80,9 @@ export function preloadRecaptcha(): void {
  * The header to send with one request: a fresh token per call, since each is single-use and expires
  * after two minutes. Empty when there is no key or no token could be had; the firewall decides then.
  */
-export async function recaptchaHeaders(action: 'signup' | 'password_reset'): Promise<Record<string, string>> {
+export async function recaptchaHeaders(
+  action: 'signup' | 'password_reset' | 'download_link',
+): Promise<Record<string, string>> {
   const key = siteKey();
   if (!key) return {};
   let timer: ReturnType<typeof setTimeout> | undefined;
