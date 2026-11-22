@@ -238,13 +238,39 @@ describe('LoginSection', () => {
     expect(onSso).toHaveBeenCalledWith('google', null);
   });
 
-  it('keeps the generic providers and says so when no account matches', async () => {
-    renderSection(vi.fn().mockResolvedValue(NOT_FOUND));
+  it('keeps Google and Microsoft available for identity-first sign-in when no account matches', async () => {
+    const onSso = renderSection(vi.fn().mockResolvedValue(NOT_FOUND));
 
     await lookUp('dan@gmail.com');
 
-    expect(container.textContent).toContain('No account found for this email.');
+    expect(container.textContent).toContain('Choose a sign-in option to continue.');
     expect(enabledNames()).toEqual(GENERIC_BUTTONS);
+    act(() => {
+      buttons()[0].click();
+      buttons()[1].click();
+    });
+    expect(onSso.mock.calls).toEqual([
+      ['google', null],
+      ['microsoft', null],
+    ]);
+  });
+
+  it('lets a new employee select company SSO in a login-only app with just the handle', async () => {
+    shell.loginOnly = true;
+    const discovery = toLoginDiscoveryResult({
+      email: 'dan@acme.com',
+      has_existing_accounts: false,
+      custom_providers: ['microsoft'],
+      sso_login_handle: 'company-sign-in-handle',
+    });
+    const onSso = renderSection(vi.fn().mockResolvedValue(discovery));
+
+    await lookUp('dan@acme.com');
+
+    expect(enabledNames()).toEqual(['Continue with Microsoft']);
+    expect(container.textContent).not.toContain('Accounts are');
+    act(() => buttons()[0].click());
+    expect(onSso).toHaveBeenCalledExactlyOnceWith('microsoft', { loginHandle: 'company-sign-in-handle' });
   });
 
   it('looks a failed address up again on Enter, holding the providers until the retry answers', async () => {
@@ -296,7 +322,7 @@ describe('LoginSection', () => {
     await settle();
 
     expect(container.textContent).not.toContain('Sign-in methods for');
-    expect(container.textContent).toContain('No account found for this email.');
+    expect(container.textContent).toContain('Choose a sign-in option to continue.');
   });
 
   it('counts a lookup that never answers as failed', async () => {

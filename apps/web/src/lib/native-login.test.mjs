@@ -335,34 +335,44 @@ test('a callback without a ticket fails loudly', async () => {
 // The shipped mobile lanes bake no NEXT_PUBLIC_TENANT_HOST_URL, so an identity-first login (nothing
 // typed, no discovery) has nothing naming the tenant gateway. Recovering it from the token is what
 // keeps that path from dead-ending — it is the whole reason the button works on a cold screen.
-test('identity-first login recovers the tenant host from the issued token', async () => {
-  globalThis.testEnv.NEXT_PUBLIC_TENANT_HOST_URL = '';
-  const jwt = makeJwt({ sub: 'owner@acme.example' });
-  globalThis.window.__OPENFRAME_SHELL__.nativeAuth.exchangeTicket = async () => ({
-    accessToken: jwt,
-    refreshToken: 'refresh-1',
-  });
-
-  let discoveryUrl = null;
-  globalThis.fetch = async url => {
-    discoveryUrl = String(url);
-    return new Response(JSON.stringify({ domain: 'acme.openframe.example' }), {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
+for (const [provider, loginHandle] of [
+  ['google', undefined],
+  ['microsoft', 'company-sign-in-handle'],
+]) {
+  test(`${provider} sign-in without a tenant ID recovers the workspace from the issued token`, async () => {
+    globalThis.testEnv.NEXT_PUBLIC_TENANT_HOST_URL = '';
+    const jwt = makeJwt({ sub: 'owner@acme.example' });
+    globalThis.window.__OPENFRAME_SHELL__.nativeAuth.exchangeTicket = async () => ({
+      accessToken: jwt,
+      refreshToken: 'refresh-1',
     });
-  };
 
-  const result = await nativeLogin({ provider: 'google' });
+    let discoveryUrl = null;
+    globalThis.fetch = async url => {
+      discoveryUrl = String(url);
+      return new Response(JSON.stringify({ domain: 'acme.openframe.example' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
 
-  assert.match(discoveryUrl, /owner%40acme\.example/, 'looks the tenant up by the token subject');
-  assert.equal(storedTokens.accessToken, jwt, 'tokens are kept once a gateway is known');
-  assert.equal(
-    globalThis.localStorage.getItem('native:tenant-host-url'),
-    'https://acme.openframe.example',
-    'the discovered domain becomes the tenant gateway',
-  );
-  assert.equal(result.tenantHostChanged, true, 'boot host was empty, so the caller must reload onto it');
-});
+    const result = await nativeLogin({ provider, loginHandle });
+    const startUrl = new URL(startCalls[0].url);
+
+    assert.equal(startUrl.origin, SHARED_HOST);
+    assert.equal(startUrl.searchParams.get('provider'), provider);
+    assert.equal(startUrl.searchParams.get('handle'), loginHandle ?? null);
+    assert.equal(startUrl.searchParams.has('tenantId'), false);
+    assert.match(discoveryUrl, /owner%40acme\.example/, 'looks the tenant up by the token subject');
+    assert.equal(storedTokens.accessToken, jwt, 'tokens are kept once a gateway is known');
+    assert.equal(
+      globalThis.localStorage.getItem('native:tenant-host-url'),
+      'https://acme.openframe.example',
+      'the discovered domain becomes the tenant gateway',
+    );
+    assert.equal(result.tenantHostChanged, true, 'boot host was empty, so the caller must reload onto it');
+  });
+}
 
 test('identity-first login fails loudly when the tenant host cannot be recovered', async () => {
   globalThis.testEnv.NEXT_PUBLIC_TENANT_HOST_URL = '';
