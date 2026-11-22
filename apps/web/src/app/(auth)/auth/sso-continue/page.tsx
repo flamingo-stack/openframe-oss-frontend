@@ -5,6 +5,7 @@ import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AuthHardeningBoundary } from '@/app/(auth)/auth/components/auth-hardening-boundary';
 import { SsoOrganizationSetup } from '@/app/(auth)/auth/components/sso-organization-setup';
 import { authApiClient, type PendingSsoIdentity } from '@/lib/auth-api-client';
 import { markPendingSignup, pushIdentify } from '@/lib/posthog/posthog-events';
@@ -81,9 +82,18 @@ export default function SsoContinuePage() {
   return (
     // One form, loaded or not: while the identity is read it draws its own loading state.
     <AuthShell>
-      <LoadingWhen loading={!identity}>
-        <SsoOrganizationSetup identity={identity} onSubmit={handleSubmit} isSubmitting={isNavigating} />
-      </LoadingWhen>
+      <AuthHardeningBoundary>
+        {hardeningEnabled => (
+          <LoadingWhen loading={!identity}>
+            <SsoOrganizationSetup
+              identity={identity}
+              onSubmit={handleSubmit}
+              isSubmitting={isNavigating}
+              hardeningEnabled={hardeningEnabled}
+            />
+          </LoadingWhen>
+        )}
+      </AuthHardeningBoundary>
     </AuthShell>
   );
 }

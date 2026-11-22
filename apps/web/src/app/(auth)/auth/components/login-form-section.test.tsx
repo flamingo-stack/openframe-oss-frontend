@@ -39,9 +39,20 @@ const enabledNames = () =>
     .map(button => button.textContent);
 const input = () => container.querySelector('input') as HTMLInputElement;
 
-function renderSection(onDiscover: (email: string) => Promise<LoginDiscoveryResult | null>, onSso = vi.fn()) {
+function renderSection(
+  onDiscover: (email: string) => Promise<LoginDiscoveryResult | null>,
+  onSso = vi.fn(),
+  hardeningEnabled = false,
+) {
   act(() => {
-    root.render(<LoginSection onDiscover={onDiscover} onSso={onSso} genericProviders={GENERIC} />);
+    root.render(
+      <LoginSection
+        onDiscover={onDiscover}
+        onSso={onSso}
+        genericProviders={GENERIC}
+        hardeningEnabled={hardeningEnabled}
+      />,
+    );
   });
   return onSso;
 }
@@ -234,7 +245,7 @@ describe('LoginSection', () => {
   });
 
   it('shows neutral guidance and keeps identity-first sign-in available when no account matches', async () => {
-    const onSso = renderSection(vi.fn().mockResolvedValue(NOT_FOUND));
+    const onSso = renderSection(vi.fn().mockResolvedValue(NOT_FOUND), vi.fn(), true);
 
     await lookUp('dan@acme.com');
 
@@ -249,6 +260,14 @@ describe('LoginSection', () => {
       ['google', null],
       ['microsoft', null],
     ]);
+  });
+
+  it('restores the original signup guidance when hardening is disabled', async () => {
+    renderSection(vi.fn().mockResolvedValue(NOT_FOUND));
+
+    await lookUp('dan@acme.com');
+
+    expect(container.textContent).toContain('No account found for this email. Please sign up first.');
   });
 
   it('starts each company sign-in attempt with a fresh handle', async () => {
@@ -330,7 +349,7 @@ describe('LoginSection', () => {
     await settle();
 
     expect(container.textContent).not.toContain('Sign-in methods for');
-    expect(container.textContent).toContain('Choose a sign-in option to continue.');
+    expect(container.textContent).toContain('No account found for this email. Please sign up first.');
   });
 
   it('counts a lookup that never answers as failed', async () => {

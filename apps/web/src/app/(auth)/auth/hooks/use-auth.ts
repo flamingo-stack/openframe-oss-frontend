@@ -105,7 +105,7 @@ function landingReturnUrl(): string {
  * Auth actions hook - provides login, registration, and logout functions.
  * Does NOT perform auth checking. Use `useAuthSession` for that.
  */
-export function useAuth() {
+export function useAuth(hardeningEnabled: boolean) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -156,7 +156,7 @@ export function useAuth() {
       if (data.has_existing_accounts && data.tenant_id) {
         const discovered = {
           tenantId: data.tenant_id,
-          tenantName: '',
+          tenantName: hardeningEnabled ? '' : data.tenant_name || '',
           tenantDomain: data.domain || 'localhost',
         };
         setTenantInfo(discovered);
@@ -342,7 +342,7 @@ export function useAuth() {
       return;
     }
 
-    const workspace = readWorkspaceHint(window.location.search);
+    const workspace = hardeningEnabled ? readWorkspaceHint(window.location.search) : undefined;
     window.location.href = tenantId
       ? authApiClient.loginUrl(tenantId, landingReturnUrl(), provider, { workspace })
       : authApiClient.ssoLoginUrl(provider, { loginHandle, workspace });

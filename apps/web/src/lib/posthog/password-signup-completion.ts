@@ -1,4 +1,5 @@
 import { isSaasTenantMode } from '@/lib/app-mode';
+import { readAuthHardening } from '@/lib/auth-hardening';
 import { pushSignupCompleted } from '@/lib/posthog/posthog-events';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { getBearerTokenSync } from '@/lib/token-store';
@@ -29,6 +30,7 @@ export async function completePasswordSignup(user: SessionOwner): Promise<void> 
 
   pendingChecks.add(key);
   try {
+    if (!(await readAuthHardening())) return;
     await claimAndPublishSignupCompletion(id, tenantId, email, key);
   } catch {
     // Analytics must never refresh the token, sign the user out or block the dashboard.

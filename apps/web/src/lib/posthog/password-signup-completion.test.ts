@@ -4,11 +4,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const settings = vi.hoisted(() => ({
   isSaasTenant: true,
+  hardeningEnabled: true,
   gtmContainerId: 'GTM-TEST' as string | undefined,
   bearer: null as string | null,
 }));
 
 vi.mock('@/lib/app-mode', () => ({ isSaasTenantMode: () => settings.isSaasTenant }));
+vi.mock('@/lib/auth-hardening', () => ({ readAuthHardening: async () => settings.hardeningEnabled }));
 vi.mock('@/lib/runtime-config', () => ({
   runtimeEnv: {
     sharedHostUrl: () => 'https://auth.example.test',
@@ -24,12 +26,30 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.resetModules();
   settings.isSaasTenant = true;
+  settings.hardeningEnabled = true;
   settings.gtmContainerId = 'GTM-TEST';
   settings.bearer = null;
   delete dataLayer.dataLayer;
 });
 
 describe('password signup conversion', () => {
+  it('leaves signup tracking on the original path when hardening is disabled', async () => {
+    const fetchClaim = vi.fn().mockResolvedValue(Response.json({ claimed: true }));
+    vi.stubGlobal('fetch', fetchClaim);
+    settings.hardeningEnabled = false;
+    const { completePasswordSignup } = await import('./password-signup-completion');
+
+    await completePasswordSignup(user);
+
+    expect(fetchClaim).not.toHaveBeenCalled();
+    expect(dataLayer.dataLayer).toBeUndefined();
+
+    settings.hardeningEnabled = true;
+    await completePasswordSignup(user);
+
+    expect(fetchClaim).toHaveBeenCalledOnce();
+    expect(dataLayer.dataLayer).toEqual([{ event: 'signup_completed', user_id: user.id, email: user.email }]);
+  });
   it('pushes the existing GTM event once after the server grants the claim', async () => {
     const fetchClaim = vi.fn().mockResolvedValue(Response.json({ claimed: true }));
     vi.stubGlobal('fetch', fetchClaim);
