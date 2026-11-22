@@ -3,6 +3,7 @@
 import type { AuthSsoProvider } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useState } from 'react';
+import { AuthHardeningBoundary } from '@/app/(auth)/auth/components/auth-hardening-boundary';
 import { CreateOrganizationSection } from '@/app/(auth)/auth/components/create-organization-section';
 import { NativeSsoSignupSection } from '@/app/(auth)/auth/components/native-sso-signup-section';
 import { VALID_EMAIL_REGEX } from '@/app/(auth)/auth/constants/registration-validation';
@@ -14,7 +15,11 @@ import { useIsApplePlatform } from '@/app/hooks/use-apple-platform';
 import { routes } from '@/lib/routes';
 
 export default function AuthPage() {
-  const { isLoading, loginWithSso, registerOrganization } = useAuth();
+  return <AuthHardeningBoundary>{enabled => <SignupFlow hardeningEnabled={enabled} />}</AuthHardeningBoundary>;
+}
+
+function SignupFlow({ hardeningEnabled }: { hardeningEnabled: boolean }) {
+  const { isLoading, loginWithSso, registerOrganization } = useAuth(hardeningEnabled);
   const { providers, loading: providersLoading } = useRegistrationProviders();
   const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
 
@@ -74,7 +79,12 @@ export default function AuthPage() {
   // discards the pending identity — the same thing the form's Back action does deliberately.
   if (signup.pending) {
     return (
-      <NativeSsoSignupSection pending={signup.pending} onRegistered={signup.onRegistered} onExit={signup.onExit} />
+      <NativeSsoSignupSection
+        pending={signup.pending}
+        onRegistered={signup.onRegistered}
+        onExit={signup.onExit}
+        hardeningEnabled={hardeningEnabled}
+      />
     );
   }
 
@@ -94,6 +104,7 @@ export default function AuthPage() {
 
   return (
     <CreateOrganizationSection
+      hardeningEnabled={hardeningEnabled}
       key={initialEmail ?? ''}
       initialEmail={initialEmail}
       onRegister={handleRegister}

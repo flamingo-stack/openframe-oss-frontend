@@ -43,7 +43,7 @@ export interface OrganizationDomainState {
  * cluster-capacity case, which is not a "pick another name" error and was previously handled on
  * only one of the three.
  */
-export function useOrganizationDomain(organizationName: string): OrganizationDomainState {
+export function useOrganizationDomain(organizationName: string, hardeningEnabled = false): OrganizationDomainState {
   const { toast } = useToast();
   const isSharedAuth = isSharedAuthUi();
 
@@ -58,6 +58,7 @@ export function useOrganizationDomain(organizationName: string): OrganizationDom
     domain,
     organizationName,
     isSharedAuth && !formatError,
+    hardeningEnabled,
   );
 
   const setDomain = useCallback(

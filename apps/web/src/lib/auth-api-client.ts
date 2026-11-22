@@ -414,6 +414,14 @@ class AuthApiClient {
     return requestPublic<{ allowed: boolean }>(path, { method: 'GET' });
   }
 
+  getAuthHardening(signal?: AbortSignal) {
+    return requestPublic<{ enabled: boolean }>('/sas/oauth/auth-hardening', {
+      cache: 'no-store',
+      redirect: 'error',
+      signal,
+    });
+  }
+
   resendVerificationEmail<T = unknown>(email: string) {
     const path = `/sas/email/verify/resend?email=${encodeURIComponent(email)}`;
     return requestPublic<T>(path, { method: 'POST' });

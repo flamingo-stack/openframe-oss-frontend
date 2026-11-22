@@ -15,6 +15,7 @@ import {
 import { markPendingSignup } from '@/lib/posthog/posthog-events';
 
 interface NativeSsoSignupSectionProps {
+  hardeningEnabled: boolean;
   /** The verified identity, in whichever form the flow returned it. Memory-only. */
   pending: PendingSsoSignup;
   /** Runs after tokens are stored, to leave the auth screen. */
@@ -40,7 +41,12 @@ interface NativeSsoSignupSectionProps {
  * the one the user would need to recognise later. Neither is editable — the gateway reads the
  * address from the verified identity and ignores anything typed here.
  */
-export function NativeSsoSignupSection({ pending, onRegistered, onExit }: NativeSsoSignupSectionProps) {
+export function NativeSsoSignupSection({
+  pending,
+  onRegistered,
+  onExit,
+  hardeningEnabled,
+}: NativeSsoSignupSectionProps) {
   const { toast } = useToast();
 
   // Apple's identity is in hand; a ticket's has to be fetched first.
@@ -126,7 +132,13 @@ export function NativeSsoSignupSection({ pending, onRegistered, onExit }: Native
   return (
     // One form, loaded or not: while the identity is read it draws its own loading state.
     <LoadingWhen loading={!identity}>
-      <SsoOrganizationSetup identity={identity} onSubmit={handleSubmit} isSubmitting={isRegistering} onBack={onExit} />
+      <SsoOrganizationSetup
+        identity={identity}
+        onSubmit={handleSubmit}
+        isSubmitting={isRegistering}
+        onBack={onExit}
+        hardeningEnabled={hardeningEnabled}
+      />
     </LoadingWhen>
   );
 }
