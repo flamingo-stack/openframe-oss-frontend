@@ -2,32 +2,15 @@
 
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useEffect, useState } from 'react';
-import { AUTH_ERROR_CODE } from '@/app/(auth)/auth/constants/auth-error-codes';
 import { VALID_EMAIL_REGEX } from '@/app/(auth)/auth/constants/registration-validation';
-import { isSharedAuthUi } from '@/lib/app-mode';
 import { authApiClient, SAAS_DOMAIN_SUFFIX } from '@/lib/auth-api-client';
 
-export type AvailabilityStatus =
-  'idle' | 'checking' | 'available' | 'taken' | 'blocked' | 'registration-unavailable' | 'error';
+export type AvailabilityStatus = 'idle' | 'checking' | 'available' | 'taken' | 'blocked' | 'error';
 
-export const BLOCKED_EMAIL_DOMAIN_MESSAGE = 'This email address can’t be used to sign up. Try a different one.';
+export const BLOCKED_EMAIL_DOMAIN_MESSAGE =
+  'Disposable and privacy-focused email providers are not allowed. Please use your work or personal email.';
 
-async function checkSignupEmail(email: string): Promise<AvailabilityStatus> {
-  if (isSharedAuthUi()) {
-    const { ok, data } = await authApiClient.checkEmailDomainAllowed(email);
-    if (!ok || typeof data?.allowed !== 'boolean') return 'error';
-    return data.allowed ? 'available' : 'blocked';
-  }
-
-  const { ok, data } = await authApiClient.checkEmailAvailability<{
-    available?: boolean;
-    reason?: 'TAKEN' | 'BLOCKED_DOMAIN';
-  }>(email);
-  if (!ok || !data) return 'error';
-  if (data.available) return 'available';
-  return data.reason === 'BLOCKED_DOMAIN' ? 'blocked' : 'taken';
-}
-
+/** Debounced check of whether an email is already registered. Runs only on valid email format. */
 export function useEmailAvailability(email: string, delay = 400): AvailabilityStatus {
   const debounced = useDebounce(email.trim(), delay);
   // The address each verdict belongs to, not just the verdict. Comparing against the debounced
@@ -50,9 +33,20 @@ export function useEmailAvailability(email: string, delay = 400): AvailabilitySt
 
     let cancelled = false;
 
-    checkSignupEmail(debounced)
-      .then(status => {
-        if (!cancelled) setResult({ email: debounced, status });
+    authApiClient
+      .checkEmailAvailability(debounced)
+      .then(res => {
+        if (cancelled) return;
+        if (!res.ok || !res.data) {
+          setResult({ email: debounced, status: 'error' });
+          return;
+        }
+        const { available, reason } = res.data as { available?: boolean; reason?: 'TAKEN' | 'BLOCKED_DOMAIN' };
+        // An unavailable address says why: TAKEN, or BLOCKED_DOMAIN.
+        setResult({
+          email: debounced,
+          status: available ? 'available' : reason === 'BLOCKED_DOMAIN' ? 'blocked' : 'taken',
+        });
       })
       .catch(() => {
         if (!cancelled) setResult({ email: debounced, status: 'error' });
@@ -113,19 +107,10 @@ export function useDomainAvailability(
       .then(res => {
         if (cancelled) return;
         if (!res.ok || !res.data) {
-          const error = res.data as { code?: string } | undefined;
-          setStatus(
-            res.status === 409 && error?.code === AUTH_ERROR_CODE.TENANT_REGISTRATION_BLOCKED
-              ? 'registration-unavailable'
-              : 'error',
-          );
-          return;
-        }
-        const { available, suggestedUrl } = res.data as { available?: boolean; suggestedUrl?: string[] };
-        if (typeof available !== 'boolean') {
           setStatus('error');
           return;
         }
+        const { available, suggestedUrl } = res.data as { available: boolean; suggestedUrl?: string[] };
         if (available) {
           setStatus('available');
           setSuggestions([]);

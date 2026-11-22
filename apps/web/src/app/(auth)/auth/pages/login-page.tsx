@@ -1,9 +1,7 @@
 'use client';
 
 import type { AuthSsoProvider } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { useSearchParams } from 'next/navigation';
-import { Suspense, useState } from 'react';
-import { ForgotPasswordModal } from '@/app/(auth)/auth/components/forgot-password-modal';
+import { useState } from 'react';
 import {
   type LoginDiscoveryResult,
   LoginSection,
@@ -16,12 +14,6 @@ import { useIsApplePlatform } from '@/app/hooks/use-apple-platform';
 
 const GENERIC_PROVIDERS: AuthSsoProvider[] = ['google', 'microsoft', 'apple'];
 
-function PasswordResetFromLink() {
-  const searchParams = useSearchParams();
-  const [open, setOpen] = useState(() => searchParams.get('forgotPassword') === '1');
-  return <ForgotPasswordModal open={open} onOpenChange={setOpen} />;
-}
-
 export default function LoginPage() {
   const { loginWithSso, discoverTenants } = useAuth();
 
@@ -29,6 +21,7 @@ export default function LoginPage() {
   // every background discovery and would flicker the whole form.
   const [ssoLoading, setSsoLoading] = useState(false);
   const signup = useSsoSignupTakeover();
+
   // "Continue with Apple" is offered on Apple devices only.
   const isApple = useIsApplePlatform();
   const genericProviders = GENERIC_PROVIDERS.filter(provider => provider !== 'apple' || isApple);
@@ -64,16 +57,11 @@ export default function LoginPage() {
   }
 
   return (
-    <>
-      <LoginSection
-        onDiscover={handleDiscover}
-        onSso={handleSso}
-        genericProviders={genericProviders}
-        isLoading={ssoLoading}
-      />
-      <Suspense fallback={null}>
-        <PasswordResetFromLink />
-      </Suspense>
-    </>
+    <LoginSection
+      onDiscover={handleDiscover}
+      onSso={handleSso}
+      genericProviders={genericProviders}
+      isLoading={ssoLoading}
+    />
   );
 }

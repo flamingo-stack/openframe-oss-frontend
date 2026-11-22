@@ -8,14 +8,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { authApiClient, getAuthFailureMessage, getRecaptchaCheckedFailureMessage } from './auth-api-client';
 
 vi.mock('./force-logout', () => ({ forceLogout: vi.fn(), clearStoredTokens: vi.fn() }));
-const shell = vi.hoisted(() => ({
-  plugin: null as { revokeSession?: () => Promise<boolean> } | null,
-  mode: 'oss-tenant',
-}));
+const shell = vi.hoisted(() => ({ plugin: null as { revokeSession?: () => Promise<boolean> } | null }));
 vi.mock('./native-shell', () => ({ nativeAuthPlugin: () => shell.plugin, nativeShellVersion: () => null }));
 vi.mock('./platform', () => ({ isAppShell: () => false, mobilePlatform: () => null, shellKind: () => 'web' }));
 vi.mock('./runtime-config', () => ({
-  runtimeEnv: { appMode: () => shell.mode, sharedHostUrl: () => 'https://auth.test', tenantHostUrl: () => '' },
+  runtimeEnv: { sharedHostUrl: () => 'https://auth.test', tenantHostUrl: () => '' },
 }));
 vi.mock('./token-refresh-manager', () => ({ refreshTokens: vi.fn() }));
 vi.mock('./token-store', () => ({
@@ -49,7 +46,6 @@ function jsonResponse(body: unknown, status = 200) {
 
 beforeEach(() => {
   shell.plugin = null;
-  shell.mode = 'oss-tenant';
   fetchMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
 });
@@ -57,23 +53,6 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
 });
-
-it.each(['alpha.example.test', 'beta.example.test'])(
-  'carries %s separately through password and SSO sign-in',
-  workspace => {
-    shell.mode = 'saas-shared';
-    const expected = `/auth/sign-in-required/?workspace=${workspace}`;
-
-    const password = new URL(
-      authApiClient.loginUrl('tenant', 'https%3A%2F%2Felsewhere.test', 'openframe', { workspace }),
-    );
-    const sso = new URL(authApiClient.ssoLoginUrl('microsoft', { loginHandle: 'opaque', workspace }));
-
-    expect(password.searchParams.get('redirectTo')).toBe(expected);
-    expect(sso.searchParams.get('redirectTo')).toBe(expected);
-    expect(sso.searchParams.get('handle')).toBe('opaque');
-  },
-);
 
 describe('authApiClient.authErrorMessage', () => {
   it('posts the query to the shared host without credentials and unwraps the answer', async () => {

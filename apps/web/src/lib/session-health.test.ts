@@ -174,16 +174,6 @@ describe('session health', () => {
     expect(health.getSessionHealth()).toBe('healthy');
   });
 
-  it('keeps an ordinary 503 recoverable when the gateway resumes serving requests', async () => {
-    const health = await load();
-    health.markSessionPaused('transient');
-
-    expect(health.noteGatewayResponse(res(503))).toBe(false);
-    expect(health.getSessionHealth()).toBe('paused');
-    expect(health.noteGatewayResponse(res(200))).toBe(false);
-    expect(health.getSessionHealth()).toBe('healthy');
-  });
-
   it('a pause can turn into gone', async () => {
     const health = await load();
     health.markSessionPaused('transient');

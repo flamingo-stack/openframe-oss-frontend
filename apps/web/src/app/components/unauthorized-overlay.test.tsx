@@ -31,8 +31,8 @@ let root: Root;
 let assign: ReturnType<typeof vi.fn>;
 const originalLocation = window.location;
 
-function render(preserveWorkspaceHint = false) {
-  act(() => root.render(<UnauthorizedOverlay preserveWorkspaceHint={preserveWorkspaceHint} />));
+function render() {
+  act(() => root.render(<UnauthorizedOverlay />));
 }
 
 function button(): HTMLButtonElement {
@@ -84,15 +84,6 @@ describe('buildSignInUrl', () => {
 });
 
 describe('UnauthorizedOverlay', () => {
-  it.each(['alpha.example.test', 'beta.example.test'])('keeps the workspace %s in the shared login tab', workspace => {
-    window.location.search = `?workspace=${workspace}`;
-    render(true);
-
-    tap();
-
-    expect(assign).toHaveBeenCalledExactlyOnceWith(`${LOGIN}?workspace=${workspace}`);
-  });
-
   it('opens the auth host once and stays pending, however many taps follow', () => {
     render();
     tap();
