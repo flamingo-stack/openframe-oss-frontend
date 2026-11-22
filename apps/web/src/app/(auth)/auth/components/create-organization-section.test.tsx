@@ -25,7 +25,7 @@ vi.mock('@/lib/auth-api-client', async importOriginal => ({
 }));
 
 vi.mock('@/app/(auth)/auth/hooks/use-registration-availability', () => ({
-  BLOCKED_EMAIL_DOMAIN_MESSAGE: 'blocked',
+  blockedEmailDomainMessage: () => 'blocked',
   useEmailAvailability: () => 'available',
   useDomainAvailability: (subdomain: string, orgName: string, enabled: boolean) => {
     domainCheck(subdomain, enabled);
