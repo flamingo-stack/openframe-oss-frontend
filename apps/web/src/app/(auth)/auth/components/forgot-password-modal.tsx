@@ -13,7 +13,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useState } from 'react';
-import { authApiClient } from '@/lib/auth-api-client';
+import { authApiClient, getAuthFailureMessage } from '@/lib/auth-api-client';
 
 interface ForgotPasswordModalProps {
   open: boolean;
@@ -50,7 +50,7 @@ export function ForgotPasswordModal({ open, onOpenChange, defaultEmail = '' }: F
         onOpenChange(false);
         setEmail('');
       } else {
-        throw new Error(response.error || 'Failed to send reset link');
+        throw new Error(getAuthFailureMessage(response, 'Failed to send reset link'));
       }
     } catch (error) {
       console.error('Password reset error:', error);

@@ -9,6 +9,7 @@ import { forceLogout } from './force-logout';
 import type { MobileAuthError } from './mobile-auth-return';
 import { nativeAuthPlugin } from './native-shell';
 import { isAppShell } from './platform';
+import { recaptchaHeaders } from './recaptcha';
 import {
   appendAttributionQueryParams,
   collectRegistrationAttribution,
@@ -71,6 +72,10 @@ export function getAuthFailureMessage(response: AuthApiResponse, fallback: strin
   if (fieldMessages.length > 0) return Array.from(new Set(fieldMessages)).join(' ');
   if (typeof body?.message === 'string' && body.message.trim()) return body.message;
   if (response.status === 0) return 'Could not reach the server. Check your connection and try again.';
+  // The firewall's own refusal (a bare 403): on signup and reset, no reCAPTCHA token or too low a score.
+  if (!body && response.status === 403) {
+    return 'The request was blocked. Allow Google reCAPTCHA on this page (ad and tracker blockers can stop it) and try again.';
+  }
   if (!body && response.status >= 500) {
     return 'The request did not go through. Try again, and if it keeps failing, remove characters such as < > or " from the form.';
   }
@@ -406,7 +411,7 @@ class AuthApiClient {
     return requestPublic<T>(path, { method: 'POST' });
   }
 
-  registerOrganization<T = unknown>(payload: {
+  async registerOrganization<T = unknown>(payload: {
     email: string;
     firstName: string;
     lastName: string;
@@ -423,6 +428,7 @@ class AuthApiClient {
     const normalized = attribution ? normalizeAttribution(attribution) : undefined;
     return request<T>('/sas/oauth/register', {
       method: 'POST',
+      headers: await recaptchaHeaders('signup'),
       body: JSON.stringify({ ...rest, ...(normalized ? { attribution: normalized } : {}) }),
     });
   }
@@ -487,9 +493,10 @@ class AuthApiClient {
     });
   }
 
-  requestPasswordReset<T = unknown>(payload: { email: string }) {
+  async requestPasswordReset<T = unknown>(payload: { email: string }) {
     return request<T>('/sas/password-reset/request', {
       method: 'POST',
+      headers: await recaptchaHeaders('password_reset'),
       body: JSON.stringify(payload),
     });
   }
