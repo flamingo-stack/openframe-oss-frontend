@@ -33,23 +33,38 @@ function siteKey(): string | undefined {
 
 function loadScript(key: string): Promise<RecaptchaEnterprise> {
   if (scriptLoad) return scriptLoad;
-  scriptLoad = new Promise<RecaptchaEnterprise>((resolve, reject) => {
-    const script = document.createElement('script');
+  const script = document.createElement('script');
+  const load = new Promise<RecaptchaEnterprise>((resolve, reject) => {
+    // A load that never settles (a stalled request, `ready` never firing) would otherwise stay cached and hold
+    // every later submit for the full timeout without ever loading again.
+    const timer = setTimeout(() => reject(new Error('reCAPTCHA script timed out')), TOKEN_TIMEOUT_MS);
     script.src = `https://www.google.com/recaptcha/enterprise.js?render=${encodeURIComponent(key)}`;
     script.async = true;
     script.onload = () => {
       const enterprise = (window as unknown as WindowWithRecaptcha).grecaptcha?.enterprise;
-      if (enterprise) enterprise.ready(() => resolve(enterprise));
-      else reject(new Error('reCAPTCHA script loaded without grecaptcha.enterprise'));
+      if (!enterprise) {
+        clearTimeout(timer);
+        reject(new Error('reCAPTCHA script loaded without grecaptcha.enterprise'));
+        return;
+      }
+      enterprise.ready(() => {
+        clearTimeout(timer);
+        resolve(enterprise);
+      });
     };
-    script.onerror = () => reject(new Error('reCAPTCHA script failed to load'));
+    script.onerror = () => {
+      clearTimeout(timer);
+      reject(new Error('reCAPTCHA script failed to load'));
+    };
     document.head.appendChild(script);
   });
-  // A blocked load is retried on the next submit instead of failing every later one.
-  scriptLoad.catch(() => {
-    scriptLoad = null;
+  scriptLoad = load;
+  // A blocked or stalled load is retried on the next submit instead of failing every later one.
+  load.catch(() => {
+    script.remove();
+    if (scriptLoad === load) scriptLoad = null;
   });
-  return scriptLoad;
+  return load;
 }
 
 /**

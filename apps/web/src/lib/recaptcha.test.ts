@@ -71,17 +71,26 @@ describe('recaptchaHeaders', () => {
     expect(appended).toHaveLength(0);
   });
 
-  it('gives up on a script that never answers, and retries the load on the next call', async () => {
-    vi.useFakeTimers();
+  it('sends the request without a token when the script fails, and loads it again on the next call', async () => {
     const { recaptchaHeaders, appended } = await load();
 
     const first = recaptchaHeaders('signup');
     appended[0].onerror?.(new Event('error'));
     expect(await first).toEqual({});
 
-    const second = recaptchaHeaders('signup');
+    void recaptchaHeaders('signup');
+    expect(appended).toHaveLength(2);
+  });
+
+  it('gives up on a script that never answers, and loads it again on the next call', async () => {
+    vi.useFakeTimers();
+    const { recaptchaHeaders, appended } = await load();
+
+    const first = recaptchaHeaders('signup');
     await vi.advanceTimersByTimeAsync(10_000);
-    expect(await second).toEqual({});
+    expect(await first).toEqual({});
+
+    void recaptchaHeaders('signup');
     expect(appended).toHaveLength(2);
   });
 });

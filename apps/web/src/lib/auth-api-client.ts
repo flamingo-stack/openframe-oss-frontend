@@ -72,14 +72,22 @@ export function getAuthFailureMessage(response: AuthApiResponse, fallback: strin
   if (fieldMessages.length > 0) return Array.from(new Set(fieldMessages)).join(' ');
   if (typeof body?.message === 'string' && body.message.trim()) return body.message;
   if (response.status === 0) return 'Could not reach the server. Check your connection and try again.';
-  // The firewall's own refusal (a bare 403): on signup and reset, no reCAPTCHA token or too low a score.
-  if (!body && response.status === 403) {
-    return 'The request was blocked. Allow Google reCAPTCHA on this page (ad and tracker blockers can stop it) and try again.';
-  }
   if (!body && response.status >= 500) {
     return 'The request did not go through. Try again, and if it keeps failing, remove characters such as < > or " from the form.';
   }
   return fallback;
+}
+
+/**
+ * {@link getAuthFailureMessage} for the two requests the edge firewall scores with reCAPTCHA (password signup and
+ * reset request): there a bare 403 is the firewall's refusal, no token or too low a score. Elsewhere a bare 403 is
+ * not about reCAPTCHA, so the other auth screens keep the plain reading.
+ */
+export function getRecaptchaCheckedFailureMessage(response: AuthApiResponse, fallback: string): string {
+  if (!response.data && response.status === 403) {
+    return 'The request was blocked. Allow Google reCAPTCHA on this page (ad and tracker blockers can stop it) and try again.';
+  }
+  return getAuthFailureMessage(response, fallback);
 }
 
 function buildAuthUrl(path: string): string {
