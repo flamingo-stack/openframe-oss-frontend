@@ -43,7 +43,7 @@ export interface OrganizationDomainState {
  * cluster-capacity case, which is not a "pick another name" error and was previously handled on
  * only one of the three.
  */
-export function useOrganizationDomain(organizationName: string): OrganizationDomainState {
+export function useOrganizationDomain(organizationName: string, hardeningEnabled = false): OrganizationDomainState {
   const { toast } = useToast();
   const isSharedAuth = isSharedAuthUi();
 
@@ -58,6 +58,7 @@ export function useOrganizationDomain(organizationName: string): OrganizationDom
     domain,
     organizationName,
     isSharedAuth && !formatError,
+    hardeningEnabled,
   );
 
   const setDomain = useCallback(
@@ -138,12 +139,16 @@ export function useOrganizationDomain(organizationName: string): OrganizationDom
           ? { message: 'This domain is already taken. Please try another one.', variant: 'error' as const }
           : status === 'available'
             ? { message: 'Domain is available', variant: 'success' as const }
-            : undefined;
+            : status === 'registration-unavailable'
+              ? { message: 'Registration is currently unavailable.', variant: 'error' as const }
+              : undefined;
 
   return {
     domain,
     setDomain,
-    isBlocked: isSharedAuth && (!!formatError || status === 'taken' || status === 'checking'),
+    isBlocked:
+      isSharedAuth &&
+      (!!formatError || status === 'taken' || status === 'checking' || status === 'registration-unavailable'),
     formatError,
     isChecking,
     statusMessage,

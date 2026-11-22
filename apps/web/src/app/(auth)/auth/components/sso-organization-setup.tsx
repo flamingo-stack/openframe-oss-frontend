@@ -37,6 +37,7 @@ export interface SsoSetupIdentity {
 }
 
 interface SsoOrganizationSetupProps {
+  hardeningEnabled: boolean;
   /** The identity, or `null` while it is read: the form then draws its own loading state. */
   identity: SsoSetupIdentity | null;
   /**
@@ -66,7 +67,13 @@ interface SsoOrganizationSetupProps {
  * While the identity is read (`identity` null, or a loading scope) the form draws itself with its static copy real,
  * the subtitle a text bar and the submit held off; its fields draw their own loading form.
  */
-export function SsoOrganizationSetup({ identity, onSubmit, isSubmitting = false, onBack }: SsoOrganizationSetupProps) {
+export function SsoOrganizationSetup({
+  identity,
+  onSubmit,
+  hardeningEnabled,
+  isSubmitting = false,
+  onBack,
+}: SsoOrganizationSetupProps) {
   const { toast } = useToast();
   const loading = useLoadingScope() || !identity;
   const label = identity ? ssoProviderLabel(identity.provider) : '';
@@ -77,7 +84,7 @@ export function SsoOrganizationSetup({ identity, onSubmit, isSubmitting = false,
   const [organizationName, setOrganizationName] = useState('');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
-  const domainField = useOrganizationDomain(organizationName);
+  const domainField = useOrganizationDomain(organizationName, hardeningEnabled);
 
   const isOrgNameValid = ORG_NAME_REGEX.test(organizationName.trim());
   const isValid = isOrgNameValid && !!domainField.domain.trim() && !domainField.isBlocked && agreedToTerms;
@@ -131,7 +138,11 @@ export function SsoOrganizationSetup({ identity, onSubmit, isSubmitting = false,
       privacyPolicyUrl={PRIVACY_POLICY_URL}
       domainSlot={
         domainField.suggestions.length > 0 ? (
-          <DomainSuggestions suggestions={domainField.suggestions} onSelect={domainField.setDomain} />
+          <DomainSuggestions
+            suggestions={domainField.suggestions}
+            onSelect={domainField.setDomain}
+            hardeningEnabled={hardeningEnabled}
+          />
         ) : undefined
       }
       domainStatus={domainField.statusMessage}

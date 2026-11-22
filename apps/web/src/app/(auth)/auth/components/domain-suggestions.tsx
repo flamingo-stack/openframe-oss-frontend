@@ -6,15 +6,16 @@ import { SAAS_DOMAIN_SUFFIX } from '@/lib/auth-api-client';
 interface DomainSuggestionsProps {
   suggestions: string[];
   onSelect: (subdomain: string) => void;
+  hardeningEnabled?: boolean;
 }
 
 /** Alternative subdomains offered when the typed one is taken. Rendered into the domain field's slot. */
-export function DomainSuggestions({ suggestions, onSelect }: DomainSuggestionsProps) {
+export function DomainSuggestions({ suggestions, onSelect, hardeningEnabled = false }: DomainSuggestionsProps) {
   if (suggestions.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-2 text-ods-text-secondary text-h6">
-      <p>Available suggestions:</p>
+      <p>{hardeningEnabled ? 'Suggestions to try:' : 'Available suggestions:'}</p>
       <div className="flex flex-wrap gap-2">
         {suggestions.map(suggestion => (
           <Button

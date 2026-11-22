@@ -1,6 +1,9 @@
 'use client';
 
 import type { AuthSsoProvider } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useState } from 'react';
+import { AuthHardeningBoundary } from '@/app/(auth)/auth/components/auth-hardening-boundary';
 import { CreateOrganizationSection } from '@/app/(auth)/auth/components/create-organization-section';
 import { NativeSsoSignupSection } from '@/app/(auth)/auth/components/native-sso-signup-section';
 import { VALID_EMAIL_REGEX } from '@/app/(auth)/auth/constants/registration-validation';
@@ -9,10 +12,16 @@ import { useRegistrationProviders } from '@/app/(auth)/auth/hooks/use-registrati
 import { useSignupEmailPrefill } from '@/app/(auth)/auth/hooks/use-signup-email-prefill';
 import { useSsoSignupTakeover } from '@/app/(auth)/auth/hooks/use-sso-signup-takeover';
 import { useIsApplePlatform } from '@/app/hooks/use-apple-platform';
+import { routes } from '@/lib/routes';
 
 export default function AuthPage() {
-  const { isLoading, loginWithSso, registerOrganization } = useAuth();
+  return <AuthHardeningBoundary>{enabled => <SignupFlow hardeningEnabled={enabled} />}</AuthHardeningBoundary>;
+}
+
+function SignupFlow({ hardeningEnabled }: { hardeningEnabled: boolean }) {
+  const { isLoading, loginWithSso, registerOrganization } = useAuth(hardeningEnabled);
   const { providers, loading: providersLoading } = useRegistrationProviders();
+  const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
 
   const signup = useSsoSignupTakeover();
   // A handed-over email arrives after hydration: the form is mounted again with it, so its own state starts there.
@@ -21,7 +30,7 @@ export default function AuthPage() {
 
   // Organization and personal details are collected on one screen now, so the signup lands here
   // directly instead of handing off through sessionStorage to /auth/signup.
-  const handleRegister = (payload: {
+  const handleRegister = async (payload: {
     orgName: string;
     domain: string;
     email: string;
@@ -30,7 +39,7 @@ export default function AuthPage() {
     password: string;
     prNumber?: number;
   }) => {
-    registerOrganization({
+    const result = await registerOrganization({
       tenantName: payload.orgName,
       tenantDomain: payload.domain,
       email: payload.email,
@@ -39,6 +48,7 @@ export default function AuthPage() {
       password: payload.password,
       ...(payload.prNumber !== undefined ? { prNumber: payload.prNumber } : {}),
     });
+    if (result === 'check-email') setShowEmailConfirmation(true);
   };
 
   // External providers offered by the backend for registration; Apple only on Apple devices. While the backend's
@@ -69,12 +79,32 @@ export default function AuthPage() {
   // discards the pending identity — the same thing the form's Back action does deliberately.
   if (signup.pending) {
     return (
-      <NativeSsoSignupSection pending={signup.pending} onRegistered={signup.onRegistered} onExit={signup.onExit} />
+      <NativeSsoSignupSection
+        pending={signup.pending}
+        onRegistered={signup.onRegistered}
+        onExit={signup.onExit}
+        hardeningEnabled={hardeningEnabled}
+      />
+    );
+  }
+
+  if (showEmailConfirmation) {
+    return (
+      <div className="flex w-full flex-col gap-[var(--spacing-system-l)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-xl)]">
+        <h1 className="tracking-[-0.64px] text-ods-text-primary text-h2">Check your email</h1>
+        <p className="text-ods-text-secondary text-h4">
+          Look for an email with the next step for your OpenFrame account.
+        </p>
+        <Button variant="accent" fullWidth href={routes.auth.login}>
+          Back to sign in
+        </Button>
+      </div>
     );
   }
 
   return (
     <CreateOrganizationSection
+      hardeningEnabled={hardeningEnabled}
       key={initialEmail ?? ''}
       initialEmail={initialEmail}
       onRegister={handleRegister}

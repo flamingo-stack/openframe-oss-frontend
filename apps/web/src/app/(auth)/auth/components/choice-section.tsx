@@ -7,7 +7,7 @@ import { isSaasSharedMode } from '@/lib/app-mode';
 import { authApiClient, SAAS_DOMAIN_SUFFIX } from '@/lib/auth-api-client';
 import { AUTH_ERROR_CODE } from '../constants/auth-error-codes';
 import {
-  BLOCKED_EMAIL_DOMAIN_MESSAGE,
+  blockedEmailDomainMessage,
   useDomainAvailability,
   useEmailAvailability,
 } from '../hooks/use-registration-availability';
@@ -17,6 +17,7 @@ import { ForgotPasswordModal } from './forgot-password-modal';
 const CHECKING_AVAILABILITY = 'Checking availability…'; // loading-standard-ok(LOADING_TEXT): a field's live status
 
 interface AuthChoiceSectionProps {
+  hardeningEnabled?: boolean;
   onCreateOrganization: (orgName: string, domain: string, email: string) => void;
   onSignIn: (email: string) => Promise<void>;
   isLoading?: boolean;
@@ -25,7 +26,12 @@ interface AuthChoiceSectionProps {
 /**
  * Auth choice section with Create Organization and Sign In forms
  */
-export function AuthChoiceSection({ onCreateOrganization, onSignIn, isLoading }: AuthChoiceSectionProps) {
+export function AuthChoiceSection({
+  onCreateOrganization,
+  onSignIn,
+  hardeningEnabled = false,
+  isLoading,
+}: AuthChoiceSectionProps) {
   const { toast } = useToast();
   const isSaasShared = isSaasSharedMode();
 
@@ -46,11 +52,12 @@ export function AuthChoiceSection({ onCreateOrganization, onSignIn, isLoading }:
   const isSignInEmailValid = emailRegex.test(signInEmail.trim());
 
   // Real-time availability checks (debounced).
-  const emailStatus = useEmailAvailability(orgEmail);
+  const emailStatus = useEmailAvailability(orgEmail, hardeningEnabled);
   const { status: domainStatus, suggestions: liveDomainSuggestions } = useDomainAvailability(
     domain,
     orgName,
     isSaasShared,
+    hardeningEnabled,
   );
 
   // Prefer live suggestions from the real-time check; fall back to submit-time ones.
@@ -62,6 +69,8 @@ export function AuthChoiceSection({ onCreateOrganization, onSignIn, isLoading }:
     // Block submit while the email check is pending or if it flagged the email as
     // registered or blocked — keeps the Enter-key paths aligned with the disabled Continue button.
     if (emailStatus === 'checking' || emailStatus === 'taken' || emailStatus === 'blocked') return;
+
+    if (domainStatus === 'registration-unavailable') return;
 
     if (isSaasShared && domain.trim()) {
       setIsCheckingDomain(true);
@@ -172,9 +181,9 @@ export function AuthChoiceSection({ onCreateOrganization, onSignIn, isLoading }:
                 <p className="mt-1 text-ods-error text-h6">This email is already registered. Sign in instead.</p>
               )}
               {isOrgEmailValid && emailStatus === 'blocked' && (
-                <p className="mt-1 text-ods-error text-h6">{BLOCKED_EMAIL_DOMAIN_MESSAGE}</p>
+                <p className="mt-1 text-ods-error text-h6">{blockedEmailDomainMessage(hardeningEnabled)}</p>
               )}
-              {isOrgEmailValid && emailStatus === 'available' && (
+              {isOrgEmailValid && emailStatus === 'available' && !hardeningEnabled && (
                 <p className="mt-1 text-ods-success text-h6">Email is available</p>
               )}
             </div>
@@ -250,12 +259,15 @@ export function AuthChoiceSection({ onCreateOrganization, onSignIn, isLoading }:
               {isSaasShared && domain.trim() && domainStatus === 'taken' && (
                 <p className="text-ods-error text-h6">This domain is already taken. Please try another one.</p>
               )}
+              {isSaasShared && domain.trim() && domainStatus === 'registration-unavailable' && (
+                <p className="text-ods-error text-h6">Registration is currently unavailable.</p>
+              )}
               {isSaasShared && domain.trim() && domainStatus === 'available' && (
                 <p className="text-ods-success text-h6">Domain is available</p>
               )}
               {domainSuggestions.length > 0 && (
                 <div className="text-ods-text-secondary text-h6">
-                  <p className="mb-1">Available suggestions:</p>
+                  <p className="mb-1">{hardeningEnabled ? 'Suggestions to try:' : 'Available suggestions:'}</p>
                   <div className="flex flex-wrap gap-2">
                     {domainSuggestions.map((suggestion, index) => (
                       <Button
@@ -290,7 +302,10 @@ export function AuthChoiceSection({ onCreateOrganization, onSignIn, isLoading }:
                   emailStatus === 'blocked' ||
                   emailStatus === 'checking' ||
                   (isSaasShared && !domain.trim()) ||
-                  (isSaasShared && (domainStatus === 'taken' || domainStatus === 'checking')) ||
+                  (isSaasShared &&
+                    (domainStatus === 'taken' ||
+                      domainStatus === 'checking' ||
+                      domainStatus === 'registration-unavailable')) ||
                   isLoading ||
                   isCheckingDomain
                 }

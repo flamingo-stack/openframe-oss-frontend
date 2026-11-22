@@ -20,10 +20,7 @@ import {
   VALID_EMAIL_REGEX,
 } from '@/app/(auth)/auth/constants/registration-validation';
 import { useOrganizationDomain } from '@/app/(auth)/auth/hooks/use-organization-domain';
-import {
-  BLOCKED_EMAIL_DOMAIN_MESSAGE,
-  useEmailAvailability,
-} from '@/app/(auth)/auth/hooks/use-registration-availability';
+import { blockedEmailDomainMessage, useEmailAvailability } from '@/app/(auth)/auth/hooks/use-registration-availability';
 import { isSharedAuthUi } from '@/lib/app-mode';
 import { SAAS_DOMAIN_SUFFIX } from '@/lib/auth-api-client';
 import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/legal-urls';
@@ -31,6 +28,7 @@ import { pushSignupStarted } from '@/lib/posthog/posthog-events';
 import { runtimeEnv } from '@/lib/runtime-config';
 
 interface CreateOrganizationSectionProps {
+  hardeningEnabled?: boolean;
   /**
    * Submits the whole signup in one call. Organization and personal details are collected on the
    * same screen now, so there is no intermediate hand-off through storage.
@@ -69,6 +67,7 @@ interface CreateOrganizationSectionProps {
  * answer it identically. Delegates submission upward.
  */
 export function CreateOrganizationSection({
+  hardeningEnabled = false,
   onRegister,
   ssoProviders,
   ssoProvidersLoading,
@@ -97,10 +96,10 @@ export function CreateOrganizationSection({
   const isEmailValid = VALID_EMAIL_REGEX.test(email.trim());
   const isOrgNameValid = ORG_NAME_REGEX.test(organizationName.trim());
 
-  const emailStatus = useEmailAvailability(email);
+  const emailStatus = useEmailAvailability(email, hardeningEnabled);
   const isEmailBlocked = emailStatus === 'taken' || emailStatus === 'blocked' || emailStatus === 'checking';
 
-  const domainField = useOrganizationDomain(organizationName);
+  const domainField = useOrganizationDomain(organizationName, hardeningEnabled);
 
   const isOrganizationValid =
     isEmailValid &&
@@ -141,8 +140,8 @@ export function CreateOrganizationSection({
       : emailStatus === 'taken'
         ? { message: 'This email is already registered. Sign in instead.', variant: 'error' as const }
         : emailStatus === 'blocked'
-          ? { message: BLOCKED_EMAIL_DOMAIN_MESSAGE, variant: 'error' as const }
-          : emailStatus === 'available'
+          ? { message: blockedEmailDomainMessage(hardeningEnabled), variant: 'error' as const }
+          : emailStatus === 'available' && !hardeningEnabled
             ? { message: 'Email is available', variant: 'success' as const }
             : undefined;
 
@@ -209,7 +208,11 @@ export function CreateOrganizationSection({
       domainStatus={domainField.statusMessage}
       domainSlot={
         domainField.suggestions.length > 0 ? (
-          <DomainSuggestions suggestions={domainField.suggestions} onSelect={domainField.setDomain} />
+          <DomainSuggestions
+            suggestions={domainField.suggestions}
+            onSelect={domainField.setDomain}
+            hardeningEnabled={hardeningEnabled}
+          />
         ) : undefined
       }
       errors={{
