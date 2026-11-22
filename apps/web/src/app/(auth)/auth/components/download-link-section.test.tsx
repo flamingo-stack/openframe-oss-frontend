@@ -1,7 +1,7 @@
 /**
  * "Send me download link": a valid address is sent with the honeypot as it holds, "sent" follows any
  * success with the way back to OpenFrame, an invalid address is caught under the field and never
- * sent, and a failed request keeps the form and says so.
+ * sent, and a failed request keeps the form and says so (a firewall 403 as the reCAPTCHA refusal).
  */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -125,5 +125,15 @@ describe('DownloadLinkSection', () => {
     );
     expect(container.textContent).not.toContain(DOWNLOAD_LINK_COPY.sentTitle);
     expect(emailField().value).toBe('kate@acme.com');
+  });
+
+  it("reads the firewall's bare 403 as the reCAPTCHA refusal", async () => {
+    client.requestDownloadLink.mockResolvedValue({ ok: false, status: 403 });
+    type(emailField(), 'kate@acme.com');
+    await submit();
+
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({ description: expect.stringMatching(/Allow Google reCAPTCHA/) }),
+    );
   });
 });

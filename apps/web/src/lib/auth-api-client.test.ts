@@ -10,6 +10,7 @@ import { authApiClient, getAuthFailureMessage, getRecaptchaCheckedFailureMessage
 vi.mock('./force-logout', () => ({ forceLogout: vi.fn(), clearStoredTokens: vi.fn() }));
 const shell = vi.hoisted(() => ({ plugin: null as { revokeSession?: () => Promise<boolean> } | null }));
 vi.mock('./native-shell', () => ({ nativeAuthPlugin: () => shell.plugin, nativeShellVersion: () => null }));
+vi.mock('./recaptcha', () => ({ recaptchaHeaders: async () => ({ 'X-Recaptcha-Token': 'token' }) }));
 vi.mock('./platform', () => ({ isAppShell: () => false, mobilePlatform: () => null, shellKind: () => 'web' }));
 vi.mock('./runtime-config', () => ({
   runtimeEnv: { sharedHostUrl: () => 'https://auth.test', tenantHostUrl: () => '' },
@@ -121,6 +122,7 @@ describe('authApiClient.requestDownloadLink', () => {
     expect(init.method).toBe('POST');
     expect(init.credentials).toBe('omit');
     expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json');
+    expect((init.headers as Record<string, string>)['X-Recaptcha-Token']).toBe('token');
     const body = JSON.parse(String(init.body)) as {
       email: string;
       website: string;

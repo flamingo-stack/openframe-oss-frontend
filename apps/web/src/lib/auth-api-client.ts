@@ -72,8 +72,8 @@ export function getAuthFailureMessage(response: AuthApiResponse, fallback: strin
 }
 
 /**
- * {@link getAuthFailureMessage} for the two requests the edge firewall scores with reCAPTCHA (password signup and
- * reset request): there a bare 403 is the firewall's refusal, no token or too low a score. Elsewhere a bare 403 is
+ * {@link getAuthFailureMessage} for the requests the edge firewall scores with reCAPTCHA (password signup, reset
+ * request and download link): there a bare 403 is the firewall's refusal, no token or too low a score. Elsewhere a bare 403 is
  * not about reCAPTCHA, so the other auth screens keep the plain reading.
  */
 export function getRecaptchaCheckedFailureMessage(response: AuthApiResponse, fallback: string): string {
@@ -223,11 +223,11 @@ class AuthApiClient {
    * so a caller shows "sent" on any success. `website` is the page's honeypot, sent as it holds:
    * a filled one makes the request a no-op on the server.
    */
-  requestDownloadLink(payload: { email: string; website: string }) {
+  async requestDownloadLink(payload: { email: string; website: string }) {
     const attribution = collectTouchpoint();
     return requestPublic('/sas/tenant/download-link', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(await recaptchaHeaders('download_link')) },
       body: JSON.stringify({ ...payload, ...(attribution ? { attribution } : {}) }),
     });
   }
