@@ -54,8 +54,7 @@ export function isSharedAuthUi(): boolean {
 }
 
 /**
- * Whether mobile sign-in is login-only: no Sign Up tab, no organization setup, and an identity with
- * no account gets the administrator-invitation notice. App Review rejected in-app organization
+ * Whether mobile sign-in is login-only: no Sign Up tab or organization setup. App Review rejected in-app organization
  * registration as an external purchase mechanism (3.1.1/3.1.3, 2026-09-11);
  * `NEXT_PUBLIC_MOBILE_AUTH_UI=legacy` switches back.
  *

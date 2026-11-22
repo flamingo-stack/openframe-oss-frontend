@@ -21,6 +21,7 @@ import { collectRegistrationAttribution } from '@/lib/registration-attribution';
 import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { isBearerAuthMode } from '@/lib/token-store';
+import { readWorkspaceHint } from '@/lib/workspace-entry';
 import { AUTH_ERROR_CODE } from '../constants/auth-error-codes';
 import { useAuthStore } from '../stores/auth-store';
 import { authSessionQueryKey } from './use-auth-session';
@@ -37,6 +38,7 @@ export interface TenantDiscoveryResponse {
   has_existing_accounts: boolean;
   tenant_id?: string | null;
   tenant_name?: string | null;
+  sso_login_handle?: string | null;
   /** Whether the tenant's built-in OpenFrame login is on; null when no tenant was found. */
   openframe_login_enabled?: boolean | null;
   /** Providers the tenant configured with its OWN app (no platform defaults); null when no tenant was found. */
@@ -46,7 +48,8 @@ export interface TenantDiscoveryResponse {
 
 /** The tenant a provider sign-in goes to. Without one the flow is identity-first. */
 export interface SsoLoginTenant {
-  tenantId: string;
+  tenantId?: string;
+  loginHandle?: string;
   /** The tenant's gateway host (discovery's `domain`), when there is one. */
   tenantDomain?: string;
 }
@@ -61,6 +64,8 @@ interface RegisterRequest {
   /** Links the registration to a git PR for testing (dev environments only). */
   prNumber?: number;
 }
+
+const SIGNUP_EMAIL_CONFIRMATION_STATUS = 202;
 
 /**
  * Dismissing a native sign-in surface (the Apple sheet, or the shell-owned
@@ -216,104 +221,131 @@ export function useAuth() {
     router.replace(routes.auth.login);
   };
 
-  const registerOrganization = async (data: RegisterRequest) => {
+  const handleNativeSignupLoginFailure = (error: unknown) => {
+    if (isUserCanceled(error)) {
+      signInToContinue();
+      return;
+    }
+    toast({
+      title: loginFailureTitle(error),
+      description: error instanceof Error ? error.message : 'Unable to sign in',
+      variant: 'destructive',
+    });
+    setIsLoading(false);
+    router.replace(routes.auth.login);
+  };
+
+  const continueSignupInNativeShell = async (tenantId: string, domain: string | undefined, ownerEmail: string) => {
+    const tenantDomain = domain && domain !== 'localhost' ? domain : undefined;
+    try {
+      await nativeLoginToLanding({ tenantId, provider: 'openframe', tenantDomain, email: ownerEmail });
+    } catch (error) {
+      handleNativeSignupLoginFailure(error);
+    }
+  };
+
+  const handleRegistrationFailure = (error: unknown) => {
+    toast({
+      title: 'Registration Failed',
+      description: error instanceof Error ? error.message : 'Unable to create organization',
+      variant: 'destructive',
+    });
+    setIsLoading(false);
+  };
+
+  const submitOrganizationRegistration = async (data: RegisterRequest): Promise<'check-email' | undefined> => {
+    const attribution = collectRegistrationAttribution();
+
+    const response = await authApiClient.registerOrganization({
+      email: data.email,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      password: data.password,
+      tenantName: data.tenantName,
+      tenantDomain: data.tenantDomain || 'localhost',
+      ...(data.prNumber !== undefined ? { prNumber: data.prNumber } : {}),
+      ...(attribution ? { attribution } : {}),
+    });
+
+    if (!response.ok) {
+      const body = response.data as { code?: string; message?: string } | undefined;
+      const code = body?.code;
+      const message = getRecaptchaCheckedFailureMessage(response, 'Registration failed');
+      let userMessage = 'Registration failed';
+      let title = 'Registration Failed';
+      const variant = 'destructive' as const;
+
+      switch (code) {
+        case AUTH_ERROR_CODE.TENANT_REGISTRATION_BLOCKED:
+          title = 'Service Unavailable';
+          userMessage = 'Registration is temporarily unavailable. Please try again later.';
+          break;
+        default:
+          userMessage = message;
+      }
+
+      toast({ title, description: userMessage, variant });
+      throw new Error(userMessage);
+    }
+
+    if (response.status === SIGNUP_EMAIL_CONFIRMATION_STATUS) {
+      setIsLoading(false);
+      return 'check-email';
+    }
+
+    const tenant = response.data as { id?: string; domain?: string } | undefined;
+
+    // Record the pending signup before any sign-in route can establish the first session.
+    markPendingSignup();
+
+    if (!tenant?.id) {
+      signInToContinue();
+      return undefined;
+    }
+
+    if (isAppShell()) {
+      // The browser session created by registration is separate from the native session.
+      await continueSignupInNativeShell(tenant.id, tenant.domain, data.email);
+      return undefined;
+    }
+
+    window.location.replace(authApiClient.continueUrl(tenant.id, landingReturnUrl()));
+    return undefined;
+  };
+
+  const registerOrganization = async (data: RegisterRequest): Promise<'check-email' | undefined> => {
     setIsLoading(true);
 
     try {
-      const attribution = collectRegistrationAttribution();
-
-      const response = await authApiClient.registerOrganization({
-        email: data.email,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        password: data.password,
-        tenantName: data.tenantName,
-        tenantDomain: data.tenantDomain || 'localhost',
-        ...(data.prNumber !== undefined ? { prNumber: data.prNumber } : {}),
-        ...(attribution ? { attribution } : {}),
-      });
-
-      if (!response.ok) {
-        // The auth service answers a rejected registration with a code + message
-        // body; both are optional because a transport failure carries neither.
-        const body = response.data as { code?: string; message?: string } | undefined;
-        const code = body?.code;
-        const message = getRecaptchaCheckedFailureMessage(response, 'Registration failed');
-        let userMessage = 'Registration failed';
-        let title = 'Registration Failed';
-        const variant = 'destructive' as const;
-
-        switch (code) {
-          case AUTH_ERROR_CODE.TENANT_REGISTRATION_BLOCKED:
-            title = 'Service Unavailable';
-            userMessage = 'Registration is temporarily unavailable. Please try again later.';
-            break;
-          default:
-            userMessage = message;
-        }
-
-        toast({ title, description: userMessage, variant });
-        throw new Error(userMessage);
-      }
-
-      const tenant = response.data as { id?: string; domain?: string } | undefined;
-
-      // Funnel: registration is server-confirmed. `signup_completed` (with the
-      // OpenFrame user.id + email) fires once the authenticated session resolves
-      // — see PostHogAnalyticsBridge — since no user id exists yet here.
-      // Set BEFORE the branches below on purpose: the account exists from this point on, so
-      // whichever sign-in lands first - the continue hop, the shell's native login, or a manual
-      // login after a dismissed sheet - is this user's first session, which is exactly when the
-      // event belongs. The check-email flow relied on the same carry-over until its login.
-      markPendingSignup();
-
-      if (!tenant?.id) {
-        // The account exists, only the tenant to continue into is missing from the answer.
-        signInToContinue();
-        return;
-      }
-
-      if (isAppShell()) {
-        // The shell's session is not this WebView's cookie jar, so the sign-in the server just
-        // started is out of reach: run the regular native login for the new tenant instead.
-        try {
-          await nativeLoginToLanding({
-            tenantId: tenant.id,
-            provider: 'openframe',
-            // 'localhost' is the request's stand-in for "no domain" (see above), not a host.
-            tenantDomain: tenant.domain && tenant.domain !== 'localhost' ? tenant.domain : undefined,
-            email: data.email,
-          });
-        } catch (error) {
-          if (isUserCanceled(error)) {
-            // Dismissing the sign-in sheet is deliberate, but the organization is already there.
-            signInToContinue();
-            return;
-          }
-          toast({
-            title: loginFailureTitle(error),
-            description: error instanceof Error ? error.message : 'Unable to sign in',
-            variant: 'destructive',
-          });
-          setIsLoading(false);
-          router.replace(routes.auth.login);
-        }
-        return;
-      }
-
-      // The server signed the new owner into its session with the registration, so the
-      // continue hop lands in the new tenant without asking for the password again — the
-      // same landing as an SSO signup. A top-level navigation: the chain sets the auth cookies.
-      // Loading stays on while the page unloads, so the form cannot submit a second time.
-      window.location.replace(authApiClient.continueUrl(tenant.id, landingReturnUrl()));
+      return await submitOrganizationRegistration(data);
     } catch (error) {
-      toast({
-        title: 'Registration Failed',
-        description: error instanceof Error ? error.message : 'Unable to create organization',
-        variant: 'destructive',
-      });
-      setIsLoading(false);
+      handleRegistrationFailure(error);
     }
+    return undefined;
+  };
+
+  const startSsoLogin = async (provider: string, tenant?: SsoLoginTenant | null) => {
+    const loginHandle = provider === 'openframe' ? undefined : tenant?.loginHandle;
+    const tenantId = loginHandle ? undefined : tenant?.tenantId;
+    if (tenantId) {
+      setTenantId(tenantId);
+    }
+
+    if (isAppShell()) {
+      await nativeLoginToLanding({
+        tenantId: tenant?.tenantId,
+        loginHandle,
+        tenantDomain: tenant?.tenantDomain,
+        provider,
+        email: tenant ? email : undefined,
+      });
+      return;
+    }
+
+    const workspace = readWorkspaceHint(window.location.search);
+    window.location.href = tenantId
+      ? authApiClient.loginUrl(tenantId, landingReturnUrl(), provider, { workspace })
+      : authApiClient.ssoLoginUrl(provider, { loginHandle, workspace });
   };
 
   /**
@@ -325,30 +357,7 @@ export function useAuth() {
     setIsLoading(true);
 
     try {
-      if (tenant) {
-        setTenantId(tenant.tenantId);
-      }
-
-      if (isAppShell()) {
-        // Without a tenant the authorization server runs the flow against its onboarding pseudo-tenant
-        // and resolves the real one from the identity the provider asserts. That deliberately does NOT
-        // honour a tenant's own SSO credentials — those cannot be looked up before the tenant is known.
-        // The email on screen is the one discovery resolved this tenant from; without a tenant
-        // nothing was typed that names the account.
-        await nativeLoginToLanding({ ...tenant, provider, email: tenant ? email : undefined });
-        return;
-      }
-
-      if (!tenant) {
-        // A relative `/sas/...` here is not a misconfiguration: an unset shared host is the
-        // same-origin deployment shape, and every other `/sas` call — discovery, email
-        // availability, the pending-identity read — already resolves that way through
-        // `buildAuthUrl`. Gating this one on a configured host would block sign-in that works.
-        window.location.href = authApiClient.ssoLoginUrl(provider);
-        return;
-      }
-
-      window.location.href = authApiClient.loginUrl(tenant.tenantId, landingReturnUrl(), provider);
+      await startSsoLogin(provider, tenant);
     } catch (error) {
       // A verified Apple identity with no account is not a failure — the caller renders the
       // organization form and finishes with the credential this carries. Rethrow so the screen
