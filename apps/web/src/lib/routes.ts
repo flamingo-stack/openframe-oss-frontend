@@ -306,6 +306,7 @@ export const routes = {
   auth: {
     root: '/auth',
     login: '/auth/login',
+    signInRequired: '/auth/sign-in-required',
     verify: '/auth/verify',
     invite: '/auth/invite',
     passwordReset: '/auth/password-reset',
