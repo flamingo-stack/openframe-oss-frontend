@@ -126,7 +126,6 @@ export interface NativeLoginResult {
 export async function nativeLogin(options: {
   /** Omit when discovery has not run — the flow resolves the tenant from the asserted identity. */
   tenantId?: string;
-  loginHandle?: string;
   provider?: string;
   tenantDomain?: string;
   /** Who is signing in, when the screen already knows: shown while the desktop waits on the browser. */
@@ -137,15 +136,7 @@ export async function nativeLogin(options: {
     throw new Error('Native auth plugin unavailable');
   }
 
-  // An existing iOS user can still present an Apple credential to the native exchange.
-  // A company handle without a known tenant needs the company provider's browser flow.
-  const useNativeApple =
-    options.provider === 'apple' &&
-    mobilePlatform() === 'ios' &&
-    Boolean(plugin.signInWithApple && plugin.exchangeApple) &&
-    (!options.loginHandle || Boolean(options.tenantId));
-  const directTenant = !options.loginHandle || useNativeApple;
-  const discoveredHost = directTenant && options.tenantDomain ? tenantOrigin(options.tenantDomain) : '';
+  const discoveredHost = options.tenantDomain ? tenantOrigin(options.tenantDomain) : '';
   const bootHost = runtimeEnv.tenantHostUrl();
   // With no tenant the shared host runs the flow and the callback tells us which gateway we
   // landed on, so an absent tenant host is only fatal when a tenant WAS resolved.
@@ -166,7 +157,7 @@ export async function nativeLogin(options: {
   // (ASAuthorizationController) instead of the browser session — App Store
   // guideline 4.8's preferred form, and no web page involved. Feature-checked:
   // older installed binaries lack the plugin methods and keep the browser path.
-  if (useNativeApple) {
+  if (options.provider === 'apple' && mobilePlatform() === 'ios' && plugin.signInWithApple && plugin.exchangeApple) {
     return appleNativeLogin(plugin, { tenantId: options.tenantId, tenantHost, bootHost, tenantHostKnown });
   }
 
@@ -195,16 +186,14 @@ export async function nativeLogin(options: {
   }
   // Tenant known: use its own SSO configuration. Tenant unknown: the shared onboarding flow, which
   // resolves the tenant from the identity the provider asserts.
-  const rawLoginUrl =
-    !options.loginHandle && options.tenantId
-      ? authApiClient.loginUrl(options.tenantId, encodeURIComponent(redirectTarget), options.provider, {
-          authMobile: true,
-        })
-      : authApiClient.ssoLoginUrl(options.provider ?? 'openframe', {
-          redirectTo: redirectTarget,
-          loginHandle: options.loginHandle,
-          authMobile: true,
-        });
+  const rawLoginUrl = options.tenantId
+    ? authApiClient.loginUrl(options.tenantId, encodeURIComponent(redirectTarget), options.provider, {
+        authMobile: true,
+      })
+    : authApiClient.ssoLoginUrl(options.provider ?? 'openframe', {
+        redirectTo: redirectTarget,
+        authMobile: true,
+      });
   const loginUrl = rawLoginUrl.startsWith('http') ? rawLoginUrl : `${tenantHost}${rawLoginUrl}`;
 
   // Desktop has no sheet over the app while the browser runs: the auth screens show the wait instead.

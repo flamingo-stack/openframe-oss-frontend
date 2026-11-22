@@ -8,7 +8,6 @@ import { isAppShell, shellKind } from '@/lib/platform';
 import { captureSignInRequiredClick } from '@/lib/posthog/posthog-events';
 import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
-import { readWorkspaceHint, withWorkspaceHint } from '@/lib/workspace-entry';
 
 /**
  * How long Sign in stays pending when the page never leaves (a cancelled or blocked navigation),
@@ -18,8 +17,8 @@ export const SIGN_IN_PENDING_TIMEOUT_MS = 10_000;
 
 /**
  * The auth host's Login tab, or null when the configured host is missing or not an absolute
- * http(s) URL. There is no tenant-relative fallback because a SaaS tenant redirects `/auth`
- * paths back into the app.
+ * http(s) URL. There is no tenant-relative fallback: this overlay renders only on a SaaS tenant,
+ * and a SaaS tenant redirects every `/auth` path back into the app.
  */
 export function buildSignInUrl(sharedHost: string): string | null {
   if (!sharedHost) return null;
@@ -32,7 +31,7 @@ export function buildSignInUrl(sharedHost: string): string | null {
   }
 }
 
-export function UnauthorizedOverlay({ preserveWorkspaceHint = false }: { preserveWorkspaceHint?: boolean } = {}) {
+export function UnauthorizedOverlay() {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
@@ -82,13 +81,11 @@ export function UnauthorizedOverlay({ preserveWorkspaceHint = false }: { preserv
       return;
     }
 
-    const loginUrl = buildSignInUrl(runtimeEnv.authLoginUrl());
-    const workspace = preserveWorkspaceHint ? readWorkspaceHint(window.location.search) : undefined;
-    const target = loginUrl ? withWorkspaceHint(loginUrl, workspace) : null;
+    const target = buildSignInUrl(runtimeEnv.authLoginUrl());
     captureSignInRequiredClick({
       app_mode: getAppMode(),
       shell: shellKind(),
-      target_url: loginUrl,
+      target_url: target,
       fallback: target === null,
     });
 

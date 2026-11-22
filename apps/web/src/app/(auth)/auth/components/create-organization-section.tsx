@@ -142,7 +142,7 @@ export function CreateOrganizationSection({
         ? { message: 'This email is already registered. Sign in instead.', variant: 'error' as const }
         : emailStatus === 'blocked'
           ? { message: BLOCKED_EMAIL_DOMAIN_MESSAGE, variant: 'error' as const }
-          : emailStatus === 'available' && !isSharedAuthUi()
+          : emailStatus === 'available'
             ? { message: 'Email is available', variant: 'success' as const }
             : undefined;
 
