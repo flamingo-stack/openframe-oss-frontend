@@ -17,16 +17,9 @@ import {
   normalizeAttribution,
   type Touchpoint,
 } from './registration-attribution';
-import { routes } from './routes';
 import { runtimeEnv } from './runtime-config';
 import { refreshTokens } from './token-refresh-manager';
 import { getAccessTokenSync, getRefreshToken, getTokenEpoch, isBearerAuthMode } from './token-store';
-import { withWorkspaceHint } from './workspace-entry';
-
-function workspaceEntryRedirect(workspace?: string, authMobile?: boolean): string | undefined {
-  if (!workspace || authMobile || isAppShell() || !isSaasSharedMode()) return undefined;
-  return withWorkspaceHint(`${routes.auth.signInRequired}/`, workspace);
-}
 
 function getDomainSuffix(): string {
   const sharedUrl = runtimeEnv.sharedHostUrl();
@@ -409,11 +402,6 @@ class AuthApiClient {
     return requestPublic<T>(path, { method: 'GET' });
   }
 
-  checkEmailDomainAllowed(email: string) {
-    const path = `/sas/tenant/email-domain-allowed?email=${encodeURIComponent(email)}`;
-    return requestPublic<{ allowed: boolean }>(path, { method: 'GET' });
-  }
-
   resendVerificationEmail<T = unknown>(email: string) {
     const path = `/sas/email/verify/resend?email=${encodeURIComponent(email)}`;
     return requestPublic<T>(path, { method: 'POST' });
@@ -522,20 +510,13 @@ class AuthApiClient {
    * `redirectTo` is encoded here — the opposite of {@link AuthApiClient.loginUrl}, which takes it
    * pre-encoded. Pass a raw URL.
    */
-  ssoLoginUrl(
-    provider: string,
-    options?: { redirectTo?: string; authMobile?: boolean; loginHandle?: string; workspace?: string },
-  ) {
+  ssoLoginUrl(provider: string, options?: { redirectTo?: string; authMobile?: boolean }) {
     const params = new URLSearchParams({ provider });
-    const redirectTo = workspaceEntryRedirect(options?.workspace, options?.authMobile) ?? options?.redirectTo;
-    if (redirectTo) {
-      params.append('redirectTo', redirectTo);
+    if (options?.redirectTo) {
+      params.append('redirectTo', options.redirectTo);
     }
     if (options?.authMobile) {
       params.append('authMobile', 'true');
-    }
-    if (options?.loginHandle) {
-      params.set('handle', options.loginHandle);
     }
     return buildAuthUrl(`/sas/oauth/login/sso?${params.toString()}`);
   }
@@ -553,12 +534,7 @@ class AuthApiClient {
   }
 
   /** `redirectTo` is pre-encoded by the caller — it is interpolated as-is. */
-  loginUrl(
-    tenantId: string,
-    redirectTo: string,
-    provider?: string,
-    options?: { authMobile?: boolean; workspace?: string },
-  ) {
+  loginUrl(tenantId: string, redirectTo: string, provider?: string, options?: { authMobile?: boolean }) {
     // The built-in OpenFrame login has no provider param; 'openframe-sso' is its legacy id.
     const providerParam =
       provider && provider !== 'openframe' && provider !== 'openframe-sso'
@@ -572,10 +548,7 @@ class AuthApiClient {
     // it hangs it forever. Both pass authMobile, so isAppShell() is belt and
     // braces here for any shell login that ever stops doing so.
     const keepRedirect = options?.authMobile || isAppShell() || !isSaasSharedMode();
-    const workspaceRedirect = workspaceEntryRedirect(options?.workspace, options?.authMobile);
-    const target = workspaceRedirect ? encodeURIComponent(workspaceRedirect) : keepRedirect ? redirectTo : undefined;
-    const redirectParam = target !== undefined ? `&redirectTo=${target}` : '';
-    const path = `${base}${options?.authMobile ? '&authMobile=true' : ''}${redirectParam}`;
+    const path = `${base}${options?.authMobile ? '&authMobile=true' : ''}${keepRedirect ? `&redirectTo=${redirectTo}` : ''}`;
     return buildAuthUrl(path);
   }
 

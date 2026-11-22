@@ -14,7 +14,7 @@ export function DomainSuggestions({ suggestions, onSelect }: DomainSuggestionsPr
 
   return (
     <div className="flex flex-col gap-2 text-ods-text-secondary text-h6">
-      <p>Suggestions to try:</p>
+      <p>Available suggestions:</p>
       <div className="flex flex-wrap gap-2">
         {suggestions.map(suggestion => (
           <Button

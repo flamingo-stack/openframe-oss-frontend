@@ -8,7 +8,6 @@ import { isSaasSharedMode } from '@/lib/app-mode';
 import { isDevTicketExchangePending } from '@/lib/dev-ticket-pending';
 import { forceLogout } from '@/lib/force-logout';
 import { isAppShell } from '@/lib/platform';
-import { completePasswordSignup } from '@/lib/posthog/password-signup-completion';
 import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { getBiometricLockState, hasTokensSync, initTokenStore } from '@/lib/token-store';
@@ -217,8 +216,6 @@ export function useAuthSession() {
         status: userData.status,
         ...(userData.image ? { image: userData.image } : {}),
       });
-
-      void completePasswordSignup({ ...userData, id: userData.id || userData.userId });
 
       const tenantId = userData.tenantId || userData.organizationId;
       if (tenantId) {

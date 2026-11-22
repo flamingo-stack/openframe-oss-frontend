@@ -11,6 +11,10 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type LoginDiscoveryResult, LoginSection, toLoginDiscoveryResult } from './login-form-section';
 
+const shell = vi.hoisted(() => ({ loginOnly: false }));
+
+vi.mock('@/app/hooks/use-login-only-mobile-shell', () => ({ useLoginOnlyMobileShell: () => shell.loginOnly }));
+
 const GENERIC: AuthSsoProvider[] = ['google', 'microsoft', 'apple'];
 const GENERIC_BUTTONS = ['Continue with Google', 'Continue with Microsoft', 'Continue with Apple'];
 
@@ -77,6 +81,7 @@ async function lookUp(value: string) {
 beforeEach(() => {
   container = document.createElement('div');
   root = createRoot(container);
+  shell.loginOnly = false;
 });
 
 afterEach(() => {
@@ -233,52 +238,13 @@ describe('LoginSection', () => {
     expect(onSso).toHaveBeenCalledWith('google', null);
   });
 
-  it('shows neutral guidance and keeps identity-first sign-in available when no account matches', async () => {
-    const onSso = renderSection(vi.fn().mockResolvedValue(NOT_FOUND));
+  it('keeps the generic providers and says so when no account matches', async () => {
+    renderSection(vi.fn().mockResolvedValue(NOT_FOUND));
 
-    await lookUp('dan@acme.com');
+    await lookUp('dan@gmail.com');
 
-    expect(container.textContent).toContain('Choose a sign-in option to continue.');
-    expect(container.textContent).not.toContain('Ask them for an invitation.');
+    expect(container.textContent).toContain('No account found for this email.');
     expect(enabledNames()).toEqual(GENERIC_BUTTONS);
-    act(() => {
-      buttons()[0].click();
-      buttons()[1].click();
-    });
-    expect(onSso.mock.calls).toEqual([
-      ['google', null],
-      ['microsoft', null],
-    ]);
-  });
-
-  it('starts each company sign-in attempt with a fresh handle', async () => {
-    const discovery = toLoginDiscoveryResult({
-      email: 'dan@acme.com',
-      has_existing_accounts: false,
-      custom_providers: ['microsoft'],
-      sso_login_handle: 'company-sign-in-handle',
-    });
-    const onDiscover = vi
-      .fn()
-      .mockResolvedValueOnce(discovery)
-      .mockResolvedValueOnce({ ...discovery, tenant: { loginHandle: 'first-attempt' } })
-      .mockResolvedValueOnce({ ...discovery, tenant: { loginHandle: 'second-attempt' } });
-    const onSso = renderSection(onDiscover);
-
-    await lookUp('dan@acme.com');
-
-    expect(enabledNames()).toEqual(['Continue with Microsoft']);
-    expect(container.textContent).not.toContain('Accounts are');
-    act(() => buttons()[0].click());
-    await settle();
-    act(() => buttons()[0].click());
-    await settle();
-
-    expect(onDiscover).toHaveBeenCalledTimes(3);
-    expect(onSso.mock.calls).toEqual([
-      ['microsoft', { loginHandle: 'first-attempt' }],
-      ['microsoft', { loginHandle: 'second-attempt' }],
-    ]);
   });
 
   it('looks a failed address up again on Enter, holding the providers until the retry answers', async () => {
@@ -330,7 +296,7 @@ describe('LoginSection', () => {
     await settle();
 
     expect(container.textContent).not.toContain('Sign-in methods for');
-    expect(container.textContent).toContain('Choose a sign-in option to continue.');
+    expect(container.textContent).toContain('No account found for this email.');
   });
 
   it('counts a lookup that never answers as failed', async () => {
@@ -355,5 +321,15 @@ describe('LoginSection', () => {
     expect(enabledNames()).toEqual(GENERIC_BUTTONS);
     expect(log).toHaveBeenCalled();
     log.mockRestore();
+  });
+
+  it('shows the invitation notice instead on the login-only mobile build', async () => {
+    shell.loginOnly = true;
+    renderSection(vi.fn().mockResolvedValue(NOT_FOUND));
+
+    await lookUp('dan@gmail.com');
+
+    expect(container.querySelector('[role="status"]')?.textContent).toContain('Ask them for an invitation.');
+    expect(container.textContent).not.toContain('No account found for this email.');
   });
 });

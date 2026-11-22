@@ -3,7 +3,7 @@
 import { Button, Input, Label } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useState } from 'react';
-import { isSaasSharedMode, isSharedAuthUi } from '@/lib/app-mode';
+import { isSaasSharedMode } from '@/lib/app-mode';
 import { authApiClient, SAAS_DOMAIN_SUFFIX } from '@/lib/auth-api-client';
 import { AUTH_ERROR_CODE } from '../constants/auth-error-codes';
 import {
@@ -62,8 +62,6 @@ export function AuthChoiceSection({ onCreateOrganization, onSignIn, isLoading }:
     // Block submit while the email check is pending or if it flagged the email as
     // registered or blocked — keeps the Enter-key paths aligned with the disabled Continue button.
     if (emailStatus === 'checking' || emailStatus === 'taken' || emailStatus === 'blocked') return;
-
-    if (domainStatus === 'registration-unavailable') return;
 
     if (isSaasShared && domain.trim()) {
       setIsCheckingDomain(true);
@@ -176,7 +174,7 @@ export function AuthChoiceSection({ onCreateOrganization, onSignIn, isLoading }:
               {isOrgEmailValid && emailStatus === 'blocked' && (
                 <p className="mt-1 text-ods-error text-h6">{BLOCKED_EMAIL_DOMAIN_MESSAGE}</p>
               )}
-              {isOrgEmailValid && emailStatus === 'available' && !isSharedAuthUi() && (
+              {isOrgEmailValid && emailStatus === 'available' && (
                 <p className="mt-1 text-ods-success text-h6">Email is available</p>
               )}
             </div>
@@ -252,15 +250,12 @@ export function AuthChoiceSection({ onCreateOrganization, onSignIn, isLoading }:
               {isSaasShared && domain.trim() && domainStatus === 'taken' && (
                 <p className="text-ods-error text-h6">This domain is already taken. Please try another one.</p>
               )}
-              {isSaasShared && domain.trim() && domainStatus === 'registration-unavailable' && (
-                <p className="text-ods-error text-h6">Registration is currently unavailable.</p>
-              )}
               {isSaasShared && domain.trim() && domainStatus === 'available' && (
                 <p className="text-ods-success text-h6">Domain is available</p>
               )}
               {domainSuggestions.length > 0 && (
                 <div className="text-ods-text-secondary text-h6">
-                  <p className="mb-1">Suggestions to try:</p>
+                  <p className="mb-1">Available suggestions:</p>
                   <div className="flex flex-wrap gap-2">
                     {domainSuggestions.map((suggestion, index) => (
                       <Button
@@ -295,10 +290,7 @@ export function AuthChoiceSection({ onCreateOrganization, onSignIn, isLoading }:
                   emailStatus === 'blocked' ||
                   emailStatus === 'checking' ||
                   (isSaasShared && !domain.trim()) ||
-                  (isSaasShared &&
-                    (domainStatus === 'taken' ||
-                      domainStatus === 'checking' ||
-                      domainStatus === 'registration-unavailable')) ||
+                  (isSaasShared && (domainStatus === 'taken' || domainStatus === 'checking')) ||
                   isLoading ||
                   isCheckingDomain
                 }
