@@ -32,13 +32,15 @@ const TENANT_SSO_PROVIDERS: Exclude<AuthSsoProvider, 'openframe'>[] = ['google',
 export function toLoginDiscoveryResult(response: TenantDiscoveryResponse): LoginDiscoveryResult {
   return {
     found: response.has_existing_accounts,
-    tenant: response.tenant_id
-      ? {
-          tenantId: response.tenant_id,
-          // 'localhost' is discovery's answer for a single-tenant dev backend, not a host.
-          tenantDomain: response.domain && response.domain !== 'localhost' ? response.domain : undefined,
-        }
-      : null,
+    tenant:
+      response.tenant_id || response.sso_login_handle
+        ? {
+            ...(response.tenant_id ? { tenantId: response.tenant_id } : {}),
+            ...(response.sso_login_handle ? { loginHandle: response.sso_login_handle } : {}),
+            // 'localhost' is discovery's answer for a single-tenant dev backend, not a host.
+            tenantDomain: response.domain && response.domain !== 'localhost' ? response.domain : undefined,
+          }
+        : null,
     tenantName: response.tenant_name || undefined,
     openframe: response.openframe_login_enabled === true,
     customProviders: TENANT_SSO_PROVIDERS.filter(provider => response.custom_providers?.includes(provider)),
@@ -63,6 +65,7 @@ type DiscoveryStatus = 'idle' | 'checking' | 'found' | 'not-found' | 'error';
  */
 interface Lookup {
   email: string;
+  companyProvider?: Exclude<AuthSsoProvider, 'openframe'>;
 }
 
 /** What a run answered: the result, or null when the request failed. */
@@ -106,12 +109,12 @@ export function LoginSection({ onDiscover, onSso, genericProviders, isLoading }:
 
   // The parent recreates onDiscover every render; a ref keeps the effect keyed
   // to the run only, without re-running discovery per render.
-  const onDiscoverRef = useRef(onDiscover);
+  const callbacks = useRef({ onDiscover, onSso });
   // Latest-value refs, written after the commit rather than during render:
   // a render-phase ref write is what `react-hooks/refs` forbids, and every
   // reader below runs in an effect, a timer or an event handler.
   useEffect(() => {
-    onDiscoverRef.current = onDiscover;
+    callbacks.current = { onDiscover, onSso };
   });
 
   useEffect(() => {
@@ -128,9 +131,13 @@ export function LoginSection({ onDiscover, onSso, genericProviders, isLoading }:
 
     // A lookup that rejects or never settles would hold every provider for good, so either counts
     // as a failed one. An answer that arrives after the deadline still replaces the failure.
-    const deadline = setTimeout(() => answerWith(null), DISCOVERY_TIMEOUT_MS);
-    onDiscoverRef
-      .current(lookup.email)
+    let timedOut = false;
+    const deadline = setTimeout(() => {
+      timedOut = true;
+      answerWith(null);
+    }, DISCOVERY_TIMEOUT_MS);
+    callbacks.current
+      .onDiscover(lookup.email)
       .catch(error => {
         console.error('Tenant discovery failed:', error);
         return null;
@@ -138,6 +145,16 @@ export function LoginSection({ onDiscover, onSso, genericProviders, isLoading }:
       .then(outcome => {
         clearTimeout(deadline);
         answerWith(outcome);
+        const provider = lookup.companyProvider;
+        if (
+          !cancelled &&
+          !timedOut &&
+          provider &&
+          outcome?.tenant?.loginHandle &&
+          outcome.customProviders.includes(provider)
+        ) {
+          callbacks.current.onSso(provider, outcome.tenant);
+        }
       });
 
     return () => {
@@ -169,21 +186,22 @@ export function LoginSection({ onDiscover, onSso, genericProviders, isLoading }:
   // A login-only mobile build cannot send anyone to sign up, so an unknown address is told how an
   // account comes to exist there instead. It takes the notice row under the field: the field's own
   // message line is a single truncated line, and cut this down to "Accounts are…" on a phone.
-  const showInvitationNotice = loginOnly && showStatus && status === 'not-found';
+  const hasCompanySso = Boolean(result?.tenant?.loginHandle && result.customProviders.length > 0);
+  const showInvitationNotice = loginOnly && showStatus && status === 'not-found' && !hasCompanySso;
   const emailStatus =
     !showStatus || showInvitationNotice
       ? undefined
       : status === 'checking'
         ? { message: 'Checking your account…', variant: 'muted' as const } // loading-standard-ok(LOADING_TEXT): the field's live availability status, not a loading state
-        : status === 'not-found'
-          ? { message: 'No account found for this email. Please sign up first.', variant: 'error' as const }
+        : status === 'not-found' && !hasCompanySso
+          ? { message: 'Choose a sign-in option to continue.', variant: 'muted' as const }
           : status === 'error'
             ? { message: 'Failed to check your account. Please try again.', variant: 'error' as const }
             : undefined;
 
   // The one source for both what the card shows and where a click goes: a tenant's methods are on
   // screen exactly when a click signs in to that tenant.
-  const discovered = showStatus && result?.found && result.tenant ? result : null;
+  const discovered = showStatus && result?.tenant && (result.found || hasCompanySso) ? result : null;
   const tenantMethods: LoginFormTenantMethods | undefined = discovered
     ? { name: discovered.tenantName, openframe: discovered.openframe, providers: discovered.customProviders }
     : undefined;
@@ -195,14 +213,24 @@ export function LoginSection({ onDiscover, onSso, genericProviders, isLoading }:
   // discovery being down must not take sign-in down with it.
   const lookupPending = isEmailValid && (!isResultCurrent || status === 'checking');
 
+  const signIn = (provider: AuthSsoProvider) => {
+    const tenant = discovered?.tenant ?? null;
+    if (provider !== 'openframe' && tenant?.loginHandle) {
+      // Company handles are short-lived and single-use. Ask for one when the user starts or retries.
+      setLookup({ email: trimmedEmail, companyProvider: provider });
+      return;
+    }
+    onSso(provider, tenant);
+  };
+
   return (
     <LoginForm
       email={email}
       onEmailChange={setEmail}
       onEmailEnter={lookUpNow}
-      loading={isLoading}
+      loading={isLoading || Boolean(lookup.companyProvider && lookupPending)}
       ssoProviders={ssoProviders}
-      onSsoClick={provider => onSso(provider, discovered?.tenant ?? null)}
+      onSsoClick={signIn}
       ssoDisabled={lookupPending}
       tenantMethods={tenantMethods}
       notice={showInvitationNotice ? NO_ACCOUNT_INVITATION_NOTICE : undefined}

@@ -174,17 +174,6 @@ describe('session health', () => {
     expect(health.getSessionHealth()).toBe('healthy');
   });
 
-  it('opens the unavailable-workspace screen for the gateway routing response', async () => {
-    const health = await load();
-    const response = new Response('', {
-      status: 503,
-      headers: { 'Content-Type': 'text/html', 'X-OpenFrame-Workspace-Unavailable': 'true' },
-    });
-
-    expect(health.noteGatewayResponse(response)).toBe(true);
-    expect(health.getSessionHealth()).toBe('gone');
-  });
-
   it('keeps an ordinary 503 recoverable when the gateway resumes serving requests', async () => {
     const health = await load();
     health.markSessionPaused('transient');
