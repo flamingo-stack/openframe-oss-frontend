@@ -339,7 +339,7 @@ for (const [provider, loginHandle] of [
   ['google', undefined],
   ['microsoft', 'company-sign-in-handle'],
 ]) {
-  test(`${provider} sign-in without a tenant ID recovers the workspace from the issued token`, async () => {
+  test(`${provider} sign-in without a tenant ID in the browser URL recovers the workspace from the issued token`, async () => {
     globalThis.testEnv.NEXT_PUBLIC_TENANT_HOST_URL = '';
     const jwt = makeJwt({ sub: 'owner@acme.example' });
     globalThis.window.__OPENFRAME_SHELL__.nativeAuth.exchangeTicket = async () => ({
@@ -356,7 +356,8 @@ for (const [provider, loginHandle] of [
       });
     };
 
-    const result = await nativeLogin({ provider, loginHandle });
+    const tenant = loginHandle ? { tenantId: 'known-tenant', tenantDomain: 'previous.openframe.example' } : {};
+    const result = await nativeLogin({ provider, loginHandle, ...tenant });
     const startUrl = new URL(startCalls[0].url);
 
     assert.equal(startUrl.origin, SHARED_HOST);
