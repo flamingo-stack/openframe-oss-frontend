@@ -255,7 +255,7 @@ describe('LoginSection', () => {
     ]);
   });
 
-  it('lets a new employee select company SSO in a login-only app with just the handle', async () => {
+  it('starts each company sign-in attempt with a fresh handle in a login-only app', async () => {
     shell.loginOnly = true;
     const discovery = toLoginDiscoveryResult({
       email: 'dan@acme.com',
@@ -263,14 +263,27 @@ describe('LoginSection', () => {
       custom_providers: ['microsoft'],
       sso_login_handle: 'company-sign-in-handle',
     });
-    const onSso = renderSection(vi.fn().mockResolvedValue(discovery));
+    const onDiscover = vi
+      .fn()
+      .mockResolvedValueOnce(discovery)
+      .mockResolvedValueOnce({ ...discovery, tenant: { loginHandle: 'first-attempt' } })
+      .mockResolvedValueOnce({ ...discovery, tenant: { loginHandle: 'second-attempt' } });
+    const onSso = renderSection(onDiscover);
 
     await lookUp('dan@acme.com');
 
     expect(enabledNames()).toEqual(['Continue with Microsoft']);
     expect(container.textContent).not.toContain('Accounts are');
     act(() => buttons()[0].click());
-    expect(onSso).toHaveBeenCalledExactlyOnceWith('microsoft', { loginHandle: 'company-sign-in-handle' });
+    await settle();
+    act(() => buttons()[0].click());
+    await settle();
+
+    expect(onDiscover).toHaveBeenCalledTimes(3);
+    expect(onSso.mock.calls).toEqual([
+      ['microsoft', { loginHandle: 'first-attempt' }],
+      ['microsoft', { loginHandle: 'second-attempt' }],
+    ]);
   });
 
   it('looks a failed address up again on Enter, holding the providers until the retry answers', async () => {
