@@ -8,7 +8,6 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { EMAIL_REGEX, INVALID_EMAIL_ERROR } from '@/app/(auth)/auth/constants/registration-validation';
 import type { SsoLoginTenant, TenantDiscoveryResponse } from '@/app/(auth)/auth/hooks/use-auth';
-import { useLoginOnlyMobileShell } from '@/app/hooks/use-login-only-mobile-shell';
 import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/legal-urls';
 
 /** Result of a tenant discovery for one email. */
@@ -76,9 +75,6 @@ interface Answer {
 
 const DISCOVERY_DEBOUNCE_MS = 400;
 const DISCOVERY_TIMEOUT_MS = 10_000;
-
-const NO_ACCOUNT_INVITATION_NOTICE =
-  "No OpenFrame account is linked to this email. Accounts are created by your organization's administrator. Ask them for an invitation.";
 
 /**
  * Wires the shared LoginForm to the login flow. Single screen, email first: the generic providers
@@ -180,24 +176,17 @@ export function LoginSection({ onDiscover, onSso, genericProviders, isLoading }:
     if (trimmedEmail !== lookup.email || status === 'error') setLookup({ email: trimmedEmail });
   };
 
-  const loginOnly = useLoginOnlyMobileShell();
-
   const showStatus = isEmailValid && isResultCurrent;
-  // A login-only mobile build cannot send anyone to sign up, so an unknown address is told how an
-  // account comes to exist there instead. It takes the notice row under the field: the field's own
-  // message line is a single truncated line, and cut this down to "Accounts are…" on a phone.
   const hasCompanySso = Boolean(result?.tenant?.loginHandle && result.customProviders.length > 0);
-  const showInvitationNotice = loginOnly && showStatus && status === 'not-found' && !hasCompanySso;
-  const emailStatus =
-    !showStatus || showInvitationNotice
-      ? undefined
-      : status === 'checking'
-        ? { message: 'Checking your account…', variant: 'muted' as const } // loading-standard-ok(LOADING_TEXT): the field's live availability status, not a loading state
-        : status === 'not-found' && !hasCompanySso
-          ? { message: 'Choose a sign-in option to continue.', variant: 'muted' as const }
-          : status === 'error'
-            ? { message: 'Failed to check your account. Please try again.', variant: 'error' as const }
-            : undefined;
+  const emailStatus = !showStatus
+    ? undefined
+    : status === 'checking'
+      ? { message: 'Checking your account…', variant: 'muted' as const } // loading-standard-ok(LOADING_TEXT): the field's live availability status, not a loading state
+      : status === 'not-found' && !hasCompanySso
+        ? { message: 'Choose a sign-in option to continue.', variant: 'muted' as const }
+        : status === 'error'
+          ? { message: 'Failed to check your account. Please try again.', variant: 'error' as const }
+          : undefined;
 
   // The one source for both what the card shows and where a click goes: a tenant's methods are on
   // screen exactly when a click signs in to that tenant.
@@ -233,7 +222,6 @@ export function LoginSection({ onDiscover, onSso, genericProviders, isLoading }:
       onSsoClick={signIn}
       ssoDisabled={lookupPending}
       tenantMethods={tenantMethods}
-      notice={showInvitationNotice ? NO_ACCOUNT_INVITATION_NOTICE : undefined}
       emailStatus={emailStatus}
       errors={{
         email: trimmedEmail && !isEmailValid ? INVALID_EMAIL_ERROR : undefined,

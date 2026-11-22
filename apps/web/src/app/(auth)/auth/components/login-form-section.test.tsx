@@ -11,10 +11,6 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type LoginDiscoveryResult, LoginSection, toLoginDiscoveryResult } from './login-form-section';
 
-const shell = vi.hoisted(() => ({ loginOnly: false }));
-
-vi.mock('@/app/hooks/use-login-only-mobile-shell', () => ({ useLoginOnlyMobileShell: () => shell.loginOnly }));
-
 const GENERIC: AuthSsoProvider[] = ['google', 'microsoft', 'apple'];
 const GENERIC_BUTTONS = ['Continue with Google', 'Continue with Microsoft', 'Continue with Apple'];
 
@@ -81,7 +77,6 @@ async function lookUp(value: string) {
 beforeEach(() => {
   container = document.createElement('div');
   root = createRoot(container);
-  shell.loginOnly = false;
 });
 
 afterEach(() => {
@@ -238,12 +233,13 @@ describe('LoginSection', () => {
     expect(onSso).toHaveBeenCalledWith('google', null);
   });
 
-  it('keeps Google and Microsoft available for identity-first sign-in when no account matches', async () => {
+  it('shows neutral guidance and keeps identity-first sign-in available when no account matches', async () => {
     const onSso = renderSection(vi.fn().mockResolvedValue(NOT_FOUND));
 
-    await lookUp('dan@gmail.com');
+    await lookUp('dan@acme.com');
 
     expect(container.textContent).toContain('Choose a sign-in option to continue.');
+    expect(container.textContent).not.toContain('Ask them for an invitation.');
     expect(enabledNames()).toEqual(GENERIC_BUTTONS);
     act(() => {
       buttons()[0].click();
@@ -255,8 +251,7 @@ describe('LoginSection', () => {
     ]);
   });
 
-  it('starts each company sign-in attempt with a fresh handle in a login-only app', async () => {
-    shell.loginOnly = true;
+  it('starts each company sign-in attempt with a fresh handle', async () => {
     const discovery = toLoginDiscoveryResult({
       email: 'dan@acme.com',
       has_existing_accounts: false,
@@ -360,15 +355,5 @@ describe('LoginSection', () => {
     expect(enabledNames()).toEqual(GENERIC_BUTTONS);
     expect(log).toHaveBeenCalled();
     log.mockRestore();
-  });
-
-  it('shows the invitation notice instead on the login-only mobile build', async () => {
-    shell.loginOnly = true;
-    renderSection(vi.fn().mockResolvedValue(NOT_FOUND));
-
-    await lookUp('dan@gmail.com');
-
-    expect(container.querySelector('[role="status"]')?.textContent).toContain('Ask them for an invitation.');
-    expect(container.textContent).not.toContain('No account found for this email.');
   });
 });
