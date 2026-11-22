@@ -2,7 +2,6 @@
 'use no memo';
 
 import { Input, Label } from '@flamingo-stack/openframe-frontend-core';
-import { DeviceSelector } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { CheckCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -11,6 +10,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
+import { DEVICE_PICKER_TABLE_KEY, DevicePicker } from '@/app/components/shared/device-selector/device-picker';
 import { routes } from '@/lib/routes';
 import type { Device } from '../../devices/types/device.types';
 import { getFleetHostId } from '../../devices/utils/device-action-utils';
@@ -152,7 +152,8 @@ export function MonitoringStep({
       />
 
       {/* Devices */}
-      <DeviceSelector
+      <DevicePicker
+        tableStorageKey={DEVICE_PICKER_TABLE_KEY.onboardingPolicy}
         devices={policyDevices}
         loading={isLoadingDevices}
         selectedIds={stringSelectedIds}

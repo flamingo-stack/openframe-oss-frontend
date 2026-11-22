@@ -14,7 +14,6 @@ import {
   SelectValue,
   Textarea,
 } from '@flamingo-stack/openframe-frontend-core';
-import { DeviceSelector } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -22,6 +21,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
+import { DEVICE_PICKER_TABLE_KEY, DevicePicker } from '@/app/components/shared/device-selector/device-picker';
 import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import type { Device } from '../../../devices/types/device.types';
@@ -377,7 +377,8 @@ export function EditQueryPage({ queryId }: EditQueryPageProps) {
           {/* Devices */}
           <div className="space-y-1">
             <h2 className="text-ods-text-primary text-h2">Devices</h2>
-            <DeviceSelector
+            <DevicePicker
+              tableStorageKey={DEVICE_PICKER_TABLE_KEY.query}
               devices={queryDevices}
               loading={isLoadingDevices || loadingRecord}
               selectedIds={stringSelectedIds}
