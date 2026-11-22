@@ -9,6 +9,7 @@ import { forceLogout } from './force-logout';
 import type { MobileAuthError } from './mobile-auth-return';
 import { nativeAuthPlugin } from './native-shell';
 import { isAppShell } from './platform';
+import { recaptchaHeaders } from './recaptcha';
 import {
   appendAttributionQueryParams,
   collectRegistrationAttribution,
@@ -75,6 +76,18 @@ export function getAuthFailureMessage(response: AuthApiResponse, fallback: strin
     return 'The request did not go through. Try again, and if it keeps failing, remove characters such as < > or " from the form.';
   }
   return fallback;
+}
+
+/**
+ * {@link getAuthFailureMessage} for the two requests the edge firewall scores with reCAPTCHA (password signup and
+ * reset request): there a bare 403 is the firewall's refusal, no token or too low a score. Elsewhere a bare 403 is
+ * not about reCAPTCHA, so the other auth screens keep the plain reading.
+ */
+export function getRecaptchaCheckedFailureMessage(response: AuthApiResponse, fallback: string): string {
+  if (!response.data && response.status === 403) {
+    return 'The request was blocked. Allow Google reCAPTCHA on this page (ad and tracker blockers can stop it) and try again.';
+  }
+  return getAuthFailureMessage(response, fallback);
 }
 
 function buildAuthUrl(path: string): string {
@@ -406,7 +419,7 @@ class AuthApiClient {
     return requestPublic<T>(path, { method: 'POST' });
   }
 
-  registerOrganization<T = unknown>(payload: {
+  async registerOrganization<T = unknown>(payload: {
     email: string;
     firstName: string;
     lastName: string;
@@ -423,6 +436,7 @@ class AuthApiClient {
     const normalized = attribution ? normalizeAttribution(attribution) : undefined;
     return request<T>('/sas/oauth/register', {
       method: 'POST',
+      headers: await recaptchaHeaders('signup'),
       body: JSON.stringify({ ...rest, ...(normalized ? { attribution: normalized } : {}) }),
     });
   }
@@ -487,9 +501,10 @@ class AuthApiClient {
     });
   }
 
-  requestPasswordReset<T = unknown>(payload: { email: string }) {
+  async requestPasswordReset<T = unknown>(payload: { email: string }) {
     return request<T>('/sas/password-reset/request', {
       method: 'POST',
+      headers: await recaptchaHeaders('password_reset'),
       body: JSON.stringify(payload),
     });
   }

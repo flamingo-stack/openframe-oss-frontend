@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getLandingPath } from '@/lib/app-mode';
-import { authApiClient, getAuthFailureMessage } from '@/lib/auth-api-client';
+import { authApiClient, getRecaptchaCheckedFailureMessage } from '@/lib/auth-api-client';
 import { MOBILE_AUTH_ERROR } from '@/lib/mobile-auth-return';
 import {
   AppleRegistrationRequiredError,
@@ -270,7 +270,7 @@ export function useAuth() {
     if (!response.ok) {
       const body = response.data as { code?: string; message?: string } | undefined;
       const code = body?.code;
-      const message = getAuthFailureMessage(response, 'Registration failed');
+      const message = getRecaptchaCheckedFailureMessage(response, 'Registration failed');
       let userMessage = 'Registration failed';
       let title = 'Registration Failed';
       const variant = 'destructive' as const;
