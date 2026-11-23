@@ -161,7 +161,7 @@ describe('useMingoModelSelection', () => {
 
   it("keeps a new chat's pick in the draft and names it", async () => {
     await render();
-    expect(choice('chat-model-default')).toMatchObject({ label: 'Use default model', disabled: true });
+    expect(choice('chat-model-default')).toMatchObject({ label: 'Using default model', disabled: true });
     expect(choice('chat-model-ANTHROPIC').checked).toBe(true);
 
     await act(async () => choice('chat-model-OPENAI-gpt-5.5').onClick?.());
@@ -177,7 +177,7 @@ describe('useMingoModelSelection', () => {
   it('marks only the default model ID even when two choices share their display name', async () => {
     await render();
 
-    expect(choice('chat-model-default')).toMatchObject({ label: 'Use default model', disabled: true });
+    expect(choice('chat-model-default')).toMatchObject({ label: 'Using default model', disabled: true });
     expect(choice('chat-model-ANTHROPIC-claude-sonnet-5').checked).toBe(true);
     expect(choice('chat-model-ANTHROPIC-claude-sonnet-5-alt').checked).toBe(false);
   });
@@ -192,7 +192,7 @@ describe('useMingoModelSelection', () => {
     expect(env.fetchDialogModel).toHaveBeenCalledWith('d-1');
     expect(selection.menu?.disabled).toBe(false);
     expect(selection.contextSize).toBe(150_000);
-    expect(choice('chat-model-default')).toMatchObject({ label: 'Use default model', disabled: true });
+    expect(choice('chat-model-default')).toMatchObject({ label: 'Using default model', disabled: true });
     expect(choice('chat-model-OPENAI-gpt-5.5').checked).toBe(true);
 
     await act(async () => choice('chat-model-ANTHROPIC-claude-sonnet-5').onClick?.());

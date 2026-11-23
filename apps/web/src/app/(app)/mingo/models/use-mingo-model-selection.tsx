@@ -148,7 +148,7 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
           items: [
             {
               id: 'chat-model-default',
-              label: 'Use default model',
+              label: followsDefault ? 'Using default model' : 'Use default model',
               disabled: followsDefault,
               onClick: () => choose(null),
             },
