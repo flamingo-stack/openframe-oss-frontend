@@ -104,14 +104,12 @@ export function ModelComparisonRow({
   return (
     <div className="min-w-0 flex-1">
       <div className="flex min-w-0 flex-wrap items-center gap-x-[var(--spacing-system-sf)]">
-        <span className="min-w-0 break-words text-[length:var(--font-size-menu-label)] font-medium leading-[var(--font-line-space-menu-label)] text-ods-text-primary">
-          {label}
-        </span>
+        <span className="min-w-0 break-words text-ods-text-primary text-shell-body">{label}</span>
         {details?.recommended && (
           <Tag as="span" label={<span>Recommended</span>} variant="primary" size="stamp" className="shrink-0" />
         )}
       </div>
-      <div className="flex min-w-0 flex-wrap items-baseline gap-x-[var(--spacing-system-sf)] text-[length:var(--font-size-menu-description)] leading-[var(--font-line-space-menu-label)] text-ods-text-panel-secondary">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-[var(--spacing-system-sf)] text-ods-text-panel-secondary text-h6">
         {details && <span className="flex-auto">{details.description}</span>}
         {pricing && (
           <span className="ml-auto flex flex-wrap justify-end gap-x-[var(--spacing-system-xsf)]">
@@ -127,7 +125,7 @@ export function ModelComparisonRow({
 /** `pricing`: the rows show rates and prices, so the note explains them (not in the mobile shell). */
 export function ModelComparisonFooter({ pricing }: { pricing: boolean }) {
   return (
-    <div className="min-w-0 break-words text-[length:var(--font-size-menu-note)] leading-[var(--font-line-space-menu-note)] text-ods-text-panel-secondary">
+    <div className="min-w-0 break-words font-normal text-ods-text-panel-secondary text-h6">
       {pricing && (
         <div className="border-b border-ods-border px-[var(--spacing-system-mf)] py-[var(--spacing-system-sf)]">
           <p>Rate: OpenFrame tokens charged per token read / written.</p>
