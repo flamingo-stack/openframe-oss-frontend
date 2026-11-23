@@ -24,7 +24,6 @@ const env = vi.hoisted(() => ({
   showToast: vi.fn(),
   rateFor: vi.fn(),
   pricingShown: true,
-  usdPerMillion: 10 as number | null,
 }));
 
 vi.mock('@/app/hooks/use-feature-flag', () => ({ useFeatureFlagGate: () => env.gate }));
@@ -57,7 +56,7 @@ vi.mock('./use-mingo-model-pricing', () => ({
   useMingoModelPricing: () => ({
     shown: env.pricingShown,
     rateFor: env.rateFor,
-    usdPerMillionOpenFrameTokens: env.usdPerMillion,
+    usdPerMillionOpenFrameTokens: 10,
   }),
 }));
 vi.mock('./dialog-model-api', async importOriginal => ({
@@ -113,7 +112,6 @@ beforeEach(() => {
   env.showToast.mockReset();
   env.rateFor.mockReset();
   env.pricingShown = true;
-  env.usdPerMillion = 10;
   useMingoModelDraftStore.setState({ draft: null });
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   container = document.createElement('div');
@@ -151,16 +149,6 @@ describe('useMingoModelSelection', () => {
       'Recommended. Best for tasks with strict rules. Read and write rates: 0.33× / 1.67×. USD per million: $3.33 / $17.',
     );
     expect(choice('chat-model-OPENAI-gpt-5.5').description).toContain('USD per million: — / —.');
-  });
-
-  it('shows rates without prices while Billing states no token price', async () => {
-    env.usdPerMillion = null;
-    env.rateFor.mockReturnValue({ input: 1, output: 5 });
-    await render();
-
-    expect(choice('chat-model-OPENAI-gpt-5.5').description).toBe(
-      'Best for hard, multi-step tasks. Read and write rates: 1× / 5×.',
-    );
   });
 
   it('shows no rates or prices in the mobile shell', async () => {

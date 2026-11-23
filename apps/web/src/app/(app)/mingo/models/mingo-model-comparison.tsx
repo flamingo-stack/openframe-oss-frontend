@@ -55,8 +55,7 @@ export function comparisonOptions(provider: AIProvider, options: readonly Provid
 
 export interface Prices {
   rates: string;
-  /** Null while Billing states no price for OpenFrame tokens. */
-  prices: string | null;
+  prices: string;
 }
 
 const compactUsd = new Intl.NumberFormat('en-US', {
@@ -77,16 +76,10 @@ function formatUsdPerMillion(rate: number | undefined, usdPerMillion: number) {
   return (price >= 10 ? compactUsd : preciseUsd).format(price);
 }
 
-export function comparisonPrices(
-  rate: { input: number; output: number } | undefined,
-  usdPerMillion: number | null,
-): Prices {
+export function comparisonPrices(rate: { input: number; output: number } | undefined, usdPerMillion: number): Prices {
   return {
     rates: `${formatTokenRate(rate?.input)} / ${formatTokenRate(rate?.output)}`,
-    prices:
-      usdPerMillion == null
-        ? null
-        : `${formatUsdPerMillion(rate?.input, usdPerMillion)} / ${formatUsdPerMillion(rate?.output, usdPerMillion)}`,
+    prices: `${formatUsdPerMillion(rate?.input, usdPerMillion)} / ${formatUsdPerMillion(rate?.output, usdPerMillion)}`,
   };
 }
 
@@ -95,7 +88,7 @@ export function comparisonDescription(details: ModelDetails | undefined, pricing
   const description = details ? `${details.description}. ` : '';
   const recommended = details?.recommended ? 'Recommended. ' : '';
   const rates = pricing ? `Read and write rates: ${pricing.rates}. ` : '';
-  const prices = pricing?.prices ? `USD per million: ${pricing.prices}.` : '';
+  const prices = pricing ? `USD per million: ${pricing.prices}.` : '';
   return `${recommended}${description}${rates}${prices}`.trim();
 }
 
@@ -123,7 +116,7 @@ export function ModelComparisonRow({
         {pricing && (
           <span className="ml-auto flex flex-wrap justify-end gap-x-[var(--spacing-system-xsf)]">
             <span className="whitespace-nowrap">{pricing.rates}</span>
-            {pricing.prices && <span className="whitespace-nowrap">{pricing.prices}</span>}
+            <span className="whitespace-nowrap">{pricing.prices}</span>
           </span>
         )}
       </div>
@@ -131,14 +124,14 @@ export function ModelComparisonRow({
   );
 }
 
-/** `pricing`: what the rows show, so the note explains only that (nothing in the mobile shell). */
-export function ModelComparisonFooter({ pricing }: { pricing: { rates: boolean; prices: boolean } }) {
+/** `pricing`: the rows show rates and prices, so the note explains them (not in the mobile shell). */
+export function ModelComparisonFooter({ pricing }: { pricing: boolean }) {
   return (
     <div className="min-w-0 break-words text-[length:var(--font-size-menu-note)] leading-[var(--font-line-space-menu-note)] text-ods-text-panel-secondary">
-      {pricing.rates && (
+      {pricing && (
         <div className="border-b border-ods-border px-[var(--spacing-system-mf)] py-[var(--spacing-system-sf)]">
           <p>Rate: OpenFrame tokens charged per token read / written.</p>
-          {pricing.prices && <p>Price: per 1M tokens, read / write.</p>}
+          <p>Price: per 1M tokens, read / write.</p>
         </div>
       )}
       <div className="flex items-start gap-[var(--spacing-system-xsf)] px-[var(--spacing-system-mf)] py-[var(--spacing-system-sf)]">

@@ -166,11 +166,7 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
               submenuBoundary: 'viewport' as const,
               checked: answering?.provider === provider,
               submenuWidth: 440,
-              footer: (
-                <ModelComparisonFooter
-                  pricing={{ rates: pricing.shown, prices: pricing.usdPerMillionOpenFrameTokens != null }}
-                />
-              ),
+              footer: <ModelComparisonFooter pricing={pricing.shown} />,
               submenu: comparisonOptions(provider, options).map(option => {
                 const model = { provider, modelName: option.value, displayName: option.label };
                 const prices = pricing.shown

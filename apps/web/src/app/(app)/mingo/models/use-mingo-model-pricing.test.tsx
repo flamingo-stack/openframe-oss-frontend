@@ -46,14 +46,14 @@ it('reads nothing and quotes nothing in the mobile shell', () => {
   function Probe() {
     const pricing = useMingoModelPricing(true);
     useEffect(() => {
-      observed(pricing.shown, pricing.rateFor('OPENAI', 'example'), pricing.usdPerMillionOpenFrameTokens);
+      observed(pricing.shown, pricing.rateFor('OPENAI', 'example'));
     }, [pricing]);
     return null;
   }
 
   try {
     act(() => root.render(<Probe />));
-    expect(observed).toHaveBeenCalledWith(false, undefined, null);
+    expect(observed).toHaveBeenCalledWith(false, undefined);
   } finally {
     act(() => root.unmount());
     billing.hidden = false;
