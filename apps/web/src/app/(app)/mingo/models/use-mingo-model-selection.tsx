@@ -166,13 +166,16 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
               submenuBoundary: 'viewport' as const,
               checked: answering?.provider === provider,
               submenuWidth: 440,
-              footer: <ModelComparisonFooter />,
+              footer: (
+                <ModelComparisonFooter
+                  pricing={{ rates: pricing.shown, prices: pricing.usdPerMillionOpenFrameTokens != null }}
+                />
+              ),
               submenu: comparisonOptions(provider, options).map(option => {
                 const model = { provider, modelName: option.value, displayName: option.label };
-                const prices = comparisonPrices(
-                  pricing.rateFor(provider, option.value),
-                  pricing.usdPerMillionOpenFrameTokens,
-                );
+                const prices = pricing.shown
+                  ? comparisonPrices(pricing.rateFor(provider, option.value), pricing.usdPerMillionOpenFrameTokens)
+                  : null;
                 return {
                   id: `chat-model-${provider}-${option.value}`,
                   label: option.label,

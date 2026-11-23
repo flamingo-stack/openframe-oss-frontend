@@ -23,6 +23,8 @@ const env = vi.hoisted(() => ({
   toast: vi.fn(),
   showToast: vi.fn(),
   rateFor: vi.fn(),
+  pricingShown: true,
+  usdPerMillion: 10 as number | null,
 }));
 
 vi.mock('@/app/hooks/use-feature-flag', () => ({ useFeatureFlagGate: () => env.gate }));
@@ -52,7 +54,11 @@ vi.mock('@/app/(app)/settings/ai-settings/hooks/use-supported-models', () => ({
   }),
 }));
 vi.mock('./use-mingo-model-pricing', () => ({
-  useMingoModelPricing: () => ({ rateFor: env.rateFor, usdPerMillionOpenFrameTokens: 10 }),
+  useMingoModelPricing: () => ({
+    shown: env.pricingShown,
+    rateFor: env.rateFor,
+    usdPerMillionOpenFrameTokens: env.usdPerMillion,
+  }),
 }));
 vi.mock('./dialog-model-api', async importOriginal => ({
   ...(await importOriginal<object>()),
@@ -106,6 +112,8 @@ beforeEach(() => {
   env.toast.mockReset();
   env.showToast.mockReset();
   env.rateFor.mockReset();
+  env.pricingShown = true;
+  env.usdPerMillion = 10;
   useMingoModelDraftStore.setState({ draft: null });
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   container = document.createElement('div');
@@ -143,6 +151,24 @@ describe('useMingoModelSelection', () => {
       'Recommended. Best for tasks with strict rules. Read and write rates: 0.33× / 1.67×. USD per million: $3.33 / $17.',
     );
     expect(choice('chat-model-OPENAI-gpt-5.5').description).toContain('USD per million: — / —.');
+  });
+
+  it('shows rates without prices while Billing states no token price', async () => {
+    env.usdPerMillion = null;
+    env.rateFor.mockReturnValue({ input: 1, output: 5 });
+    await render();
+
+    expect(choice('chat-model-OPENAI-gpt-5.5').description).toBe(
+      'Best for hard, multi-step tasks. Read and write rates: 1× / 5×.',
+    );
+  });
+
+  it('shows no rates or prices in the mobile shell', async () => {
+    env.pricingShown = false;
+    env.rateFor.mockReturnValue({ input: 1, output: 5 });
+    await render();
+
+    expect(choice('chat-model-OPENAI-gpt-5.5').description).toBe('Best for hard, multi-step tasks.');
   });
 
   it("keeps a new chat's pick in the draft and names it", async () => {

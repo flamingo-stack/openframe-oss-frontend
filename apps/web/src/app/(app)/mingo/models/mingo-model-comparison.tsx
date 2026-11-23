@@ -55,7 +55,8 @@ export function comparisonOptions(provider: AIProvider, options: readonly Provid
 
 export interface Prices {
   rates: string;
-  prices: string;
+  /** Null while Billing states no price for OpenFrame tokens. */
+  prices: string | null;
 }
 
 const compactUsd = new Intl.NumberFormat('en-US', {
@@ -70,23 +71,32 @@ const preciseUsd = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 2,
 });
 
-function formatUsdPerMillion(rate: number | undefined, standardPrice: number) {
+function formatUsdPerMillion(rate: number | undefined, usdPerMillion: number) {
   if (rate == null || !Number.isFinite(rate) || rate <= 0) return TOKEN_RATE_EMPTY;
-  const price = rate * standardPrice;
+  const price = rate * usdPerMillion;
   return (price >= 10 ? compactUsd : preciseUsd).format(price);
 }
 
-export function comparisonPrices(rate: { input: number; output: number } | undefined, standardPrice: number): Prices {
+export function comparisonPrices(
+  rate: { input: number; output: number } | undefined,
+  usdPerMillion: number | null,
+): Prices {
   return {
     rates: `${formatTokenRate(rate?.input)} / ${formatTokenRate(rate?.output)}`,
-    prices: `${formatUsdPerMillion(rate?.input, standardPrice)} / ${formatUsdPerMillion(rate?.output, standardPrice)}`,
+    prices:
+      usdPerMillion == null
+        ? null
+        : `${formatUsdPerMillion(rate?.input, usdPerMillion)} / ${formatUsdPerMillion(rate?.output, usdPerMillion)}`,
   };
 }
 
-export function comparisonDescription(details: ModelDetails | undefined, pricing: Prices) {
+/** `pricing` null: no figures (the mobile shell shows no prices). */
+export function comparisonDescription(details: ModelDetails | undefined, pricing: Prices | null) {
   const description = details ? `${details.description}. ` : '';
   const recommended = details?.recommended ? 'Recommended. ' : '';
-  return `${recommended}${description}Read and write rates: ${pricing.rates}. USD per million: ${pricing.prices}.`;
+  const rates = pricing ? `Read and write rates: ${pricing.rates}. ` : '';
+  const prices = pricing?.prices ? `USD per million: ${pricing.prices}.` : '';
+  return `${recommended}${description}${rates}${prices}`.trim();
 }
 
 export function ModelComparisonRow({
@@ -96,7 +106,7 @@ export function ModelComparisonRow({
 }: {
   label: string;
   details: ModelDetails | undefined;
-  pricing: Prices;
+  pricing: Prices | null;
 }) {
   return (
     <div className="min-w-0 flex-1">
@@ -110,23 +120,28 @@ export function ModelComparisonRow({
       </div>
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-[var(--spacing-system-sf)] text-[length:var(--font-size-menu-description)] leading-[var(--font-line-space-menu-label)] text-ods-text-panel-secondary">
         {details && <span className="flex-auto">{details.description}</span>}
-        <span className="ml-auto flex flex-wrap justify-end gap-x-[var(--spacing-system-xsf)]">
-          <span className="whitespace-nowrap">{pricing.rates}</span>
-          <span className="whitespace-nowrap">{pricing.prices}</span>
-        </span>
+        {pricing && (
+          <span className="ml-auto flex flex-wrap justify-end gap-x-[var(--spacing-system-xsf)]">
+            <span className="whitespace-nowrap">{pricing.rates}</span>
+            {pricing.prices && <span className="whitespace-nowrap">{pricing.prices}</span>}
+          </span>
+        )}
       </div>
     </div>
   );
 }
 
-export function ModelComparisonFooter() {
+/** `pricing`: what the rows show, so the note explains only that (nothing in the mobile shell). */
+export function ModelComparisonFooter({ pricing }: { pricing: { rates: boolean; prices: boolean } }) {
   return (
     <div className="min-w-0 break-words text-[length:var(--font-size-menu-note)] leading-[var(--font-line-space-menu-note)] text-ods-text-panel-secondary">
-      <div className="px-[var(--spacing-system-mf)] py-[var(--spacing-system-sf)]">
-        <p>Rate: OpenFrame tokens charged per token read / written.</p>
-        <p>Price: per 1M tokens, read / write.</p>
-      </div>
-      <div className="flex items-start gap-[var(--spacing-system-xsf)] border-t border-ods-border px-[var(--spacing-system-mf)] py-[var(--spacing-system-sf)]">
+      {pricing.rates && (
+        <div className="border-b border-ods-border px-[var(--spacing-system-mf)] py-[var(--spacing-system-sf)]">
+          <p>Rate: OpenFrame tokens charged per token read / written.</p>
+          {pricing.prices && <p>Price: per 1M tokens, read / write.</p>}
+        </div>
+      )}
+      <div className="flex items-start gap-[var(--spacing-system-xsf)] px-[var(--spacing-system-mf)] py-[var(--spacing-system-sf)]">
         <ShieldCheckIcon size={16} className="shrink-0" aria-hidden />
         <p>
           Your chats aren’t used to train AI models. Model providers may retain requests and responses for up to 30
