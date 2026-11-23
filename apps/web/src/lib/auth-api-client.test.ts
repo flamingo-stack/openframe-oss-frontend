@@ -5,11 +5,12 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { authApiClient, getAuthFailureMessage } from './auth-api-client';
+import { authApiClient, getAuthFailureMessage, getRecaptchaCheckedFailureMessage } from './auth-api-client';
 
 vi.mock('./force-logout', () => ({ forceLogout: vi.fn(), clearStoredTokens: vi.fn() }));
 const shell = vi.hoisted(() => ({ plugin: null as { revokeSession?: () => Promise<boolean> } | null }));
 vi.mock('./native-shell', () => ({ nativeAuthPlugin: () => shell.plugin, nativeShellVersion: () => null }));
+vi.mock('./recaptcha', () => ({ recaptchaHeaders: async () => ({ 'X-Recaptcha-Token': 'token' }) }));
 vi.mock('./platform', () => ({ isAppShell: () => false, mobilePlatform: () => null, shellKind: () => 'web' }));
 vi.mock('./runtime-config', () => ({
   runtimeEnv: { sharedHostUrl: () => 'https://auth.test', tenantHostUrl: () => '' },
@@ -121,6 +122,7 @@ describe('authApiClient.requestDownloadLink', () => {
     expect(init.method).toBe('POST');
     expect(init.credentials).toBe('omit');
     expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json');
+    expect((init.headers as Record<string, string>)['X-Recaptcha-Token']).toBe('token');
     const body = JSON.parse(String(init.body)) as {
       email: string;
       website: string;
@@ -211,6 +213,23 @@ describe('getAuthFailureMessage', () => {
     fetchMock.mockResolvedValue(jsonResponse({ code: 'SOMETHING' }, 409));
 
     expect(getAuthFailureMessage(await accept(), 'Failed to accept invitation')).toBe('Failed to accept invitation');
+  });
+});
+
+describe('getRecaptchaCheckedFailureMessage', () => {
+  const bare403 = { ok: false, status: 403, data: undefined };
+
+  it("reads the firewall's bare 403 as the reCAPTCHA refusal", () => {
+    expect(getRecaptchaCheckedFailureMessage(bare403, 'Registration failed')).toMatch(/Allow Google reCAPTCHA/);
+  });
+
+  it("keeps a 403 with the server's own message", () => {
+    const response = { ok: false, status: 403, data: { message: 'Email domain not allowed' } };
+    expect(getRecaptchaCheckedFailureMessage(response, 'Registration failed')).toBe('Email domain not allowed');
+  });
+
+  it('leaves a bare 403 on the other auth screens to the fallback', () => {
+    expect(getAuthFailureMessage(bare403, 'Failed to accept invitation')).toBe('Failed to accept invitation');
   });
 });
 

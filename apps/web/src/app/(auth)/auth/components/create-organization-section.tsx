@@ -57,7 +57,15 @@ interface CreateOrganizationSectionProps {
   isLoading?: boolean;
   /** The email field's first value (`/auth?email=`, `signup-email-seed.ts`). */
   initialEmail?: string;
+  /**
+   * The app shells: step one hands the email to the browser instead of opening step two, which the
+   * shell could not submit (`signup-in-browser.ts`). The providers stay in the app.
+   */
+  onContinueInBrowser?: (email: string) => void;
 }
+
+const CONTINUES_IN_BROWSER_NOTICE =
+  'Sign-up with email finishes in your browser. Come back here to log in once your organization is created.';
 
 /**
  * Wires the shared forms to the sign-up flow, in two steps on one screen: the email that unlocks the
@@ -75,6 +83,7 @@ export function CreateOrganizationSection({
   onSsoLogin,
   isLoading,
   initialEmail = '',
+  onContinueInBrowser,
 }: CreateOrganizationSectionProps) {
   const isSharedAuth = isSharedAuthUi();
 
@@ -160,14 +169,20 @@ export function CreateOrganizationSection({
         ssoProviders={ssoProviders ?? []}
         ssoProvidersLoading={ssoProvidersLoading}
         onSsoClick={provider => onSsoLogin?.(provider)}
+        notice={onContinueInBrowser ? CONTINUES_IN_BROWSER_NOTICE : undefined}
         onSubmitClick={() => {
+          if (onContinueInBrowser) {
+            // The browser's sign-up page fires `signup_started` itself when the person goes on there.
+            onContinueInBrowser(email.trim());
+            return;
+          }
           if (!signupStartedFired.current) {
             signupStartedFired.current = true;
             pushSignupStarted();
           }
           setStep('details');
         }}
-        submitLabel="Continue"
+        submitLabel={onContinueInBrowser ? 'Continue in Browser' : 'Continue'}
         // Waits for the debounced availability check to SETTLE, not merely to be un-blocked: an
         // untouched `idle` also passes `!isEmailBlocked`, and leaving on it strands the user on
         // step two, where the address is read-only and a late `taken` can never be corrected.

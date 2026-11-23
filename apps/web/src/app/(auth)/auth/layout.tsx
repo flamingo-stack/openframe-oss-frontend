@@ -1,6 +1,7 @@
 import { MaximizeDesktopWindow } from '@/app/components/maximize-desktop-window';
 import { routeTitle } from '@/lib/route-title';
 import { AuthAnnouncementBar } from './components/auth-announcement-bar';
+import { RecaptchaPreload } from './components/recaptcha-preload';
 import { RedditClickIdCapture } from './components/reddit-click-id-capture';
 
 export const metadata = {
@@ -17,6 +18,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       {/* The desktop shell opens out here, at sign-in and registration, and the setup wizard after them keeps it. */}
       <MaximizeDesktopWindow />
       <RedditClickIdCapture />
+      <RecaptchaPreload />
       <AuthAnnouncementBar />
       {/* No boundary here: each page that reads the URL owns its Suspense, with itself in a loading scope as the
           fallback, so nothing on an auth page waits on an empty frame. */}
