@@ -24,6 +24,7 @@ import type { bundlePickerListsAvailableQuery as AvailableQueryType } from '@/__
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { ContentErrorBoundary, noop, useRetryKey } from '@/app/components/shared';
 import type { AssignmentOwner } from '@/app/components/shared/device-selector/assignment-updaters';
+import { DEVICE_PICKER_TABLE_KEY } from '@/app/components/shared/device-selector/device-picker';
 import { DEVICE_PICKER_PAGE_SIZE } from '@/app/components/shared/device-selector/picker-narrowing';
 import {
   type PickerHalf,
@@ -186,6 +187,7 @@ export function BundlePickerLists(props: BundlePickerListsProps) {
     return (
       <ServerDevicePickerLists
         {...lists}
+        tableStorageKey={DEVICE_PICKER_TABLE_KEY.softwareBundle}
         // Design 1572:2004: specific devices, "by criteria" coming soon (bundles have no criteria yet).
         showSelectionModeRadio
         loading
@@ -257,6 +259,7 @@ function BundlePickerListsQuery({
   // without funnels instead of taking the picker down (see `BundleDeviceFacets`).
   const lists = (filterOptions: DeviceFilters) => (
     <ServerDevicePickerLists
+      tableStorageKey={DEVICE_PICKER_TABLE_KEY.softwareBundle}
       showSelectionModeRadio
       available={{
         connection: (available.data as AvailableFragmentData | null)?.availableDevices,
