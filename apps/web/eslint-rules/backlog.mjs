@@ -1,9 +1,10 @@
 /*
- * Units that were over the size limits when `openframe-frontend/unit-size` was turned on (2026-11-23).
+ * The files each convention in `eslint.config.mjs` does not check yet, as they were when it was turned on
+ * (2026-11-23).
  *
- * The lists only shrink: a file leaves when it is split below the limit, and nothing is ever added — a new unit over
- * the limit is split instead. Growing a unit that is still listed is what the hub reviewer's SIZE-001 reports, since
- * lint cannot see growth.
+ * Backlog lists only shrink: a file leaves when it is fixed, and nothing is ever added — new code meets the rule. Growing
+ * a unit that is still on a size list is what the hub reviewer's SIZE-001 reports, since lint cannot see growth. The
+ * lists marked "by design" are not backlog: they say why the file keeps the convention off.
  */
 
 /** Files over 300 lines of code (`max-lines`). */
@@ -145,4 +146,109 @@ export const FILES_WITH_OVERSIZED_FUNCTIONS = [
   'src/app/components/time-tracker-host-provider.tsx',
   'src/graphql/onboarding/use-onboarding-mutations.ts',
   'src/lib/meshcentral/meshcentral-desktop.ts',
+];
+
+/** Files with a component over 10 props or a component or hook over 3 effects (`openframe/component-shape`). */
+export const OVERSIZED_COMPONENTS = [
+  'src/app/(app)/devices/components/remote-sessions/player-controls.tsx',
+  'src/app/(app)/devices/components/tabs/device-logs/device-logs-list.tsx',
+  'src/app/(app)/devices/components/tabs/device-logs/device-logs-toolbar.tsx',
+  'src/app/(app)/devices/details/remote-desktop/page.tsx',
+  'src/app/(app)/devices/details/remote-desktop/session-toolbar.tsx',
+  'src/app/(app)/devices/details/remote-shell/page.tsx',
+  'src/app/(app)/devices/hooks/use-remote-session.ts',
+  'src/app/(app)/incidents/components/incidents-table.tsx',
+  'src/app/(app)/logs-page/components/logs-table.tsx',
+  'src/app/(app)/notifications/components/notifications-page-view.tsx',
+  'src/app/(app)/onboarding/components/onboarding-accordion.tsx',
+  'src/app/(app)/onboarding/hooks/use-onboarding-accordion.ts',
+  'src/app/(app)/scripts/schedule/components/schedule-picker-lists.tsx',
+  'src/app/(app)/scripts/schedule/components/schedule-runs-tab.tsx',
+  'src/app/(app)/scripts/schedule/components/script-schedules-table.tsx',
+  'src/app/(app)/scripts/script/components/scripts-table.tsx',
+  'src/app/(app)/scripts/shared/components/executions-table.tsx',
+  'src/app/(app)/scripts/shared/components/script-editor-view.tsx',
+  'src/app/(app)/settings/components/edit-sso-config-modal.tsx',
+  'src/app/(app)/settings/components/employees/invitations-table.tsx',
+  'src/app/(app)/settings/components/employees/users-table.tsx',
+  'src/app/(app)/software/components/action-form/bundle-picker-lists.tsx',
+  'src/app/(app)/software/components/action-list/software-actions-table.tsx',
+  'src/app/(app)/software/components/software-detail/devices-tab/software-devices-table.tsx',
+  'src/app/(app)/software/components/software-list/software-list-table.tsx',
+  'src/app/(app)/software/components/software-list/software-table.tsx',
+  'src/app/(app)/software/components/vulnerability-list/vulnerability-table.tsx',
+  'src/app/(app)/tickets/components/ticket-notifications-auto-reader.tsx',
+  'src/app/(app)/tickets/components/tickets-board.tsx',
+  'src/app/(app)/tickets/components/tickets-table.tsx',
+  'src/app/(app)/users/components/users-list/directory-users-table.tsx',
+  'src/app/components/manhattan-shell/manhattan-centre.tsx',
+  'src/app/components/mingo-compaction-watchers.tsx',
+  'src/app/components/shared/device-selector/server-device-picker-lists.tsx',
+  'src/app/components/shared/live-table.tsx',
+  'src/app/components/shared/queries-table/queries-table.tsx',
+  'src/app/components/shared/title-lines.tsx',
+  'src/app/components/shared/work-time-table/work-time-table.tsx',
+  'src/app/components/update-required-screen.tsx',
+];
+
+/** Files with a jsx-a11y finding (A11Y-001): each is a real gap, fixed in its own change. */
+export const A11Y_BACKLOG = [
+  'src/app/(app)/devices/components/remote-sessions/remote-session-columns.tsx',
+  'src/app/(app)/settings/ai-settings/components/guardrails/guardrails-template-picker.tsx',
+  'src/app/(auth)/auth/components/signup-section.tsx',
+  'src/app/components/google-tag-manager.tsx',
+];
+
+/** Raw internal paths (OPENFRAM-001-2). `not-found.tsx` by design (its keys are historical URLs); the rest backlog. */
+export const ROUTE_STRING_READERS = [
+  'src/app/(auth)/auth/invite/page.tsx',
+  'src/app/(auth)/auth/password-reset/page.tsx',
+  'src/app/components/app-layout.tsx',
+  'src/app/not-found.tsx',
+  'src/lib/force-logout.ts',
+  'src/lib/platform-configs/openframe.config.tsx',
+];
+
+/** Legacy raw-POST GraphQL against /api/graphql (OPENFRAM-002-2), migrated to Relay when the feature is reworked. */
+export const LEGACY_RAW_GRAPHQL = [
+  'src/app/(app)/customers/hooks/use-customer-details.ts',
+  'src/app/(app)/customers/hooks/use-customers-min.ts',
+  'src/app/(app)/customers/hooks/use-customers.ts',
+  'src/app/(app)/dashboard/hooks/use-customers-overview.ts',
+  'src/app/(app)/devices/hooks/use-device-organizations.ts',
+  'src/app/(app)/devices/hooks/use-has-organizations.ts',
+  'src/app/(app)/devices/queries/devices-api.ts',
+  'src/app/(app)/log-details/hooks/use-log-details.ts',
+  'src/app/(app)/logs-page/hooks/use-logs.ts',
+  'src/app/(app)/monitoring/hooks/use-live-campaign.ts',
+  'src/app/(app)/settings/hooks/use-integrated-tools.ts',
+  'src/app/(app)/tickets/hooks/use-ticket-options.ts',
+  'src/app/hooks/use-feature-flags-query.ts',
+  'src/components/assignments/graphql.ts',
+];
+
+/**
+ * Direct `NEXT_PUBLIC_*` reads. By design: `runtime-config.ts` is the reader, `proxy.ts` runs on the edge where
+ * `next-runtime-env` does not exist, `use-table-layout.ts` reads a development-only switch a shipped build drops.
+ * Backlog: `help-center/endpoints.ts`, `meshcentral-config.ts`.
+ */
+export const PUBLIC_ENV_READERS = [
+  'src/app/(app)/help-center/endpoints.ts',
+  'src/app/hooks/use-table-layout.ts',
+  'src/lib/meshcentral/meshcentral-config.ts',
+  'src/lib/runtime-config.ts',
+  'src/proxy.ts',
+];
+
+/**
+ * Pure black, by design: a remote screen, a session recording and a live video are letterboxed on the colour of the
+ * picture itself, which ODS has no token for; the AI settings preview draws a scrim over a screenshot.
+ */
+export const BLACK_CANVAS = [
+  'src/app/(app)/devices/components/remote-access/remote-access-gate.tsx',
+  'src/app/(app)/devices/components/remote-sessions/live-session-view.tsx',
+  'src/app/(app)/devices/components/remote-sessions/recording-player.tsx',
+  'src/app/(app)/devices/details/remote-desktop/page.tsx',
+  'src/app/(app)/devices/details/remote-shell/page.tsx',
+  'src/app/(app)/settings/ai-settings/components/previews/ai-settings-previews.tsx',
 ];

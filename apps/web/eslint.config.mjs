@@ -4,49 +4,27 @@ import relay from '@flamingo-stack/openframe-frontend-core/eslint-config/relay';
 import tests from '@flamingo-stack/openframe-frontend-core/eslint-config/tests';
 import { defineConfig } from 'eslint/config';
 
+import {
+  A11Y_BACKLOG,
+  BLACK_CANVAS,
+  FILES_WITH_OVERSIZED_FUNCTIONS,
+  LEGACY_RAW_GRAPHQL,
+  OVERSIZED_COMPONENTS,
+  OVERSIZED_FILES,
+  PUBLIC_ENV_READERS,
+  ROUTE_STRING_READERS,
+} from './eslint-rules/backlog.mjs';
+import {
+  A11Y_RECOMMENDED,
+  NO_SPINNERS,
+  restrictedSyntaxExcept,
+  restrictedSyntaxExceptions,
+} from './eslint-rules/conventions.mjs';
 import openframeRules from './eslint-rules/index.mjs';
-import { FILES_WITH_OVERSIZED_FUNCTIONS, OVERSIZED_FILES } from './eslint-rules/size-backlog.mjs';
 
 /** Source the size and mechanical-convention blocks below cover: app code, not tests or generated output. */
 const APP_SOURCE = ['src/**/*.{ts,tsx}'];
 const NOT_APP_SOURCE = ['**/*.test.{ts,tsx}', '**/__tests__/**', 'src/__generated__/**', 'src/generated/**'];
-
-/** The three places a spinner could come from; a page draws its own loading form instead (hub rule OFFE-013). */
-const NO_SPINNERS = [
-  '@flamingo-stack/openframe-frontend-core',
-  '@flamingo-stack/openframe-frontend-core/components/ui',
-  '@/lib/openframe-core-ui',
-].map(name => ({
-  name,
-  importNames: ['PageLoader', 'CompactPageLoader'],
-  message:
-    'No spinners: the page or component draws its own loading form in its own geometry, from its real controls ' +
-    'disabled where it can (hub rule OFFE-013).',
-}));
-
-/**
- * `NEXT_PUBLIC_*` is read through `runtimeEnv` (`src/lib/runtime-config.ts`): a direct `process.env` read is inlined at
- * build time, so a deployment cannot change it (hub rule OPENFRAM-007-2).
- */
-const PUBLIC_ENV_THROUGH_RUNTIME_CONFIG = {
-  selector:
-    "MemberExpression[object.type='MemberExpression'][object.object.name='process'][object.property.name='env'][property.name=/^NEXT_PUBLIC_/]",
-  message: 'Read NEXT_PUBLIC_* through runtimeEnv in src/lib/runtime-config.ts; a direct read is frozen at build time.',
-};
-
-/** A Tailwind palette class, a hex, rgb() or hsl() in a class string: colours are ODS tokens (hub rule OFFE-004). */
-const PALETTE =
-  String.raw`/(#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(|(^|[\s:])(bg|text|border|ring|fill|stroke|from|to|via|outline|divide|shadow)-` +
-  String.raw`(white|black|gray|slate|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)(-\d{2,3})?\b)/`;
-const COLOUR_MESSAGE =
-  'Use an ODS colour token (bg-ods-*, text-ods-*, border-ods-*), not a palette class, hex or rgb().';
-const ODS_COLOURS_ONLY = [
-  `JSXAttribute[name.name=/[cC]lassName$/] > Literal[value=${PALETTE}]`,
-  `JSXAttribute[name.name=/[cC]lassName$/] > JSXExpressionContainer > Literal[value=${PALETTE}]`,
-  `JSXAttribute[name.name=/[cC]lassName$/] > JSXExpressionContainer > TemplateLiteral > TemplateElement[value.raw=${PALETTE}]`,
-  `CallExpression[callee.name=/^(cn|clsx|cva)$/] Literal[value=${PALETTE}]`,
-  `CallExpression[callee.name=/^(cn|clsx|cva)$/] TemplateElement[value.raw=${PALETTE}]`,
-].map(selector => ({ selector, message: COLOUR_MESSAGE }));
 
 /*
  * The fast pass — no type-aware rules. This is what the editor loads (see
@@ -520,44 +498,52 @@ export default defineConfig([
   },
 
   {
-    // Two mechanical conventions on one rule, because a later `no-restricted-syntax` block replaces the options of an
-    // earlier one: `NEXT_PUBLIC_*` through runtimeEnv, and ODS colour tokens in class strings. The blocks after this
-    // one restate the rule for the files that keep one of the two for a stated reason.
-    name: 'openframe-frontend/runtime-env-and-ods-colours',
+    // The mechanical conventions that share `no-restricted-syntax` (`eslint-rules/conventions.mjs`): `NEXT_PUBLIC_*`
+    // through runtimeEnv, ODS colour tokens in class strings, internal URLs from `routes`, no new raw-POST to
+    // /api/graphql. One rule, so the files that keep one of them off get a generated block that restates the others.
+    name: 'openframe-frontend/restricted-syntax',
     files: APP_SOURCE,
     ignores: NOT_APP_SOURCE,
-    rules: { 'no-restricted-syntax': ['warn', PUBLIC_ENV_THROUGH_RUNTIME_CONFIG, ...ODS_COLOURS_ONLY] },
+    rules: { 'no-restricted-syntax': ['warn', ...restrictedSyntaxExcept()] },
+  },
+
+  ...restrictedSyntaxExceptions({
+    publicEnv: PUBLIC_ENV_READERS,
+    colours: BLACK_CANVAS,
+    routes: ROUTE_STRING_READERS,
+    rawGraphql: LEGACY_RAW_GRAPHQL,
+  }),
+
+  {
+    // A component takes at most 10 props and a component or hook runs at most 3 effects of its own (hub rules SIZE-001
+    // and SRP-001): past that it is several components or several concerns. See the rule's header for what counts.
+    name: 'openframe-frontend/component-shape',
+    files: ['src/**/*.tsx', 'src/**/use-*.ts'],
+    ignores: NOT_APP_SOURCE,
+    plugins: { openframe: openframeRules },
+    rules: { 'openframe/component-shape': ['warn', { maxProps: 10, maxEffects: 3 }] },
   },
 
   {
-    // `runtime-config.ts` IS the runtime env reader. `proxy.ts` runs on the edge, where `next-runtime-env` is not
-    // available. `use-table-layout.ts` reads a development-only switch that a shipped build drops. The other two are
-    // backlog: their reads predate the rule and move to `runtimeEnv` in their own change.
-    name: 'openframe-frontend/public-env-readers',
-    files: [
-      'src/lib/runtime-config.ts',
-      'src/proxy.ts',
-      'src/app/hooks/use-table-layout.ts',
-      'src/app/(app)/help-center/endpoints.ts',
-      'src/lib/meshcentral/meshcentral-config.ts',
-    ],
-    rules: { 'no-restricted-syntax': ['warn', ...ODS_COLOURS_ONLY] },
+    name: 'openframe-frontend/component-shape-backlog',
+    files: OVERSIZED_COMPONENTS,
+    rules: { 'openframe/component-shape': 'off' },
   },
 
   {
-    // A remote screen, a session recording and a live video are letterboxed on pure black, the colour of the picture
-    // itself, which ODS has no token for; the AI settings preview draws a scrim over a screenshot. Colour stays
-    // tokenized everywhere else in these files.
-    name: 'openframe-frontend/video-canvas-black',
-    files: [
-      'src/app/(app)/devices/components/remote-access/remote-access-gate.tsx',
-      'src/app/(app)/devices/components/remote-sessions/live-session-view.tsx',
-      'src/app/(app)/devices/components/remote-sessions/recording-player.tsx',
-      'src/app/(app)/devices/details/remote-desktop/page.tsx',
-      'src/app/(app)/devices/details/remote-shell/page.tsx',
-      'src/app/(app)/settings/ai-settings/components/previews/ai-settings-previews.tsx',
-    ],
-    rules: { 'no-restricted-syntax': ['warn', PUBLIC_ENV_THROUGH_RUNTIME_CONFIG] },
+    // eslint-plugin-jsx-a11y's recommended set on top of the six rules the Next preset turns on (hub rule A11Y-001:
+    // WCAG 2.1 AA is a requirement here). The reviewer judges what lint cannot see: focus that lands and returns,
+    // announced state, contrast.
+    name: 'openframe-frontend/a11y',
+    files: ['src/**/*.tsx'],
+    ignores: NOT_APP_SOURCE,
+    rules: A11Y_RECOMMENDED,
+  },
+
+  {
+    name: 'openframe-frontend/a11y-backlog',
+    files: A11Y_BACKLOG,
+    rules: Object.fromEntries(Object.keys(A11Y_RECOMMENDED).map(rule => [rule, 'off'])),
   },
 
   ...prettierCompat,
