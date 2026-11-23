@@ -229,7 +229,9 @@ describe('useMingoModelSelection', () => {
     expect(env.updateDialogModel).toHaveBeenCalledWith('d-1', null);
   });
 
-  it('refreshes the same chat in another tab on change and reset without sending a message', async () => {
+  it('refreshes the same chat in another tab on change and reset without sending a message', async ({
+    onTestFinished,
+  }) => {
     const defaultState = { model: null, effectiveModel: GPT, modelTokenBudget: 150_000 };
     let saved: DialogModelState = defaultState;
     env.fetchDialogModel.mockImplementation(async (dialogId: string) => (dialogId === 'd-1' ? saved : defaultState));
@@ -239,64 +241,62 @@ describe('useMingoModelSelection', () => {
     });
     const otherTabRoot = createRoot(document.createElement('div'));
     const otherTabClient = new QueryClient();
-    let otherTab!: MingoModelSelection;
-    let unrelatedChat!: MingoModelSelection;
-    try {
-      await render({ activeDialogId: 'd-1' });
-      await act(async () =>
-        otherTabRoot.render(
-          <QueryClientProvider client={otherTabClient}>
-            <Probe chat={{ ...IDLE, activeDialogId: 'd-1' }} onSelection={next => (otherTab = next)} />
-            <Probe chat={{ ...IDLE, activeDialogId: 'd-2' }} onSelection={next => (unrelatedChat = next)} />
-          </QueryClientProvider>,
-        ),
-      );
-      await vi.waitFor(() => {
-        expect(selection.current).toEqual(GPT);
-        expect(otherTab.current).toEqual(GPT);
-        expect(unrelatedChat.current).toEqual(GPT);
-      });
-
-      await act(async () => choice('chat-model-ANTHROPIC-claude-sonnet-5').onClick?.());
-      await vi.waitFor(() => expect(otherTab.current).toEqual(SONNET));
-      expect(otherTab.contextSize).toBe(200_000);
-      expect(choice('chat-model-ANTHROPIC-claude-sonnet-5', otherTab).checked).toBe(true);
-      expect(choice('chat-model-default', otherTab)).toMatchObject({ label: 'Use default model', disabled: false });
-      expect(env.showToast).toHaveBeenCalledTimes(1);
-
-      await act(async () => choice('chat-model-default', otherTab).onClick?.());
-      await vi.waitFor(() => expect(selection.current).toEqual(GPT));
-      expect(selection.contextSize).toBe(150_000);
-      expect(choice('chat-model-default')).toMatchObject({ label: 'Using default model', disabled: true });
-      expect(env.updateDialogModel.mock.calls).toEqual([
-        ['d-1', SONNET],
-        ['d-1', null],
-      ]);
-      expect(env.fetchDialogModel.mock.calls.filter(([dialogId]) => dialogId === 'd-2')).toEqual([['d-2']]);
-      expect(env.showToast).toHaveBeenCalledTimes(2);
-    } finally {
+    onTestFinished(() => {
       act(() => otherTabRoot.unmount());
       otherTabClient.clear();
-    }
+    });
+    let otherTab!: MingoModelSelection;
+    let unrelatedChat!: MingoModelSelection;
+    await render({ activeDialogId: 'd-1' });
+    await act(async () =>
+      otherTabRoot.render(
+        <QueryClientProvider client={otherTabClient}>
+          <Probe chat={{ ...IDLE, activeDialogId: 'd-1' }} onSelection={next => (otherTab = next)} />
+          <Probe chat={{ ...IDLE, activeDialogId: 'd-2' }} onSelection={next => (unrelatedChat = next)} />
+        </QueryClientProvider>,
+      ),
+    );
+    await vi.waitFor(() => {
+      expect(selection.current).toEqual(GPT);
+      expect(otherTab.current).toEqual(GPT);
+      expect(unrelatedChat.current).toEqual(GPT);
+    });
+
+    await act(async () => choice('chat-model-ANTHROPIC-claude-sonnet-5').onClick?.());
+    await vi.waitFor(() => expect(otherTab.current).toEqual(SONNET));
+    expect(otherTab.contextSize).toBe(200_000);
+    expect(choice('chat-model-ANTHROPIC-claude-sonnet-5', otherTab).checked).toBe(true);
+    expect(choice('chat-model-default', otherTab)).toMatchObject({ label: 'Use default model', disabled: false });
+    expect(env.showToast).toHaveBeenCalledTimes(1);
+
+    await act(async () => choice('chat-model-default', otherTab).onClick?.());
+    await vi.waitFor(() => expect(selection.current).toEqual(GPT));
+    expect(selection.contextSize).toBe(150_000);
+    expect(choice('chat-model-default')).toMatchObject({ label: 'Using default model', disabled: true });
+    expect(env.updateDialogModel.mock.calls).toEqual([
+      ['d-1', SONNET],
+      ['d-1', null],
+    ]);
+    expect(env.fetchDialogModel.mock.calls.filter(([dialogId]) => dialogId === 'd-2')).toEqual([['d-2']]);
+    expect(env.showToast).toHaveBeenCalledTimes(2);
   });
 
-  it('refreshes an open chat on return to the tab even if it missed the change notification', async () => {
+  it('refreshes an open chat on return to the tab even if it missed the change notification', async ({
+    onTestFinished,
+  }) => {
     env.fetchDialogModel
       .mockResolvedValueOnce({ model: null, effectiveModel: GPT, modelTokenBudget: 150_000 })
       .mockResolvedValue({ model: SONNET, effectiveModel: SONNET, modelTokenBudget: 200_000 });
     focusManager.setFocused(false);
-    try {
-      await render({ activeDialogId: 'd-1' });
-      await vi.waitFor(() => expect(selection.current).toEqual(GPT));
+    onTestFinished(() => focusManager.setFocused(undefined));
+    await render({ activeDialogId: 'd-1' });
+    await vi.waitFor(() => expect(selection.current).toEqual(GPT));
 
-      await act(async () => focusManager.setFocused(true));
-      await vi.waitFor(() => expect(selection.current).toEqual(SONNET));
-      expect(env.fetchDialogModel.mock.calls).toEqual([['d-1'], ['d-1']]);
-      expect(env.updateDialogModel).not.toHaveBeenCalled();
-      expect(env.showToast).not.toHaveBeenCalled();
-    } finally {
-      focusManager.setFocused(undefined);
-    }
+    await act(async () => focusManager.setFocused(true));
+    await vi.waitFor(() => expect(selection.current).toEqual(SONNET));
+    expect(env.fetchDialogModel.mock.calls).toEqual([['d-1'], ['d-1']]);
+    expect(env.updateDialogModel).not.toHaveBeenCalled();
+    expect(env.showToast).not.toHaveBeenCalled();
   });
 
   it('offers reset after a saved model read fails', async () => {
