@@ -50,6 +50,3 @@ export function buildWsUrl(path: string): string {
   const scheme = getMeshWsScheme();
   return `${scheme}://localhost/ws/tools/meshcentral-server${normalizedPath}`;
 }
-
-export const MESH_USER = process.env.NEXT_PUBLIC_MESH_USER || 'mesh@openframe.io';
-export const MESH_PASS = process.env.NEXT_PUBLIC_MESH_PASS || 'meshpass@1234';
