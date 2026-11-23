@@ -2,17 +2,14 @@
 
 import { LoadError } from '@flamingo-stack/openframe-frontend-core';
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
-import {
-  DeviceSelector,
-  ErrorBoundary,
-  isManagedStatus,
-} from '@flamingo-stack/openframe-frontend-core/components/features';
+import { ErrorBoundary, isManagedStatus } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMemo, useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { adoptDevicePickerQuery as AdoptDevicePickerQueryType } from '@/__generated__/adoptDevicePickerQuery.graphql';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { machineSelectorToDevice } from '@/app/(app)/devices/utils/device-transform';
+import { DEVICE_PICKER_TABLE_KEY, DevicePicker } from '@/app/components/shared/device-selector/device-picker';
 import { NO_ITEMS } from '@/app/components/shared/no-next-page';
 import { pluralize } from '@/lib/pluralize';
 import { ADOPT_DEVICE_LIMIT, ADOPTABLE_DEVICES_FILTER, isAdopting } from './adoptable-devices';
@@ -87,7 +84,15 @@ function AdoptDevicePickerBoundary(props: AdoptDevicePickerProps & { retryKey: n
 }
 
 function LoadingAdoptDevicePicker() {
-  return <DeviceSelector devices={NO_ITEMS} loading showSelectionModeRadio={false} getDeviceKey={adoptDeviceKey} />;
+  return (
+    <DevicePicker
+      tableStorageKey={DEVICE_PICKER_TABLE_KEY.softwareAdopt}
+      devices={NO_ITEMS}
+      loading
+      showSelectionModeRadio={false}
+      getDeviceKey={adoptDeviceKey}
+    />
+  );
 }
 
 function AdoptDevicePickerReader(props: AdoptDevicePickerProps & { retryKey: number }) {
@@ -132,7 +137,8 @@ function AdoptDevicePickerQuery({
           {`Showing the first ${pluralize(devices.length, 'device')} of ${softwareDevices.filteredCount}: one adoption takes up to ${ADOPT_DEVICE_LIMIT}. Adopt these, and the rest are listed here next.`}
         </p>
       )}
-      <DeviceSelector
+      <DevicePicker
+        tableStorageKey={DEVICE_PICKER_TABLE_KEY.softwareAdopt}
         devices={devices}
         loading={false}
         disabled={disabled}

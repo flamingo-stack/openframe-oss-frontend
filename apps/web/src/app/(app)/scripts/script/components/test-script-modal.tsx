@@ -11,7 +11,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo, useState } from 'react';
-import { DeviceListPicker } from '@/app/components/shared/device-selector';
+import { DEVICE_PICKER_TABLE_KEY, DeviceListPicker } from '@/app/components/shared/device-selector';
 import type { Device } from '../../../devices/types/device.types';
 import { getDevicePrimaryId } from '../../shared/utils/device-helpers';
 import { testDeviceFilter } from '../../shared/utils/script-utils';
@@ -80,6 +80,7 @@ export function TestScriptModal({ isOpen, onClose, onDeviceSelected, supportedPl
           // did — a Relay query runs because its component is rendered.
           isOpen && (
             <DeviceListPicker
+              tableStorageKey={DEVICE_PICKER_TABLE_KEY.testScript}
               filter={filter}
               selected={selection}
               onSelectionChange={setSelection}
