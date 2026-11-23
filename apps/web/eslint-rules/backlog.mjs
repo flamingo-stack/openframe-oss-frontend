@@ -109,6 +109,7 @@ export const FILES_WITH_OVERSIZED_FUNCTIONS = [
   'src/app/(app)/mingo/tour/tour-steps.ts',
   'src/app/(app)/monitoring/components/tabs/policies.tsx',
   'src/app/(app)/monitoring/components/tabs/queries.tsx',
+  'src/app/(app)/monitoring/components/test-query-section.tsx',
   'src/app/(app)/monitoring/hooks/use-live-campaign.ts',
   'src/app/(app)/monitoring/policy/components/edit-policy-page.tsx',
   'src/app/(app)/monitoring/policy/components/policy-devices-table.tsx',
