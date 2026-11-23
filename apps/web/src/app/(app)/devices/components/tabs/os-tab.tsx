@@ -9,7 +9,7 @@ import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDateTimeOnDevice } from '@/lib/format-date';
 import type { Device } from '../../types/device.types';
 import { type DeviceInfoRow, deviceInfoItems, hasDeviceInfo } from '../../utils/device-info-rows';
-import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
+import { TabDeployingEmptyState, TabEmptyState, TabUnsupportedEmptyState } from './tab-empty-state';
 
 interface OsTabProps {
   device: Device | null;
@@ -46,6 +46,9 @@ function OsEmptyState() {
   );
 }
 
+/** The names the OS card titles a client-reported `osType` with (the GraphQL `OsType` enum). */
+const OS_TYPE_NAMES: Record<string, string> = { MAC_OS: 'macOS', WINDOWS: 'Windows' };
+
 const BOOT_TITLE = 'Boot & Time';
 const MANAGEMENT_TITLE = 'Fleet';
 
@@ -60,6 +63,27 @@ export function OsTab({ device }: OsTabProps) {
 
   if (!loading && !device) {
     return <OsEmptyState />;
+  }
+
+  // An OS below Fleet's minimum with no live Fleet: Fleet's OS details will never come, so the tab shows only what
+  // the OpenFrame client reports, its OS version (Figma 5049-125023), or the unsupported placeholder before it has.
+  if (!loading && device?.sources?.fleet === 'skipped-unsupported') {
+    if (!device.osVersion) return <TabUnsupportedEmptyState icon={<TerminalMonitorIcon />} />;
+    return (
+      <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] content-lg:grid-cols-3">
+        <Section title="Operating System">
+          <InfoCard
+            className="flex-1"
+            data={{
+              title:
+                (device.osType && OS_TYPE_NAMES[device.osType.toUpperCase()]) || device.osType || 'Operating System',
+              subtitle: 'Reported by the OpenFrame client',
+              items: deviceInfoItems([{ label: 'Version', value: device.osVersion }]),
+            }}
+          />
+        </Section>
+      </div>
+    );
   }
 
   // OPERATING SYSTEM — name/version/build/platform identity from Fleet + GraphQL.

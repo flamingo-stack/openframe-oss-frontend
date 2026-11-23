@@ -21,6 +21,7 @@ import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AttentionAlert } from '@/app/components/shared/attention-alert';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
@@ -28,7 +29,7 @@ import { useDeviceActionsMenu } from '../hooks/use-device-actions-menu';
 import { useDeviceDetails } from '../hooks/use-device-details';
 import { useDirectoryGate } from '../hooks/use-directory-gate';
 import type { Device } from '../types/device.types';
-import { isDeviceStillConnecting } from '../utils/tool-connection-status';
+import { displayOsVersion, getUnsupportedTool, isDeviceStillConnecting } from '../utils/tool-connection-status';
 import { OutdatedClientBanner } from './outdated-client-banner';
 import { RecordingStorageBanner } from './remote-sessions/recording-storage-banner';
 import { RunScriptModal } from './run-script/run-script-modal';
@@ -135,6 +136,7 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
   }, [runScriptRequested, searchParams, router, pathname]);
 
   const normalizedDevice = deviceDetails;
+  const fleetUnsupported = getUnsupportedTool(normalizedDevice, 'FLEET_MDM');
 
   // Register this device as the Mingo "open view" so the agent gets the user's
   // working context on the next message (cleared on unmount → recent views).
@@ -231,6 +233,18 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
         titleAdornment={<DeviceStatusAdornment device={normalizedDevice ?? null} />}
         className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       >
+        {/* An OS below Fleet's minimum: Fleet will never deploy here, so say why instead of "still connecting". The
+          versions come from the backend's report (Machine.unsupportedTools). An optional part, like the strip below. */}
+        {fleetUnsupported && (
+          <div data-loading-optional>
+            <AttentionAlert
+              variant="error"
+              title={`Fleet isn't supported on macOS ${displayOsVersion(fleetUnsupported.osVersion)}`}
+              description={`Inventory, software, vulnerabilities and policies need macOS ${displayOsVersion(fleetUnsupported.minOsVersion)} or later. Upgrade macOS and Fleet installs automatically.`}
+            />
+          </div>
+        )}
+
         {/* First-connect indication: shown only until every agent has registered per design; a later disconnect
           never re-triggers it. Only some devices are still connecting (an optional part). The design is a bare
           warning strip, so the component's outer card is neutralized — tailwind-merge keeps the overrides. */}

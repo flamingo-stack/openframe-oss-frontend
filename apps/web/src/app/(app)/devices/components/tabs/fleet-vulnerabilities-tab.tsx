@@ -39,7 +39,7 @@ import type { Device, Software, Vulnerability } from '../../types/device.types';
 import { deviceQueryKeys } from '../../utils/query-keys';
 import { getVulnerabilitiesEmptyReason, isVulnerabilityScanPending } from '../../utils/vulnerabilities-empty-state';
 import { DataSyncBanner } from '../data-sync-banner';
-import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
+import { TabDeployingEmptyState, TabEmptyState, TabUnsupportedEmptyState } from './tab-empty-state';
 
 /**
  * Vulnerabilities tab over the Fleet host payload (`software-management` off).
@@ -368,6 +368,10 @@ export function FleetVulnerabilitiesTab({ device, tableLayout = 'cards' }: Fleet
             onButtonClick={() => queryClient.invalidateQueries({ queryKey: deviceQueryKeys.detail(device.machineId) })}
           />
         );
+      }
+
+      if (reason === 'unsupported') {
+        return <TabUnsupportedEmptyState icon={<BracketSquareCheckIcon />} />;
       }
 
       if (reason === 'disconnected') {

@@ -121,7 +121,18 @@ export interface ToolConnection {
  * was deleted from Fleet) AND a malformed agentToolId.
  */
 export interface DeviceDataSources {
-  fleet: 'skipped-pending' | 'skipped-disconnected' | 'ok' | 'error';
+  /** 'skipped-unsupported': Fleet does not run on this OS version and has no live connection to read from. */
+  fleet: 'skipped-pending' | 'skipped-disconnected' | 'skipped-unsupported' | 'ok' | 'error';
+}
+
+/**
+ * An integrated agent the device's OS version is below the minimum of (`Machine.unsupportedTools`): the backend
+ * neither installs nor keeps it there. `toolType` is a `ToolConnection.toolType` value (FLEET_MDM, …).
+ */
+export interface UnsupportedTool {
+  toolType: string;
+  minOsVersion: string;
+  osVersion: string;
 }
 
 /**
@@ -268,6 +279,11 @@ export interface Device {
   software_updated_at?: string; // Fleet software inventory last-scanned timestamp
   /** Per-source fan-out outcome — set only by the details fetch, absent on list rows. */
   sources?: DeviceDataSources;
+  /**
+   * Agents this device's OS version does not support — set only by the details fetch; empty when the version is
+   * unknown, every agent supports it, or the backend does not know the field yet.
+   */
+  unsupportedTools?: UnsupportedTool[];
   fleetTeamName?: string;
   fleetTeamId?: number | null;
   fleetLabels?: string[];

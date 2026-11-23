@@ -10,7 +10,7 @@ import type { Device } from '../../types/device.types';
 import { getVulnerabilitiesEmptyReason } from '../../utils/vulnerabilities-empty-state';
 import { DeviceSoftwareTable } from './device-software-table';
 import { FleetSoftwareTab } from './fleet-software-tab';
-import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
+import { TabDeployingEmptyState, TabEmptyState, TabUnsupportedEmptyState } from './tab-empty-state';
 
 interface SoftwareTabProps {
   device: Device | null;
@@ -40,6 +40,10 @@ const NO_SOFTWARE = (
  */
 function softwareEmptyState(device: Device) {
   const reason = getVulnerabilitiesEmptyReason(device);
+
+  if (reason === 'unsupported') {
+    return <TabUnsupportedEmptyState icon={<WebDesignIcon />} />;
+  }
 
   if (reason === 'disconnected') {
     return (
