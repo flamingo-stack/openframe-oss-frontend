@@ -12,6 +12,7 @@ import { useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { authApiClient, getRecaptchaCheckedFailureMessage } from '@/lib/auth-api-client';
+import { RecaptchaNotice } from './recaptcha-notice';
 
 /**
  * Every word the page says. The form's are the marketing site's "Send me download link" dialog's,
@@ -117,7 +118,10 @@ export function DownloadLinkSection() {
             <Button type="submit" variant="accent" fullWidth loading={request.isPending} disabled={request.isPending}>
               {DOWNLOAD_LINK_COPY.submit}
             </Button>
-            <p className="text-ods-text-secondary text-h6">{DOWNLOAD_LINK_COPY.consent}</p>
+            <div>
+              <p className="text-ods-text-secondary text-h6">{DOWNLOAD_LINK_COPY.consent}</p>
+              <RecaptchaNotice />
+            </div>
           </form>
         </>
       )}

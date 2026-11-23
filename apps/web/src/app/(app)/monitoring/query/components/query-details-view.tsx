@@ -24,6 +24,7 @@ import { oneLineEmptyState } from '@/app/components/shared/empty-state';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { LoadingParagraph } from '@/app/components/shared/loading-paragraph';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
+import { tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { type QueryDetailTab, routes, TAB_IDS } from '@/lib/routes';
 import { useTrackOpenView } from '../../../mingo/context/use-track-open-view';
 import { ScriptEditor } from '../../../scripts/shared/components/script-editor';
@@ -74,6 +75,7 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
 
   const { queryDetails, isLoading, error } = useQueryDetails(isValidId ? numericId : null);
   const { rows, isLoading: isReportLoading } = useQueryReport(isValidId ? numericId : null);
+  const tableGate = useTableGridGate();
   const { deleteQuery, isDeleting } = useQueries();
   const { devices: queryDevices, isLoading: isLoadingDevices } = usePolicyDevices();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -211,7 +213,9 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
                 ) : (
                   <QueryReportTable
                     data={rows}
-                    loading={!details || isReportLoading}
+                    // Its loading form until the table flag answers too, so it never draws one layout and swaps.
+                    loading={!details || isReportLoading || tableGate === 'loading'}
+                    layout={tableLayoutFor(tableGate)}
                     emptyState={oneLineEmptyState('No report results available')}
                     columnOrder={['device', 'last_fetched']}
                     showExport={false}

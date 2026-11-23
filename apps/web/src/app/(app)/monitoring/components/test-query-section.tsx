@@ -20,6 +20,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useCallback, useMemo, useState } from 'react';
+import { tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import type { Device } from '../../devices/types/device.types';
 import { getFleetHostId, indexDevicesByFleetHostId } from '../../devices/utils/device-action-utils';
 import { useQueryTestRun } from './query-test-run';
@@ -49,6 +50,9 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
     [deviceByFleetId],
   );
   const test = useQueryTestRun({ hostName });
+  // The results table follows the app's table flag. Results are drawn only after a run, long after the flag has
+  // answered, so there is no unanswered state to hold a layout for.
+  const tableLayout = tableLayoutFor(useTableGridGate());
   const [isOpen, setIsOpen] = useState(false);
   const [selectedHostId, setSelectedHostId] = useState<string>('');
 
@@ -201,7 +205,12 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
 
           {/* Results */}
           {test.showResults && (
-            <TestRunResults isActive={test.isActive} displayRows={test.displayRows} firstError={test.firstError} />
+            <TestRunResults
+              isActive={test.isActive}
+              displayRows={test.displayRows}
+              firstError={test.firstError}
+              layout={tableLayout}
+            />
           )}
         </div>
       )}
