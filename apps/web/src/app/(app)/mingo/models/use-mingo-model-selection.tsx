@@ -3,6 +3,7 @@ import type { ModelMenu } from '@flamingo-stack/openframe-frontend-core/componen
 import { showToast } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
 import {
   type SupportedModelsByProvider,
   useSupportedModels,
@@ -34,6 +35,7 @@ import { useMingoModelDraftStore } from './mingo-model-draft-store';
 import { useMingoModelPricing } from './use-mingo-model-pricing';
 
 export const MINGO_MODEL_FLAG = 'ai-mingo-chat-model-selection';
+const MODEL_CHANGES_CHANNEL = 'openframe:mingo-dialog-model-changes';
 
 /** What of the chat decides whether its model can change now. */
 export interface MingoModelChatState {
@@ -70,6 +72,7 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
   const draft = useMingoModelDraftStore(s => s.draft);
   const setDraft = useMingoModelDraftStore(s => s.setDraft);
   const queryClient = useQueryClient();
+  const modelChanges = useRef<BroadcastChannel | null>(null);
   const { toast } = useToast();
   const showChange = (label: string) =>
     showToast({
@@ -79,10 +82,29 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
       className: styles.modelChangeToast,
     });
 
+  useEffect(() => {
+    if (!enabled || typeof BroadcastChannel === 'undefined') return undefined;
+
+    const channel = new BroadcastChannel(MODEL_CHANGES_CHANNEL);
+    modelChanges.current = channel;
+    channel.onmessage = ({ data }) => {
+      if (activeDialogId === null || data !== activeDialogId) return;
+      const filters = { queryKey: dialogModelQueryKey(activeDialogId), exact: true };
+      // Restart even an initial read that may have started before the other tab saved.
+      void queryClient.cancelQueries(filters).then(() => queryClient.invalidateQueries(filters));
+    };
+    return () => {
+      modelChanges.current = null;
+      channel.close();
+    };
+  }, [activeDialogId, enabled, queryClient]);
+
   const query = useQuery({
     queryKey: dialogModelQueryKey(activeDialogId ?? ''),
     queryFn: () => fetchDialogModel(activeDialogId ?? ''),
     enabled: enabled && activeDialogId !== null,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
   const mutation = useMutation({
     mutationFn: ({
@@ -94,7 +116,11 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
       previousModel: ModelIdentity | null;
     }) => updateDialogModel(dialogId, model),
     onSuccess: (state, { dialogId, previousModel }) => {
-      queryClient.setQueryData(dialogModelQueryKey(dialogId), state);
+      const queryKey = dialogModelQueryKey(dialogId);
+      queryClient.setQueryData(queryKey, state);
+      // A concurrent change in another tab can already have superseded this response.
+      void queryClient.invalidateQueries({ queryKey, exact: true });
+      modelChanges.current?.postMessage(dialogId);
       if (!isSameModel(previousModel, state.effectiveModel))
         showChange(labelOf(state.effectiveModel, modelsByProvider));
     },
