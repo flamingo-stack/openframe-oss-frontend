@@ -46,6 +46,7 @@ import {
   GROUPED_SIDEBAR_EXPANDED_WIDTH,
   MANHATTAN_CHATS_DRAWER_WIDTH,
   MANHATTAN_CHATS_EXPANDED_WIDTH,
+  MANHATTAN_END_SIDEBAR_CLASS,
   SIDEBAR_RESIZE,
 } from '../../lib/navigation-sidebar-state';
 import { AnnouncementTopBar } from './announcement-top-bar';
@@ -462,6 +463,22 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // Until the window is read (the server's markup, the first paint) the compact band is the
   // stylesheet's: both sidebars hide there, then become the closed drawers below.
   const sidebarClassName = squeeze.measured ? 'h-full' : `h-full ${COMPACT_BAND_HIDDEN}`;
+  const modelToastRailVisible = manhattan && !bareChrome && isMdUp === true && !squeeze.compact;
+  useEffect(() => {
+    if (!modelToastRailVisible) return undefined;
+    const sidebar = document.querySelector(`.${MANHATTAN_END_SIDEBAR_CLASS}`);
+    if (!sidebar) return undefined;
+    const rootStyle = document.documentElement.style;
+    const widthProperty = '--of-mingo-model-toast-rail-width';
+    const measure = () => rootStyle.setProperty(widthProperty, `${sidebar.getBoundingClientRect().width}px`);
+    measure();
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure);
+    observer?.observe(sidebar);
+    return () => {
+      observer?.disconnect();
+      rootStyle.removeProperty(widthProperty);
+    };
+  }, [modelToastRailVisible]);
   // Below two rails + 800px the v2 top bar opens the sidebars as drawers: its buttons' reveals,
   // and the chats drawer closes once a chat opens from it (`ManhattanCentre`).
   const [chatsReveal, setChatsReveal] = useState(0);
@@ -674,7 +691,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             overlay: squeeze.compact ? 'drawer' : undefined,
             desktopFromMd: true,
             revealSignal: navReveal,
-            className: sidebarClassName,
+            className: modelToastRailVisible ? `${sidebarClassName} ${MANHATTAN_END_SIDEBAR_CLASS}` : sidebarClassName,
           }
         : undefined,
     [
@@ -686,6 +703,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       navCollapsed,
       setNavCollapsed,
       squeeze.compact,
+      modelToastRailVisible,
       sidebarClassName,
       navReveal,
     ],
@@ -701,10 +719,11 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             side: 'right',
             overlay: undefined,
             revealSignal: undefined,
+            className: sidebarClassName,
             footerSlot: sidebarConfig.footerSlot,
           }
         : undefined,
-    [manhattan, endSidebarConfig, sidebarConfig.footerSlot],
+    [manhattan, endSidebarConfig, sidebarClassName, sidebarConfig.footerSlot],
   );
 
   // Single `topBar` slot, one bar at a time: the billing bars first, since they
