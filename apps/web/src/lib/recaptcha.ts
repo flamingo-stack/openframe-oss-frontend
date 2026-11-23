@@ -67,6 +67,11 @@ function loadScript(key: string): Promise<RecaptchaEnterprise> {
   return load;
 }
 
+/** Whether this build sends tokens at all: what the attribution under the protected forms follows. */
+export function isRecaptchaEnabled(): boolean {
+  return siteKey() !== undefined;
+}
+
 /**
  * Starts loading the script on the auth pages, so it has seen the visitor before the submit asks it
  * for a score; a cold load at submit time scores lower and adds a second to the request.

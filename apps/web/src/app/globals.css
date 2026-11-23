@@ -346,15 +346,8 @@ html[data-shell='mobile'] .fixed.bottom-0.left-0.right-0.z-50 {
 [data-work-area] [data-surface='mingo'] {
   --color-bg: var(--ods-backgrounds-openframe-background);
 }
-/* The reCAPTCHA badge (sign-up, password reset, download link: `lib/recaptcha.ts`) sits bottom-right by default, under
-   the support chat's launcher there. `enterprise.js?render=` takes no position, so this restates the layout Google draws
-   for `badge: 'bottomleft'` over its inline style: the logo's 70px at the left edge, the full badge on hover. */
+/* The reCAPTCHA badge is hidden: it tells a bot there is a captcha. Google allows it with `RecaptchaNotice` in the
+   flow; `visibility`, not `display: none`, keeps the widget running. */
 .grecaptcha-badge {
-  right: auto !important;
-  left: var(--spacing-system-xxs) !important;
-  width: 70px !important;
-  transition: width 0.3s ease !important;
-}
-.grecaptcha-badge:hover {
-  width: 256px !important;
+  visibility: hidden !important;
 }

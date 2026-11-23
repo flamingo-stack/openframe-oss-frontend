@@ -8,6 +8,7 @@ import {
 import { Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRef, useState } from 'react';
 import { DomainSuggestions } from '@/app/(auth)/auth/components/domain-suggestions';
+import { RecaptchaNotice } from '@/app/(auth)/auth/components/recaptcha-notice';
 import {
   getPasswordError,
   INVALID_EMAIL_ERROR,
@@ -196,58 +197,61 @@ export function CreateOrganizationSection({
   }
 
   return (
-    <CreateOrganizationForm
-      email={email}
-      emailReadOnly
-      organizationName={organizationName}
-      domain={domainField.domain}
-      agreedToTerms={agreedToTerms}
-      firstName={firstName}
-      lastName={lastName}
-      password={password}
-      confirmPassword={confirmPassword}
-      onOrganizationNameChange={setOrganizationName}
-      onDomainChange={domainField.setDomain}
-      onAgreedToTermsChange={setAgreedToTerms}
-      onFirstNameChange={setFirstName}
-      onLastNameChange={setLastName}
-      onPasswordChange={setPassword}
-      onConfirmPasswordChange={setConfirmPassword}
-      onSubmit={handleSubmit}
-      onBack={() => setStep('email')}
-      submitLabel="Create Account"
-      submitDisabled={!isDetailsValid}
-      loading={isLoading || domainField.isChecking}
-      domainSuffix={isSharedAuth ? `.${SAAS_DOMAIN_SUFFIX}` : undefined}
-      termsUrl={TERMS_URL}
-      privacyPolicyUrl={PRIVACY_POLICY_URL}
-      domainStatus={domainField.statusMessage}
-      domainSlot={
-        domainField.suggestions.length > 0 ? (
-          <DomainSuggestions suggestions={domainField.suggestions} onSelect={domainField.setDomain} />
-        ) : undefined
-      }
-      errors={{
-        firstName: firstName.trim() && !isValidPersonName(firstName) ? PERSON_NAME_ERROR : undefined,
-        lastName: lastName.trim() && !isValidPersonName(lastName) ? PERSON_NAME_ERROR : undefined,
-        password: password ? passwordError : undefined,
-        confirmPassword:
-          confirmPassword.length > 0 && password !== confirmPassword ? PASSWORDS_DO_NOT_MATCH_ERROR : undefined,
-        organizationName: organizationName.trim() && !isOrgNameValid ? ORG_NAME_ERROR : undefined,
-        domain: domainField.formatError,
-      }}
-    >
-      {showPrNumber && (
-        <Input
-          label="PR Number (optional)"
-          placeholder="Enter PR Number"
-          inputMode="numeric"
-          value={prNumber}
-          disabled={isLoading}
-          // Digits only — typing or pasting anything else (minus sign included) is stripped.
-          onChange={event => setPrNumber(event.target.value.replace(/\D/g, ''))}
-        />
-      )}
-    </CreateOrganizationForm>
+    <>
+      <CreateOrganizationForm
+        email={email}
+        emailReadOnly
+        organizationName={organizationName}
+        domain={domainField.domain}
+        agreedToTerms={agreedToTerms}
+        firstName={firstName}
+        lastName={lastName}
+        password={password}
+        confirmPassword={confirmPassword}
+        onOrganizationNameChange={setOrganizationName}
+        onDomainChange={domainField.setDomain}
+        onAgreedToTermsChange={setAgreedToTerms}
+        onFirstNameChange={setFirstName}
+        onLastNameChange={setLastName}
+        onPasswordChange={setPassword}
+        onConfirmPasswordChange={setConfirmPassword}
+        onSubmit={handleSubmit}
+        onBack={() => setStep('email')}
+        submitLabel="Create Account"
+        submitDisabled={!isDetailsValid}
+        loading={isLoading || domainField.isChecking}
+        domainSuffix={isSharedAuth ? `.${SAAS_DOMAIN_SUFFIX}` : undefined}
+        termsUrl={TERMS_URL}
+        privacyPolicyUrl={PRIVACY_POLICY_URL}
+        domainStatus={domainField.statusMessage}
+        domainSlot={
+          domainField.suggestions.length > 0 ? (
+            <DomainSuggestions suggestions={domainField.suggestions} onSelect={domainField.setDomain} />
+          ) : undefined
+        }
+        errors={{
+          firstName: firstName.trim() && !isValidPersonName(firstName) ? PERSON_NAME_ERROR : undefined,
+          lastName: lastName.trim() && !isValidPersonName(lastName) ? PERSON_NAME_ERROR : undefined,
+          password: password ? passwordError : undefined,
+          confirmPassword:
+            confirmPassword.length > 0 && password !== confirmPassword ? PASSWORDS_DO_NOT_MATCH_ERROR : undefined,
+          organizationName: organizationName.trim() && !isOrgNameValid ? ORG_NAME_ERROR : undefined,
+          domain: domainField.formatError,
+        }}
+      >
+        {showPrNumber && (
+          <Input
+            label="PR Number (optional)"
+            placeholder="Enter PR Number"
+            inputMode="numeric"
+            value={prNumber}
+            disabled={isLoading}
+            // Digits only — typing or pasting anything else (minus sign included) is stripped.
+            onChange={event => setPrNumber(event.target.value.replace(/\D/g, ''))}
+          />
+        )}
+      </CreateOrganizationForm>
+      <RecaptchaNotice className="text-center" />
+    </>
   );
 }
