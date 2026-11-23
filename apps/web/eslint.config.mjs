@@ -5,6 +5,48 @@ import tests from '@flamingo-stack/openframe-frontend-core/eslint-config/tests';
 import { defineConfig } from 'eslint/config';
 
 import openframeRules from './eslint-rules/index.mjs';
+import { FILES_WITH_OVERSIZED_FUNCTIONS, OVERSIZED_FILES } from './eslint-rules/size-backlog.mjs';
+
+/** Source the size and mechanical-convention blocks below cover: app code, not tests or generated output. */
+const APP_SOURCE = ['src/**/*.{ts,tsx}'];
+const NOT_APP_SOURCE = ['**/*.test.{ts,tsx}', '**/__tests__/**', 'src/__generated__/**', 'src/generated/**'];
+
+/** The three places a spinner could come from; a page draws its own loading form instead (hub rule OFFE-013). */
+const NO_SPINNERS = [
+  '@flamingo-stack/openframe-frontend-core',
+  '@flamingo-stack/openframe-frontend-core/components/ui',
+  '@/lib/openframe-core-ui',
+].map(name => ({
+  name,
+  importNames: ['PageLoader', 'CompactPageLoader'],
+  message:
+    'No spinners: the page or component draws its own loading form in its own geometry, from its real controls ' +
+    'disabled where it can (hub rule OFFE-013).',
+}));
+
+/**
+ * `NEXT_PUBLIC_*` is read through `runtimeEnv` (`src/lib/runtime-config.ts`): a direct `process.env` read is inlined at
+ * build time, so a deployment cannot change it (hub rule OPENFRAM-007-2).
+ */
+const PUBLIC_ENV_THROUGH_RUNTIME_CONFIG = {
+  selector:
+    "MemberExpression[object.type='MemberExpression'][object.object.name='process'][object.property.name='env'][property.name=/^NEXT_PUBLIC_/]",
+  message: 'Read NEXT_PUBLIC_* through runtimeEnv in src/lib/runtime-config.ts; a direct read is frozen at build time.',
+};
+
+/** A Tailwind palette class, a hex, rgb() or hsl() in a class string: colours are ODS tokens (hub rule OFFE-004). */
+const PALETTE =
+  String.raw`/(#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(|(^|[\s:])(bg|text|border|ring|fill|stroke|from|to|via|outline|divide|shadow)-` +
+  String.raw`(white|black|gray|slate|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)(-\d{2,3})?\b)/`;
+const COLOUR_MESSAGE =
+  'Use an ODS colour token (bg-ods-*, text-ods-*, border-ods-*), not a palette class, hex or rgb().';
+const ODS_COLOURS_ONLY = [
+  `JSXAttribute[name.name=/[cC]lassName$/] > Literal[value=${PALETTE}]`,
+  `JSXAttribute[name.name=/[cC]lassName$/] > JSXExpressionContainer > Literal[value=${PALETTE}]`,
+  `JSXAttribute[name.name=/[cC]lassName$/] > JSXExpressionContainer > TemplateLiteral > TemplateElement[value.raw=${PALETTE}]`,
+  `CallExpression[callee.name=/^(cn|clsx|cva)$/] Literal[value=${PALETTE}]`,
+  `CallExpression[callee.name=/^(cn|clsx|cva)$/] TemplateElement[value.raw=${PALETTE}]`,
+].map(selector => ({ selector, message: COLOUR_MESSAGE }));
 
 /*
  * The fast pass — no type-aware rules. This is what the editor loads (see
@@ -277,9 +319,13 @@ export default defineConfig([
     // the bearer (`useAuthedAsset`). `next/image` on its own 401s there, the way
     // the raw `<img>` that `@next/next/no-img-element` already refuses does.
     // `register-embed-shims.ts` is where the app hands `next/image` to the lib.
-    name: 'openframe-frontend/pictures-through-the-lib',
+    //
+    // The same rule also refuses the lib's spinners (`NO_SPINNERS`). One block, because a second block setting
+    // `no-restricted-imports` on the same files would replace these options, not add to them. `openframe-core-ui.tsx`
+    // is the client-boundary re-export of the whole UI barrel (`export *`), not a caller.
+    name: 'openframe-frontend/restricted-imports',
     files: ['src/**/*.{ts,tsx}'],
-    ignores: ['src/lib/register-embed-shims.ts'],
+    ignores: ['src/lib/register-embed-shims.ts', 'src/lib/openframe-core-ui.tsx'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -292,6 +338,7 @@ export default defineConfig([
                 '@flamingo-stack/openframe-frontend-core/embed-shims): next/image alone cannot load a gateway ' +
                 'picture in the native shells. See "Images and Avatars" in apps/web/CLAUDE.md.',
             },
+            ...NO_SPINNERS,
           ],
         },
       ],
@@ -423,6 +470,94 @@ export default defineConfig([
     name: 'openframe-frontend/lint-configs',
     files: ['eslint.*.mjs'],
     rules: { 'import/no-extraneous-dependencies': ['error', { devDependencies: true }] },
+  },
+
+  {
+    // A file holds at most 300 lines of code and a function (a component, a hook) at most 150, blank lines and
+    // comments not counted. Past that a unit is split by responsibility (hub rules SIZE-001 and SRP-001): the units
+    // nobody can hold in their head are where duplication, mode flags and effect chains grew. `warn`, because no fix
+    // is mechanical; CI runs with `--max-warnings 0`.
+    name: 'openframe-frontend/unit-size',
+    files: APP_SOURCE,
+    ignores: NOT_APP_SOURCE,
+    rules: {
+      'max-lines': ['warn', { max: 300, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': ['warn', { max: 150, skipBlankLines: true, skipComments: true }],
+    },
+  },
+
+  {
+    // The units that were over the limits when the rule came in. The lists only shrink (see the module).
+    name: 'openframe-frontend/unit-size-backlog-files',
+    files: OVERSIZED_FILES,
+    rules: { 'max-lines': 'off' },
+  },
+
+  {
+    name: 'openframe-frontend/unit-size-backlog-functions',
+    files: FILES_WITH_OVERSIZED_FUNCTIONS,
+    rules: { 'max-lines-per-function': 'off' },
+  },
+
+  {
+    // The shell globals are read in `platform.ts` (which shell is this) and `native-shell.ts` (typed bridge access)
+    // only; everything else asks the narrowest axis, `isAppShell()` / `isMobileShell()` / `isDesktopShell()` (hub rule
+    // OPENFRAM-006-2). Tauri is probed before Capacitor there, because the desktop shell injects a Capacitor-shaped
+    // bridge: a direct `window.Capacitor` check reports every desktop install as mobile.
+    name: 'openframe-frontend/shell-globals-through-platform',
+    files: APP_SOURCE,
+    ignores: [...NOT_APP_SOURCE, 'src/lib/platform.ts', 'src/lib/native-shell.ts'],
+    rules: {
+      'no-restricted-properties': [
+        'warn',
+        ...['Capacitor', '__TAURI__', '__TAURI_INTERNALS__', '__OPENFRAME_SHELL__'].map(property => ({
+          object: 'window',
+          property,
+          message: 'Ask src/lib/platform.ts (isAppShell / isMobileShell / isDesktopShell) or use native-shell.ts.',
+        })),
+      ],
+    },
+  },
+
+  {
+    // Two mechanical conventions on one rule, because a later `no-restricted-syntax` block replaces the options of an
+    // earlier one: `NEXT_PUBLIC_*` through runtimeEnv, and ODS colour tokens in class strings. The blocks after this
+    // one restate the rule for the files that keep one of the two for a stated reason.
+    name: 'openframe-frontend/runtime-env-and-ods-colours',
+    files: APP_SOURCE,
+    ignores: NOT_APP_SOURCE,
+    rules: { 'no-restricted-syntax': ['warn', PUBLIC_ENV_THROUGH_RUNTIME_CONFIG, ...ODS_COLOURS_ONLY] },
+  },
+
+  {
+    // `runtime-config.ts` IS the runtime env reader. `proxy.ts` runs on the edge, where `next-runtime-env` is not
+    // available. `use-table-layout.ts` reads a development-only switch that a shipped build drops. The other two are
+    // backlog: their reads predate the rule and move to `runtimeEnv` in their own change.
+    name: 'openframe-frontend/public-env-readers',
+    files: [
+      'src/lib/runtime-config.ts',
+      'src/proxy.ts',
+      'src/app/hooks/use-table-layout.ts',
+      'src/app/(app)/help-center/endpoints.ts',
+      'src/lib/meshcentral/meshcentral-config.ts',
+    ],
+    rules: { 'no-restricted-syntax': ['warn', ...ODS_COLOURS_ONLY] },
+  },
+
+  {
+    // A remote screen, a session recording and a live video are letterboxed on pure black, the colour of the picture
+    // itself, which ODS has no token for; the AI settings preview draws a scrim over a screenshot. Colour stays
+    // tokenized everywhere else in these files.
+    name: 'openframe-frontend/video-canvas-black',
+    files: [
+      'src/app/(app)/devices/components/remote-access/remote-access-gate.tsx',
+      'src/app/(app)/devices/components/remote-sessions/live-session-view.tsx',
+      'src/app/(app)/devices/components/remote-sessions/recording-player.tsx',
+      'src/app/(app)/devices/details/remote-desktop/page.tsx',
+      'src/app/(app)/devices/details/remote-shell/page.tsx',
+      'src/app/(app)/settings/ai-settings/components/previews/ai-settings-previews.tsx',
+    ],
+    rules: { 'no-restricted-syntax': ['warn', PUBLIC_ENV_THROUGH_RUNTIME_CONFIG] },
   },
 
   ...prettierCompat,
