@@ -236,21 +236,21 @@ export function UsersTab({ device, tableLayout = 'cards' }: UsersTabProps) {
       return (
         <TabEmptyState
           icon={<UsersIcon />}
-          title="No users found"
-          description="User accounts on this device will appear here."
+          title="No local accounts found"
+          description="Local accounts on this device will appear here."
         />
       );
     }
 
     if (rows.length === 0) {
       if (device.sources?.fleet === 'skipped-pending') {
-        return <TabDeployingEmptyState icon={<UsersIcon />} section="Users" />;
+        return <TabDeployingEmptyState icon={<UsersIcon />} section="Local Accounts" />;
       }
       return (
         <TabEmptyState
           icon={<UsersIcon />}
-          title="No users found"
-          description="User accounts on this device will appear here."
+          title="No local accounts found"
+          description="Local accounts on this device will appear here."
         />
       );
     }
@@ -295,10 +295,10 @@ export function UsersTab({ device, tableLayout = 'cards' }: UsersTabProps) {
           rowClassName={LIVE_ROW_GAP_CLASS}
           emptyState={{
             icon: <UsersIcon />,
-            title: 'No users found',
+            title: 'No local accounts found',
             description: debouncedSearch
               ? `No results for "${debouncedSearch}".`
-              : 'User accounts on this device will appear here.',
+              : 'Local accounts on this device will appear here.',
           }}
         />
       </DataTable>
