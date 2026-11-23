@@ -1,0 +1,7 @@
+/* Sonner offsets its container from the viewport. Position this toast within the desktop work area. */
+:global(:root):has(:global(.manhattan-end-sidebar))
+  :global([data-sonner-toaster][data-x-position='right'])
+  .modelChangeToast {
+  right: calc(var(--of-mingo-model-toast-rail-width, 0px) + var(--spacing-system-lf) - var(--offset-right));
+  width: max-content;
+}

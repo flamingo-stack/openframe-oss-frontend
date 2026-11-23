@@ -8,6 +8,7 @@ import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DialogModelState } from './dialog-model-api';
+import styles from './mingo-model-change-toast.module.css';
 import { useMingoModelDraftStore } from './mingo-model-draft-store';
 import {
   type MingoModelChatState,
@@ -20,6 +21,7 @@ const env = vi.hoisted(() => ({
   fetchDialogModel: vi.fn(),
   updateDialogModel: vi.fn(),
   toast: vi.fn(),
+  showToast: vi.fn(),
   rateFor: vi.fn(),
 }));
 
@@ -30,6 +32,10 @@ vi.mock('@/app/hooks/use-ai-model', () => ({
   }),
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', () => ({ useToast: () => ({ toast: env.toast }) }));
+vi.mock('@flamingo-stack/openframe-frontend-core/components/ui', async importOriginal => ({
+  ...(await importOriginal<object>()),
+  showToast: env.showToast,
+}));
 vi.mock('@/app/(app)/settings/ai-settings/hooks/use-supported-models', () => ({
   useSupportedModels: () => ({
     modelsByProvider: {
@@ -98,6 +104,7 @@ beforeEach(() => {
   env.fetchDialogModel.mockReset();
   env.updateDialogModel.mockReset();
   env.toast.mockReset();
+  env.showToast.mockReset();
   env.rateFor.mockReset();
   useMingoModelDraftStore.setState({ draft: null });
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -133,7 +140,7 @@ describe('useMingoModelSelection', () => {
     ]);
     expect(choice('chat-model-OPENAI').submenu?.map(item => item.label)).toEqual(['GPT-6.1 Terra', 'GPT-5.5']);
     expect(choice('chat-model-OPENAI-gpt-6.1-terra').description).toContain(
-      'Recommended. Visual reasoning. Read and write rates: 0.33× / 1.67×. USD per million: $3.33 / $17.',
+      'Recommended. Best for tasks with strict rules. Read and write rates: 0.33× / 1.67×. USD per million: $3.33 / $17.',
     );
     expect(choice('chat-model-OPENAI-gpt-5.5').description).toContain('USD per million: — / —.');
   });
@@ -180,10 +187,11 @@ describe('useMingoModelSelection', () => {
     expect(env.updateDialogModel).toHaveBeenCalledWith('d-1', SONNET);
     expect(selection.contextSize).toBe(200_000);
     expect(choice('chat-model-ANTHROPIC-claude-sonnet-5').checked).toBe(true);
-    expect(env.toast).toHaveBeenCalledExactlyOnceWith({
+    expect(env.showToast).toHaveBeenCalledExactlyOnceWith({
       title: 'Chat model changed',
       description: 'Claude Sonnet 5 answers from your next message. Your other chats keep their model.',
       variant: 'success',
+      className: styles.modelChangeToast,
     });
   });
 
@@ -209,7 +217,7 @@ describe('useMingoModelSelection', () => {
     expect(choice('chat-model-ANTHROPIC-claude-sonnet-5').checked).toBe(false);
     await act(async () => choice('chat-model-default').onClick?.());
     expect(env.updateDialogModel).toHaveBeenCalledExactlyOnceWith('d-1', null);
-    await vi.waitFor(() => expect(env.toast).toHaveBeenCalledWith(expect.objectContaining({ variant: 'success' })));
+    await vi.waitFor(() => expect(env.showToast).toHaveBeenCalledWith(expect.objectContaining({ variant: 'success' })));
   });
 
   it('skips writing and announcing the model that already answers', async () => {
@@ -220,6 +228,7 @@ describe('useMingoModelSelection', () => {
     await act(async () => choice('chat-model-ANTHROPIC-claude-sonnet-5').onClick?.());
     expect(env.updateDialogModel).not.toHaveBeenCalled();
     expect(env.toast).not.toHaveBeenCalled();
+    expect(env.showToast).not.toHaveBeenCalled();
   });
 
   it('says why a change failed', async () => {

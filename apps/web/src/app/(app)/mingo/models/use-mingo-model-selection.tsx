@@ -1,5 +1,6 @@
 import { NamedIcon } from '@flamingo-stack/openframe-frontend-core/components';
 import type { ModelMenu } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { showToast } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -21,6 +22,7 @@ import {
   fetchDialogModel,
   updateDialogModel,
 } from './dialog-model-api';
+import styles from './mingo-model-change-toast.module.css';
 import {
   comparisonDescription,
   comparisonOptions,
@@ -70,10 +72,11 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const showChange = (label: string) =>
-    toast({
+    showToast({
       title: 'Chat model changed',
       description: `${label} answers from your next message. Your other chats keep their model.`,
       variant: 'success',
+      className: styles.modelChangeToast,
     });
 
   const query = useQuery({
