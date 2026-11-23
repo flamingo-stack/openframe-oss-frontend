@@ -1,6 +1,7 @@
 'use client';
 
 import type { AuthSsoProvider } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { useSyncExternalStore } from 'react';
 import { CreateOrganizationSection } from '@/app/(auth)/auth/components/create-organization-section';
 import { NativeSsoSignupSection } from '@/app/(auth)/auth/components/native-sso-signup-section';
 import { VALID_EMAIL_REGEX } from '@/app/(auth)/auth/constants/registration-validation';
@@ -9,6 +10,9 @@ import { useRegistrationProviders } from '@/app/(auth)/auth/hooks/use-registrati
 import { useSignupEmailPrefill } from '@/app/(auth)/auth/hooks/use-signup-email-prefill';
 import { useSsoSignupTakeover } from '@/app/(auth)/auth/hooks/use-sso-signup-takeover';
 import { useIsApplePlatform } from '@/app/hooks/use-apple-platform';
+import { openSignupInBrowser, signupContinuesInBrowser } from '@/lib/signup-in-browser';
+
+const noSubscription = () => () => {};
 
 export default function AuthPage() {
   const { isLoading, loginWithSso, registerOrganization } = useAuth();
@@ -18,6 +22,9 @@ export default function AuthPage() {
   // A handed-over email arrives after hydration: the form is mounted again with it, so its own state starts there.
   const prefill = useSignupEmailPrefill();
   const initialEmail = prefill && VALID_EMAIL_REGEX.test(prefill) ? prefill : undefined;
+  // The static export prerenders this page with no shell, so the answer waits for hydration; a document never changes
+  // shell, so nothing is subscribed.
+  const inBrowser = useSyncExternalStore(noSubscription, signupContinuesInBrowser, () => false);
 
   // Organization and personal details are collected on one screen now, so the signup lands here
   // directly instead of handing off through sessionStorage to /auth/signup.
@@ -82,6 +89,7 @@ export default function AuthPage() {
       ssoProvidersLoading={providersLoading}
       onSsoLogin={handleSsoLogin}
       isLoading={isLoading}
+      onContinueInBrowser={inBrowser ? openSignupInBrowser : undefined}
     />
   );
 }
