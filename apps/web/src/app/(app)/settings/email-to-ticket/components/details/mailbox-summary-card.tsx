@@ -1,12 +1,13 @@
 'use client';
 
-import { LoadingWhen, SquareAvatar, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingWhen, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { graphql, useFragment } from 'react-relay';
 import type {
   mailboxSummaryCard_mailbox$data,
   mailboxSummaryCard_mailbox$key,
 } from '@/__generated__/mailboxSummaryCard_mailbox.graphql';
+import { AvatarInfoCell } from '@/app/components/shared/avatar-info-cell';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { MailboxReplyState } from '@/generated/schema-enums';
 import { toUserSummary } from '@/graphql/users/user-summary-fields';
@@ -95,38 +96,6 @@ function ReplyAsCell({ data }: { data: SummaryData | null }) {
   );
 }
 
-interface AvatarCellProps {
-  label: string;
-  /** Null while the record is read: the avatar and the value draw their loading state. */
-  person: { name: string; imageUrl?: string } | null | undefined;
-  variant: 'square' | 'round';
-  /** What a default that is not set reads as. */
-  unset: string;
-  loading: boolean;
-}
-
-/** Default Customer / Default Assignee: the avatar and the name, or what an unset default means. */
-function AvatarCell({ label, person, variant, unset, loading }: AvatarCellProps) {
-  return (
-    <InfoCell
-      label={label}
-      skeletonWidth="w-36"
-      icon={
-        (loading || person) && (
-          <SquareAvatar
-            src={person?.imageUrl}
-            alt={person?.name}
-            fallback={person?.name ?? ''}
-            size="xs"
-            variant={variant}
-          />
-        )
-      }
-      value={loading ? null : (person?.name ?? unset)}
-    />
-  );
-}
-
 /**
  * The details page's card. Before the record answers (a loading scope) every cell draws its own loading state with its
  * label real, so the page does not jump when the record lands.
@@ -150,7 +119,7 @@ export function MailboxSummaryCard({ mailbox }: { mailbox: mailboxSummaryCard_ma
           <InfoCell label="Signed in" value={data?.signedInAccount} skeletonWidth="w-48" />
         </div>
         <div className={cn(ROW_CLASSES, 'border-t border-ods-border content-md:grid-cols-3')}>
-          <AvatarCell
+          <AvatarInfoCell
             label="Default Customer"
             person={
               customer && {
@@ -169,7 +138,7 @@ export function MailboxSummaryCard({ mailbox }: { mailbox: mailboxSummaryCard_ma
             value={data ? (data.defaultStatus?.name ?? 'Tech Required') : null}
             skeletonWidth="w-32"
           />
-          <AvatarCell
+          <AvatarInfoCell
             label="Default Assignee"
             person={assignee && { name: assignee.name, imageUrl: assignee.avatarUrl }}
             variant="round"

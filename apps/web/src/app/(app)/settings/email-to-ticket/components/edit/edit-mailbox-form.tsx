@@ -10,7 +10,12 @@ import type { editMailboxForm_mailbox$key } from '@/__generated__/editMailboxFor
 import type { editMailboxFormMutation as UpdateMutationType } from '@/__generated__/editMailboxFormMutation.graphql';
 import { routes } from '@/lib/routes';
 import { mailboxRequestErrorMessage, mailboxUserErrorMessage } from '../../utils/mailbox-errors';
-import { type MailboxDefaultsFormData, mailboxDefaultsSchema, toStoredDefaults } from '../form/mailbox-defaults';
+import {
+  EMPTY_MAILBOX_DEFAULTS,
+  type MailboxDefaultsFormData,
+  mailboxDefaultsSchema,
+  toStoredDefaults,
+} from '../form/mailbox-defaults';
 import { MailboxDefaultsFields } from '../form/mailbox-defaults-fields';
 import { MailboxPageFrame, SAVE_MAILBOX_ACTION } from '../shared/mailbox-page-frame';
 
@@ -39,16 +44,19 @@ const updateMutation = graphql`
   }
 `;
 
-/** The routing defaults of a saved mailbox, sent whole on Save. */
-export function EditMailboxForm({ mailbox }: { mailbox: editMailboxForm_mailbox$key }) {
+/**
+ * The routing defaults of a saved mailbox, sent whole on Save. With no mailbox (the record is still being read, or the
+ * page is on its way elsewhere) it is the same form, locked: nothing fetches and nothing submits.
+ */
+export function EditMailboxForm({ mailbox }: { mailbox: editMailboxForm_mailbox$key | null }) {
   const data = useFragment(editMailboxFormFragment, mailbox);
-  const { values, options } = toStoredDefaults(data);
+  const stored = data ? toStoredDefaults(data) : null;
   const { toast } = useToast();
   const router = useRouter();
   const [commit, isSaving] = useMutation<UpdateMutationType>(updateMutation);
   const form = useForm<MailboxDefaultsFormData>({
     resolver: zodResolver(mailboxDefaultsSchema),
-    defaultValues: values,
+    defaultValues: stored?.values ?? EMPTY_MAILBOX_DEFAULTS,
   });
 
   const fail = (description: string) => {
@@ -56,6 +64,7 @@ export function EditMailboxForm({ mailbox }: { mailbox: editMailboxForm_mailbox$
   };
 
   const save = form.handleSubmit(input => {
+    if (!data) return;
     commit({
       // Every value is sent: null clears a default (contract part A, `updateMailbox` replaces all three).
       variables: { input: { mailboxId: data.id, ...input } },
@@ -79,9 +88,14 @@ export function EditMailboxForm({ mailbox }: { mailbox: editMailboxForm_mailbox$
   return (
     <MailboxPageFrame
       title={EDIT_MAILBOX_TITLE}
-      actions={[{ ...SAVE_MAILBOX_ACTION, disabled: isSaving, loading: isSaving, onClick: save }]}
+      actions={[{ ...SAVE_MAILBOX_ACTION, disabled: !data || isSaving, loading: isSaving, onClick: save }]}
     >
-      <MailboxDefaultsFields control={form.control} setValue={form.setValue} disabled={isSaving} stored={options} />
+      <MailboxDefaultsFields
+        control={form.control}
+        setValue={form.setValue}
+        disabled={!data || isSaving}
+        stored={stored?.options}
+      />
     </MailboxPageFrame>
   );
 }

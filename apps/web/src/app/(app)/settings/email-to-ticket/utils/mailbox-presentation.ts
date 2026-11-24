@@ -4,11 +4,14 @@
 // of the SDL is a runtime possibility.
 
 import { providerMark } from '@flamingo-stack/openframe-frontend-core/components/features';
+import type { Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
+import type { ComponentProps } from 'react';
+import type { mailboxRow_mailbox$data } from '@/__generated__/mailboxRow_mailbox.graphql';
+import type { mailboxSummaryCard_mailbox$data } from '@/__generated__/mailboxSummaryCard_mailbox.graphql';
 import { MailboxProvider, MailboxReceivingState, MailboxReplyState } from '@/generated/schema-enums';
 import { presentationFor } from '@/lib/exhaustive-map';
 import { formatDateTime } from '@/lib/format-date';
-import type { Instant } from '@/lib/graphql-scalars';
 
 /** The two providers in the order the radio lists them (Figma 4527-132679). */
 export const MAILBOX_PROVIDER_ORDER = [MailboxProvider.MICROSOFT_365, MailboxProvider.GOOGLE_WORKSPACE] as const;
@@ -59,7 +62,7 @@ export function mailboxProviderPresentation(provider: string | null | undefined)
   return { label, Logo, ...(presentationFor(PROVIDER_COPY, provider) ?? UNKNOWN_PROVIDER) };
 }
 
-type TagVariant = 'success' | 'warning' | 'error' | 'grey';
+type TagVariant = NonNullable<ComponentProps<typeof Tag>['variant']>;
 
 interface ReceivingPresentation {
   label: string;
@@ -90,11 +93,9 @@ export const RECEIVING_FILTER_OPTIONS = [
  * The line under the receiving tag in the list (Figma 4527-132165): when the last email came, or, NOT RECEIVING, when
  * the test failed (contract part A, Fields). A mailbox that has had no email yet says so.
  */
-export function receivingStateLine(mailbox: {
-  readonly receivingState: string;
-  readonly lastEmailAt: Instant | null | undefined;
-  readonly lastFinishedTestAt: Instant | null | undefined;
-}): string {
+export function receivingStateLine(
+  mailbox: Pick<mailboxRow_mailbox$data, 'receivingState' | 'lastEmailAt' | 'lastFinishedTestAt'>,
+): string {
   if (mailbox.receivingState === MailboxReceivingState.NOT_RECEIVING) {
     return mailbox.lastFinishedTestAt ? `Last test failed ${formatRelativeTime(mailbox.lastFinishedTestAt)}` : '';
   }
@@ -105,10 +106,9 @@ export function receivingStateLine(mailbox: {
  * The line under the receiving tag on the details page (Figma 4527-132198, 4631-6716, 4631-6900; contract part A,
  * Fields): the last test's time, with what QUIET and NOT RECEIVING mean beside it.
  */
-export function receivingStateDetailLine(mailbox: {
-  readonly receivingState: string;
-  readonly lastFinishedTestAt: Instant | null | undefined;
-}): string {
+export function receivingStateDetailLine(
+  mailbox: Pick<mailboxSummaryCard_mailbox$data, 'receivingState' | 'lastFinishedTestAt'>,
+): string {
   const tested = mailbox.lastFinishedTestAt ? formatDateTime(mailbox.lastFinishedTestAt) : null;
   switch (mailbox.receivingState) {
     case MailboxReceivingState.QUIET:

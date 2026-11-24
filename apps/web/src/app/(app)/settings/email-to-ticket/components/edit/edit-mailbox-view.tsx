@@ -1,19 +1,15 @@
 'use client';
-'use no memo';
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { NotFoundError, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { editMailboxViewQuery as EditMailboxViewQueryType } from '@/__generated__/editMailboxViewQuery.graphql';
 import { useRetryKey } from '@/app/components/shared';
 import { MailboxReceivingState } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
-import { EMPTY_MAILBOX_DEFAULTS, type MailboxDefaultsFormData } from '../form/mailbox-defaults';
-import { MailboxDefaultsFields } from '../form/mailbox-defaults-fields';
-import { MailboxPageFrame, SAVE_MAILBOX_ACTION } from '../shared/mailbox-page-frame';
+import { MailboxPageFrame } from '../shared/mailbox-page-frame';
 import { EDIT_MAILBOX_TITLE, EditMailboxForm } from './edit-mailbox-form';
 
 const editMailboxViewQuery = graphql`
@@ -41,18 +37,8 @@ export function EditMailboxView({ id, loading = false }: { id: string; loading?:
 }
 
 function EditMailboxReader({ id }: { id: string }) {
-  if (useLoadingScope()) return <LoadingEditForm />;
+  if (useLoadingScope()) return <EditMailboxForm mailbox={null} />;
   return <EditMailboxQuery id={id} />;
-}
-
-/** While the record is read: the real fields over an empty form, locked; nothing fetches and nothing submits. */
-function LoadingEditForm() {
-  const form = useForm<MailboxDefaultsFormData>({ defaultValues: EMPTY_MAILBOX_DEFAULTS });
-  return (
-    <MailboxPageFrame title={EDIT_MAILBOX_TITLE} actions={[SAVE_MAILBOX_ACTION]}>
-      <MailboxDefaultsFields control={form.control} setValue={form.setValue} disabled />
-    </MailboxPageFrame>
-  );
 }
 
 function EditMailboxQuery({ id }: { id: string }) {
@@ -75,7 +61,6 @@ function EditMailboxQuery({ id }: { id: string }) {
       </MailboxPageFrame>
     );
   }
-  // On its way to the setup page: the form as it loads, not a blank page.
-  if (pending) return <LoadingEditForm />;
-  return <EditMailboxForm key={mailbox.id} mailbox={mailbox} />;
+  // On its way to the setup page: the form locked, not a blank page.
+  return <EditMailboxForm key={mailbox.id} mailbox={pending ? null : mailbox} />;
 }

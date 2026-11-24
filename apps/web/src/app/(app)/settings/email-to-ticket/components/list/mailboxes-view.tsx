@@ -1,7 +1,7 @@
 'use client';
 
 import { PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { LoadingWhen, type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingWhen, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMemo, useState } from 'react';
 import { SearchToolbar } from '@/app/components/shared/search-toolbar';
@@ -13,16 +13,10 @@ import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { MailboxReceivingState, SortDirection } from '@/generated/schema-enums';
 import { knownValues } from '@/lib/exhaustive-map';
 import { routes } from '@/lib/routes';
-import { type MailboxesFilter, type MailboxesSort, MailboxesTable } from './mailboxes-table';
+import type { MailboxesFilter, MailboxesSort } from './mailboxes-rows';
+import { MailboxesTable } from './mailboxes-table';
 
 export const EMAIL_TO_TICKET_TITLE = 'Email to ticket';
-
-const CONNECT_MAILBOX_ACTION: PageActionButton = {
-  label: 'Connect mailbox',
-  variant: 'outline',
-  href: routes.settings.emailToTicket.new(),
-  icon: <PlusCircleIcon className="h-5 w-5 text-ods-text-secondary" />,
-};
 
 /** The only sort the API takes (contract part A, `mailboxes`): the 30-day ticket counter. */
 const TICKETS_SORT_FIELD = 'ticketsCreated';
@@ -72,7 +66,14 @@ export function MailboxesView({ loading = false }: { loading?: boolean }) {
       title={EMAIL_TO_TICKET_TITLE}
       subtitle="Emails to these addresses become tickets. Replies go back from the same address."
       backButton={{ label: 'Back to Settings', onClick: handleBack }}
-      actions={[CONNECT_MAILBOX_ACTION]}
+      actions={[
+        {
+          label: 'Connect mailbox',
+          variant: 'outline',
+          href: routes.settings.emailToTicket.new(),
+          icon: <PlusCircleIcon className="h-5 w-5 text-ods-text-secondary" />,
+        },
+      ]}
       actionsVariant="icon-buttons"
     >
       <TableLayoutScope fill>

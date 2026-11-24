@@ -17,9 +17,6 @@ import { useTicketStatusesQuery } from '@/app/(app)/tickets/statuses/hooks/use-t
 import { TICKET_STATUS_KIND } from '@/app/(app)/tickets/utils/ticket-statistics';
 import type { MailboxDefaultsFormData, StoredDefaultOptions } from './mailbox-defaults';
 
-const renderCustomerOption = renderAvatarOption('square');
-const renderAssigneeOption = renderAvatarOption('round');
-
 /** A list page holds one page of options: the stored value is pinned in so it keeps its label. */
 function withOption<T extends { value: string }>(options: T[], pinned: T | null): T[] {
   if (!pinned || options.some(option => option.value === pinned.value)) return options;
@@ -105,7 +102,7 @@ export function MailboxDefaultsFields({ control, setValue, disabled = false, sto
                 error={fieldState.error?.message}
                 invalid={!!fieldState.error}
                 startAdornment={avatarStartAdornment(selected, 'square')}
-                renderOption={renderCustomerOption}
+                renderOption={renderAvatarOption('square')}
               />
             );
           }}
@@ -153,7 +150,7 @@ export function MailboxDefaultsFields({ control, setValue, disabled = false, sto
                 error={fieldState.error?.message}
                 invalid={!!fieldState.error}
                 startAdornment={avatarStartAdornment(selected, 'round')}
-                renderOption={renderAssigneeOption}
+                renderOption={renderAvatarOption('round')}
               />
             );
           }}
