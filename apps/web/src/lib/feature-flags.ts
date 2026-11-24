@@ -126,6 +126,11 @@ export const FEATURE_FLAG_NAMES = [
   // (`graphql-router.ts`). On where the router runs (dev), absent elsewhere,
   // which reads as off: the router path fails there.
   'graphql-router',
+  // Email to ticket (Settings → Email to ticket): the support mailboxes whose forwarded mail becomes tickets, over the
+  // mailbox API that the backend serves only under its own `openframe.features.email-to-ticket.enabled`. Off = no
+  // Settings card and every `/settings/email-to-ticket` route 404s. Turn it on only where that backend flag is on: the
+  // frontend would otherwise ask for a schema that is not there.
+  'email-to-ticket',
 ] as const;
 
 export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[number];

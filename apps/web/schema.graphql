@@ -2694,6 +2694,20 @@ type Mutation {
 
   "W3. Link a directory record to an agent machine: a suggestion or any machine from the search (D25)."
   linkDirectoryDevice(input: LinkDirectoryDeviceInput!): DirectoryDeviceLinkPayload!
+  createMailbox(input: CreateMailboxInput!): MailboxPayload!
+  updatePendingMailbox(input: UpdatePendingMailboxInput!): MailboxPayload!
+
+  """ STUB until CU-17tkuw66n94: always a top-level NOT_IMPLEMENTED error"""
+  runForwardingTest(input: MailboxIdInput!): MailboxPayload!
+
+  """ STUB until CU-17tkuw66n95: always a top-level NOT_IMPLEMENTED error"""
+  startSendAsSignIn(input: StartSendAsSignInInput!): StartSendAsSignInPayload!
+
+  """ STUB until CU-17tkuw66n95: always a top-level NOT_IMPLEMENTED error"""
+  signOutSendAs(input: MailboxIdInput!): MailboxPayload!
+  activateMailbox(input: ActivateMailboxInput!): MailboxPayload!
+  updateMailbox(input: UpdateMailboxInput!): MailboxPayload!
+  disconnectMailbox(input: MailboxIdInput!): DisconnectMailboxPayload!
 }
 
 input MutationDeleteInput {
@@ -3952,6 +3966,8 @@ type Query {
 
   "W3. Directory data of one agent machine: linked users and one card per linked directory record."
   deviceDirectory(machineId: ID!): DeviceDirectory!
+  mailboxes(search: String, filter: MailboxFilterInput, first: Int, after: String, sort: SortInput): MailboxConnection!
+  mailbox(id: ID!): Mailbox
 }
 
 """
@@ -7985,4 +8001,185 @@ input TurnOnSoftwareAutoUpdateInput {
   """
   bundleId: ID!
   settings: PackageUpdateSettingsInput!
+}
+
+input ActivateMailboxInput {
+  mailboxId: ID!
+  defaultOrganizationId: ID
+  defaultStatusId: ID
+  defaultAssigneeId: ID
+  blockList: [String!]
+}
+
+input CreateMailboxInput {
+  provider: MailboxProvider!
+  supportAddress: String!
+  replacesMailboxId: ID
+}
+
+type DisconnectMailboxPayload {
+  deletedId: ID
+  userErrors: [UserError!]!
+}
+
+type ForwardingTest {
+  state: ForwardingTestState!
+  startedAt: Instant
+  deadlineAt: Instant
+  finishedAt: Instant
+  checks: [ForwardingTestCheck!]!
+  failureReason: ForwardingTestFailureReason
+  ndrStatus: String
+  evidence: String
+}
+
+type ForwardingTestCheck {
+  kind: ForwardingTestCheckKind!
+  result: ForwardingTestCheckResult!
+}
+
+enum ForwardingTestCheckKind {
+  SENT
+  CAME_BACK
+  ORIGINAL_SENDER_KEPT
+}
+
+enum ForwardingTestCheckResult {
+  PASSED
+  FAILED
+  UNKNOWN
+}
+
+enum ForwardingTestFailureReason {
+  FORWARDING_BOUNCED
+  NOTHING_ARRIVED
+  GOOGLE_CONFIRMED_NO_EMAIL
+  ORIGINAL_SENDER_LOST
+}
+
+enum ForwardingTestState {
+  IDLE
+  WAITING
+  PASSED
+  FAILED
+}
+
+type Mailbox implements Node {
+  id: ID!
+  mailboxId: String!
+  supportAddress: String!
+  provider: MailboxProvider!
+  inboundAddress: String!
+  receivingState: MailboxReceivingState!
+  replyState: MailboxReplyState!
+  actions: [MailboxAction!]!
+  lastEmailAt: Instant
+  lastTest: ForwardingTest!
+  lastFinishedTestAt: Instant
+  nextAutomaticTestAt: Instant
+  setUpBy: User
+  setUpAt: Instant
+  signedInAccount: String
+  sendAsSignIn: SendAsSignIn
+  sendAsBrokenAt: Instant
+  defaultOrganization: Organization
+  defaultStatus: TicketStatusDefinition
+  defaultAssignee: User
+  stats: MailboxStats!
+  heldCount: Int!
+  blockListCount: Int!
+}
+
+enum MailboxAction {
+  CHECK_FORWARDING
+  SIGN_IN
+}
+
+type MailboxConnection {
+  edges: [MailboxEdge!]!
+  pageInfo: PageInfo!
+  filteredCount: Int!
+}
+
+type MailboxEdge {
+  cursor: String!
+  node: Mailbox!
+}
+
+input MailboxFilterInput {
+  receivingStates: [MailboxReceivingState!]
+  replyStates: [MailboxReplyState!]
+}
+
+input MailboxIdInput {
+  mailboxId: ID!
+}
+
+type MailboxPayload {
+  mailbox: Mailbox
+  userErrors: [UserError!]!
+}
+
+enum MailboxProvider {
+  MICROSOFT_365
+  GOOGLE_WORKSPACE
+}
+
+enum MailboxReceivingState {
+  PENDING
+  RECEIVING
+  QUIET
+  NOT_RECEIVING
+}
+
+enum MailboxReplyState {
+  AS_MAILBOX
+  NOT_SIGNED_IN
+  CANNOT_SEND_AS_MAILBOX
+}
+
+type MailboxStats {
+  received: Int!
+  ticketsCreated: Int!
+  held: Int!
+  dropped: Int!
+}
+
+type SendAsSignIn {
+  outcome: SendAsSignInOutcome
+  account: String
+  startedAt: Instant!
+  expiresAt: Instant!
+  completedAt: Instant
+}
+
+enum SendAsSignInOutcome {
+  GRANTED
+  SEND_AS_DENIED
+  CONSENT_DECLINED
+  EXPIRED
+  ERROR
+}
+
+input StartSendAsSignInInput {
+  mailboxId: ID!
+  returnUrl: String
+}
+
+type StartSendAsSignInPayload {
+  mailbox: Mailbox
+  authorizeUrl: String
+  userErrors: [UserError!]!
+}
+
+input UpdateMailboxInput {
+  mailboxId: ID!
+  defaultOrganizationId: ID
+  defaultStatusId: ID
+  defaultAssigneeId: ID
+}
+
+input UpdatePendingMailboxInput {
+  mailboxId: ID!
+  provider: MailboxProvider!
 }
