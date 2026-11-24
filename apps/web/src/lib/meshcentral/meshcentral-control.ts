@@ -111,17 +111,7 @@ export class MeshControlClient {
       if (msg && msg.action === 'authcookie' && msg.cookie) {
         this.cookies = { authCookie: msg.cookie as string, relayCookie: msg.rcookie };
 
-        try {
-          this.wsManager?.send(
-            JSON.stringify({
-              action: 'urlargs',
-              args: { auth: this.cookies.authCookie },
-            }),
-          );
-        } catch {
-          // The socket can close between the message arriving and this reply; the reconnect path re-sends the args on the next open.
-        }
-
+        // No `urlargs` reply: MeshCentral does nothing with it, and it put the auth cookie into the server's log.
         try {
           this.resendActiveTunnels();
         } catch {

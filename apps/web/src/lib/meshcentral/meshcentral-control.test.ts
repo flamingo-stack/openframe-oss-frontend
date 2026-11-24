@@ -210,3 +210,32 @@ describe('MeshControlClient control socket URL', () => {
     ctrl.close();
   });
 });
+
+describe('MeshControlClient auth cookie', () => {
+  beforeEach(() => {
+    FakeSocket.instances = [];
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', FakeSocket);
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('is not echoed back to the server as urlargs', async () => {
+    const ctrl = new MeshControlClient();
+    const session = ctrl.openSession();
+    control().open();
+    authcookie(control());
+    await vi.advanceTimersByTimeAsync(200);
+    await session;
+
+    const actions = control().sent.map(data => (typeof data === 'string' ? JSON.parse(data)?.action : null));
+    expect(actions).not.toContain('urlargs');
+
+    ctrl.close();
+  });
+});
