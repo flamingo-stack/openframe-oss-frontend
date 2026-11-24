@@ -2,7 +2,8 @@
 
 import { useRequiredIdParam } from '@/app/hooks/use-required-id-param';
 import { routes } from '@/lib/routes';
-import { EDIT_MAILBOX_TITLE, EditMailboxView } from '../components/edit/edit-mailbox-view';
+import { EDIT_MAILBOX_TITLE } from '../components/edit/edit-mailbox-form';
+import { EditMailboxView } from '../components/edit/edit-mailbox-view';
 import { EmailToTicketPageShell } from '../components/shared/email-to-ticket-page-shell';
 
 export default function EditMailboxPage() {

@@ -11,12 +11,11 @@ const createMutation = graphql`
     createMailbox(input: $input) {
       mailbox {
         id
-        ...pendingMailboxSetup_mailbox @relay(mask: false)
+        receivingState
+        ...pendingMailboxForm_mailbox
       }
       userErrors {
-        code
-        field
-        message
+        ...mailboxErrors_userError
       }
     }
   }

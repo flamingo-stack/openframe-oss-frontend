@@ -2,12 +2,17 @@
 // contract leaves the copy to the PM (Q18), so the codes a person can act on get a sentence here and the rest fall
 // back to the server's message.
 
+import { graphql, readInlineData } from 'react-relay';
+import type { mailboxErrors_userError$key } from '@/__generated__/mailboxErrors_userError.graphql';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 
-interface MailboxUserError {
-  readonly code: string;
-  readonly message: string;
-}
+/** Spread in every mailbox mutation's `userErrors`. */
+export const mailboxErrorsUserErrorFragment = graphql`
+  fragment mailboxErrors_userError on UserError @inline {
+    code
+    message
+  }
+`;
 
 const MAILBOX_ERROR_COPY: Record<string, string> = {
   MAILBOX_EXISTS: 'This address already has a mailbox. Open it from the list instead.',
@@ -22,8 +27,9 @@ const MAILBOX_ERROR_COPY: Record<string, string> = {
 };
 
 /** The sentence for the first refusal of a mutation's `userErrors`. */
-export function mailboxUserErrorMessage(error: MailboxUserError): string {
-  return MAILBOX_ERROR_COPY[error.code] ?? (error.message || 'Try again in a moment.');
+export function mailboxUserErrorMessage(ref: mailboxErrors_userError$key): string {
+  const { code, message } = readInlineData(mailboxErrorsUserErrorFragment, ref);
+  return MAILBOX_ERROR_COPY[code] ?? (message || 'Try again in a moment.');
 }
 
 /** The sentence for a mutation that failed as a whole (a top-level GraphQL error, a network failure). */

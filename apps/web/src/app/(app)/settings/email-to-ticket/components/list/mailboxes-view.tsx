@@ -4,7 +4,6 @@ import { PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/componen
 import { LoadingWhen, type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMemo, useState } from 'react';
-import type { MailboxFilterInput, SortInput } from '@/__generated__/mailboxesTableQuery.graphql';
 import { SearchToolbar } from '@/app/components/shared/search-toolbar';
 import { TableLayoutScope } from '@/app/components/shared/table-layout-scope';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
@@ -14,7 +13,7 @@ import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { MailboxReceivingState, SortDirection } from '@/generated/schema-enums';
 import { knownValues } from '@/lib/exhaustive-map';
 import { routes } from '@/lib/routes';
-import { MailboxesTable } from './mailboxes-table';
+import { type MailboxesFilter, type MailboxesSort, MailboxesTable } from './mailboxes-table';
 
 export const EMAIL_TO_TICKET_TITLE = 'Email to ticket';
 
@@ -28,12 +27,12 @@ const CONNECT_MAILBOX_ACTION: PageActionButton = {
 /** The only sort the API takes (contract part A, `mailboxes`): the 30-day ticket counter. */
 const TICKETS_SORT_FIELD = 'ticketsCreated';
 
-function toFilter(statuses: readonly string[]): MailboxFilterInput | null {
+function toFilter(statuses: readonly string[]): MailboxesFilter {
   const receivingStates = knownValues(MailboxReceivingState, statuses);
   return receivingStates.length > 0 ? { receivingStates } : null;
 }
 
-function toSort(direction: 'asc' | 'desc' | null): SortInput | null {
+function toSort(direction: 'asc' | 'desc' | null): MailboxesSort {
   if (!direction) return null;
   return { field: TICKETS_SORT_FIELD, direction: direction === 'desc' ? SortDirection.DESC : SortDirection.ASC };
 }

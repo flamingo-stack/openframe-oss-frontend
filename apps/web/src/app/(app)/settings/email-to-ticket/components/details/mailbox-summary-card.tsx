@@ -20,24 +20,8 @@ import {
 
 // The three-row card of the details page (Figma 4527-132198): where it forwards and how it receives, how replies
 // leave, and the routing defaults.
-const CARD_CLASSES = 'flex flex-col rounded-md border border-ods-border bg-ods-card';
 const ROW_CLASSES =
-  'grid grid-cols-1 gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] py-[var(--spacing-system-s)] content-md:grid-cols-2 content-md:min-h-20 content-md:items-center';
-const DEFAULTS_ROW_CLASSES =
-  'grid grid-cols-1 gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] py-[var(--spacing-system-s)] content-md:grid-cols-3 content-md:min-h-20 content-md:items-center';
-const DIVIDED = 'border-t border-ods-border';
-
-const LABELS = {
-  forwardsTo: 'Forwards to',
-  replyAs: 'Reply as',
-  signedIn: 'Signed in',
-  defaultCustomer: 'Default Customer',
-  defaultStatus: 'Default Status',
-  defaultAssignee: 'Default Assignee',
-} as const;
-
-/** What the server reads a missing default status as (contract part A, `updateMailbox`). */
-const TECH_REQUIRED_LABEL = 'Tech Required';
+  'grid grid-cols-1 gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] py-[var(--spacing-system-s)] content-md:min-h-20 content-md:items-center';
 
 const mailboxSummaryCardFragment = graphql`
   fragment mailboxSummaryCard_mailbox on Mailbox {
@@ -66,26 +50,22 @@ const mailboxSummaryCardFragment = graphql`
 
 type SummaryData = mailboxSummaryCard_mailbox$data;
 
-const PROVIDER_LOGO_PX = 24;
-
-/** The receiving state's tag and its line, both drawn in the cell's loading scope. */
+/** The receiving state's tag and the line under it. */
 function ReceivingCell({ data }: { data: SummaryData | null }) {
   const tag = data ? receivingStateTag(data.receivingState) : null;
   return (
     <div className="flex min-w-0 flex-1 flex-col items-start justify-center gap-[var(--spacing-system-xxs)]">
       <Tag {...(tag ? { label: tag.label, variant: tag.variant } : { label: null })} />
-      <InfoCellLine text={data ? receivingStateDetailLine(data) : null} />
+      <LoadingWhen loading={data == null}>
+        <p className={cn('truncate text-ods-text-secondary text-h6', data == null && 'w-40')}>
+          {data &&
+            receivingStateDetailLine({
+              receivingState: data.receivingState,
+              lastFinishedTestAt: data.lastFinishedTestAt,
+            })}
+        </p>
+      </LoadingWhen>
     </div>
-  );
-}
-
-/** A secondary line, a bar while the record is read. */
-function InfoCellLine({ text }: { text: string | null }) {
-  const loading = useLoadingScope() || text == null;
-  return (
-    <LoadingWhen loading={loading}>
-      <p className={cn('truncate text-ods-text-secondary text-h6', loading && 'w-40')}>{text}</p>
-    </LoadingWhen>
   );
 }
 
@@ -97,66 +77,52 @@ function InfoCellLine({ text }: { text: string | null }) {
 function ReplyAsCell({ data }: { data: SummaryData | null }) {
   const provider = data ? mailboxProviderPresentation(data.provider) : null;
   const sending = data?.replyState === MailboxReplyState.AS_MAILBOX;
+  const value =
+    data &&
+    (sending ? (
+      data.supportAddress
+    ) : (
+      <span className="text-ods-text-secondary">{replyStateLine(data.replyState)}</span>
+    ));
   return (
     <InfoCell
-      label={LABELS.replyAs}
+      label="Reply as"
       skeletonWidth="w-48"
-      icon={provider && sending && <provider.Logo size={PROVIDER_LOGO_PX} role="img" aria-label={provider.label} />}
+      icon={provider && sending && <provider.Logo size={24} role="img" aria-label={provider.label} />}
       iconSkeleton={{ size: 'md' }}
-      value={
-        data ? (
-          sending ? (
-            data.supportAddress
-          ) : (
-            <span className="text-ods-text-secondary">{replyStateLine(data.replyState)}</span>
-          )
-        ) : null
-      }
+      value={value}
     />
   );
 }
 
-function CustomerCell({ data }: { data: SummaryData | null }) {
-  const customer = data?.defaultOrganization ?? null;
-  return (
-    <InfoCell
-      label={LABELS.defaultCustomer}
-      skeletonWidth="w-36"
-      icon={
-        (data == null || customer) && (
-          <SquareAvatar
-            src={customer ? getFullImageUrl(customer.image?.imageUrl, customer.image?.hash) : undefined}
-            alt={customer?.name}
-            fallback={customer?.name ?? ''}
-            size="xs"
-            variant="square"
-          />
-        )
-      }
-      // No Default Customer: unknown senders are held for review (contract part A, D19).
-      value={data ? (customer?.name ?? 'None · unknown senders are held') : null}
-    />
-  );
+interface AvatarCellProps {
+  label: string;
+  /** Null while the record is read: the avatar and the value draw their loading state. */
+  person: { name: string; imageUrl?: string } | null | undefined;
+  variant: 'square' | 'round';
+  /** What a default that is not set reads as. */
+  unset: string;
+  loading: boolean;
 }
 
-function AssigneeCell({ data }: { data: SummaryData | null }) {
-  const assignee = data?.defaultAssignee ? toUserSummary(data.defaultAssignee) : null;
+/** Default Customer / Default Assignee: the avatar and the name, or what an unset default means. */
+function AvatarCell({ label, person, variant, unset, loading }: AvatarCellProps) {
   return (
     <InfoCell
-      label={LABELS.defaultAssignee}
+      label={label}
       skeletonWidth="w-36"
       icon={
-        (data == null || assignee) && (
+        (loading || person) && (
           <SquareAvatar
-            src={assignee?.avatarUrl}
-            alt={assignee?.name}
-            fallback={assignee?.name ?? ''}
+            src={person?.imageUrl}
+            alt={person?.name}
+            fallback={person?.name ?? ''}
             size="xs"
-            variant="round"
+            variant={variant}
           />
         )
       }
-      value={data ? (assignee?.name ?? 'Unassigned') : null}
+      value={loading ? null : (person?.name ?? unset)}
     />
   );
 }
@@ -168,26 +134,48 @@ function AssigneeCell({ data }: { data: SummaryData | null }) {
 export function MailboxSummaryCard({ mailbox }: { mailbox: mailboxSummaryCard_mailbox$key | null }) {
   const scoped = useLoadingScope();
   const fragment = useFragment(mailboxSummaryCardFragment, mailbox);
-  const data = scoped ? null : fragment;
+  const data = scoped ? null : (fragment ?? null);
+  const loading = data == null;
+  const customer = data?.defaultOrganization;
+  const assignee = data?.defaultAssignee ? toUserSummary(data.defaultAssignee) : null;
   return (
-    <LoadingWhen loading={data == null}>
-      <div className={CARD_CLASSES}>
-        <div className={ROW_CLASSES}>
-          <InfoCell label={LABELS.forwardsTo} value={data?.inboundAddress} skeletonWidth="w-56" />
-          <ReceivingCell data={data ?? null} />
+    <LoadingWhen loading={loading}>
+      <div className="flex flex-col rounded-md border border-ods-border bg-ods-card">
+        <div className={cn(ROW_CLASSES, 'content-md:grid-cols-2')}>
+          <InfoCell label="Forwards to" value={data?.inboundAddress} skeletonWidth="w-56" />
+          <ReceivingCell data={data} />
         </div>
-        <div className={cn(ROW_CLASSES, DIVIDED)}>
-          <ReplyAsCell data={data ?? null} />
-          <InfoCell label={LABELS.signedIn} value={data?.signedInAccount} skeletonWidth="w-48" />
+        <div className={cn(ROW_CLASSES, 'border-t border-ods-border content-md:grid-cols-2')}>
+          <ReplyAsCell data={data} />
+          <InfoCell label="Signed in" value={data?.signedInAccount} skeletonWidth="w-48" />
         </div>
-        <div className={cn(DEFAULTS_ROW_CLASSES, DIVIDED)}>
-          <CustomerCell data={data ?? null} />
+        <div className={cn(ROW_CLASSES, 'border-t border-ods-border content-md:grid-cols-3')}>
+          <AvatarCell
+            label="Default Customer"
+            person={
+              customer && {
+                name: customer.name,
+                imageUrl: getFullImageUrl(customer.image?.imageUrl, customer.image?.hash),
+              }
+            }
+            variant="square"
+            // No Default Customer: unknown senders are held for review (contract part A, D19).
+            unset="None · unknown senders are held"
+            loading={loading}
+          />
           <InfoCell
-            label={LABELS.defaultStatus}
-            value={data ? (data.defaultStatus?.name ?? TECH_REQUIRED_LABEL) : null}
+            label="Default Status"
+            // Not set reads as Tech Required on the server (contract part A, `updateMailbox`).
+            value={data ? (data.defaultStatus?.name ?? 'Tech Required') : null}
             skeletonWidth="w-32"
           />
-          <AssigneeCell data={data ?? null} />
+          <AvatarCell
+            label="Default Assignee"
+            person={assignee && { name: assignee.name, imageUrl: assignee.avatarUrl }}
+            variant="round"
+            unset="Unassigned"
+            loading={loading}
+          />
         </div>
       </div>
     </LoadingWhen>

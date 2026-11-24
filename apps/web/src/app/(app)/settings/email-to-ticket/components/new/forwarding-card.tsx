@@ -3,16 +3,20 @@
 import { CommandBox } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { graphql, useFragment } from 'react-relay';
+import type { forwardingCard_mailbox$key } from '@/__generated__/forwardingCard_mailbox.graphql';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
 import { useIsDesktopShell } from '@/app/hooks/use-is-desktop-shell';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
 import { mailboxProviderPresentation } from '../../utils/mailbox-presentation';
 
-interface ForwardingCardProps {
-  supportAddress: string;
-  provider: string;
-  inboundAddress: string;
-}
+const forwardingCardFragment = graphql`
+  fragment forwardingCard_mailbox on Mailbox {
+    supportAddress
+    provider
+    inboundAddress
+  }
+`;
 
 /**
  * SET UP FORWARDING (Figma 4527-132336): the address this mailbox forwards to, made for it alone, and the provider's
@@ -21,7 +25,8 @@ interface ForwardingCardProps {
  * Not drawn yet, waiting on the backend: Send Test Email and its result (`runForwardingTest` answers NOT_IMPLEMENTED
  * until CU-17tkuw66n94).
  */
-export function ForwardingCard({ supportAddress, provider, inboundAddress }: ForwardingCardProps) {
+export function ForwardingCard({ mailbox }: { mailbox: forwardingCard_mailbox$key }) {
+  const { supportAddress, provider, inboundAddress } = useFragment(forwardingCardFragment, mailbox);
   const { copy } = useCopyToClipboard({ successDescription: 'Forwarding address copied' });
   const { forwardingSteps, guideUrl } = mailboxProviderPresentation(provider);
   const sameWindow = useSameWindowLinks();

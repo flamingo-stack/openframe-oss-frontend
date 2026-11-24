@@ -15,7 +15,7 @@ import { useAssigneeOptions } from '@/app/(app)/tickets/hooks/use-assignee-optio
 import { type AvatarOption, useOrganizationOptions } from '@/app/(app)/tickets/hooks/use-ticket-options';
 import { useTicketStatusesQuery } from '@/app/(app)/tickets/statuses/hooks/use-ticket-statuses-query';
 import { TICKET_STATUS_KIND } from '@/app/(app)/tickets/utils/ticket-statistics';
-import type { MailboxDefaultsFormData } from './mailbox-defaults.types';
+import type { MailboxDefaultsFormData, StoredDefaultOptions } from './mailbox-defaults';
 
 const renderCustomerOption = renderAvatarOption('square');
 const renderAssigneeOption = renderAvatarOption('round');
@@ -30,13 +30,8 @@ interface MailboxDefaultsFieldsProps {
   control: Control<MailboxDefaultsFormData>;
   setValue: UseFormSetValue<MailboxDefaultsFormData>;
   disabled?: boolean;
-  /** The stored customer, so it keeps its label before (and beyond) the first page of customers. */
-  storedCustomer?: AvatarOption | null;
-  /**
-   * The stored status. The form holds its id from the first render, before the statuses arrive, and the picker
-   * would otherwise print the bare id (it does not re-label a value once the options come in).
-   */
-  storedStatus?: StatusOption | null;
+  /** A saved mailbox's customer and status, pinned into the pickers so they keep their labels. */
+  stored?: StoredDefaultOptions;
 }
 
 /**
@@ -44,20 +39,14 @@ interface MailboxDefaultsFieldsProps {
  * this mailbox creates. A known sender's company wins over the Default Customer; with none, unknown senders are held.
  * Default Status offers Tech Required and the custom statuses, the statuses a ticket may be created in.
  */
-export function MailboxDefaultsFields({
-  control,
-  setValue,
-  disabled = false,
-  storedCustomer,
-  storedStatus,
-}: MailboxDefaultsFieldsProps) {
+export function MailboxDefaultsFields({ control, setValue, disabled = false, stored }: MailboxDefaultsFieldsProps) {
   const [customerSearch, setCustomerSearch] = useState('');
   const debouncedCustomerSearch = useDebounce(customerSearch, 300);
   const customerOptions = useOrganizationOptions(debouncedCustomerSearch, !disabled);
   const [pickedCustomer, setPickedCustomer] = useState<AvatarOption | null>(null);
   const customerList = useMemo(
-    () => withOption(withOption(customerOptions.options, pickedCustomer), storedCustomer ?? null),
-    [customerOptions.options, pickedCustomer, storedCustomer],
+    () => withOption(withOption(customerOptions.options, pickedCustomer), stored?.customer ?? null),
+    [customerOptions.options, pickedCustomer, stored],
   );
 
   const assigneeId = useWatch({ control, name: 'defaultAssigneeId' });
@@ -70,9 +59,9 @@ export function MailboxDefaultsFields({
         (statusesQuery.data?.snapshot ?? [])
           .filter(status => !status.isSystem || status.kind === TICKET_STATUS_KIND.TECH_REQUIRED)
           .map(status => ({ label: status.name, value: status.id, color: status.color })),
-        storedStatus ?? null,
+        stored?.status ?? null,
       ),
-    [statusesQuery.data, storedStatus],
+    [statusesQuery.data, stored],
   );
   // Not set reads as Tech Required on the server: the picker says so instead of a blank field.
   const techRequiredId = statusesQuery.data?.systemStatuses.find(

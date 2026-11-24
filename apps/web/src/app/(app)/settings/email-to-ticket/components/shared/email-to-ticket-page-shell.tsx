@@ -5,16 +5,7 @@ import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { ContentErrorBoundary } from '@/app/components/shared';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
-import type { FeatureFlagGate } from '@/lib/feature-flags';
 import { loadErrorProps } from '@/lib/query-state';
-
-/**
- * The one gate for Email to ticket: every page under `/settings/email-to-ticket` and the Settings card. Tri-state on
- * purpose: `'loading'` draws the page in its loading scope, never a 404 (see `use-feature-flag.ts`).
- */
-export function useEmailToTicketGate(): FeatureFlagGate {
-  return useFeatureFlagGate('email-to-ticket');
-}
 
 interface EmailToTicketPageShellProps {
   /** The title the error state redraws, since the layout that carries it is inside what threw. */
@@ -31,7 +22,8 @@ interface EmailToTicketPageShellProps {
  * page padding, and the error boundary inside it, so a thrown query keeps the title indented.
  */
 export function EmailToTicketPageShell({ title, errorMessage, resetKey, children }: EmailToTicketPageShellProps) {
-  const gate = useEmailToTicketGate();
+  // Tri-state on purpose: `'loading'` draws the page in its loading scope, never a 404 (see `use-feature-flag.ts`).
+  const gate = useFeatureFlagGate('email-to-ticket');
   if (gate === 'off') {
     notFound();
   }

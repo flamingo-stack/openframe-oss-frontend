@@ -3,12 +3,21 @@
 import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
-import { graphql, useMutation } from 'react-relay';
+import { graphql, useFragment, useMutation } from 'react-relay';
+import type { disconnectMailboxDialog_mailbox$key } from '@/__generated__/disconnectMailboxDialog_mailbox.graphql';
 import type { disconnectMailboxDialogMutation as DisconnectMutationType } from '@/__generated__/disconnectMailboxDialogMutation.graphql';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { routes } from '@/lib/routes';
 import { mailboxRequestErrorMessage, mailboxUserErrorMessage } from '../../utils/mailbox-errors';
 import { mailboxProviderPresentation } from '../../utils/mailbox-presentation';
+
+const disconnectMailboxDialogFragment = graphql`
+  fragment disconnectMailboxDialog_mailbox on Mailbox {
+    id
+    supportAddress
+    provider
+  }
+`;
 
 // `deletedId` is the mailbox's own id: the record leaves the store, so the list drops its row without a refetch.
 const disconnectMutation = graphql`
@@ -16,20 +25,16 @@ const disconnectMutation = graphql`
     disconnectMailbox(input: $input) {
       deletedId @deleteRecord
       userErrors {
-        code
-        field
-        message
+        ...mailboxErrors_userError
       }
     }
   }
 `;
 
 interface DisconnectMailboxDialogProps {
+  mailbox: disconnectMailboxDialog_mailbox$key;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  mailboxId: string;
-  supportAddress: string;
-  provider: string;
   /** True from the confirm until the answer: a disconnect that succeeds removes the record before the page leaves. */
   onLeavingChange: (leaving: boolean) => void;
 }
@@ -39,31 +44,29 @@ interface DisconnectMailboxDialogProps {
  * forwarding is the customer's own, so the dialog says to turn it off: until then the copies are dropped on arrival.
  */
 export function DisconnectMailboxDialog({
+  mailbox,
   open,
   onOpenChange,
-  mailboxId,
-  supportAddress,
-  provider,
   onLeavingChange,
 }: DisconnectMailboxDialogProps) {
+  const { id, supportAddress, provider } = useFragment(disconnectMailboxDialogFragment, mailbox);
   const { toast } = useToast();
   const router = useRouter();
   const [commit, isDisconnecting] = useMutation<DisconnectMutationType>(disconnectMutation);
-  const { label: providerLabel } = mailboxProviderPresentation(provider);
+
+  const fail = (description: string) => {
+    onLeavingChange(false);
+    toast({ title: 'Could not disconnect the mailbox', description, variant: 'destructive' });
+  };
 
   const disconnect = () => {
     onLeavingChange(true);
     commit({
-      variables: { input: { mailboxId } },
+      variables: { input: { mailboxId: id } },
       onCompleted: ({ disconnectMailbox: { userErrors } }) => {
         const [refusal] = userErrors;
         if (refusal) {
-          onLeavingChange(false);
-          toast({
-            title: 'Could not disconnect the mailbox',
-            description: mailboxUserErrorMessage(refusal),
-            variant: 'destructive',
-          });
+          fail(mailboxUserErrorMessage(refusal));
           return;
         }
         onOpenChange(false);
@@ -74,14 +77,7 @@ export function DisconnectMailboxDialog({
         });
         router.replace(routes.settings.emailToTicket.list);
       },
-      onError: error => {
-        onLeavingChange(false);
-        toast({
-          title: 'Could not disconnect the mailbox',
-          description: mailboxRequestErrorMessage(error),
-          variant: 'destructive',
-        });
-      },
+      onError: error => fail(mailboxRequestErrorMessage(error)),
     });
   };
 
@@ -96,8 +92,8 @@ export function DisconnectMailboxDialog({
           <div className="flex items-start gap-[var(--spacing-system-s)] rounded-md border border-ods-border p-[var(--spacing-system-m)]">
             <AlertTriangleIcon size={20} className="shrink-0 text-ods-warning" aria-hidden />
             <p className="font-semibold text-ods-text-primary text-h6">
-              Turn off forwarding in {providerLabel}. Until you do, copies of every email keep going to OpenFrame and
-              are deleted on arrival.
+              Turn off forwarding in {mailboxProviderPresentation(provider).label}. Until you do, copies of every email
+              keep going to OpenFrame and are deleted on arrival.
             </p>
           </div>
           <p className="text-ods-text-primary text-h4">

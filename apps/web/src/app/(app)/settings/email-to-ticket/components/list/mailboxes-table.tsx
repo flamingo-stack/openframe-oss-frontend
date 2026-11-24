@@ -8,9 +8,8 @@ import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { mailboxesTable_query$key } from '@/__generated__/mailboxesTable_query.graphql';
 import type { mailboxesTablePaginationQuery as MailboxesTablePaginationQueryType } from '@/__generated__/mailboxesTablePaginationQuery.graphql';
 import type {
-  MailboxFilterInput,
   mailboxesTableQuery as MailboxesTableQueryType,
-  SortInput,
+  mailboxesTableQuery$variables,
 } from '@/__generated__/mailboxesTableQuery.graphql';
 import { singleColumnFilter } from '@/app/(app)/software/components/shared/column-filters';
 import {
@@ -24,7 +23,8 @@ import {
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { useTableGrid } from '@/app/components/shared/table-layout-scope';
 import { routes } from '@/lib/routes';
-import { getMailboxRowId, MAILBOX_COLUMNS, type MailboxRow, mailboxColumns, mailboxRowHref } from './mailbox-row';
+import { MAILBOX_COLUMNS, MAILBOX_TABLE_COLUMNS } from './mailbox-columns';
+import { getMailboxRowId, type MailboxRow, mailboxRowHref, toMailboxRow } from './mailbox-row';
 
 const MAILBOXES_PAGE_SIZE = 20;
 
@@ -56,15 +56,7 @@ const mailboxesTableFragment = graphql`
       filteredCount
       edges {
         node {
-          id
-          supportAddress
-          provider
-          receivingState
-          lastEmailAt
-          lastFinishedTestAt
-          stats {
-            ticketsCreated
-          }
+          ...mailboxRow_mailbox
         }
       }
       pageInfo {
@@ -75,10 +67,13 @@ const mailboxesTableFragment = graphql`
   }
 `;
 
+export type MailboxesFilter = mailboxesTableQuery$variables['filter'];
+export type MailboxesSort = mailboxesTableQuery$variables['sort'];
+
 interface MailboxesTableProps {
   /** Deferred: they feed the query. */
-  filter: MailboxFilterInput | null;
-  sort: SortInput | null;
+  filter: MailboxesFilter;
+  sort: MailboxesSort;
   debouncedSearch: string;
   /** Live: what the headers draw, so a tick or a click lands instantly. */
   statusSelection: readonly string[];
@@ -122,19 +117,7 @@ function MailboxesTableQuery(props: MailboxesTableProps) {
   >(mailboxesTableFragment, queryData);
 
   const { edges, filteredCount } = data.mailboxes;
-  const rows = useMemo<MailboxRow[]>(
-    () =>
-      edges.map(({ node }) => ({
-        id: node.id,
-        supportAddress: node.supportAddress,
-        provider: node.provider,
-        ticketsCreated: node.stats.ticketsCreated,
-        receivingState: node.receivingState,
-        lastEmailAt: node.lastEmailAt,
-        lastFinishedTestAt: node.lastFinishedTestAt,
-      })),
-    [edges],
-  );
+  const rows = useMemo(() => edges.map(({ node }) => toMailboxRow(node)), [edges]);
 
   const fetchNextPage = () => {
     if (hasNext && !isLoadingNext) loadNext(MAILBOXES_PAGE_SIZE);
@@ -148,8 +131,6 @@ function MailboxesTableQuery(props: MailboxesTableProps) {
     />
   );
 }
-
-const COLUMNS = mailboxColumns();
 
 function MailboxesRows({
   rows,
@@ -178,7 +159,7 @@ function MailboxesRows({
   );
   const table = useDataTable<MailboxRow>({
     data: placeholderRows ?? (rows as MailboxRow[]),
-    columns: COLUMNS,
+    columns: MAILBOX_TABLE_COLUMNS,
     getRowId: getMailboxRowId,
     enableSorting: false,
     state: { columnFilters },

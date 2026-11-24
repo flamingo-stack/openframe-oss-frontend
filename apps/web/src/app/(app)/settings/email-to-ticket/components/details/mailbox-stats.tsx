@@ -28,7 +28,13 @@ const CARDS = [
 export function MailboxStats({ mailbox }: { mailbox: mailboxStats_mailbox$key | null }) {
   const scoped = useLoadingScope();
   const fragment = useFragment(mailboxStatsFragment, mailbox);
-  const stats = scoped ? null : (fragment?.stats ?? null);
+  const read = scoped ? null : fragment?.stats;
+  const stats = read && {
+    received: read.received,
+    ticketsCreated: read.ticketsCreated,
+    held: read.held,
+    dropped: read.dropped,
+  };
   return (
     <div className="grid grid-cols-2 gap-[var(--spacing-system-m)] content-lg:grid-cols-4">
       {CARDS.map(card => (
