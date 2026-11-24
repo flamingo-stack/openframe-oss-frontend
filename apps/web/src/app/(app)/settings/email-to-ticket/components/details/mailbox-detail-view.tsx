@@ -121,6 +121,7 @@ function MailboxDetailQuery({ id }: { id: string }) {
   const router = useRouter();
   const retryKey = useRetryKey();
   const [disconnectOpen, setDisconnectOpen] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const { mailbox } = useLazyLoadQuery<MailboxDetailViewQueryType>(
     mailboxDetailViewQuery,
     { id },
@@ -132,6 +133,8 @@ function MailboxDetailQuery({ id }: { id: string }) {
     if (pending) router.replace(routes.settings.emailToTicket.new({ id }));
   }, [pending, id, router]);
 
+  // Disconnected: the record is gone from the store before the redirect to the list lands.
+  if (!mailbox && leaving) return <MailboxDetailLoading id={id} />;
   if (!mailbox) {
     return (
       <DetailFrame title={MAILBOX_DETAIL_TITLE}>
@@ -154,6 +157,7 @@ function MailboxDetailQuery({ id }: { id: string }) {
         mailboxId={mailbox.id}
         supportAddress={mailbox.supportAddress}
         provider={mailbox.provider}
+        onLeavingChange={setLeaving}
       />
     </DetailFrame>
   );

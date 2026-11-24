@@ -30,6 +30,8 @@ interface DisconnectMailboxDialogProps {
   mailboxId: string;
   supportAddress: string;
   provider: string;
+  /** True from the confirm until the answer: a disconnect that succeeds removes the record before the page leaves. */
+  onLeavingChange: (leaving: boolean) => void;
 }
 
 /**
@@ -42,6 +44,7 @@ export function DisconnectMailboxDialog({
   mailboxId,
   supportAddress,
   provider,
+  onLeavingChange,
 }: DisconnectMailboxDialogProps) {
   const { toast } = useToast();
   const router = useRouter();
@@ -49,11 +52,13 @@ export function DisconnectMailboxDialog({
   const { label: providerLabel } = mailboxProviderPresentation(provider);
 
   const disconnect = () => {
+    onLeavingChange(true);
     commit({
       variables: { input: { mailboxId } },
       onCompleted: ({ disconnectMailbox: { userErrors } }) => {
         const [refusal] = userErrors;
         if (refusal) {
+          onLeavingChange(false);
           toast({
             title: 'Could not disconnect the mailbox',
             description: mailboxUserErrorMessage(refusal),
@@ -70,6 +75,7 @@ export function DisconnectMailboxDialog({
         router.replace(routes.settings.emailToTicket.list);
       },
       onError: error => {
+        onLeavingChange(false);
         toast({
           title: 'Could not disconnect the mailbox',
           description: mailboxRequestErrorMessage(error),

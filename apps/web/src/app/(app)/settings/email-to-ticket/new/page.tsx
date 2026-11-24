@@ -2,7 +2,9 @@
 
 import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useSearchParams } from 'next/navigation';
-import { NEW_MAILBOX_TITLE, NewMailboxForm, PendingMailboxSetup } from '../components/new/new-mailbox-view';
+import { NEW_MAILBOX_TITLE } from '../components/new/new-mailbox-frame';
+import { NewMailboxForm } from '../components/new/new-mailbox-view';
+import { PendingMailboxSetup } from '../components/new/pending-mailbox-setup';
 import { EmailToTicketPageShell } from '../components/shared/email-to-ticket-page-shell';
 
 export default function NewMailboxPage() {
