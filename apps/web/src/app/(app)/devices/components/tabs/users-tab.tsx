@@ -278,7 +278,7 @@ export function UsersTab({ device, tableLayout = 'cards' }: UsersTabProps) {
           ref={toolbarRef}
           className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
         >
-          <SearchInput value={search} onChange={setSearch} placeholder="Search for User" />
+          <SearchInput value={search} onChange={setSearch} placeholder="Search for User" showDropdown={false} />
         </div>
       )}
 
