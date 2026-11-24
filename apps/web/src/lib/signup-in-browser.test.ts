@@ -6,15 +6,16 @@
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest';
 import { openSignupInBrowser, signupContinuesInBrowser, signupInBrowserUrl } from './signup-in-browser';
 
-const env = vi.hoisted(() => ({ shell: true, sharedHost: 'https://openframe.ai/' }));
+const env = vi.hoisted(() => ({ shell: true, desktop: false, sharedHost: 'https://openframe.ai/' }));
 
-vi.mock('./platform', () => ({ isAppShell: () => env.shell }));
+vi.mock('./platform', () => ({ isAppShell: () => env.shell, isDesktopShell: () => env.desktop }));
 vi.mock('./runtime-config', () => ({ runtimeEnv: { sharedHostUrl: () => env.sharedHost } }));
 
 let open: MockInstance<typeof window.open>;
 
 beforeEach(() => {
   env.shell = true;
+  env.desktop = false;
   env.sharedHost = 'https://openframe.ai/';
   open = vi.spyOn(window, 'open').mockReturnValue(null);
 });
@@ -46,6 +47,14 @@ describe('signupInBrowserUrl', () => {
 
   it('has no query without an email', () => {
     expect(signupInBrowserUrl('')).toBe('https://openframe.ai/auth/');
+  });
+
+  it('says the sign-up began in the desktop app, which the browser request alone would not', () => {
+    env.desktop = true;
+    expect(signupInBrowserUrl('kate@acme.com')).toBe(
+      'https://openframe.ai/auth/?email=kate%40acme.com&started_in=desktop',
+    );
+    expect(signupInBrowserUrl('')).toBe('https://openframe.ai/auth/?started_in=desktop');
   });
 });
 
