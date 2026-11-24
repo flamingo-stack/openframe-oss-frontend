@@ -78,6 +78,12 @@ export const FEATURE_FLAG_NAMES = [
   // Off = Force Update alone, and a Wait & notify is submitted as Force Update.
   // Absent everywhere until the notifications ship, which reads as off.
   'software-update-notifications',
+  // Adopt (`/software/adopt`): reinstalling a title installed by hand through a
+  // package manager, the "installed manually" banner, the adoption chips on a
+  // title's devices and the All Software Adoption column. Off = none of it, and
+  // no query asks for an adoption field, which a backend before oss-lib #3102
+  // rejects. On for dev / qa, absent elsewhere, which reads as off.
+  'software-adopt',
   // "Compact chat memory" under the Mingo composer: summarizes a dialog's AI
   // context on demand. Off = the action is absent; auto-compaction is
   // unaffected either way.
@@ -86,6 +92,10 @@ export const FEATURE_FLAG_NAMES = [
   // tokens and this chat's context. The backend reads the same key. Off = the
   // counter keeps its hover card. On for dev / qa, false elsewhere.
   'mingo-chat-usage',
+  // Per-chat model in Mingo: picked in the chat's and the composer's ⋯ menus, the
+  // footer name only shows it, and AI Settings stops offering the Mingo model.
+  // Off = one model for every chat, chosen in AI Settings. Needs saas-tenant #4610.
+  'ai-mingo-chat-model-selection',
   // AI-first onboarding: the full-screen `/setup` wizard in place of the
   // dashboard's Initial Setup card, and the Getting Started tour in Mingo (the
   // block above the docked composer, in the tour's conversation) in place of

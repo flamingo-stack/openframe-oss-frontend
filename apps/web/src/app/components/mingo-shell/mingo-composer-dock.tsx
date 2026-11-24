@@ -62,6 +62,7 @@ import type { MingoUnifiedChat } from '@/app/(app)/mingo/hooks/use-mingo-unified
 import { useMingoChatSurface } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { useMingoTour } from '@/app/(app)/mingo/tour/use-mingo-tour';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
+import { useHydrated } from '@/app/hooks/use-hydrated';
 import { isMobileShell } from '@/lib/platform';
 import { isMingoWhatToAsk, routes } from '@/lib/routes';
 import { ResetInitialSetupDialog, useDevOnboardingMenuItems } from '../dev-onboarding-shortcuts';
@@ -135,9 +136,15 @@ function ContextChipRow({ children }: { children: ReactNode }) {
 function DockComposerLoading({ route, quickActions = false }: { route: ComposerRoute; quickActions?: boolean }) {
   const view = dockViewOf(route);
   const memory = useMingoContextMemory();
+  // The live composer's side inset, so the card is as wide in its loading form as when it lands.
+  const inset = useDockComposerInset();
   // The page's chip, known from the URL at once: the strip it heads is drawn from the first
   // frame, as the live composer draws it, so the dock does not grow when the chat lands.
-  const pageChip = usePageChip(route, noop);
+  const chip = usePageChip(route, noop);
+  // Mingo's home and the chat page name the page they were opened from (`lastPage`), which only
+  // the browser holds (sessionStorage): none in the server's markup, so none until it hydrates.
+  const hydrated = useHydrated();
+  const pageChip = hydrated || (route !== 'home' && route !== 'chat') ? chip : null;
   return (
     <LoadingRegion label="Loading Mingo">
       {/* The home's quick actions in their loading form (the scope), so the dock is its
@@ -145,6 +152,7 @@ function DockComposerLoading({ route, quickActions = false }: { route: ComposerR
       {quickActions && <MingoDockQuickActions onSend={noop} />}
       <ChatComposer
         lock={{ placeholder: view.placeholder }}
+        inset={inset}
         inputRef={null}
         onSend={noop}
         onStop={noop}
@@ -524,23 +532,11 @@ function DockChat({ route, chat }: DockChatProps) {
       : []),
     ...devOnboardingItems,
   ];
+  const modelGate = chat.modelSelection?.gate ?? 'off';
   const chatMenuExtraItems = onboardingV2 === 'on' && onboardingItems.length > 0 ? onboardingItems : undefined;
 
   return (
     <>
-      {/* Mingo's quick actions over the composer on Mingo's home (and Start Work in the v2 chat
-          column) only. A click sends the action at
-          once, in a new chat (the dock's own send, which then opens it). Not under the sheet: the
-          composer then replies to the chat in it. */}
-      {((showsDockQuickActions(route) && !sheetOpen) || startWorkColumn) && (
-        <MingoDockQuickActions
-          onSend={text => {
-            void target.sendInNewDialog(text);
-            // The row goes away with the send: the next message is typed in the composer.
-            handle?.focusComposer();
-          }}
-        />
-      )}
       {/* The chat module loads lazily and draws nothing until it has. */}
       {!handle && <DockComposerLoading route={route} />}
       {/* The session's one engine, as the tour decorated it: the panel draws it and runs none of its own. */}
@@ -560,6 +556,14 @@ function DockChat({ route, chat }: DockChatProps) {
           // active there leaves for its page (`followsToChatPage`), and home would draw the tall
           // block until the chat page replaces it (CU-17tkuw66yf1).
           aboveComposer={followsToChatPage(route, sheetOpen) ? null : tour.aboveComposer}
+          // The page's quick actions over the composer while it stands alone (the chat draws them, the page's own,
+          // read with its topic): on Mingo's home and every page, not under the sheet (the composer then replies
+          // to the chat in it) nor on a full-width page (`showsDockQuickActions`); and in Start Work's column. A
+          // click sends the action in a new chat, and the keyboard stays in the composer.
+          composerQuickActions={(showsDockQuickActions(route) && !sheetOpen) || startWorkColumn}
+          onQuickActionSend={(text: string) => {
+            void target.sendInNewDialog(text);
+          }}
           chatMenuExtraItems={chatMenuExtraItems}
           contextMemory={view.showContextMemory ? chatProps.contextMemory : undefined}
           // An element or `null` — never `undefined`, which switches the chat back to its
@@ -587,8 +591,9 @@ function DockChat({ route, chat }: DockChatProps) {
           }
           rail="none"
           renameMode="inline"
-          onModelClick={() => navigate(routes.settings.aiSettings({ tab: 'mingo' }))}
-          modelTooltip="Change in Settings → AI Settings"
+          onModelClick={modelGate === 'off' ? () => navigate(routes.settings.aiSettings({ tab: 'mingo' })) : undefined}
+          modelTooltip={modelGate === 'off' ? 'Change in Settings → AI Settings' : undefined}
+          composerModelMenu={chat.modelSelection?.menu ?? undefined}
           // Over the page the thread is the chat's: its prompt; behind it, "continue or ask anew".
           composerPlaceholder={
             startWorkColumn

@@ -446,6 +446,8 @@ export const routes = {
     updateSoftware: (softwareId: string | number) => withQuery('/software/update', { softwareId }),
     /** One title's Auto-update settings, by `Software.id`. */
     autoUpdate: (id: string | number) => withQuery('/software/auto-update', { id }),
+    /** Adopt <software>: reinstall a hand-installed title with its adoption package, by `Software.id`. */
+    adopt: (id: string | number) => withQuery('/software/adopt', { id }),
     /**
      * Software Update Details — one install or update run, by its Software
      * Action id (the opaque one the Software Actions table links by; the run's

@@ -18,6 +18,7 @@ import {
   type UiExecution,
   useExecutionFacetOptions,
 } from '../../shared/components/executions-table';
+import { SCRIPTS_TABLE_SETTINGS } from '../../shared/utils/grid-columns';
 
 /** The schedule tab's placeholder (design 1:48878), named for one script. */
 const EMPTY_STATE = {
@@ -91,7 +92,9 @@ function ScriptExecutionsContent({ scriptId, state }: { scriptId: string; state:
  */
 export const ScriptExecutionsTab = memo(function ScriptExecutionsTabImpl({ scriptId }: ScriptExecutionsTabProps) {
   return (
-    <ExecutionsTabShell>{state => <ScriptExecutionsContent scriptId={scriptId} state={state} />}</ExecutionsTabShell>
+    <ExecutionsTabShell tableSettings={SCRIPTS_TABLE_SETTINGS.scriptExecutions}>
+      {state => <ScriptExecutionsContent scriptId={scriptId} state={state} />}
+    </ExecutionsTabShell>
   );
 });
 ScriptExecutionsTab.displayName = 'ScriptExecutionsTab';

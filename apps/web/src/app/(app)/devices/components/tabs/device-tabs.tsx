@@ -87,7 +87,10 @@ function TableSoftwareTab({ device }: { device: Device | null }) {
   );
 }
 
-/** The machine's own accounts beside the directory's Users: the local accounts table, in the flag's layout. */
+/**
+ * The machine's own accounts, always under their own name: the local accounts table, in the flag's layout. Where the
+ * tenant has a directory it sits beside the directory's Users; where it has none it is the only accounts tab.
+ */
 function TableLocalAccountsTab({ device }: { device: Device | null }) {
   const { tableLayout, tableLoading } = useDeviceTableLayout();
   return (
@@ -129,31 +132,21 @@ function GatedRemoteSessionsTab({ device }: { device: Device | null }) {
 /**
  * The page's one read of `useDirectoryGate`, so that the tab bar and the tab under it cannot disagree. A tab mounts per
  * open; with its own read it would draw a loading form each time, however settled the answer. Off without a provider:
- * the local accounts.
+ * no directory, so no Users tab.
  */
 export const DeviceDirectoryGateContext = createContext<FeatureFlagGate>('off');
 
 /**
- * Directory users where the tenant has directories (D30), the machine's local accounts where it has none. While the
- * flags are read, the local accounts in their loading form: with `tenant-management-v2` off (stage, prod) that is the
- * answer, and its tab is what main draws. Once phase 2 is on, the synced-connection count is what is out, and the
- * directory users wait in their loading form, since most such tenants have a directory. Where this tab is the
- * directory's, the local accounts it replaced are the Local Accounts tab beside it.
+ * The directory's users (D30). `useDeviceTabs` shows this tab only where the tenant has a directory (or, with phase 2
+ * on, while the synced-connection count is out, when the directory users wait in their loading form); the machine's
+ * own accounts are always the Local Accounts tab.
  */
 function GatedUsersTab({ device }: { device: Device | null }) {
   const gate = useContext(DeviceDirectoryGateContext);
-  const phase2 = useTenantManagementV2Gate();
   const { tableLayout, tableLoading } = useDeviceTableLayout();
-  if (phase2 === 'on' && gate !== 'off') {
-    return (
-      <LoadingWhen loading={gate === 'loading' || tableLoading}>
-        <DirectoryUsersTab device={device} tableLayout={tableLayout} />
-      </LoadingWhen>
-    );
-  }
   return (
     <LoadingWhen loading={gate === 'loading' || tableLoading}>
-      <UsersTab device={device} tableLayout={tableLayout} />
+      <DirectoryUsersTab device={device} tableLayout={tableLayout} />
     </LoadingWhen>
   );
 }
@@ -172,6 +165,7 @@ export const REMOTE_SESSIONS_TAB_ID = 'remote-sessions' satisfies DeviceDetailTa
 const INCIDENTS_TAB_ID = 'incidents' satisfies DeviceDetailTab;
 const DEVICE_LOGS_TAB_ID = 'device-logs' satisfies DeviceDetailTab;
 const DIRECTORY_TAB_ID = 'directory' satisfies DeviceDetailTab;
+const USERS_TAB_ID = 'users' satisfies DeviceDetailTab;
 const LOCAL_ACCOUNTS_TAB_ID = 'local-accounts' satisfies DeviceDetailTab;
 
 /** Every tab, gated ones included — `useDeviceTabs` narrows it to the visible set. */
@@ -244,7 +238,7 @@ export const ALL_DEVICE_TABS: TabItem[] = [
     component: NetworkTab,
   },
   {
-    id: 'users',
+    id: USERS_TAB_ID,
     label: 'Users',
     icon: UsersIcon,
     component: GatedUsersTab,
@@ -298,18 +292,29 @@ export const ALL_DEVICE_TABS: TabItem[] = [
  * tenants have the feature) and its panel draws its loading form. Directory is
  * Tenant Management Phase 2's, which stage and prod run without: while the flags
  * are read it is absent and a link to it falls back to Overview, and once phase 2
- * is on it keeps its place while the synced-connection count is out. Local Accounts
- * goes with it: where Users is still the local accounts it would repeat that tab.
+ * is on it keeps its place while the synced-connection count is out. Users (the
+ * directory's users) goes with it. Local Accounts, the machine's own accounts, is
+ * always shown under that name.
  */
 export function useDeviceTabs(directoryGate: FeatureFlagGate): TabItem[] {
   const recordingsGate = useSessionRecordingsGate();
   const incidentsGate = useIncidentsGate();
   const phase2 = useTenantManagementV2Gate();
-  const usersAreDirectory = phase2 === 'on' && directoryGate !== 'off';
+  const hasDirectory = phase2 === 'on' && directoryGate !== 'off';
   return ALL_DEVICE_TABS.filter(
     tab =>
       (tab.id !== REMOTE_SESSIONS_TAB_ID || recordingsGate !== 'off') &&
       (tab.id !== INCIDENTS_TAB_ID || incidentsGate !== 'off') &&
-      ((tab.id !== DIRECTORY_TAB_ID && tab.id !== LOCAL_ACCOUNTS_TAB_ID) || usersAreDirectory),
+      ((tab.id !== DIRECTORY_TAB_ID && tab.id !== USERS_TAB_ID) || hasDirectory),
   );
+}
+
+/**
+ * The tab a `?tab=` opens among the visible ones, else `fallback`. `users` was the local accounts' tab on a tenant
+ * without a directory, so a link to it from then opens Local Accounts wherever Users is not shown.
+ */
+export function resolveDeviceTab(requested: string, visibleIds: readonly string[], fallback: string): string {
+  if (visibleIds.includes(requested)) return requested;
+  if (requested === USERS_TAB_ID && visibleIds.includes(LOCAL_ACCOUNTS_TAB_ID)) return LOCAL_ACCOUNTS_TAB_ID;
+  return fallback;
 }

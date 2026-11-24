@@ -68,13 +68,16 @@ export function canShowSheet(route: ComposerRoute): boolean {
 }
 
 /**
- * Where the dock draws Mingo's quick actions over its composer: Mingo's home only, a new
- * chat. On a page they took its height for actions that are not about it; the chat page's
- * new chat draws them in its own empty state. The caller also leaves them out while the
- * sheet is up: the composer then replies to the chat in it.
+ * Where the dock draws Mingo's quick actions over its composer: Mingo's home (a new chat) and
+ * every page. The hub answers each page with the actions written for it (the page's topic,
+ * read from its address), so a page shows its own, and one with none shows none (only its
+ * topic stamp, where the host asks for it). Not on the chat page, whose new chat draws them in
+ * its own empty state, nor on a full-width page (a remote screen or an editor keeps its
+ * height). The caller also leaves them out while the sheet is up: the composer then replies
+ * to the chat in it.
  */
 export function showsDockQuickActions(route: ComposerRoute): boolean {
-  return route === 'home';
+  return route === 'home' || route === 'page';
 }
 
 /** How the dock draws itself on a route. */
@@ -94,16 +97,22 @@ export interface DockView {
 }
 
 const CHAT_WIDTH = 'max-w-[760px]';
-const PAGE_WIDTH = 'max-w-[880px]';
+/**
+ * Under a page: the composer card at most 800px (Figma `chat/composer`, node 4368:13203), with
+ * `spacing-system-l` beside it on each side, as Start Work's column has: the card lines up with
+ * the page above it. The composer insets itself by `spacing-system-m` (`always`), so the column
+ * adds the rest (CU-17tkuw68taa).
+ */
+const PAGE_WIDTH =
+  'max-w-[calc(800px+2*var(--spacing-system-l))] px-[calc(var(--spacing-system-l)-var(--spacing-system-m))]';
 
 /**
- * The sheet over a page: the composer card's width, not the dock column's. The chat
- * insets its composer by \`spacing-system-m\` on each side of the column, so the sheet
- * does the same (the column is \`PAGE_WIDTH\` at most): its edges meet the composer's
- * and the blocks above it (Getting Started), as the design's sheet holds its composer.
+ * The sheet over a page: the composer card's width, not the dock column's. The card sits
+ * \`spacing-system-l\` in from each side of the column and is 800px at most (\`PAGE_WIDTH\`), so the
+ * sheet does the same: its edges meet the composer's and the blocks above it (Getting Started),
+ * as the design's sheet holds its composer.
  */
-export const SHEET_WIDTH_CLASS_NAME =
-  'w-[calc(100%-2*var(--spacing-system-m))] max-w-[calc(880px-2*var(--spacing-system-m))]';
+export const SHEET_WIDTH_CLASS_NAME = 'w-[calc(100%-2*var(--spacing-system-l))] max-w-[800px]';
 
 const DOCK_VIEWS: Record<ComposerRoute, DockView> = {
   // A new chat: the greeting sits in the middle of what is left above the composer.

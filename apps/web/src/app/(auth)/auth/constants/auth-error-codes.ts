@@ -2,7 +2,7 @@
  * Backend error codes returned by the SaaS-shared auth & registration endpoints
  * (domain availability, organization registration).
  *
- * Centralized so both the domain-availability check (choice-section) and the
+ * Centralized so both the domain-availability check (use-organization-domain) and the
  * organization registration handler (use-auth) reference the same constants
  * instead of duplicating string literals.
  */
