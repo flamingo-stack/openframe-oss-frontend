@@ -50,7 +50,7 @@ const mailboxesTableFragment = graphql`
   }
 `;
 
-type MailboxesTableProps = Omit<ComponentProps<typeof MailboxesRows>, 'rows' | 'totalCount' | 'infiniteScroll'>;
+type MailboxesTableProps = Omit<ComponentProps<typeof MailboxesRows>, 'page'>;
 
 /** The Mailboxes rows, with their own boundary: in its scope the reader draws placeholder rows and does not fetch. */
 export function MailboxesTable(props: MailboxesTableProps) {
@@ -63,7 +63,7 @@ export function MailboxesTable(props: MailboxesTableProps) {
 
 function MailboxesTableReader(props: MailboxesTableProps) {
   if (useLoadingScope()) {
-    return <MailboxesRows {...props} rows={NO_ITEMS} totalCount={0} infiniteScroll={NO_NEXT_PAGE} />;
+    return <MailboxesRows {...props} page={{ rows: NO_ITEMS, totalCount: 0, infiniteScroll: NO_NEXT_PAGE }} />;
   }
   return <MailboxesTableQuery {...props} />;
 }
@@ -90,9 +90,11 @@ function MailboxesTableQuery(props: MailboxesTableProps) {
   return (
     <MailboxesRows
       {...props}
-      rows={rows}
-      totalCount={filteredCount}
-      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+      page={{
+        rows,
+        totalCount: filteredCount,
+        infiniteScroll: { hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage },
+      }}
     />
   );
 }

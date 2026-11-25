@@ -32,16 +32,13 @@ interface MailboxesRowsProps {
   /** No mailbox at all (not a search or funnel miss): the view drops its toolbar. */
   onEmptyChange: (isEmpty: boolean) => void;
   stickyHeaderOffset: string;
-  rows: readonly MailboxRow[];
-  totalCount: number;
-  infiniteScroll: InfiniteScroll;
+  /** The query's answer: the rows so far, the total that matches, and the next page. */
+  page: { rows: readonly MailboxRow[]; totalCount: number; infiniteScroll: InfiniteScroll };
 }
 
 /** The Mailboxes table, or the page's empty state when there is no mailbox at all. */
 export function MailboxesRows({
-  rows,
-  totalCount,
-  infiniteScroll,
+  page: { rows, totalCount, infiniteScroll },
   filter,
   debouncedSearch,
   statusSelection,
