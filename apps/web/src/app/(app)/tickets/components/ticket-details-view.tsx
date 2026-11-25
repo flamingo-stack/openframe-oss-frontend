@@ -74,6 +74,7 @@ import { useTransitionTicket } from '../hooks/use-transition-ticket';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
 import type { ClientDialogOwner, DialogOwner } from '../types/dialog.types';
 import { hasActiveAiDialog } from '../utils/ai-dialog';
+import { clientChatAssistant, withAssistantAvatar } from '../utils/client-chat-assistant';
 import { lastClientMessageId } from '../utils/client-chat-read';
 import { isResolvedStatusId } from '../utils/is-resolved-status';
 import { ticketsQueryKeys } from '../utils/query-keys';
@@ -289,13 +290,13 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const { config: orgAiConfig } = useOrganizationClientAiConfig(dialog?.organizationId ?? '', {
     enabled: !!dialog?.organizationId,
   });
-  // The assistant's name as the end user's Fae client shows it: the customer's
+  // The assistant's name and face as the end user's Fae client shows them: the customer's
   // own view, else the tenant-wide one, else Fae.
   const { view: orgClientView } = useClientView(dialog?.organizationId ?? null, {
     enabled: !!dialog?.organizationId,
   });
   const { view: defaultClientView } = useClientView(null);
-  const assistantName = (orgClientView ?? defaultClientView)?.assistantName.trim() || ASSISTANT_CONFIG.FAE.name;
+  const { name: assistantName, avatar: assistantAvatar } = clientChatAssistant(orgClientView, defaultClientView);
   const orgClientModel = useMemo(
     () =>
       orgAiConfig?.llmProvider && orgAiConfig.providerModel
@@ -409,9 +410,10 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
       }
       const name = author?.authorType === 'user' && clientDisplayName ? clientDisplayName : undefined;
       const shown = name ?? (msg.role === 'assistant' ? assistantName : undefined);
-      return shown ? { ...msg, metadata: { ...msg.metadata, author: { ...author, name: shown } } } : msg;
+      const named = shown ? { ...msg, metadata: { ...msg.metadata, author: { ...author, name: shown } } } : msg;
+      return withAssistantAvatar(named, assistantAvatar);
     },
-    [clientDisplayName, assistantName, technicianName],
+    [clientDisplayName, assistantName, assistantAvatar, technicianName],
   );
 
   // The receipt a ticket made by a form opens with: the lib's one copy, the Fae client's too. One object per what it
@@ -433,9 +435,22 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
               title: receiptTitle,
               description: receiptDescription,
             },
-            { name: assistantName, assistantType: ASSISTANT_CONFIG.FAE.type, authorType: 'fae' },
+            {
+              name: assistantName,
+              ...(assistantAvatar ? { avatar: assistantAvatar } : {}),
+              assistantType: ASSISTANT_CONFIG.FAE.type,
+              authorType: 'fae',
+            },
           ),
-    [receiptTicketId, receiptCreationSource, receiptCreatedAt, receiptTitle, receiptDescription, assistantName],
+    [
+      receiptTicketId,
+      receiptCreationSource,
+      receiptCreatedAt,
+      receiptTitle,
+      receiptDescription,
+      assistantName,
+      assistantAvatar,
+    ],
   );
 
   const hasOlderClientMessages = clientChat.hasMoreMessages;
