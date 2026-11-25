@@ -65,7 +65,7 @@ import { formatDateTime } from '@/lib/format-date';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { pluralize } from '@/lib/pluralize';
-import { routes } from '@/lib/routes';
+import { type IncidentsTab, routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import {
   type FacetEntry,
@@ -89,7 +89,7 @@ import { IncidentAssignee } from './incident-assignee';
 import { IncidentSeverityTag, IncidentStatusTag } from './incident-tags';
 import { INCIDENT_COLUMNS, INCIDENT_GRID_SIZES } from './incidents-table-columns';
 import { type IncidentsTablePlace, incidentsTableSettings } from './incidents-table-settings';
-import { archiveResolvedAction, INCIDENT_TAB_VIEWS, type IncidentListTab } from './incidents-tabs';
+import { archiveResolvedAction, INCIDENT_TAB_VIEWS } from './incidents-tabs';
 import { SnoozeIncidentModal } from './snooze-incident-modal';
 import { transitionMenuItems } from './transition-menu-items';
 
@@ -983,7 +983,7 @@ export const NO_INCIDENT_FILTERS = {
 } satisfies Record<keyof typeof INCIDENT_FILTER_PARAMS, unknown>;
 
 /** One tab of the Incidents page. It owns the query string's filter params, unprefixed. */
-export function IncidentsTable({ tab }: { tab: IncidentListTab }) {
+export function IncidentsTable({ tab }: { tab: IncidentsTab }) {
   const { toast } = useToast();
   const view = INCIDENT_TAB_VIEWS[tab];
   const EmptyIcon = view.icon;

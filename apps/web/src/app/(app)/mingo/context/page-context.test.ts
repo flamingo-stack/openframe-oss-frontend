@@ -66,9 +66,9 @@ describe('resolvePageContext', () => {
     ]);
   });
 
-  it('sends no incident list from the Checks tab, which is settings', () => {
-    expect(resolvePageContext('/incidents/?tab=checks&scope=CUSTOMER&scopeId=org-1', null)).toEqual({
-      currentPage: { kind: 'OTHER', title: 'Incidents', section: 'checks' },
+  it('sends no list from the Checks tab, which is settings', () => {
+    expect(resolvePageContext('/monitoring/?tab=checks', null)).toEqual({
+      currentPage: { kind: 'OTHER', title: 'Queries', section: 'checks' },
     });
   });
 

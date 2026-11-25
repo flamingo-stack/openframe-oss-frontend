@@ -3,7 +3,6 @@ import {
   AlertTriangleIcon,
   BellSnoozeIcon,
   BoxArchiveIcon,
-  SlidersSquareHrIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { InsightStatus } from '@/generated/schema-enums';
@@ -23,11 +22,8 @@ interface IncidentTabView {
   empty: { title: string; description: string };
 }
 
-/** The tabs that list incidents. Checks is the built-in checks' settings, not a list. */
-export type IncidentListTab = Exclude<IncidentsTab, 'checks'>;
-
-/** Everything that differs between the Incidents page's list tabs. */
-export const INCIDENT_TAB_VIEWS: Record<IncidentListTab, IncidentTabView> = {
+/** Everything that differs between the Incidents page's tabs. */
+export const INCIDENT_TAB_VIEWS: Record<IncidentsTab, IncidentTabView> = {
   current: {
     title: 'Current Incidents',
     icon: AlertTriangleIcon,
@@ -51,16 +47,11 @@ export const INCIDENT_TAB_VIEWS: Record<IncidentListTab, IncidentTabView> = {
   },
 };
 
-/** The Checks tab's title and icon, beside the list tabs'. */
-export const INCIDENT_CHECKS_TAB = { title: 'Incident Checks', icon: SlidersSquareHrIcon } as const;
-
-export const INCIDENTS_TABS: TabItem[] = TAB_IDS.incidents.map(id => {
-  const view = id === 'checks' ? INCIDENT_CHECKS_TAB : INCIDENT_TAB_VIEWS[id];
-  return { id, label: view.title, icon: view.icon };
-});
-
-/** The tabs without Checks, for where the check settings are off. */
-export const INCIDENT_LIST_TABS: TabItem[] = INCIDENTS_TABS.filter(tab => tab.id !== 'checks');
+export const INCIDENTS_TABS: TabItem[] = TAB_IDS.incidents.map(id => ({
+  id,
+  label: INCIDENT_TAB_VIEWS[id].title,
+  icon: INCIDENT_TAB_VIEWS[id].icon,
+}));
 
 export function isIncidentsTab(value: string): value is IncidentsTab {
   return TAB_IDS.incidents.some(tab => tab === value);

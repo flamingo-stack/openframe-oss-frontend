@@ -173,7 +173,7 @@ const NAV_MODULES = {
     prefixes: ['/monitoring'],
     category: NotificationCategory.MONITORING,
   },
-  // The two `/monitoring` tabs. No `tab` is the policies tab (the page's default).
+  // The `/monitoring` tabs. No `tab` is the policies tab (the page's default); Checks is under Queries.
   policies: {
     label: 'Policies',
     icon: FolderShieldIcon,
@@ -186,8 +186,13 @@ const NAV_MODULES = {
     label: 'Queries',
     icon: BracketCurlyEllipsisVrIcon,
     path: routes.monitoring.root({ tab: 'queries' }),
-    prefixes: ['/monitoring/query'],
-    match: [{ path: '/monitoring', exact: true, query: { tab: 'queries' } }, '/monitoring/query'],
+    // Checks is the Queries page's second tab, so it and a check's page keep Queries active.
+    prefixes: ['/monitoring/query', '/monitoring/check'],
+    match: [
+      { path: '/monitoring', exact: true, query: { tab: ['queries', 'checks'] } },
+      '/monitoring/query',
+      '/monitoring/check',
+    ],
   },
   // The Software module — behind `software-management`, like its routes. Its tabs
   // (Software Actions, Vulnerabilities) and their detail pages are pages under

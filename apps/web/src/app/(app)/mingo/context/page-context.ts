@@ -173,15 +173,15 @@ export function resolvePageContext(href: string, openView: ContextRefWithLabel |
   const named = NAMED_PAGES[pathname];
   if (named) return { currentPage: named };
 
+  // Monitoring → Checks is the built-in checks' settings, not a list of policies or queries.
+  if (pathname === '/monitoring' && query.get('tab') === 'checks') {
+    return { currentPage: pageRef('OTHER', navModuleLabel('queries'), 'checks') };
+  }
+
   if (pathname === '/monitoring') {
     const queries = query.get('tab') === 'queries';
     const list: ListPage = queries ? { module: 'QUERIES', nav: 'queries' } : { module: 'POLICIES', nav: 'policies' };
     return { currentPage: pageRef('LIST', navModuleLabel(list.nav)), currentList: listOf(list, query) };
-  }
-
-  // Incidents → Checks is the built-in checks' settings, not a list of incidents.
-  if (pathname === '/incidents' && query.get('tab') === 'checks') {
-    return { currentPage: pageRef('OTHER', navModuleLabel('incidents'), 'checks') };
   }
 
   const list = LIST_PAGES[pathname];

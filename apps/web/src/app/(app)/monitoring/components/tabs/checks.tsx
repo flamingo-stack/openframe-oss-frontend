@@ -1,5 +1,8 @@
 'use client';
 
+import { ChecksList } from '../../checks/components/checks-list';
+
+/** Monitoring → Checks: the built-in health checks' defaults and overrides. */
 export function Checks() {
-  return <div className="p-6 text-ods-text-secondary">Checks content coming soon.</div>;
+  return <ChecksList />;
 }

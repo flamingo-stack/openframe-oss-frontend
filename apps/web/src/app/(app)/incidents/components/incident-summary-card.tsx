@@ -2,58 +2,20 @@
 
 import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { CustomerInfoCell, TitleLines } from '@/app/components/shared';
-import { DETAIL_CELL_CLASS } from '@/app/components/shared/detail-cell';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { InsightStatus } from '@/generated/schema-enums';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDateTime } from '@/lib/format-date';
 import { routes } from '@/lib/routes';
-import { useIncidentChecksGate } from '../hooks/use-incident-checks-gate';
 import { formatInterval } from '../utils/format-interval';
-import { formatThreshold } from '../utils/incident-check-labels';
 import { INCIDENT_TYPE_LABELS, labelOf } from '../utils/incident-labels';
-import type { Incident, IncidentThreshold } from '../utils/incident-transform';
+import type { Incident } from '../utils/incident-transform';
+import { IncidentCheckRow } from './incident-check-row';
+import { SummaryCell as Cell, SummaryRow as Row } from './incident-summary-strip';
 import { IncidentSeverityTag, IncidentStatusTag } from './incident-tags';
-
-/** One strip of the card: cells wrap below the 4-up desktop layout instead of overflowing. */
-function Row({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex flex-wrap items-center gap-[var(--spacing-system-m)] border-b border-ods-border px-[var(--spacing-system-m)] py-[var(--spacing-system-s)] last:border-b-0">
-      {children}
-    </div>
-  );
-}
-
-/** A cell of the strip. `optional`: a cell only some incidents have. */
-function Cell({ optional, children }: { optional?: boolean; children: ReactNode }) {
-  return (
-    <div data-loading-optional={optional || undefined} className={cn(DETAIL_CELL_CLASS, 'min-h-16 items-center')}>
-      {children}
-    </div>
-  );
-}
-
-/** Where an incident's threshold was set, as the line under it says it. */
-const THRESHOLD_SCOPE_WORDS: Readonly<Record<string, string>> = {
-  DEFAULT: 'Default threshold',
-  GLOBAL: 'Set for all devices',
-  TAG: 'Set for a device tag',
-  CUSTOMER: 'Set for this customer',
-  DEVICE: 'Set for this device',
-};
-
-/** The Checks tab at the scope that set the threshold: the default and all devices are both changed at the top. */
-function checksLinkOf(threshold: IncidentThreshold): string {
-  const { scopeType, scopeId } = threshold;
-  if (scopeId && (scopeType === 'TAG' || scopeType === 'CUSTOMER' || scopeType === 'DEVICE')) {
-    return routes.incidents.checks({ scope: scopeType, scopeId });
-  }
-  return routes.incidents.checks();
-}
 
 /** How many lines the detecting query's description typically runs to (a sentence or two at the card's width). */
 const DESCRIPTION_SKELETON_LINES = 2;
@@ -82,8 +44,6 @@ interface IncidentSummaryCardProps {
 export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryCardProps) {
   const loading = useLoadingScope() || !incident;
   const snoozedUntil = incident?.status === InsightStatus.SNOOZED ? incident.snoozedUntil : null;
-  // A threshold links to the Checks tab only where that tab exists; still unanswered, it is plain text.
-  const checksLinked = useIncidentChecksGate() === 'on';
 
   return (
     <div className="overflow-hidden rounded-[6px] border border-ods-border bg-ods-card">
@@ -174,31 +134,9 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
         )}
       </Row>
 
-      {/* The thresholds the finding was made against: a threshold check's incident has them, an on/off check's and
-          one recorded before they were kept do not, so the strip is an optional part. */}
-      {incident?.thresholds && incident.thresholds.length > 0 && (
-        <Row>
-          {incident.thresholds.map(threshold => (
-            <Cell key={threshold.parameter} optional>
-              <InfoCell
-                value={
-                  checksLinked ? (
-                    <Link
-                      href={checksLinkOf(threshold)}
-                      className="text-ods-accent underline hover:text-ods-accent-hover"
-                    >
-                      {formatThreshold(threshold.value, threshold.unit, threshold.firesWhen)}
-                    </Link>
-                  ) : (
-                    formatThreshold(threshold.value, threshold.unit, threshold.firesWhen)
-                  )
-                }
-                label={`${threshold.label} · ${THRESHOLD_SCOPE_WORDS[threshold.scopeType] ?? threshold.scopeType}`}
-              />
-            </Cell>
-          ))}
-        </Row>
-      )}
+      {/* What the finding was measured against and the check that made it: an optional strip, absent from an
+          incident no built-in check opened and from one recorded before thresholds were kept. */}
+      {incident && <IncidentCheckRow incident={incident} />}
     </div>
   );
 }

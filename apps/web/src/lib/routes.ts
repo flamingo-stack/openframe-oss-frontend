@@ -22,7 +22,6 @@ import type { LegalDocumentType } from '@flamingo-stack/openframe-frontend-core/
 import type {
   DeviceConnectivity,
   DeviceStatus,
-  InsightCheckScopeType,
   InsightSeverity,
   InsightStatus,
   NotificationEntityType,
@@ -71,7 +70,8 @@ export const TAB_IDS = {
   scriptDetails: ['details', 'executions'],
   softwareDetails: ['devices', 'vulnerabilities'],
   scheduleDetails: ['scripts', 'devices', 'runs', 'executions'],
-  monitoring: ['policies', 'queries'],
+  /** Policies, Queries, and Checks: the built-in health checks' defaults and overrides. */
+  monitoring: ['policies', 'queries', 'checks'],
   /** Query detail page (`/monitoring/query?id=`) — the panel under its tab bar. */
   queryDetails: ['results', 'devices'],
   settings: ['ai-settings', 'architecture', 'company-and-users', 'api-keys', 'sso-configuration', 'profile'],
@@ -79,8 +79,7 @@ export const TAB_IDS = {
   employees: ['users', 'invitations'],
   aiSettings: ['mingo', 'customer', 'guardrails', 'device-guardrails'],
   notifications: ['history'],
-  /** The three lists, then Checks: the built-in checks' switches and thresholds at a scope. */
-  incidents: ['current', 'snoozed', 'archived', 'checks'],
+  incidents: ['current', 'snoozed', 'archived'],
   /** A directory user's page (`/users/details`). */
   userDetails: ['details', 'devices', 'user-groups', 'licences'],
 } as const;
@@ -468,6 +467,8 @@ export const routes = {
     queryNew: '/monitoring/query/new',
     queryEdit: (id: string | number) => withQuery('/monitoring/query/edit', { id }),
     policy: (id: string | number) => withQuery('/monitoring/policy', { id }),
+    /** A built-in check's page, by its key (`InsightCheck.check`, e.g. `resource-win-disk-low`). */
+    check: (check: string) => withQuery('/monitoring/check', { id: check }),
     policyNew: '/monitoring/policy/new',
     policyEdit: (id: string | number) => withQuery('/monitoring/policy/edit', { id }),
   },
@@ -511,12 +512,6 @@ export const routes = {
     filtered: (o: { severity?: readonly InsightSeverity[]; status?: readonly InsightStatus[]; tab?: IncidentsTab }) =>
       withQuery(INCIDENTS_LIST_PATH, { tab: o.tab, severity: o.severity, status: o.status }),
     details: (id: string | number) => withQuery('/incidents/details', { id }),
-    /**
-     * The Checks tab at a scope (`?scope=`, default GLOBAL): a CUSTOMER takes its
-     * `organizationId`, a TAG its `Tag.id`, a DEVICE its `machineId` as `scopeId`.
-     */
-    checks: (o?: { scope?: Exclude<InsightCheckScopeType, 'DEFAULT'>; scopeId?: string }) =>
-      withQuery(INCIDENTS_LIST_PATH, { tab: 'checks', scope: o?.scope, scopeId: o?.scopeId }),
   },
 
   knowledgeBase: {

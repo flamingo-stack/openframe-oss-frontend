@@ -107,6 +107,8 @@ export interface IncidentThreshold {
   scopeType: string;
   /** `organizationId`, `Tag.id` or `machineId`; null for DEFAULT and GLOBAL. */
   scopeId: string | null;
+  /** The customer's name, the tag's key or the device's name; null for DEFAULT and GLOBAL and once it is gone. */
+  scopeName: string | null;
 }
 
 /** The detail page's incident: the row plus what only it draws. */
@@ -118,6 +120,8 @@ export interface Incident extends IncidentRow {
   queryResult: QueryResultRow[] | null;
   /** Empty for an on/off check; null for incidents recorded before thresholds were kept. */
   thresholds: IncidentThreshold[] | null;
+  /** The key of the built-in check that opened it; null when none did (or several could have, for an old one). */
+  check: string | null;
   organizationImageUrl?: string;
 }
 
@@ -151,8 +155,10 @@ export function toIncident(ref: insightFields_insight$key): Incident {
           value: threshold.value,
           scopeType: threshold.scopeType,
           scopeId: threshold.scopeId ?? null,
+          scopeName: threshold.scopeName ?? null,
         }))
       : null,
+    check: node.check ?? null,
     organizationImageUrl: getFullImageUrl(node.organization?.image?.imageUrl, node.organization?.image?.hash),
   };
 }

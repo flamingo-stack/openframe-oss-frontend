@@ -1430,6 +1430,12 @@ type Insight {
   """
   thresholds: [InsightThreshold!]
 
+  """
+  The key of the built-in check that opened the insight, as `InsightCheck.check` returns it. Null for
+  insights no built-in check opened, and for older ones whose kind several checks open.
+  """
+  check: String
+
   """When the detector decided, not when the underlying event happened."""
   detectedAt: Instant!
 
@@ -2019,6 +2025,12 @@ type Mutation {
 
   """Removes what one scope stores for one check, so it inherits everything again. Admins and owners only."""
   resetInsightCheckSetting(input: ResetInsightCheckSettingInput!): InsightCheck!
+
+  """
+  Removes every CUSTOMER, TAG and DEVICE setting of one check in one go, keeping GLOBAL, and returns
+  the check as it runs at GLOBAL. Admins and owners only.
+  """
+  resetInsightCheckOverrides(input: ResetInsightCheckOverridesInput!): InsightCheck!
 
   setTenantRemoteAccessMode(mode: RemoteAccessMode!): TenantRemoteAccessPolicyPayload!
 
@@ -3460,6 +3472,15 @@ type Query {
   inherited and what is set here. DEVICE resolves through the device's own customer and tags.
   """
   insightChecks(scopeType: InsightCheckScopeType!, scopeId: String): [InsightCheck!]!
+
+  """One built-in check as it runs at GLOBAL, by its key."""
+  insightCheck(check: String!): InsightCheck!
+
+  """
+  What an override of one check at a CUSTOMER, TAG or DEVICE scope would meet before it is saved.
+  Counts connected devices on the check's platform.
+  """
+  insightCheckOverrideImpact(check: String!, scopeType: InsightCheckScopeType!, scopeId: String!): InsightCheckOverrideImpact!
 
   """
   Get the current authenticated tenant.
@@ -8042,8 +8063,8 @@ input TurnOnSoftwareAutoUpdateInput {
 enum InsightCheckScopeType {
   DEFAULT
   GLOBAL
-  TAG
   CUSTOMER
+  TAG
   DEVICE
 }
 
@@ -8117,7 +8138,65 @@ type InsightCheck {
 
   """Empty for an on/off check."""
   parameters: [InsightCheckParameter!]!
+
+  """The category of the insight kind this check opens."""
+  type: InsightType!
+
+  """How many CUSTOMER, TAG and DEVICE settings this check stores. Batched per request, no N+1."""
+  overrideCount: Int!
+
+  """
+  Every CUSTOMER, TAG and DEVICE setting of this check, whatever scope the check was read at: the
+  most specific first, then the most recently changed. Meant for one check's page; each read
+  counts the devices of the check's platform.
+  """
+  overrides: [InsightCheckOverride!]!
 }
+
+"""What one CUSTOMER, TAG or DEVICE scope stores for one check."""
+type InsightCheckOverride {
+  """Opaque Relay global id, stable for the check and scope across reads."""
+  id: ID!
+  scopeType: InsightCheckScopeType!
+
+  """The organization id, `Tag.id` or machine id of the scope."""
+  scopeId: String!
+
+  """
+  What the scope is called: the organization's name, the tag's key or the device's nickname (else
+  hostname). Null once the scope is gone. Batched per request, no N+1.
+  """
+  scopeName: String
+
+  """As stored at this scope; null inherits from the less specific scope."""
+  enabled: Boolean
+
+  """Only the parameters stored at this scope."""
+  parameters: [InsightCheckOverrideParameter!]!
+
+  """Connected devices on the check's platform the scope covers now."""
+  deviceCount: Int!
+  updatedAt: Instant
+
+  """The user who last changed it; null when unknown or no longer there."""
+  updatedBy: User
+}
+
+type InsightCheckOverrideParameter {
+  parameter: String!
+  value: Int!
+}
+
+"""
+What an override at one scope would meet. For a CUSTOMER or TAG override, `affectedDeviceCount` counts
+devices that also carry a device override or another tag override of the check (a device override wins;
+among tags the strictest value wins). For a DEVICE override it is 1 when the device already gets a
+customer or tag override, which this one replaces.
+"""
+type InsightCheckOverrideImpact {
+  """Connected devices on the check's platform the scope covers now."""
+  deviceCount: Int!
+  affectedDeviceCount: Int!}
 
 type InsightCheckParameter {
   """The parameter's key within its check, e.g. `freePercent`."""
@@ -8175,6 +8254,11 @@ input InsightCheckParameterInput {
   value: Int!
 }
 
+input ResetInsightCheckOverridesInput {
+  """The check's key, as `InsightCheck.check` returns it."""
+  check: String!
+}
+
 input ResetInsightCheckSettingInput {
   check: String!
   scopeType: InsightCheckScopeType!
@@ -8194,6 +8278,12 @@ type InsightThreshold {
 
   """The organization id, `Tag.id` or machine id of that scope; null for DEFAULT and GLOBAL."""
   scopeId: String
+
+  """
+  What that scope is called now: the organization's name, the tag's key or the device's nickname
+  (else hostname). Null for DEFAULT and GLOBAL, and once the scope is gone. Batched per request.
+  """
+  scopeName: String
 
   """
   Display name of the measured value, e.g. `Free disk space`, as of the detection. For insights

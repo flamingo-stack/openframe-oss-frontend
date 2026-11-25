@@ -8,34 +8,23 @@ import {
 import {
   Autocomplete,
   type AutocompleteOption,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
-import type { checkScopeBarTagsQuery as CheckScopeBarTagsQueryType } from '@/__generated__/checkScopeBarTagsQuery.graphql';
+import type { scopeEntityPickerTagsQuery as ScopeEntityPickerTagsQueryType } from '@/__generated__/scopeEntityPickerTagsQuery.graphql';
 import { fetchDevicesPage } from '@/app/(app)/devices/queries/devices-api';
 import { deviceQueryKeys } from '@/app/(app)/devices/utils/query-keys';
 import { useOrganizationOptions } from '@/app/(app)/tickets/hooks/use-ticket-options';
 import { ContentErrorBoundary, NO_ITEMS } from '@/app/components/shared';
 import { InsightCheckScopeType } from '@/generated/schema-enums';
-import { INSIGHT_CHECK_SCOPE_LABELS } from '../../utils/incident-check-labels';
-import {
-  type CheckScope,
-  isWritableScopeType,
-  WRITABLE_SCOPE_TYPES,
-  type WritableScopeType,
-} from '../../utils/incident-check-transform';
+import type { OverrideScopeType } from '../utils/check-transform';
 
-/** The device tags a TAG scope is picked from. The API resolves a tag scope by `Tag.id` and refuses any other tag. */
-const checkScopeBarTagsQuery = graphql`
-  query checkScopeBarTagsQuery {
+/** The device tags a TAG override is picked from. The API resolves a tag scope by `Tag.id` and refuses any other tag. */
+const scopeEntityPickerTagsQuery = graphql`
+  query scopeEntityPickerTagsQuery {
     tagsByEntityType(entityType: DEVICE) {
       id
       key
@@ -45,66 +34,22 @@ const checkScopeBarTagsQuery = graphql`
 
 const DEVICE_OPTIONS_LIMIT = 50;
 
-interface CheckScopeBarProps {
-  scope: CheckScope;
-  /** The picked entity's name (from the URL's id), so the field names it before its list pages to it. */
-  scopeName: string | null;
-  onChange: (scope: CheckScope) => void;
-}
-
-const ENTITY_PLACEHOLDERS: Record<Exclude<WritableScopeType, 'GLOBAL'>, string> = {
+const ENTITY_PLACEHOLDERS: Record<OverrideScopeType, string> = {
   CUSTOMER: 'Select customer',
   TAG: 'Select tag',
   DEVICE: 'Select device',
 };
 
-/**
- * Which settings the tab shows: "All devices", or one customer, device tag or device. Picking a
- * kind clears the entity; the list waits until one is picked.
- */
-export function CheckScopeBar({ scope, scopeName, onChange }: CheckScopeBarProps) {
-  return (
-    <div className="flex flex-col gap-[var(--spacing-system-m)] content-md:flex-row">
-      <Select
-        value={scope.type}
-        onValueChange={value => {
-          if (isWritableScopeType(value)) onChange({ type: value, id: null });
-        }}
-      >
-        <SelectTrigger className="content-md:w-56" aria-label="Settings for">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {WRITABLE_SCOPE_TYPES.map(type => (
-            <SelectItem key={type} value={type}>
-              {INSIGHT_CHECK_SCOPE_LABELS[type]}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      {scope.type !== InsightCheckScopeType.GLOBAL && (
-        <div className="min-w-0 flex-1 content-md:max-w-[480px]">
-          <ScopeEntityPicker
-            key={scope.type}
-            type={scope.type}
-            value={scope.id}
-            selectedLabel={scopeName}
-            onChange={id => onChange({ type: scope.type, id })}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
-
 interface ScopeEntityPickerProps {
-  type: Exclude<WritableScopeType, 'GLOBAL'>;
+  type: OverrideScopeType;
   value: string | null;
   selectedLabel: string | null;
-  onChange: (id: string | null) => void;
+  /** The picked entity's id and name (the option's label). */
+  onChange: (id: string | null, name: string | null) => void;
 }
 
-function ScopeEntityPicker(props: ScopeEntityPickerProps) {
+/** The customer, device tag or device an override is for: a single pick, searched on the server where the list is long. */
+export function ScopeEntityPicker(props: ScopeEntityPickerProps) {
   switch (props.type) {
     case InsightCheckScopeType.CUSTOMER:
       return <CustomerPicker {...props} />;
@@ -158,7 +103,7 @@ function PickerField({
     <Autocomplete
       options={withSelected}
       value={value}
-      onChange={onChange}
+      onChange={id => onChange(id, withSelected.find(option => option.value === id)?.label ?? null)}
       onInputChange={onSearch}
       disableClientFilter={searchOnServer}
       placeholder={ENTITY_PLACEHOLDERS[type]}
@@ -213,8 +158,8 @@ function TagPicker(props: ScopeEntityPickerProps) {
 }
 
 function TagPickerLive(props: ScopeEntityPickerProps) {
-  const data = useLazyLoadQuery<CheckScopeBarTagsQueryType>(
-    checkScopeBarTagsQuery,
+  const data = useLazyLoadQuery<ScopeEntityPickerTagsQueryType>(
+    scopeEntityPickerTagsQuery,
     {},
     { fetchPolicy: 'store-and-network' },
   );
