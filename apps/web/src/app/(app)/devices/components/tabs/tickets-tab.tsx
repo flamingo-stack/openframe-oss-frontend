@@ -148,7 +148,7 @@ export function TicketsTab({ device, tableLayout = 'cards' }: TicketsTabProps) {
           ref={toolbarRef}
           className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
         >
-          <SearchInput value={search} onChange={setSearch} placeholder="Search for Tickets" />
+          <SearchInput value={search} onChange={setSearch} placeholder="Search for Tickets" showDropdown={false} />
         </div>
       )}
 

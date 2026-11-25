@@ -1,6 +1,7 @@
 'use client';
 
 import { type ReactNode, useEffect, useSyncExternalStore } from 'react';
+import { usePageFallback } from '@/app/components/page-fallback-context';
 import { useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
 import { resolveManagedStatusSupport } from '@/lib/device-status-probe';
 import {
@@ -55,6 +56,7 @@ export function DeviceStatusSupportGate({ children }: { children: ReactNode }) {
   // Settles on its own: `FeatureFlagsLoader` marks the flags loaded on a failed query too.
   const flagsReady = useFeatureFlagsReady();
   const ready = known && flagsReady;
+  const fallback = usePageFallback();
 
   useEffect(() => {
     if (isKnown()) return undefined;
@@ -77,5 +79,8 @@ export function DeviceStatusSupportGate({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer);
   }, []);
 
-  return ready ? <>{children}</> : null;
+  // While it waits, the shell's stand-in for the page (a landing route's skeleton, else nothing): on a landing page
+  // the gate can still wait when the shell lets the page go (a new tab's probe), and drawing nothing emptied the
+  // centre for that long (CU-17tkuw69uzq).
+  return ready ? <>{children}</> : <>{fallback}</>;
 }

@@ -35,6 +35,7 @@ import { routes } from '@/lib/routes';
 import { AdminPrivilegesWarning } from '../components/admin-privileges-warning';
 import { AntivirusWarning } from '../components/antivirus-warning';
 import { DoctorModeWarning } from '../components/doctor-mode-warning';
+import { MacosFleetRequirementAlert } from '../components/macos-fleet-requirement-alert';
 import { type DeviceOrganizationOption, useDeviceOrganizations } from '../hooks/use-device-organizations';
 import { useInstallCommand } from '../hooks/use-install-command';
 import { useRemoteAccessApprovalGate } from '../hooks/use-remote-access-approval-gate';
@@ -390,6 +391,7 @@ function NewDeviceForm({ orgs, preselectedOrgId }: NewDeviceFormProps) {
           </Button>
         </div>
 
+        <MacosFleetRequirementAlert platform={platform} />
         <AdminPrivilegesWarning platform={platform} />
         <AntivirusWarning platform={platform} />
         <DoctorModeWarning platform={platform} />

@@ -9,6 +9,7 @@ import { formatDateTimeOnDevice } from '@/lib/format-date';
 import type { Device } from '../../types/device.types';
 import { type DeviceInfoRow, deviceInfoItems, hasDeviceInfo } from '../../utils/device-info-rows';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
+import { TabUnsupportedEmptyState } from './tab-unsupported-empty-state';
 
 interface HardwareTabProps {
   device: Device | null;
@@ -169,6 +170,9 @@ export function HardwareTab({ device }: HardwareTabProps) {
 
   const hasAnyData = hasSystem || hasBoot || hasCpu || hasMemory || hasFleetStorage || batteries.length > 0;
   if (!loading && !hasAnyData) {
+    if (device?.sources?.fleet === 'skipped-unsupported') {
+      return <TabUnsupportedEmptyState icon={<HardDrivesIcon />} />;
+    }
     if (device?.sources?.fleet === 'skipped-pending') {
       return <TabDeployingEmptyState icon={<HardDrivesIcon />} section="Hardware" />;
     }

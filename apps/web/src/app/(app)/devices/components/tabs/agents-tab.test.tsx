@@ -129,3 +129,40 @@ describe('AgentsTab placeholders', () => {
     expect(container.textContent).toContain('No agents found');
   });
 });
+
+describe('AgentsTab on an OS below the Fleet minimum', () => {
+  const fleetUnsupported = [{ toolType: 'FLEET_MDM', minOsVersion: '13.0', osVersion: '11.7.10' }];
+
+  it('shows the Fleet slot as Not supported, not Pending, while MeshCentral stays pending', () => {
+    render(device({ installedAgents: [], toolConnections: [], unsupportedTools: fleetUnsupported }));
+
+    const [fleet, mesh] = cards();
+    expect(fleet).toContain('NOT SUPPORTED');
+    expect(fleet).not.toMatch(/pending/i);
+    expect(mesh).toMatch(/pending/i);
+  });
+
+  it('marks an installed Fleet and the osquery it bundles Not supported, even with a live connection', () => {
+    render(
+      device({
+        installedAgents: [agent('fleetmdm-agent', '4.70.0'), agent('osqueryd', '5.12.0'), agent('meshcentral-agent')],
+        toolConnections: [connection('FLEET_MDM'), connection('MESHCENTRAL')],
+        unsupportedTools: fleetUnsupported,
+      }),
+    );
+
+    const [fleet, mesh, osquery] = cards();
+    expect(fleet).toContain('NOT SUPPORTED');
+    expect(fleet).toContain('4.70.0');
+    expect(osquery).toContain('NOT SUPPORTED');
+    expect(mesh).toContain('ONLINE');
+    expect(mesh).not.toContain('NOT SUPPORTED');
+  });
+
+  it('changes nothing when no tool is unsupported', () => {
+    render(device({ installedAgents: [], toolConnections: [], unsupportedTools: [] }));
+
+    expect(pendingCount()).toBe(2);
+    expect(container.textContent).not.toContain('NOT SUPPORTED');
+  });
+});

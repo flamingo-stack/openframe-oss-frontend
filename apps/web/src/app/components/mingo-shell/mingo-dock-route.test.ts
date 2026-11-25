@@ -1,5 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { composerRouteOf, dockViewOf, showsDockQuickActions } from './mingo-dock-route';
+
+const { mode } = vi.hoisted(() => ({ mode: { saas: false } }));
+vi.mock('@/lib/app-mode', async importOriginal => ({
+  ...(await importOriginal<object>()),
+  isSaasTenantMode: () => mode.saas,
+}));
+
+afterEach(() => {
+  mode.saas = false;
+});
 
 describe('dockViewOf(…).floats', () => {
   it('lays the dock over plain pages, which run on under it', () => {
@@ -32,5 +42,23 @@ describe('showsDockQuickActions', () => {
     for (const pathname of ['/mingo/chat/', '/devices/details/file-manager/', '/devices/details/remote-desktop/']) {
       expect(showsDockQuickActions(composerRouteOf(pathname))).toBe(false);
     }
+  });
+});
+
+/**
+ * The saas-gateway lands a login whose user has not finished the tour on `/onboarding`, which a SaaS
+ * tenant forwards to Mingo's home: drawn as a page until then, it was an empty "Onboarding" column
+ * beside Start Work (CU-17tkuw69uzp).
+ */
+describe("a SaaS tenant's /onboarding", () => {
+  it("is Mingo's home for the dock, with and without the trailing slash", () => {
+    mode.saas = true;
+    expect(composerRouteOf('/onboarding')).toBe('home');
+    expect(composerRouteOf('/onboarding/')).toBe('home');
+    expect(composerRouteOf('/onboarding/x/')).toBe('page');
+  });
+
+  it('stays an ordinary page on an OSS tenant, where it is the Get Started tour', () => {
+    expect(composerRouteOf('/onboarding/')).toBe('page');
   });
 });

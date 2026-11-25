@@ -1977,6 +1977,11 @@ type Machine implements Node & AssignableTarget {
   """
   softwareManagementSupported: Boolean!
   """
+  Integrated agents this device's OS version is below the minimum of: they are not installed, updated or kept on
+  it. Empty when the OS version is unknown or every agent supports it.
+  """
+  unsupportedTools: [UnsupportedTool!]!
+  """
   Package managers as last reported by the device agent. Null until the first report.
   """
   packageManagers: MachinePackageManagers
@@ -6596,6 +6601,13 @@ enum ToolType {
   MESHCENTRAL
   FLEET_MDM
   OPENFRAME_RMM
+}
+
+"""An integrated agent that does not run on the device's OS version."""
+type UnsupportedTool {
+  toolType: ToolType!
+  minOsVersion: String!
+  osVersion: String!
 }
 
 type ToolUrl {

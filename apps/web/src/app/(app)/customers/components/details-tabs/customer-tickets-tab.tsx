@@ -108,7 +108,7 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
         ref={toolbarRef}
         className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
       >
-        <SearchInput value={search} onChange={setSearch} placeholder="Search for Tickets" />
+        <SearchInput value={search} onChange={setSearch} placeholder="Search for Tickets" showDropdown={false} />
       </div>
 
       {/* The first page is a client read: the table draws its own loading state in this scope. */}

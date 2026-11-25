@@ -13,6 +13,7 @@ import { routes } from '@/lib/routes';
 import { useHostQueries } from '../../hooks/use-host-queries';
 import type { Device } from '../../types/device.types';
 import { TabEmptyState } from './tab-empty-state';
+import { TabUnsupportedEmptyState } from './tab-unsupported-empty-state';
 
 /**
  * Rows drawn while the device's query reports are read. The reports come as one unpaged list with no limit: a typical
@@ -70,6 +71,12 @@ export function QueriesTab({ device }: QueriesTabProps) {
         description="Scheduled queries for this device will appear here."
       />
     );
+  }
+
+  // An OS below Fleet's minimum and no live Fleet: queries run in Fleet's osquery, so none will ever run here. Known
+  // from the device alone, so it does not wait for the query lists.
+  if (!scopeLoading && device?.sources?.fleet === 'skipped-unsupported') {
+    return <TabUnsupportedEmptyState icon={<BracketCurlyEllipsisVrIcon />} />;
   }
 
   // No queries assigned to this host at all → the centered design empty state

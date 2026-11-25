@@ -9,7 +9,7 @@
  */
 
 import type { UnifiedChatState } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { act, useEffect } from 'react';
+import { act, useEffect, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { create } from 'zustand';
@@ -27,7 +27,7 @@ const sendMessage = vi.fn<UnifiedChatState['sendMessage']>();
 /** The engine's create in flight (`isDialogsLoading`), settable from the test. */
 const creating = create<{ on: boolean }>(() => ({ on: false }));
 const sendInNewDialog = vi.fn<(text: string) => Promise<string | null>>();
-const createIntentDialog = vi.fn(async () => null);
+const createIntentDialog = vi.fn<(intent: string) => Promise<string | null>>(async () => null);
 const openSheet = vi.fn();
 
 const probe = { target: null as ReturnType<typeof useComposerTarget> | null };
@@ -393,5 +393,97 @@ describe('followsToChatPage', () => {
     expect(followsToChatPage('home', true)).toBe(false);
     expect(followsToChatPage('chat', false)).toBe(false);
     expect(followsToChatPage('page', false)).toBe(false);
+  });
+});
+
+/**
+ * The engine's selection as `useChatEngine` keeps it: React state (`internalDialogId`), set by
+ * `openDialog` after the create's round trip, outside any event. An intent create
+ * (`createAndOpenDialog`) returns its id right after that, with nothing sent, so the send has
+ * returned before React renders the selection (CU-17tkuw6924d). A prompt's goes on to publish,
+ * by which time the id has committed.
+ */
+const engine = { open: null as ((id: string) => void) | null };
+async function engineIntentCreate(newId: string): Promise<string | null> {
+  await Promise.resolve();
+  engine.open?.(newId);
+  return newId;
+}
+
+function EngineHarness({ route, sheetOpen, phone }: { route: ComposerRoute; sheetOpen: boolean; phone: boolean }) {
+  const [active, setActive] = useState<string | null>(null);
+  useEffect(() => {
+    engine.open = setActive;
+  }, []);
+  const state = { activeDialogId: active, selectDialog, isDialogsLoading: false } as unknown as UnifiedChatState;
+  const result = useComposerTarget({
+    route,
+    state,
+    sendInNewDialog,
+    createIntentDialog,
+    navigate,
+    openSheet,
+    sheetOpen,
+    phone,
+  });
+  useEffect(() => {
+    probe.target = result;
+  });
+  return null;
+}
+
+describe('useComposerTarget with an intent chat the engine opens after its create returns', () => {
+  const renderEngine = (route: ComposerRoute, { phone = false }: { phone?: boolean } = {}) =>
+    act(() => {
+      root.render(<EngineHarness route={route} sheetOpen={false} phone={phone} />);
+    });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    probe.target = null;
+    engine.open = null;
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('opens it on its page on a phone, and each click opens its own', async () => {
+    renderEngine('page', { phone: true });
+    for (const newId of ['intent-1', 'intent-2']) {
+      createIntentDialog.mockImplementationOnce(() => engineIntentCreate(newId));
+      await act(async () => {
+        await expect(target().createIntentDialog('CREATE_POLICY')).resolves.toBe(newId);
+      });
+      expect(navigate).toHaveBeenLastCalledWith(routes.mingo.chat(newId));
+    }
+    expect(navigate).toHaveBeenCalledTimes(2);
+    expect(openSheet).not.toHaveBeenCalled();
+  });
+
+  it('opens it over the page on a desktop', async () => {
+    renderEngine('page');
+    createIntentDialog.mockImplementationOnce(() => engineIntentCreate('intent-3'));
+    await act(async () => {
+      await target().createIntentDialog('CREATE_POLICY');
+    });
+    expect(openSheet).toHaveBeenCalledTimes(1);
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('follows only the chat the create returned: another chat committed first is not taken for it', async () => {
+    renderEngine('page', { phone: true });
+    createIntentDialog.mockImplementationOnce(async () => 'intent-4');
+    await act(async () => {
+      await target().createIntentDialog('CREATE_POLICY');
+    });
+    act(() => engine.open?.('picked-from-the-list'));
+    act(() => engine.open?.('intent-4'));
+    expect(navigate).not.toHaveBeenCalled();
+    expect(openSheet).not.toHaveBeenCalled();
   });
 });
