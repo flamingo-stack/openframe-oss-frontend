@@ -20,6 +20,7 @@ import { useNow } from '@/app/hooks/use-now';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { type AgentInstallError, canInstallAgentLocally } from '@/lib/native-shell';
 import { AVAILABLE_PLATFORMS, DISABLED_PLATFORMS } from '@/lib/platforms';
+import { MacosFleetRequirementAlert } from '../../devices/components/macos-fleet-requirement-alert';
 import { AgentNotConnectedNotice } from '../components/agent-not-connected-notice';
 import { InstallLog } from '../components/install-log';
 import { SetupHeading } from '../components/setup-heading';
@@ -374,6 +375,7 @@ function DeployDeviceForm({ organizationId, onContinue, persisting }: DeployDevi
             onDeploy={handleDeploy}
             onContinue={handleContinue}
           />
+          <MacosFleetRequirementAlert platform={platform} />
         </div>
         {local.status !== 'idle' && <InstallLog lines={local.lines} />}
       </div>

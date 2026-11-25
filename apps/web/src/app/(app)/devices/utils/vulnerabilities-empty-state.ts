@@ -7,6 +7,7 @@ import { fleetTimestampMs } from './fleet-timestamp';
  *
  * 1. Fleet fan-out failed → 'error'
  * 2. Fleet connection torn down → 'disconnected' (dormant: BE hides such rows)
+ * 2b. OS below Fleet's minimum and no live Fleet → 'unsupported' (it will never fill)
  * 3. Agent still registering, or the host never completed a software inventory
  *    scan → 'collecting' (nothing exists to match against yet)
  * 4. Matching never completed, or this device's software was inventoried AFTER
@@ -17,12 +18,14 @@ import { fleetTimestampMs } from './fleet-timestamp';
  * "clean" for software that was not matched (matching runs against the whole
  * catalogue, so a run newer than this host's inventory did cover it).
  */
-export type VulnerabilitiesEmptyReason = 'error' | 'disconnected' | 'collecting' | 'scan-pending' | 'clean';
+export type VulnerabilitiesEmptyReason =
+  'error' | 'disconnected' | 'unsupported' | 'collecting' | 'scan-pending' | 'clean';
 
 export function getVulnerabilitiesEmptyReason(device: Device): VulnerabilitiesEmptyReason {
   const fleetSource = device.sources?.fleet;
   if (fleetSource === 'error') return 'error';
   if (fleetSource === 'skipped-disconnected') return 'disconnected';
+  if (fleetSource === 'skipped-unsupported') return 'unsupported';
   if (fleetSource === 'skipped-pending') return 'collecting';
 
   const softwareAt = fleetTimestampMs(device.software_updated_at);
@@ -38,12 +41,17 @@ export function getVulnerabilitiesEmptyReason(device: Device): VulnerabilitiesEm
  * with results on screen it means a recent change (e.g. a patched CVE) may not
  * be reflected yet, which is what the "Data sync in progress" banner conveys.
  * False while there is nothing to match against (fleet failed / disconnected /
- * agent deploying / inventory never scanned) — those are earlier pipeline
+ * OS unsupported / agent deploying / inventory never scanned) — those are earlier pipeline
  * stages with their own states, not a sync window.
  */
 export function isVulnerabilityScanPending(device: Device): boolean {
   const fleetSource = device.sources?.fleet;
-  if (fleetSource === 'error' || fleetSource === 'skipped-disconnected' || fleetSource === 'skipped-pending') {
+  if (
+    fleetSource === 'error' ||
+    fleetSource === 'skipped-disconnected' ||
+    fleetSource === 'skipped-unsupported' ||
+    fleetSource === 'skipped-pending'
+  ) {
     return false;
   }
 

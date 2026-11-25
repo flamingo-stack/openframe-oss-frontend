@@ -267,8 +267,9 @@ export default defineConfig([
   },
 
   {
-    // The pre-paint seeds (the sidebar's, the super user strip's, the sign-up email's and where the sign-up began)
-    // are strings the root layout inlines into `<head>`; their tests run those strings the way the browser does.
+    // The pre-paint seeds (the sidebar's, the super user strip's, the sign-up email's, where the sign-up began, the
+    // announcement's) are strings the root layout inlines into `<head>`; their tests run those strings the way the
+    // browser does.
     // `no-new-func` assumes the source is untrusted or dynamic; here it is our own constant.
     name: 'openframe-frontend/inline-head-script-test',
     files: [
@@ -276,6 +277,7 @@ export default defineConfig([
       'src/lib/super-user-seed.test.ts',
       'src/lib/signup-email-seed.test.ts',
       'src/lib/signup-started-in.test.ts',
+      'src/lib/announcement-cache.test.ts',
     ],
     rules: { 'no-new-func': 'off' },
   },

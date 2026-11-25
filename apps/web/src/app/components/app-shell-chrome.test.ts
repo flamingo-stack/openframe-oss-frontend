@@ -1,12 +1,23 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   APP_MAIN_CLASS_NAME,
   getMainClassNameOverride,
   holdsDashboard,
   isBareChromeRoute,
   isLandingRoute,
+  isSaasOnboardingRoute,
   mingoHeaderLoadingCells,
 } from './app-shell-chrome';
+
+const { mode } = vi.hoisted(() => ({ mode: { saas: false } }));
+vi.mock('@/lib/app-mode', async importOriginal => ({
+  ...(await importOriginal<object>()),
+  isSaasTenantMode: () => mode.saas,
+}));
+
+afterEach(() => {
+  mode.saas = false;
+});
 
 describe('mingoHeaderLoadingCells', () => {
   it('reserves the time tracker, notifications and Mingo: the phone top bar has no Chat history cell', () => {
@@ -76,5 +87,25 @@ describe('holdsDashboard', () => {
     expect(holdsDashboard('/devices', 'on', 'unknown', false)).toBe(false);
     expect(holdsDashboard('/mingo/chat', 'on', 'setup', false)).toBe(false);
     expect(holdsDashboard(null, 'on', 'setup', false)).toBe(false);
+  });
+});
+
+/** Where the saas-gateway lands a login whose user has not finished the tour (CU-17tkuw69uzp). */
+describe("a SaaS tenant's /onboarding", () => {
+  it('is a landing route on a SaaS tenant, held like one while the onboarding answer is out', () => {
+    mode.saas = true;
+    expect(isSaasOnboardingRoute('/onboarding')).toBe(true);
+    expect(isLandingRoute('/onboarding')).toBe(true);
+    expect(isLandingRoute('/onboarding/')).toBe(true);
+    expect(isLandingRoute('/onboarding/x')).toBe(false);
+    expect(holdsDashboard('/onboarding/', 'on', 'unknown', false)).toBe(true);
+    expect(holdsDashboard('/onboarding/', 'on', 'setup', false)).toBe(true);
+    expect(holdsDashboard('/onboarding/', 'on', 'none', false)).toBe(false);
+  });
+
+  it("is an OSS tenant's Get Started tour: no landing route, never held", () => {
+    expect(isSaasOnboardingRoute('/onboarding')).toBe(false);
+    expect(isLandingRoute('/onboarding/')).toBe(false);
+    expect(holdsDashboard('/onboarding/', 'on', 'setup', false)).toBe(false);
   });
 });

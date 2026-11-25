@@ -18,12 +18,14 @@ import type {
   DeviceGraphQlNode,
   DevicePolicy,
   Software,
+  UnsupportedTool,
   User,
 } from '../types/device.types';
 import type { FleetHost } from '../types/fleet.types';
 import { toDeviceTags } from '../utils/device-tags';
 import { deviceQueryKeys } from '../utils/query-keys';
-import { getToolConnectionState, isDeviceStillConnecting } from '../utils/tool-connection-status';
+import { getToolConnectionState, getUnsupportedTool, isDeviceStillConnecting } from '../utils/tool-connection-status';
+import { fetchDeviceUnsupportedTools } from './device-unsupported-tools';
 
 /** Collect unique end-user emails from Fleet `end_users` (primary email + other_emails). */
 function collectEndUserEmails(fleetData: FleetHost | null): string[] | undefined {
@@ -48,6 +50,7 @@ export function createDevice(
   meshCentralStatus: 'online' | 'offline' | null,
   meshCentralLastSeen: string | null,
   sources: DeviceDataSources,
+  unsupportedTools: UnsupportedTool[] = [],
 ): Device {
   // Transform Fleet software to unified Software type. It feeds the
   // Fleet-backed Software / Vulnerabilities tabs (`software-management` off)
@@ -283,6 +286,7 @@ export function createDevice(
     // Fleet-derived metadata (already in the host payload)
     software_updated_at: fleetData?.software_updated_at,
     sources,
+    unsupportedTools,
     fleetTeamName: fleetData?.team_name || undefined,
     fleetTeamId: fleetData?.team_id,
     // Drop Fleet's builtin auto-labels ("All Hosts", "macOS", …) — keep meaningful (regular) ones.
@@ -310,17 +314,27 @@ export function createDevice(
   };
 }
 
-async function fetchDeviceDetails(machineId: string): Promise<Device> {
-  // 1) Fetch primary device from the shared device query layer
-  const node = await fetchDeviceNode(machineId);
+/** The device page's read: the GraphQL node merged with Fleet and MeshCentral. Exported for its tests. */
+export async function fetchDeviceDetails(machineId: string): Promise<Device> {
+  // 1) Fetch primary device from the shared device query layer, and beside it the agents its OS version does not
+  // support (its own request: a backend without the field fails only that one, which reads as none).
+  const [node, unsupportedTools] = await Promise.all([
+    fetchDeviceNode(machineId),
+    fetchDeviceUnsupportedTools(machineId),
+  ]);
 
   // 2.5) Fetch Fleet MDM details — only for a live connection: a pending row has no
-  // host to fetch yet, and a DISCONNECTED row may carry a stale host id.
+  // host to fetch yet, and a DISCONNECTED row may carry a stale host id. A live Fleet on
+  // an OS below its minimum still runs (e.g. before the backend removes it), so its data
+  // is shown; without one, the tabs say the OS is unsupported instead of "still deploying".
   const fleet = node.toolConnections?.find(tc => tc.toolType === 'FLEET_MDM');
   const fleetState = getToolConnectionState(fleet);
+  const fleetUnsupported = getUnsupportedTool({ unsupportedTools }, 'FLEET_MDM') !== undefined;
   let fleetData: FleetHost | null = null;
   let fleetSource: DeviceDataSources['fleet'];
-  if (fleetState === 'pending') {
+  if (fleetUnsupported && fleetState !== 'live') {
+    fleetSource = 'skipped-unsupported';
+  } else if (fleetState === 'pending') {
     fleetSource = 'skipped-pending';
   } else if (fleetState === 'disconnected') {
     fleetSource = 'skipped-disconnected';
@@ -365,7 +379,14 @@ async function fetchDeviceDetails(machineId: string): Promise<Device> {
   }
 
   // 3) Create Device object directly - no normalization
-  return createDevice(node, fleetData, meshCentralStatus, meshCentralLastSeen, { fleet: fleetSource });
+  return createDevice(
+    node,
+    fleetData,
+    meshCentralStatus,
+    meshCentralLastSeen,
+    { fleet: fleetSource },
+    unsupportedTools,
+  );
 }
 
 interface UseDeviceDetailsOptions {

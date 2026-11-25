@@ -4,6 +4,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { PublicEnvScript } from 'next-runtime-env';
 import { DevTicketObserver } from '@/app/(auth)/auth/components/dev-ticket-observer';
+import { announcementSeedScript } from '@/lib/announcement-cache';
 import { NatsAppProvider } from '@/lib/nats/nats-app-provider';
 import {
   MANHATTAN_WORK_AREA_STORAGE_KEY,
@@ -134,15 +135,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             // The Manhattan v2 divider's place too, so the first paint draws the split where the user left it,
             // and the chat column the user closed, so the first paint draws the page alone (CU-17tkuw66xzn).
             // The super user strip's room (`super-user-seed.ts`) in every mode, as the strip mounts in every
-            // shell; it marks nothing unless the stored session was a super user's. `/auth?email=` leaves the address
-            // here, before GTM and the attribution read it (`signup-email-seed.ts`), and so does the desktop
-            // hand-off's `started_in`, kept for the sign-up in this tab (`signup-started-in.ts`).
+            // shell; it marks nothing unless the stored session was a super user's. The hub announcement's room
+            // (`announcement-cache.ts`), for a stored one that would draw a bar here (CU-17tkuw69v1p). `/auth?email=`
+            // leaves the address here, before GTM and the attribution read it (`signup-email-seed.ts`), and so does
+            // the desktop hand-off's `started_in`, kept for the sign-up in this tab (`signup-started-in.ts`).
             __html:
               sidebarWidthFoucScript(isSaasTenantMode()) +
               (isSaasTenantMode()
                 ? workAreaShareSeedScript(MANHATTAN_WORK_AREA_STORAGE_KEY) + manhattanChatClosedSeedScript()
                 : '') +
               superUserSeedScript() +
+              announcementSeedScript(runtimeEnv.libPlatform()) +
               signupEmailSeedScript() +
               signupStartedInSeedScript(),
           }}

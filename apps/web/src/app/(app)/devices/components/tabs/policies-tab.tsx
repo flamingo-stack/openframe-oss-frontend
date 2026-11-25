@@ -11,6 +11,7 @@ import { tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { routes } from '@/lib/routes';
 import type { Device, DevicePolicy } from '../../types/device.types';
 import { TabEmptyState } from './tab-empty-state';
+import { TabUnsupportedEmptyState } from './tab-unsupported-empty-state';
 
 interface PoliciesTabProps {
   device: Device | null;
@@ -72,6 +73,11 @@ export function PoliciesTab({ device }: PoliciesTabProps) {
         description="Compliance policies for this device will appear here."
       />
     );
+  }
+
+  // An OS below Fleet's minimum and no live Fleet: policies are evaluated by Fleet, so none will ever report here.
+  if (!loading && device?.sources?.fleet === 'skipped-unsupported') {
+    return <TabUnsupportedEmptyState icon={<FolderShieldIcon />} />;
   }
 
   // Genuinely no policies (no data before any search/filter manipulation) → the
