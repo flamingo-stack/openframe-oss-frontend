@@ -85,13 +85,15 @@ const DISMISSAL_SUFFIX = '-announcement-dismissed';
 /**
  * Runs in `<head>` before paint. Marks `<html>` when the stored answer is fresh and would draw a bar here, by the
  * lib bar's own rules: for this surface, not under one of its `excluded_paths` (whole-path patterns, matched with
- * and without the trailing slash `trailingSlash` adds), and not dismissed. The dismissal is found by its name's
- * suffix (the prefix is the lib's platform, and a host serves one platform's cookie): the cookie where cookies
- * work, else the lib's localStorage fallback under the same name, else the legacy per-id key.
+ * and without the trailing slash `trailingSlash` adds), and not dismissed. The dismissal is the lib's entry for
+ * `platform` (`runtimeEnv.libPlatform()`): the cookie where cookies work, else its localStorage fallback under the
+ * same name, else the legacy per-id key. When no entry of that platform exists, an entry of any platform is taken
+ * (a host serves one platform's announcements; this keeps a build whose platform differs from the lib's working).
  */
-export function announcementSeedScript(): string {
+export function announcementSeedScript(platform: string): string {
   const key = JSON.stringify(ANNOUNCEMENT_STORAGE_KEY);
   const suffix = JSON.stringify(DISMISSAL_SUFFIX);
+  const own = JSON.stringify(`${platform}${DISMISSAL_SUFFIX}`);
   return (
     `(function(){try{` +
     `var s=JSON.parse(localStorage.getItem(${key}));` +
@@ -101,9 +103,10 @@ export function announcementSeedScript(): string {
     `if(a.surfaces&&a.surfaces.length&&a.surfaces.indexOf(s.surface)<0)return;` +
     `var p=location.pathname,q=p.length>1&&p.charAt(p.length-1)==='/'?p.slice(0,-1):p,x=a.excluded_paths||[];` +
     `for(var i=0;i<x.length;i++){try{var r=new RegExp('^(?:'+String(x[i]).trim()+')$');if(r.test(p)||r.test(q))return}catch(e){}}` +
-    `var u=${suffix},d,k,j;` +
-    `if(/^https?:/.test(document.URL)){var c=document.cookie?document.cookie.split('; '):[];for(j=0;j<c.length;j++){k=c[j].indexOf('=');if(k>0&&c[j].slice(0,k).slice(-u.length)===u){d=decodeURIComponent(c[j].slice(k+1));break}}}` +
-    `else{for(j=0;j<localStorage.length;j++){k=localStorage.key(j);if(k&&k.slice(-u.length)===u){d=JSON.parse(localStorage.getItem(k));break}}}` +
+    `var u=${suffix},o=${own},d,f,k,n,j;` +
+    `if(/^https?:/.test(document.URL)){var c=document.cookie?document.cookie.split('; '):[];for(j=0;j<c.length;j++){k=c[j].indexOf('=');n=k>0?c[j].slice(0,k):'';if(n===o){d=decodeURIComponent(c[j].slice(k+1));break}if(f===undefined&&n.slice(-u.length)===u)f=decodeURIComponent(c[j].slice(k+1))}}` +
+    `else{var v=localStorage.getItem(o);if(v!==null)d=JSON.parse(v);else for(j=0;j<localStorage.length;j++){k=localStorage.key(j);if(k&&k.slice(-u.length)===u){f=JSON.parse(localStorage.getItem(k));break}}}` +
+    `if(d===undefined)d=f;` +
     `if(d!==undefined){if(d===a.id)return}` +
     `else{var l='-announcement-'+a.id+'-dismissed';for(j=0;j<localStorage.length;j++){k=localStorage.key(j);if(k&&k.slice(-l.length)===l)return}}` +
     `var e=document.documentElement;e.setAttribute('${ANNOUNCEMENT_SEED_ATTRIBUTE}','');` +

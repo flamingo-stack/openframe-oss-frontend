@@ -73,7 +73,7 @@ describe('readStoredAnnouncement / storeAnnouncement', () => {
 describe('announcementSeedScript', () => {
   function seed(): boolean {
     // The script is ours, built from constants: what runs in `<head>` runs here.
-    new Function(announcementSeedScript())();
+    new Function(announcementSeedScript('openmsp'))();
     return html.hasAttribute(ANNOUNCEMENT_SEED_ATTRIBUTE);
   }
 
@@ -126,6 +126,24 @@ describe('announcementSeedScript', () => {
     expect(seed()).toBe(false);
     document.cookie = `${COOKIE}=a-0; path=/`;
     expect(seed()).toBe(true);
+  });
+
+  it("prefers this platform's dismissal over another platform's on the same host", () => {
+    storeFresh(announcement());
+    document.cookie = 'aaa-announcement-dismissed=a-0; path=/';
+    document.cookie = `${COOKIE}=a-1; path=/`;
+    expect(seed()).toBe(false);
+    document.cookie = `${COOKIE}=a-0; path=/`;
+    document.cookie = 'aaa-announcement-dismissed=a-1; path=/';
+    expect(seed()).toBe(true);
+    document.cookie = 'aaa-announcement-dismissed=; path=/; max-age=0';
+  });
+
+  it("takes another platform's dismissal when this platform has none", () => {
+    storeFresh(announcement());
+    document.cookie = 'openframe-announcement-dismissed=a-1; path=/';
+    expect(seed()).toBe(false);
+    document.cookie = 'openframe-announcement-dismissed=; path=/; max-age=0';
   });
 
   it('honours the legacy per-id dismissal when there is no cookie', () => {

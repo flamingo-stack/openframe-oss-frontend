@@ -9,7 +9,9 @@ import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ANNOUNCEMENT_SEED_ATTRIBUTE, readStoredAnnouncement, storeAnnouncement } from '@/lib/announcement-cache';
-import { AnnouncementBarSeed, AnnouncementSlot, AnnouncementTopBar } from './announcement-top-bar';
+import { AnnouncementBarSeed } from './announcement-bar-seed';
+import { AnnouncementSlot } from './announcement-slot';
+import { AnnouncementTopBar } from './announcement-top-bar';
 
 const env = vi.hoisted(() => ({ fetch: vi.fn<(url: string, init?: RequestInit) => Promise<Response>>() }));
 

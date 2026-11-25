@@ -143,7 +143,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 ? workAreaShareSeedScript(MANHATTAN_WORK_AREA_STORAGE_KEY) + manhattanChatClosedSeedScript()
                 : '') +
               superUserSeedScript() +
-              announcementSeedScript() +
+              announcementSeedScript(runtimeEnv.libPlatform()) +
               signupEmailSeedScript(),
           }}
         />

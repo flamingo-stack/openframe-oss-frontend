@@ -44,7 +44,8 @@ import {
   MANHATTAN_END_SIDEBAR_CLASS,
   SIDEBAR_RESIZE,
 } from '../../lib/navigation-sidebar-state';
-import { AnnouncementBarSeed, AnnouncementSlot } from './announcement-top-bar';
+import { AnnouncementBarSeed } from './announcement-bar-seed';
+import { AnnouncementSlot } from './announcement-slot';
 import {
   APP_MAIN_CLASS_NAME,
   headerLoadingCells,

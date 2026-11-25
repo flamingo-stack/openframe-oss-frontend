@@ -20,6 +20,7 @@ import { useEffect, useState } from 'react';
 import { CONTENT_ENDPOINTS } from '@/app/(app)/help-center/endpoints';
 import { readStoredAnnouncement, storeAnnouncement } from '@/lib/announcement-cache';
 import { shellKind } from '@/lib/platform';
+import { sessionPollMeta, sessionRetry } from '@/lib/session-poll';
 
 const ANNOUNCEMENT_URL = CONTENT_ENDPOINTS.announcementsUrl;
 const REVALIDATE_AFTER_MS = 60_000;
@@ -47,6 +48,11 @@ export function useActiveAnnouncement(): Announcement | null {
     queryFn: fetchActiveAnnouncement,
     staleTime: REVALIDATE_AFTER_MS,
     refetchOnWindowFocus: true,
+    // The 426 and the deleted-tenant 410 are `embedAuthedFetch`'s, through the app's auth adapter
+    // (`embed-auth-adapter.ts`: `beforeRequest` / `onResponse`). Here: no retries while the session is paused or
+    // gone, and a refetch when it comes back (`resumeSessionPolls` finds the query by its meta).
+    retry: sessionRetry(3),
+    meta: sessionPollMeta,
     // The stored answer as of when it was fetched: a fresh one is not asked again, an older one is, and an
     // unchanged answer keeps the stored object (structural sharing), so the bar does not re-render it.
     ...(stored ? { initialData: stored.announcement, initialDataUpdatedAt: stored.storedAt } : {}),
