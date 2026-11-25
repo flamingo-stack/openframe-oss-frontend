@@ -44,7 +44,8 @@ import {
   MANHATTAN_END_SIDEBAR_CLASS,
   SIDEBAR_RESIZE,
 } from '../../lib/navigation-sidebar-state';
-import { AnnouncementTopBar } from './announcement-top-bar';
+import { AnnouncementBarSeed } from './announcement-bar-seed';
+import { AnnouncementSlot } from './announcement-slot';
 import {
   APP_MAIN_CLASS_NAME,
   headerLoadingCells,
@@ -341,7 +342,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
    * slot only after the hub announcement: it is reported here whether the announcement shows.
    */
   const outdatedClientCount = useOutdatedClientCount(sessionReady && !isLocked);
-  const [announcementShown, setAnnouncementShown] = useState(false);
 
   // Mingo — the composer dock, the chat history, the Mingo rows — is meaningful only
   // inside the full, unlocked app shell (it hits authed endpoints), so the
@@ -774,13 +774,21 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     // it only runs with one, and the announcement fetches on mount. The
     // Mingo-first shell loads no progress and asks the session directly.
     topBar = (
-      <>
-        <AnnouncementTopBar onExpandedChange={setAnnouncementShown} />
-        {!announcementShown && outdatedClientCount > 0 && (
-          <OutdatedClientBar onManage={() => router.push(OUTDATED_CLIENT_DEVICES_HREF)} />
-        )}
-      </>
+      <AnnouncementSlot
+        whileHidden={
+          outdatedClientCount > 0 ? (
+            <OutdatedClientBar onManage={() => router.push(OUTDATED_CLIENT_DEVICES_HREF)} />
+          ) : undefined
+        }
+      />
     );
+  } else if (!sessionResolved || (sessionReady && !isLocked && withOnboarding && chromeLoading)) {
+    // The slot is not open YET (`/me`, or the dashboard shell's onboarding progress, has not answered): the
+    // announcement's room, for a stored one that would draw a bar here (`announcement-cache.ts` marks `<html>`
+    // before paint; hidden otherwise), so the page does not move down when the bar arrives (CU-17tkuw69v1p). Only
+    // while the slot can still open: never on a locked workspace (the lock screen answers first above), and the
+    // progress wait is bounded by `chromeLoading`'s fail-open, so the room never outlives the wait.
+    topBar = <AnnouncementBarSeed />;
   }
 
   const displayName = useMemo(
