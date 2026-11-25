@@ -15,6 +15,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { oneLineEmptyState } from '@/app/components/shared/empty-state';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { ResponsiveActionButton } from '@/app/components/shared/responsive-action-button';
+import { useTableGrid } from '@/app/components/shared/table-layout-scope';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { routes } from '@/lib/routes';
@@ -38,6 +39,8 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
+  // The layout the customer's page asks for.
+  const tableGrid = useTableGrid('customer-tickets');
 
   // Scoped on the server (`TicketFilterInput.organizationIds`): a ticket counts as the customer's
   // only through its own `organizationId`, not through the owning machine's current organization.
@@ -59,7 +62,8 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
   });
 
   const { isUserDeleted } = useUserStatusMap(tickets.map(ticket => ticket.assignedTo));
-  // The shared ticket columns and the trailing open-in-new-tab action.
+  // The shared ticket columns and the trailing open-in-new-tab action: both state their own grid form (widths, one-line
+  // cells, the action column), so the tab takes them as they are.
   const columns = useMemo<ColumnDef<Dialog>[]>(
     () => [...getTicketTableColumns({ isArchived: false, isUserDeleted }), getTicketOpenColumn()],
     [isUserDeleted],
@@ -104,12 +108,13 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
         ref={toolbarRef}
         className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
       >
-        <SearchInput value={search} onChange={setSearch} placeholder="Search for Tickets" />
+        <SearchInput value={search} onChange={setSearch} placeholder="Search for Tickets" showDropdown={false} />
       </div>
 
       {/* The first page is a client read: the table draws its own loading state in this scope. */}
       <LoadingWhen loading={loading}>
         <LiveTable
+          {...tableGrid}
           table={table}
           pageSize={TICKETS_PAGE_SIZE}
           isPending={isPending}

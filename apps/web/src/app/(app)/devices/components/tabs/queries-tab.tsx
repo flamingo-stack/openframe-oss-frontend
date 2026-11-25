@@ -1,16 +1,19 @@
 'use client';
 
 import { BracketCurlyEllipsisVrIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Input, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Input, LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
+import { DEVICE_QUERIES_TABLE_SETTINGS } from '@/app/(app)/monitoring/components/monitoring-table-settings';
 import { useQueries } from '@/app/(app)/monitoring/hooks/use-queries';
 import { formatQueryInterval, QueriesTable, type QueryTableRow } from '@/app/components/shared';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { routes } from '@/lib/routes';
 import { useHostQueries } from '../../hooks/use-host-queries';
 import type { Device } from '../../types/device.types';
 import { TabEmptyState } from './tab-empty-state';
+import { TabUnsupportedEmptyState } from './tab-unsupported-empty-state';
 
 /**
  * Rows drawn while the device's query reports are read. The reports come as one unpaged list with no limit: a typical
@@ -27,6 +30,8 @@ export function QueriesTab({ device }: QueriesTabProps) {
   const router = useRouter();
   const [search, setSearch] = useState('');
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
+  // The table the `data-table-grid` flag picks. Until the flag answers the table is in a loading scope.
+  const tableGate = useTableGridGate();
 
   // The host↔query set comes from `/fleet/hosts/{id}/queries` (the only host-filtered
   // endpoint). Frequency isn't in that payload, so we join the global `/fleet/queries`
@@ -68,6 +73,12 @@ export function QueriesTab({ device }: QueriesTabProps) {
     );
   }
 
+  // An OS below Fleet's minimum and no live Fleet: queries run in Fleet's osquery, so none will ever run here. Known
+  // from the device alone, so it does not wait for the query lists.
+  if (!scopeLoading && device?.sources?.fleet === 'skipped-unsupported') {
+    return <TabUnsupportedEmptyState icon={<BracketCurlyEllipsisVrIcon />} />;
+  }
+
   // No queries assigned to this host at all → the centered design empty state
   // matching the other tabs; the in-table empty stays for searches.
   if (!loading && hostReports.length === 0) {
@@ -102,20 +113,25 @@ export function QueriesTab({ device }: QueriesTabProps) {
         </div>
       )}
 
-      <QueriesTable
-        rows={rows}
-        isLoading={loading}
-        skeletonRows={QUERIES_TAB_SKELETON_ROWS}
-        rowAsLink
-        stickyHeaderOffset={stickyHeaderOffset}
-        emptyState={{
-          icon: <BracketCurlyEllipsisVrIcon />,
-          title: 'No queries found',
-          description: search.trim()
-            ? `No results for "${search.trim()}".`
-            : 'Scheduled queries for this device will appear here.',
-        }}
-      />
+      <LoadingWhen loading={tableGate === 'loading'}>
+        <QueriesTable
+          rows={rows}
+          isLoading={loading}
+          skeletonRows={QUERIES_TAB_SKELETON_ROWS}
+          rowAsLink
+          stickyHeaderOffset={stickyHeaderOffset}
+          // No height of its own: the table is a tab of the device's page, which scrolls.
+          layout={tableLayoutFor(tableGate)}
+          settings={DEVICE_QUERIES_TABLE_SETTINGS}
+          emptyState={{
+            icon: <BracketCurlyEllipsisVrIcon />,
+            title: 'No queries found',
+            description: search.trim()
+              ? `No results for "${search.trim()}".`
+              : 'Scheduled queries for this device will appear here.',
+          }}
+        />
+      </LoadingWhen>
     </div>
   );
 }

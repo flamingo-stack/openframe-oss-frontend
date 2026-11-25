@@ -5,7 +5,6 @@ import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/compone
 import {
   type DeviceSelectionMode,
   DeviceSelectionModeRadio,
-  DeviceSelector,
   type DeviceSelectorNarrowing,
   EMPTY_NARROWING,
   narrowingToFilter,
@@ -22,6 +21,7 @@ import { type ComponentProps, type ReactNode, useCallback, useMemo, useState } f
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptScheduleDevicesSettingsRelayQuery as ScheduleDevicesSettingsQueryType } from '@/__generated__/scriptScheduleDevicesSettingsRelayQuery.graphql';
 import { NO_ITEMS, noop } from '@/app/components/shared';
+import { DEVICE_PICKER_TABLE_KEY, DevicePicker } from '@/app/components/shared/device-selector/device-picker';
 import { DEVICE_PICKER_PAGE_SIZE } from '@/app/components/shared/device-selector/picker-narrowing';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
@@ -185,7 +185,11 @@ function ScheduleDevicesShell({ scheduleId }: ScheduleDevicesViewProps) {
  */
 function SchedulePickerLoading({ mode }: { mode: DeviceSelectionMode }) {
   return (
-    <DeviceSelector
+    <DevicePicker
+      // The key of the picker this stands in for: the loading rows are drawn in the layout it will load with.
+      tableStorageKey={
+        mode === 'criteria' ? DEVICE_PICKER_TABLE_KEY.scheduleCriteria : DEVICE_PICKER_TABLE_KEY.schedule
+      }
       devices={NO_ITEMS}
       loading
       // One picker page of rows, the page the halves read first; the fallback around it already announces itself.

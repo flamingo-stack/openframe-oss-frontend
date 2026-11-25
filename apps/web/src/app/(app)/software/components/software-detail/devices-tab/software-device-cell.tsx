@@ -5,8 +5,9 @@ import {
   DeviceLifecycleTag,
   DeviceTypeTile,
   getDeviceName,
+  renderDeviceTypeIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { DataTable, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { softwareDeviceCell_machine$key } from '@/__generated__/softwareDeviceCell_machine.graphql';
 import { ValueText } from '@/app/components/shared';
@@ -59,5 +60,35 @@ export function SoftwareDeviceCell({ machine }: { machine: softwareDeviceCell_ma
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * DEVICE column in the grid layout: one line, the connectivity icon (the type icon in the legacy display), the name,
+ * its status chip, then the customer.
+ */
+export function SoftwareDeviceGridCell({ machine }: { machine: softwareDeviceCell_machine$key }) {
+  // A row still being read (a loading scope) has no fragment to read: the icon and the name draw their loading forms.
+  const data = useFragment(softwareDeviceCellFragment, useLoadingScope() ? null : machine);
+  return (
+    <DataTable.Cell
+      leading={{
+        type: 'icon',
+        icon: (
+          <DeviceConnectivityIcon
+            connectivity={data?.connectivity}
+            lastSeen={data?.lastSeen}
+            size={20}
+            className="size-5"
+            legacyIcon={renderDeviceTypeIcon(data?.type ?? undefined, 'size-5')}
+          />
+        ),
+      }}
+      text={
+        data ? getDeviceName({ nickname: data.nickname, displayName: data.displayName, hostname: data.hostname }) : ''
+      }
+      tag={data?.status && <DeviceLifecycleTag status={data.status} connectivity={data.connectivity ?? null} />}
+      secondary={data?.organization?.name ?? undefined}
+    />
   );
 }

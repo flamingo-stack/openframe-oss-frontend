@@ -1,9 +1,9 @@
 'use client';
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
-import { OpenInNewTabCell } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   type ColumnDef,
+  LoadingWhen,
   type Row,
   useDataTable,
   useLoadingScope,
@@ -26,8 +26,15 @@ import {
 } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { useRowDialog } from '@/app/components/shared/use-row-dialog';
+import { useGridTableProps } from '@/app/hooks/use-table-layout';
 import { routes } from '@/lib/routes';
 import { UnarchiveArticleModal } from '../dialogs/unarchive-article-modal';
+import {
+  KNOWLEDGE_BASE_DATE_GRID,
+  KNOWLEDGE_BASE_NAME_GRID,
+  knowledgeBaseMenuColumn,
+  knowledgeBaseOpenColumn,
+} from '../shared/knowledge-base-grid-columns';
 import { KNOWLEDGE_BASE_ITEM_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
 import { KnowledgeBaseItemNameCell } from '../shared/knowledge-base-item-name-cell';
 import { useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
@@ -84,31 +91,32 @@ function buildColumns(onUnarchive: (row: ArchivedRow) => void): ColumnDef<Archiv
       header: KNOWLEDGE_BASE_ITEM_COLUMNS.name.header,
       cell: ({ row }: { row: Row<ArchivedRow> }) => <KnowledgeBaseItemNameCell item={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(KNOWLEDGE_BASE_ITEM_COLUMNS.name),
+      ...KNOWLEDGE_BASE_NAME_GRID,
+      meta: liveColumnMeta(KNOWLEDGE_BASE_ITEM_COLUMNS.name, {
+        label: 'Name',
+        gridCell: ({ row }: { row: Row<ArchivedRow> }) => <KnowledgeBaseItemNameCell item={row.original} grid />,
+      }),
     },
     {
       id: ARCHIVED_COLUMN.id,
       header: ARCHIVED_COLUMN.header,
       cell: ({ row }: { row: Row<ArchivedRow> }) => <ArchivedArticleDateCell article={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(ARCHIVED_COLUMN),
+      ...KNOWLEDGE_BASE_DATE_GRID,
+      meta: liveColumnMeta(ARCHIVED_COLUMN, {
+        label: 'Archived',
+        gridCell: ({ row }: { row: Row<ArchivedRow> }) => <ArchivedArticleDateCell article={row.original} grid />,
+      }),
     },
-    {
-      id: KNOWLEDGE_BASE_ITEM_COLUMNS.actions.id,
-      cell: ({ row }: { row: Row<ArchivedRow> }) => (
-        <ArchivedArticleActionsCell onUnarchive={() => onUnarchive(row.original)} />
-      ),
-      enableSorting: false,
-      meta: liveColumnMeta(KNOWLEDGE_BASE_ITEM_COLUMNS.actions),
-    },
-    {
-      id: KNOWLEDGE_BASE_ITEM_COLUMNS.open.id,
-      cell: ({ row }: { row: Row<ArchivedRow> }) => <OpenInNewTabCell href={rowHref(row.original)} />,
-      enableSorting: false,
-      meta: liveColumnMeta(KNOWLEDGE_BASE_ITEM_COLUMNS.open),
-    },
+    knowledgeBaseMenuColumn<ArchivedRow>(({ row }) => (
+      <ArchivedArticleActionsCell onUnarchive={() => onUnarchive(row.original)} />
+    )),
+    knowledgeBaseOpenColumn<ArchivedRow>(rowHref),
   ];
 }
+
+/** The key of the viewer's saved column layout. */
+const ARCHIVE_TABLE_KEY = 'knowledge-base-archive';
 
 interface ArchivedArticlesTableProps {
   /** Deferred — feeds the query (lags the search box during a refetch). */
@@ -135,15 +143,21 @@ export function ArchivedArticlesTable(props: ArchivedArticlesTableProps) {
 
 /** In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read. */
 function ArchivedArticlesTableReader(props: ArchivedArticlesTableProps) {
-  if (useLoadingScope()) {
+  const scoped = useLoadingScope();
+  // While the table flag is read the table draws its loading state too (and reads nothing): it never draws one layout
+  // and swaps to the other.
+  const { loading: flagLoading } = useGridTableProps(ARCHIVE_TABLE_KEY, { fill: true });
+  if (scoped || flagLoading) {
     return (
-      <ArchivedArticlesRows
-        {...props}
-        rows={NO_ITEMS}
-        totalCount={0}
-        listingIds={NO_ITEMS}
-        infiniteScroll={NO_NEXT_PAGE}
-      />
+      <LoadingWhen loading>
+        <ArchivedArticlesRows
+          {...props}
+          rows={NO_ITEMS}
+          totalCount={0}
+          listingIds={NO_ITEMS}
+          infiniteScroll={NO_NEXT_PAGE}
+        />
+      </LoadingWhen>
     );
   }
   return <ArchivedArticlesTableQuery {...props} />;
@@ -203,6 +217,9 @@ function ArchivedArticlesRows({
   stickyHeaderOffset,
 }: ArchivedArticlesRowsProps) {
   const loading = useLoadingScope();
+  // The new grid table, behind the app's one table flag; card rows while it is off. The list is the page's main
+  // content, so in the grid it is the page's scroll area.
+  const tableGrid = useGridTableProps(ARCHIVE_TABLE_KEY, { fill: true });
   const { dialog, open: openDialog, close: closeDialog } = useRowDialog<ArchivedRow, 'unarchive'>();
 
   // While the page is read the table holds one page of placeholder rows, drawn with their real cells.
@@ -237,6 +254,9 @@ function ArchivedArticlesRows({
         footer={rows.length > 0 ? infiniteScroll : null}
         isPending={isPending}
         stickyHeaderOffset={stickyHeaderOffset}
+        layout={tableGrid.layout}
+        maxHeight={tableGrid.maxHeight}
+        settings={tableGrid.settings}
       />
 
       {dialog && (

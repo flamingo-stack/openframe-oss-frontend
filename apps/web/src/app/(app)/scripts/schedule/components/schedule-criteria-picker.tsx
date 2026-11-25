@@ -1,6 +1,6 @@
 'use client';
 
-import { type DeviceFilters, DeviceSelector } from '@flamingo-stack/openframe-frontend-core/components/features';
+import type { DeviceFilters } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useCallback, useMemo } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type {
@@ -12,6 +12,7 @@ import type { scheduleDevicePickerRelayQuery as AvailableQueryType } from '@/__g
 import { DeviceFacets } from '@/app/(app)/devices/components/device-facets';
 import { useDeviceEpoch } from '@/app/(app)/devices/utils/device-refresh';
 import { ContentErrorBoundary } from '@/app/components/shared/content-error-boundary';
+import { DEVICE_PICKER_TABLE_KEY, DevicePicker } from '@/app/components/shared/device-selector/device-picker';
 import { DEVICE_PICKER_PAGE_SIZE, toDevices } from '@/app/components/shared/device-selector/picker-narrowing';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
@@ -90,7 +91,8 @@ export function ScheduleCriteriaPicker({ scheduleId, criteria, onCriteriaChange,
   );
 
   return (
-    <DeviceSelector
+    <DevicePicker
+      tableStorageKey={DEVICE_PICKER_TABLE_KEY.scheduleCriteria}
       devices={rows}
       loading={false}
       disabled={busy}

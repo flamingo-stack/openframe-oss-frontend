@@ -2,13 +2,16 @@
 
 import { PoliciesTable, type PolicyTableRow } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { FolderShieldIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Input, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Input, LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
+import { DEVICE_POLICIES_TABLE_SETTINGS } from '@/app/(app)/monitoring/components/monitoring-table-settings';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { routes } from '@/lib/routes';
 import type { Device, DevicePolicy } from '../../types/device.types';
 import { TabEmptyState } from './tab-empty-state';
+import { TabUnsupportedEmptyState } from './tab-unsupported-empty-state';
 
 interface PoliciesTabProps {
   device: Device | null;
@@ -35,6 +38,8 @@ export function PoliciesTab({ device }: PoliciesTabProps) {
   const router = useRouter();
   const [search, setSearch] = useState('');
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
+  // Which table the tab draws (`data-table-grid`). Until the flag answers the table is in a loading scope.
+  const tableGate = useTableGridGate();
 
   const policies = useMemo(() => device?.policies ?? [], [device]);
 
@@ -68,6 +73,11 @@ export function PoliciesTab({ device }: PoliciesTabProps) {
         description="Compliance policies for this device will appear here."
       />
     );
+  }
+
+  // An OS below Fleet's minimum and no live Fleet: policies are evaluated by Fleet, so none will ever report here.
+  if (!loading && device?.sources?.fleet === 'skipped-unsupported') {
+    return <TabUnsupportedEmptyState icon={<FolderShieldIcon />} />;
   }
 
   // Genuinely no policies (no data before any search/filter manipulation) → the
@@ -106,20 +116,25 @@ export function PoliciesTab({ device }: PoliciesTabProps) {
         </div>
       )}
 
-      <PoliciesTable
-        rows={rows}
-        isLoading={loading}
-        stickyHeader
-        stickyHeaderOffset={stickyHeaderOffset}
-        rowAsLink
-        emptyState={{
-          icon: <FolderShieldIcon />,
-          title: 'No policies applied',
-          description: search.trim()
-            ? `No results for "${search.trim()}".`
-            : 'Compliance policies for this device will appear here.',
-        }}
-      />
+      <LoadingWhen loading={tableGate === 'loading'}>
+        <PoliciesTable
+          rows={rows}
+          isLoading={loading}
+          stickyHeader
+          stickyHeaderOffset={stickyHeaderOffset}
+          rowAsLink
+          // No height of its own: the tab is a section of the device's page, which scrolls.
+          layout={tableLayoutFor(tableGate)}
+          tableSettings={DEVICE_POLICIES_TABLE_SETTINGS}
+          emptyState={{
+            icon: <FolderShieldIcon />,
+            title: 'No policies applied',
+            description: search.trim()
+              ? `No results for "${search.trim()}".`
+              : 'Compliance policies for this device will appear here.',
+          }}
+        />
+      </LoadingWhen>
     </div>
   );
 }

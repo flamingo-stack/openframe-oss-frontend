@@ -78,6 +78,12 @@ export const FEATURE_FLAG_NAMES = [
   // Off = Force Update alone, and a Wait & notify is submitted as Force Update.
   // Absent everywhere until the notifications ship, which reads as off.
   'software-update-notifications',
+  // Adopt (`/software/adopt`): reinstalling a title installed by hand through a
+  // package manager, the "installed manually" banner, the adoption chips on a
+  // title's devices and the All Software Adoption column. Off = none of it, and
+  // no query asks for an adoption field, which a backend before oss-lib #3102
+  // rejects. On for dev / qa, absent elsewhere, which reads as off.
+  'software-adopt',
   // "Compact chat memory" under the Mingo composer: summarizes a dialog's AI
   // context on demand. Off = the action is absent; auto-compaction is
   // unaffected either way.
@@ -86,6 +92,10 @@ export const FEATURE_FLAG_NAMES = [
   // tokens and this chat's context. The backend reads the same key. Off = the
   // counter keeps its hover card. On for dev / qa, false elsewhere.
   'mingo-chat-usage',
+  // Per-chat model in Mingo: picked in the chat's and the composer's ⋯ menus, the
+  // footer name only shows it, and AI Settings stops offering the Mingo model.
+  // Off = one model for every chat, chosen in AI Settings. Needs saas-tenant #4610.
+  'ai-mingo-chat-model-selection',
   // AI-first onboarding: the full-screen `/setup` wizard in place of the
   // dashboard's Initial Setup card, and the Getting Started tour in Mingo (the
   // block above the docked composer, in the tour's conversation) in place of
@@ -121,6 +131,16 @@ export const FEATURE_FLAG_NAMES = [
   // (`openframe.features.devices.managed-status.enabled`) on or off. On for
   // dev / qa, absent elsewhere, which reads as off.
   'device-managed-status',
+  // The dashboard's GraphQL (`/api/graphql` and `/chat/graphql`, Relay and raw
+  // POST) goes through the federation router at `/api/router/graphql`
+  // (`graphql-router.ts`). On where the router runs (dev), absent elsewhere,
+  // which reads as off: the router path fails there.
+  'graphql-router',
+  // Email to ticket (Settings → Email to ticket): the support mailboxes whose forwarded mail becomes tickets, over the
+  // mailbox API that the backend serves only under its own `openframe.features.email-to-ticket.enabled`. Off = no
+  // Settings card and every `/settings/email-to-ticket` route 404s. Turn it on only where that backend flag is on: the
+  // frontend would otherwise ask for a schema that is not there.
+  'email-to-ticket',
 ] as const;
 
 export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[number];
@@ -259,6 +279,16 @@ export const featureFlags = {
   softwareManagement: {
     enabled(): boolean {
       return getFlagValue('software-management', () => false);
+    },
+  },
+  /**
+   * GraphQL through the federation router, read per request by
+   * `graphqlPath()`. Not answered yet reads as off: the subgraphs' own paths
+   * work wherever the router does.
+   */
+  graphqlRouter: {
+    enabled(): boolean {
+      return getFlagValue('graphql-router', () => false);
     },
   },
 } as const;

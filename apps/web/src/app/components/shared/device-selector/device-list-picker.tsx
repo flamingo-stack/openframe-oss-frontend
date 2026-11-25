@@ -2,20 +2,16 @@
 
 import { LoadError } from '@flamingo-stack/openframe-frontend-core';
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
-import {
-  type DeviceFilterInput,
-  DeviceSelector,
-  type DeviceSelectorProps,
-  ErrorBoundary,
-} from '@flamingo-stack/openframe-frontend-core/components/features';
+import { type DeviceFilterInput, ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback, useMemo, useState } from 'react';
 import { DEVICE_LIST_LIMIT, useDeviceList } from '@/app/(app)/devices/hooks/use-device-list';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { NO_ITEMS } from '../no-next-page';
+import { DevicePicker, type DevicePickerProps } from './device-picker';
 
 export type DeviceListPickerProps = Omit<
-  DeviceSelectorProps<Device>,
+  DevicePickerProps<Device>,
   'devices' | 'loading' | 'selectedIds' | 'onSelectionChange' | 'getDeviceKey'
 > & {
   filter?: DeviceFilterInput;
@@ -58,7 +54,7 @@ function DeviceListPickerContent({
   );
 
   return (
-    <DeviceSelector
+    <DevicePicker
       {...selectorProps}
       devices={devices}
       // The query has resolved by the time this renders — the boundaries below
@@ -83,7 +79,7 @@ function LoadingDeviceListPicker({
   ...selectorProps
 }: DeviceListPickerProps) {
   return (
-    <DeviceSelector {...selectorProps} devices={NO_ITEMS} loading skeletonRows={first} getDeviceKey={getDeviceKey} />
+    <DevicePicker {...selectorProps} devices={NO_ITEMS} loading skeletonRows={first} getDeviceKey={getDeviceKey} />
   );
 }
 

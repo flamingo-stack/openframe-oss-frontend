@@ -14,6 +14,7 @@ import { getAgentFooter } from '../../utils/agent-footer';
 import {
   getExpectedAgentTypes,
   getToolConnectionDisplayStatus,
+  getUnsupportedTool,
   type ToolConnectionDisplayStatus,
 } from '../../utils/tool-connection-status';
 import { TabEmptyState } from './tab-empty-state';
@@ -98,10 +99,19 @@ type CombinedAgent = {
   updatedAt: string | undefined;
 };
 
+/** The agents that do not run where Fleet does not: osquery ships inside the Fleet agent, and Orbit starts it. */
+const FLEET_BUNDLED_TOOL_TYPES = new Set(['FLEET_MDM', 'OSQUERY']);
+
 /** One card per installed agent, tool connection and expected agent not reported yet, in a stable order. */
 function combineAgents(device: Device): CombinedAgent[] {
   const toolConnections = Array.isArray(device?.toolConnections) ? device.toolConnections : [];
   const installedAgents = Array.isArray(device?.installedAgents) ? device.installedAgents : [];
+
+  // An OS below Fleet's minimum: Fleet and the osquery it bundles show Not supported whatever their connection
+  // says (a Fleet that still runs there is about to be removed), never Pending.
+  const fleetUnsupported = getUnsupportedTool(device, 'FLEET_MDM') !== undefined;
+  const supportAware = (toolType: string, status: ToolConnectionDisplayStatus): ToolConnectionDisplayStatus =>
+    fleetUnsupported && FLEET_BUNDLED_TOOL_TYPES.has(toolType) ? 'not-supported' : status;
 
   const connectionMap = new Map<string, ToolConnection>();
   toolConnections.forEach((tc: ToolConnection) => {
@@ -120,7 +130,7 @@ function combineAgents(device: Device): CombinedAgent[] {
       agentToolId: connection?.agentToolId,
       hasConnection: !!connection,
       isPlaceholder: false,
-      status: getAgentDisplayStatus(toolType, connection),
+      status: supportAware(toolType, getAgentDisplayStatus(toolType, connection)),
       lastSeen: connection?.lastSeen,
       lastFetched: connection?.lastFetched,
       updatedAt: agent.updatedAt as string | undefined,
@@ -140,7 +150,7 @@ function combineAgents(device: Device): CombinedAgent[] {
         agentToolId: tc.agentToolId,
         hasConnection: true,
         isPlaceholder: false,
-        status: getAgentDisplayStatus(tc.toolType, tc),
+        status: supportAware(tc.toolType, getAgentDisplayStatus(tc.toolType, tc)),
         lastSeen: tc.lastSeen,
         lastFetched: tc.lastFetched,
         // lastSyncAt is dead on the backend (never written on normal syncs) — the
@@ -163,7 +173,7 @@ function combineAgents(device: Device): CombinedAgent[] {
       agentToolId: undefined,
       hasConnection: false,
       isPlaceholder: true,
-      status: 'pending',
+      status: supportAware(toolType, 'pending'),
       lastSeen: undefined,
       lastFetched: undefined,
       updatedAt: undefined,
@@ -179,8 +189,9 @@ function combineAgents(device: Device): CombinedAgent[] {
 }
 
 /**
- * An agent's status as its tag: the tool connection's own display status (online / offline / pending), not the
- * device's lifecycle, so it has its own mapper rather than the device's.
+ * An agent's status as its tag: the tool connection's own display status (online / offline / pending, or
+ * not-supported when the device's OS is below the agent's minimum), not the device's lifecycle, so it has its own
+ * mapper rather than the device's.
  */
 export function getAgentStatusTag(status: string | null | undefined): {
   label: string;
@@ -190,6 +201,7 @@ export function getAgentStatusTag(status: string | null | undefined): {
   if (value === 'online') return { label: 'ONLINE', variant: 'success' };
   if (value === 'offline') return { label: 'OFFLINE', variant: 'error' };
   if (value === 'pending') return { label: 'PENDING', variant: 'warning' };
+  if (value === 'not-supported') return { label: 'NOT SUPPORTED', variant: 'error' };
   return { label: value.toUpperCase(), variant: 'grey' };
 }
 
@@ -199,8 +211,10 @@ function agentCardData(agent: CombinedAgent): InfoCardData {
   const statusConfig = getAgentStatusTag(agent.status);
   // A placeholder shows its pending status whatever the agent: openframe-chat
   // has no live status once installed, but it is still installing here.
+  // An agent its OS does not support says so whatever its type: osquery has no live status, but is not running here.
   const showStatusBlock =
     agent.isPlaceholder ||
+    agent.status === 'not-supported' ||
     (AGENT_TYPES_WITH_STATUS.has(agent.toolType) &&
       (agent.status != null || agent.lastSeen != null || agent.lastFetched != null));
 

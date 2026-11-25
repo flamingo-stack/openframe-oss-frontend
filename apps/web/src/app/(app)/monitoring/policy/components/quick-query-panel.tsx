@@ -3,6 +3,7 @@
 import { Button, TestRunResults, TestRunStatusStat, TimingStat } from '@flamingo-stack/openframe-frontend-core';
 import { Refresh01LeftIcon, StopIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useCallback, useState } from 'react';
+import { tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { ScriptEditor } from '../../../scripts/shared/components/script-editor';
 import { useQueryTestRun } from '../../components/query-test-run';
 
@@ -25,6 +26,8 @@ export function QuickQueryPanel({ fleetHostId, deviceName, initialQuery }: Quick
   const [query, setQuery] = useState(initialQuery);
   const hostName = useCallback(({ fleetName }: { fleetName: string }) => deviceName || fleetName, [deviceName]);
   const test = useQueryTestRun({ hostName });
+  // The results follow the app's table flag, as the devices table this panel is opened in does.
+  const tableLayout = tableLayoutFor(useTableGridGate());
 
   const canRun = Boolean(query.trim()) && !test.isActive;
 
@@ -99,6 +102,7 @@ export function QuickQueryPanel({ fleetHostId, deviceName, initialQuery }: Quick
           isActive={test.isActive}
           displayRows={test.displayRows}
           firstError={test.firstError}
+          layout={tableLayout}
           className="px-[var(--spacing-system-m)] pb-[var(--spacing-system-s)]"
         />
       )}

@@ -16,7 +16,9 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
 import { formatDateTime } from '@/lib/format-date';
 import type { Device } from '../../types/device.types';
+import { getUnsupportedTool } from '../../utils/tool-connection-status';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
+import { TabUnsupportedEmptyState } from './tab-unsupported-empty-state';
 
 interface SecurityTabProps {
   device: Device | null;
@@ -193,23 +195,22 @@ function buildSections(device: Device): SecuritySection[] {
       ],
     });
   }
+  // Orbit and the osquery it starts do not run on an OS below Fleet's minimum: say so, as the Agents tab does,
+  // instead of "Active" for an agent that is installed but never starts there.
+  const fleetStatus: SecurityRow = getUnsupportedTool(device, 'FLEET_MDM')
+    ? { label: ROW.status, value: 'Not supported', status: 'error' }
+    : { label: ROW.status, value: 'Active', status: 'success' };
   if (device.osquery_version) {
     agentCards.push({
       title: AGENT_CARD.osquery.title,
-      rows: [
-        { label: ROW.version, value: device.osquery_version },
-        { label: ROW.status, value: 'Active', status: 'success' },
-      ],
+      rows: [{ label: ROW.version, value: device.osquery_version }, fleetStatus],
     });
   }
   const orbitVersion = installedVersion('fleetmdm-agent') || normalizeVersion(device.orbit_version);
   if (orbitVersion) {
     agentCards.push({
       title: AGENT_CARD.orbit.title,
-      rows: [
-        { label: ROW.version, value: orbitVersion },
-        { label: ROW.status, value: 'Active', status: 'success' },
-      ],
+      rows: [{ label: ROW.version, value: orbitVersion }, fleetStatus],
     });
   }
   if (device.fleet_desktop_version) {
@@ -284,6 +285,9 @@ export function SecurityTab({ device }: SecurityTabProps) {
   const sections = device ? buildSections(device) : LOADING_SECTIONS;
 
   if (!loading && sections.length === 0) {
+    if (device?.sources?.fleet === 'skipped-unsupported') {
+      return <TabUnsupportedEmptyState icon={<ShieldIcon />} />;
+    }
     if (device?.sources?.fleet === 'skipped-pending') {
       return <TabDeployingEmptyState icon={<ShieldIcon />} section="Security" />;
     }

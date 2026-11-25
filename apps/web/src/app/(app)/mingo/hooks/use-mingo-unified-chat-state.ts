@@ -31,6 +31,7 @@ import {
   type DialogItem,
   jetStreamLiveTail,
   type MingoDialogStatus,
+  MingoGraphqlError,
   type MingoGraphqlPost,
   type UnifiedChatState,
   type UnifiedSendMessageOptions,
@@ -62,6 +63,12 @@ import type { MessageListRef, MessagePageRef } from '../../tickets/services/tick
 import type { GraphQlResponse } from '../../tickets/utils/graphql';
 import { CONTEXT_ITEMS_MAX, RECENT_VIEWS_MAX } from '../context/context-types';
 import { pageContextHref, resolvePageContext } from '../context/page-context';
+import { adoptDraftModel, useMingoModelDraftStore } from '../models/mingo-model-draft-store';
+import {
+  MINGO_MODEL_FLAG,
+  type MingoModelSelection,
+  useMingoModelSelection,
+} from '../models/use-mingo-model-selection';
 import { useMingoCompactionStore } from '../stores/mingo-compaction-store';
 import { useMingoContextStore } from '../stores/mingo-context-store';
 import { noteMingoToolExecuted } from '../stores/mingo-created-entities-store';
@@ -74,6 +81,7 @@ import {
 } from '../stores/mingo-dialog-rows-store';
 import { mingoThreadStore } from '../stores/mingo-thread-store';
 import { useMingoUsageStore } from '../stores/mingo-usage-store';
+import { isRefusedQuery } from '../utils/refused-query';
 import { retryingRead } from '../utils/retrying-read';
 import { buildUsagePanel } from './mingo-usage-panel-data';
 import { useMingoDialogAutoRead } from './use-mingo-dialog-read';
@@ -128,6 +136,9 @@ const avatarUrlOf = (stored: string) => getFullImageUrl(stored);
  *
  * An answer with data beside a failed sub-resolver is still the answer: only a field the server could not resolve at
  * all (null, with errors) rejects. Otherwise a flaky sub-resolver would read as "this dialog does not exist".
+ *
+ * A rejection is a `MingoGraphqlError` that says whether the server refused to run the query at all (`isRefusedQuery`):
+ * the lib then stops asking for what this backend does not have, and treats anything else as temporary.
  */
 export const postMingoGraphql: MingoGraphqlPost = async <T>(
   query: string,
@@ -138,10 +149,15 @@ export const postMingoGraphql: MingoGraphqlPost = async <T>(
     query,
     variables,
   });
-  if (!response.ok) throw new Error(response.error || `Request failed with status ${response.status}`);
+  const refused = isRefusedQuery(response.data);
+  if (!response.ok) {
+    throw new MingoGraphqlError(response.error || `Request failed with status ${response.status}`, { refused });
+  }
   const { data, errors } = response.data ?? {};
   const unresolved = !data || Object.values(data).some(value => value == null);
-  if (errors?.length && unresolved) throw new Error(errors[0].message || 'GraphQL error occurred');
+  if (errors?.length && unresolved) {
+    throw new MingoGraphqlError(errors[0].message || 'GraphQL error occurred', { refused });
+  }
   if (!data) throw new Error('No data received from server');
   noteMingoDialogResponse(data, askedAt);
   return data as T;
@@ -216,6 +232,8 @@ export interface MingoUnifiedChat {
   dialogNotFound: boolean;
   /** When the open dialog was created (its record), or null until read. */
   dialogCreatedAt: string | null;
+  /** The chat's model and the ⋯ menu entry that changes it (behind `ai-mingo-chat-model-selection`). */
+  modelSelection?: MingoModelSelection;
 }
 
 /** The ai-agent's commands, for the dialog the engine names. */
@@ -267,6 +285,7 @@ function useMingoHistory(): ChatHistoryBackend {
   const { toast } = useToast();
   // "Compact Chat Memory" while its flag is on; the compaction watchers report how it ended.
   const compactMemoryEnabled = useFeatureFlag('mingo-compact-memory');
+  const modelSelectionEnabled = useFeatureFlag(MINGO_MODEL_FLAG);
   const startCompaction = useMingoCompactionStore(s => s.startCompaction);
   // A title the app gives a dialog it creates (the Getting Started tour) is not the person's rename: no toast.
   const [appNamed] = useState(() => new Set<string>());
@@ -283,11 +302,15 @@ function useMingoHistory(): ChatHistoryBackend {
       createDialog: async ({ title, intent, sendOptions, firstMessage }) => {
         try {
           const insightId = insightIdOf(sendOptions, firstMessage);
+          const draft = modelSelectionEnabled ? useMingoModelDraftStore.getState().draft : null;
+          const model = draft && { provider: draft.provider, modelName: draft.modelName };
           const dialogId = await ticketService.createDialog({
             agentType: 'ADMIN',
             ...(insightId ? { insightId } : {}),
             ...(intent ? { intent: intent as DialogIntent } : {}),
+            ...(model ? { model } : {}),
           });
+          if (draft) adoptDraftModel(dialogId, draft);
           if (title) appNamed.add(dialogId);
           invalidateDialogLookups();
           return { dialogId };
@@ -319,7 +342,7 @@ function useMingoHistory(): ChatHistoryBackend {
           }
         : {}),
     };
-  }, [toast, appNamed, compactMemoryEnabled, startCompaction]);
+  }, [toast, appNamed, compactMemoryEnabled, modelSelectionEnabled, startCompaction]);
 }
 
 /**
@@ -433,8 +456,25 @@ export function useMingoUnifiedChatState({ onScreen }: { onScreen: boolean }): M
     [state, usagePanelEnabled, company, dialogTokenUsage],
   );
 
+  // The chat's own model (or a new chat's pick) names the footer and sizes its context bar.
+  const modelSelection = useMingoModelSelection({
+    activeDialogId,
+    streamingPhase,
+    archived: !!state.activeDialog?.archived,
+    isCompacting: !!state.isCompacting,
+  });
+  const { current: model, contextSize } = modelSelection;
+
   return {
-    state: stateWithUsage,
+    state: model
+      ? {
+          ...stateWithUsage,
+          currentProvider: model.provider,
+          currentModelLabel: model.displayName ?? model.modelName,
+          currentContextWindowMaxTokens: contextSize,
+        }
+      : stateWithUsage,
+    modelSelection,
     dialogStatusOf,
     dialogNotFound: !!activeDialogId && missing.has(activeDialogId) && !!state.dialogError,
     dialogCreatedAt: activeDialogId ? (rows.get(activeDialogId)?.createdAt ?? null) : null,

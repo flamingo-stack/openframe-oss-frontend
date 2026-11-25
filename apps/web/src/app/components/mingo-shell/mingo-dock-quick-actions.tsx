@@ -18,7 +18,8 @@ interface MingoDockQuickActionsProps {
 }
 
 /**
- * Mingo's quick actions above the docked composer on Mingo's home (`showsDockQuickActions`):
+ * The quick-action row's place while the chat is not up (`DockComposerLoading`), on the routes where the chat then
+ * draws the page's quick actions over its composer (`showsDockQuickActions`, `EmbeddableChat` `composerQuickActions`):
  * the chat's own quick-action row (`MingoQuickActionWall`, what the chat's empty state draws:
  * one line of tags that scrolls sideways, "All" at its right), with no caption over it ("What to ask Mingo?" is the home's button and in the chat history's ⋯).
  * A click sends the action's instructions at once (`onSend`).
@@ -34,8 +35,8 @@ export function MingoDockQuickActions({ onSend }: MingoDockQuickActionsProps) {
   if (chips.length === 0 && !loading) return null;
   return (
     // Inset exactly like the composer card under it, so the two line up at every width
-    // (`useDockComposerInset`): from md in v2 it is `wide`, none under 720px of content (a narrow
-    // column, the 800–911px one-column layout) and `spacing-system-m` from there; on a phone, and
+    // (`useDockComposerInset`): in the v2 chat column from md it is `wide`, none under 720px of
+    // content (the column pads it) and `spacing-system-m` from there; under a page, on a phone and
     // outside v2, always `spacing-system-m`. The
     // row's distance to it as the design's dock draws it (`spacing-system-xs`). The row names
     // itself ("Quick actions").

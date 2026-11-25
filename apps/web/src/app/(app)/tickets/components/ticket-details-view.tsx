@@ -61,6 +61,7 @@ import { routes } from '@/lib/routes';
 import { useAuthStore } from '@/stores';
 import { useDeviceActionsMenu } from '../../devices/hooks/use-device-actions-menu';
 import { useDeviceDetails } from '../../devices/hooks/use-device-details';
+import { WATCH_LIVE_ITEM_ID } from '../../devices/utils/device-menu-items';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
 import { ASSISTANT_CONFIG, CHAT_TYPE } from '../constants';
 import { useAssignTicket } from '../hooks/use-assign-ticket';
@@ -73,6 +74,7 @@ import { useTransitionTicket } from '../hooks/use-transition-ticket';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
 import type { ClientDialogOwner, DialogOwner } from '../types/dialog.types';
 import { hasActiveAiDialog } from '../utils/ai-dialog';
+import { assistantAuthor, clientChatAssistant, withAssistantAvatar } from '../utils/client-chat-assistant';
 import { lastClientMessageId } from '../utils/client-chat-read';
 import { isResolvedStatusId } from '../utils/is-resolved-status';
 import { ticketsQueryKeys } from '../utils/query-keys';
@@ -288,18 +290,19 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const { config: orgAiConfig } = useOrganizationClientAiConfig(dialog?.organizationId ?? '', {
     enabled: !!dialog?.organizationId,
   });
-  // The assistant's name as the end user's Fae client shows it: the customer's
+  // The assistant's name and face as the end user's Fae client shows them: the customer's
   // own view, else the tenant-wide one, else Fae.
   const { view: orgClientView } = useClientView(dialog?.organizationId ?? null, {
     enabled: !!dialog?.organizationId,
   });
   const { view: defaultClientView } = useClientView(null);
-  const assistantName = (orgClientView ?? defaultClientView)?.assistantName.trim() || ASSISTANT_CONFIG.FAE.name;
+  const { name: assistantName, avatar: assistantAvatar } = clientChatAssistant(orgClientView, defaultClientView);
   const orgClientModel = useMemo(
     () =>
       orgAiConfig?.llmProvider && orgAiConfig.providerModel
         ? {
             provider: orgAiConfig.llmProvider,
+            modelName: orgAiConfig.providerModel,
             displayName: getProviderModelLabel(modelsByProvider, orgAiConfig.llmProvider, orgAiConfig.providerModel),
           }
         : null,
@@ -407,9 +410,10 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
       }
       const name = author?.authorType === 'user' && clientDisplayName ? clientDisplayName : undefined;
       const shown = name ?? (msg.role === 'assistant' ? assistantName : undefined);
-      return shown ? { ...msg, metadata: { ...msg.metadata, author: { ...author, name: shown } } } : msg;
+      const named = shown ? { ...msg, metadata: { ...msg.metadata, author: { ...author, name: shown } } } : msg;
+      return withAssistantAvatar(named, assistantAvatar);
     },
-    [clientDisplayName, assistantName, technicianName],
+    [clientDisplayName, assistantName, assistantAvatar, technicianName],
   );
 
   // The receipt a ticket made by a form opens with: the lib's one copy, the Fae client's too. One object per what it
@@ -431,9 +435,17 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
               title: receiptTitle,
               description: receiptDescription,
             },
-            { name: assistantName, assistantType: ASSISTANT_CONFIG.FAE.type, authorType: 'fae' },
+            assistantAuthor({ name: assistantName, avatar: assistantAvatar }),
           ),
-    [receiptTicketId, receiptCreationSource, receiptCreatedAt, receiptTitle, receiptDescription, assistantName],
+    [
+      receiptTicketId,
+      receiptCreationSource,
+      receiptCreatedAt,
+      receiptTitle,
+      receiptDescription,
+      assistantName,
+      assistantAvatar,
+    ],
   );
 
   const hasOlderClientMessages = clientChat.hasMoreMessages;
@@ -466,10 +478,13 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         withActivityTracking(deviceMenuItems.remoteShell, EVENT_SUBTYPE.OPEN_REMOTE_SHELL, href => router.push(href)),
       );
       if (deviceMenuItems.remoteControl) {
+        // Watching another technician's session is not opening Remote Control: it is not counted as one.
         remoteItems.push(
-          withActivityTracking(deviceMenuItems.remoteControl, EVENT_SUBTYPE.OPEN_REMOTE_CONTROL, href =>
-            router.push(href),
-          ),
+          deviceMenuItems.remoteControl.id === WATCH_LIVE_ITEM_ID
+            ? deviceMenuItems.remoteControl
+            : withActivityTracking(deviceMenuItems.remoteControl, EVENT_SUBTYPE.OPEN_REMOTE_CONTROL, href =>
+                router.push(href),
+              ),
         );
       }
       remoteItems.push(deviceMenuItems.manageFiles, deviceMenuItems.runScript);

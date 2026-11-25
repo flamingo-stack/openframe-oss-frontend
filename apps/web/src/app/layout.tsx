@@ -4,6 +4,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { PublicEnvScript } from 'next-runtime-env';
 import { DevTicketObserver } from '@/app/(auth)/auth/components/dev-ticket-observer';
+import { announcementSeedScript } from '@/lib/announcement-cache';
 import { NatsAppProvider } from '@/lib/nats/nats-app-provider';
 import {
   MANHATTAN_WORK_AREA_STORAGE_KEY,
@@ -133,22 +134,25 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             // The Manhattan v2 divider's place too, so the first paint draws the split where the user left it,
             // and the chat column the user closed, so the first paint draws the page alone (CU-17tkuw66xzn).
             // The super user strip's room (`super-user-seed.ts`) in every mode, as the strip mounts in every
-            // shell; it marks nothing unless the stored session was a super user's. `/auth?email=` leaves the address
-            // here, before GTM and the attribution read it (`signup-email-seed.ts`).
+            // shell; it marks nothing unless the stored session was a super user's. The hub announcement's room
+            // (`announcement-cache.ts`), for a stored one that would draw a bar here (CU-17tkuw69v1p). `/auth?email=`
+            // leaves the address here, before GTM and the attribution read it (`signup-email-seed.ts`).
             __html:
               sidebarWidthFoucScript(isSaasTenantMode()) +
               (isSaasTenantMode()
                 ? workAreaShareSeedScript(MANHATTAN_WORK_AREA_STORAGE_KEY) + manhattanChatClosedSeedScript()
                 : '') +
               superUserSeedScript() +
+              announcementSeedScript(runtimeEnv.libPlatform()) +
               signupEmailSeedScript(),
           }}
         />
       </head>
       <body suppressHydrationWarning className="min-h-screen font-body antialiased" data-app-type="openframe">
-        {/* Each page's own Tailwind rules, written into its HTML by `next-styles build`; the complete sheet
-            loads after paint. Every page here is prerendered, so no path is needed (the lib's route-styles). */}
-        <RouteStyles />
+        {/* The complete Tailwind sheet, inline in every page's HTML (the lib's route-styles, `complete`). The app
+            mode comes at runtime, so pages prerender as oss-tenant: a per-route sheet would miss the SaaS shell's
+            classes, and a SaaS page would paint unstyled until the complete sheet loaded. */}
+        <RouteStyles complete />
         <GoogleTagManager noscriptFallback={!isStaticExport} />
         <RegistrationAttributionCapture />
         <EmbedShimRegistration />

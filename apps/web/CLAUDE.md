@@ -296,7 +296,7 @@ table, `pathname.startsWith()` active-state checks, external/API URLs):
 Routes live under the `(app)` / `(auth)` route groups. **Detail pages use query params** (`/x/details?id=`), not dynamic segments (static-export constraint; read via `useRequiredIdParam`). URL strings themselves come from the route registry above.
 
 - **Authentication** (`/auth`) — Multi-provider SSO, signup, login, password reset, invite
-- **Dashboard** (`/dashboard`) — Overview stats + the tenant Initial Setup card; standalone `/onboarding` (user Get Started tour). Where an OSS login lands. On a SaaS tenant it is the Mingo-first shell's dashboard (`mingo/home/mingo-dashboard.tsx`: Needs you, the same sections), the sidebar's Dashboard, and `/onboarding` forwards to `/mingo`
+- **Dashboard** (`/dashboard`) — Overview stats + the tenant Initial Setup card; standalone `/onboarding` (user Get Started tour). Where an OSS login lands. On a SaaS tenant it is the Mingo-first shell's dashboard (`mingo/home/mingo-dashboard.tsx`: Needs you, the same sections), the sidebar's Dashboard, and `/onboarding` forwards to `/mingo` (client-side, query and fragment carried; the saas-gateway lands a login whose user has not finished the tour there, so the shell draws it as Mingo's home and a landing route, `isSaasOnboardingRoute`: Start Work and its skeleton, never an "Onboarding" page column)
 - **Devices** (`/devices`) — Fleet MDM, detail pages, MeshCentral remote shell/desktop/file manager
 - **Logs** (`/logs-page`, `/log-details`) — Streaming, search, filtering
 - **Scripts** (`/scripts`) — fully Relay; thin route wrappers over the implementation in `src/app/(app)/scripts/{script,schedule,shared}/`, Schedules under `/scripts/schedules/*` (not feature-flagged)
@@ -331,8 +331,13 @@ paint, so nothing waits for a flag and no page shows a loader on the way.
   a new chat", a prompt, a draft or an open goes through the launcher store
   (`mingo-launcher-store.ts`), which the dock drains; a draft fills the composer of the page it
   was raised on. "What to ask Mingo?" is the full chat at once (`routes.mingo.whatToAsk`,
-  `/mingo/chat?view=what-to-ask`): its suggestions in a new chat on the chat page, shown on every
-  arrival (a reload included), and the page becomes `?id=` of the chat a pick creates.
+  `/mingo/chat?view=what-to-ask`): a new chat on the chat page that sends the `/what-can-you-do`
+  command, on every arrival (a reload included). The server answers it as a turn (a line of text and
+  the chat's quick actions by group), stored in the chat's history like any other. The command is the
+  hub's, never this app's: every entry (the new chat, Start Work, the history's ⋯) is shown only while
+  the hub's command catalog lists it (the runtime's `commandsUrl`, read by `useWhatToAsk`) and under
+  the label the hub gives it; the quick actions are edited in Product Hub (Chat config, Mingo, Groups).
+  A screen laid out around the entry holds its place while the catalog is read.
 - **One chat state per session: `MingoChatProvider`** (`(app)/mingo/providers/`, mounted by
   `AppShell`) runs the dialog list, the open dialog, its live tail and the compaction
   watchers. A component that shows the chat calls `useMingoChatSurface()` (the state runs while one is

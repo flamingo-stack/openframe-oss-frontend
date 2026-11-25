@@ -1,7 +1,6 @@
 'use client';
 
 import { useOptionalNotifications } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { AppLayout as CoreAppLayout } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { TicketLiveProvider } from '@flamingo-stack/openframe-frontend-core/components/tickets';
@@ -10,10 +9,6 @@ import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import type { NavigationSidebarConfig } from '@flamingo-stack/openframe-frontend-core/types/navigation';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { DashboardOverviews } from '@/app/(app)/dashboard/components/dashboard-content';
-import { ManhattanStartWork } from '@/app/(app)/mingo/home/manhattan-start-work';
-import { MingoDashboard } from '@/app/(app)/mingo/home/mingo-dashboard';
-import { MingoNewChat } from '@/app/(app)/mingo/home/mingo-new-chat';
 import { MingoChatProvider } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { countCompleted, USER_ONBOARDING_STEPS } from '@/app/(app)/onboarding/onboarding-steps';
 import { useSetupPending } from '@/app/(app)/setup/hooks/use-setup-pending';
@@ -46,9 +41,11 @@ import {
   GROUPED_SIDEBAR_EXPANDED_WIDTH,
   MANHATTAN_CHATS_DRAWER_WIDTH,
   MANHATTAN_CHATS_EXPANDED_WIDTH,
+  MANHATTAN_END_SIDEBAR_CLASS,
   SIDEBAR_RESIZE,
 } from '../../lib/navigation-sidebar-state';
-import { AnnouncementTopBar } from './announcement-top-bar';
+import { AnnouncementBarSeed } from './announcement-bar-seed';
+import { AnnouncementSlot } from './announcement-slot';
 import {
   APP_MAIN_CLASS_NAME,
   headerLoadingCells,
@@ -106,6 +103,7 @@ import { OnboardingCoachMark } from './onboarding-coach-mark';
 import { OnboardingProgressHydrator } from './onboarding-progress-hydrator';
 import { OnboardingV2Redirect } from './onboarding-v2-redirect';
 import { OUTDATED_CLIENT_DEVICES_HREF, OutdatedClientBar, useOutdatedClientCount } from './outdated-client-bar';
+import { PageSlot } from './page-slot';
 import { PresenceHeartbeat } from './presence-heartbeat';
 import { SessionHealthWatcher } from './session-health-watcher';
 import { SessionUnavailableScreen } from './session-unavailable-screen';
@@ -344,7 +342,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
    * slot only after the hub announcement: it is reported here whether the announcement shows.
    */
   const outdatedClientCount = useOutdatedClientCount(sessionReady && !isLocked);
-  const [announcementShown, setAnnouncementShown] = useState(false);
 
   // Mingo — the composer dock, the chat history, the Mingo rows — is meaningful only
   // inside the full, unlocked app shell (it hits authed endpoints), so the
@@ -462,6 +459,22 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // Until the window is read (the server's markup, the first paint) the compact band is the
   // stylesheet's: both sidebars hide there, then become the closed drawers below.
   const sidebarClassName = squeeze.measured ? 'h-full' : `h-full ${COMPACT_BAND_HIDDEN}`;
+  const modelToastRailVisible = manhattan && !bareChrome && isMdUp === true && !squeeze.compact;
+  useEffect(() => {
+    if (!modelToastRailVisible) return undefined;
+    const sidebar = document.querySelector(`.${MANHATTAN_END_SIDEBAR_CLASS}`);
+    if (!sidebar) return undefined;
+    const rootStyle = document.documentElement.style;
+    const widthProperty = '--of-mingo-model-toast-rail-width';
+    const measure = () => rootStyle.setProperty(widthProperty, `${sidebar.getBoundingClientRect().width}px`);
+    measure();
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure);
+    observer?.observe(sidebar);
+    return () => {
+      observer?.disconnect();
+      rootStyle.removeProperty(widthProperty);
+    };
+  }, [modelToastRailVisible]);
   // Below two rails + 800px the v2 top bar opens the sidebars as drawers: its buttons' reveals,
   // and the chats drawer closes once a chat opens from it (`ManhattanCentre`).
   const [chatsReveal, setChatsReveal] = useState(0);
@@ -551,8 +564,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             onNavigate: handleNavigate,
             // Desktop shell only: renders nothing until the shell reports an update
             // waiting. The slot is a render prop because the same node also draws in
-            // the mobile burger menu, where there is no rail to collapse into.
-            topSlot: ({ minimized }) => <SidebarUpdateButton minimized={minimized} />,
+            // the mobile burger menu, where there is no rail to collapse into. `inset`: this
+            // sidebar's body pads only top and bottom, so the button brings its own side inset.
+            topSlot: ({ minimized }) => <SidebarUpdateButton minimized={minimized} inset />,
             // `h-full` (not `h-screen`) so the sidebar fills the layout row below the
             // optional top bar rather than overflowing the viewport by its height.
             className: 'h-full',
@@ -673,7 +687,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             overlay: squeeze.compact ? 'drawer' : undefined,
             desktopFromMd: true,
             revealSignal: navReveal,
-            className: sidebarClassName,
+            className: modelToastRailVisible ? `${sidebarClassName} ${MANHATTAN_END_SIDEBAR_CLASS}` : sidebarClassName,
           }
         : undefined,
     [
@@ -685,6 +699,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       navCollapsed,
       setNavCollapsed,
       squeeze.compact,
+      modelToastRailVisible,
       sidebarClassName,
       navReveal,
     ],
@@ -700,10 +715,11 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             side: 'right',
             overlay: undefined,
             revealSignal: undefined,
+            className: sidebarClassName,
             footerSlot: sidebarConfig.footerSlot,
           }
         : undefined,
-    [manhattan, endSidebarConfig, sidebarConfig.footerSlot],
+    [manhattan, endSidebarConfig, sidebarClassName, sidebarConfig.footerSlot],
   );
 
   // Single `topBar` slot, one bar at a time: the billing bars first, since they
@@ -758,13 +774,21 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     // it only runs with one, and the announcement fetches on mount. The
     // Mingo-first shell loads no progress and asks the session directly.
     topBar = (
-      <>
-        <AnnouncementTopBar onExpandedChange={setAnnouncementShown} />
-        {!announcementShown && outdatedClientCount > 0 && (
-          <OutdatedClientBar onManage={() => router.push(OUTDATED_CLIENT_DEVICES_HREF)} />
-        )}
-      </>
+      <AnnouncementSlot
+        whileHidden={
+          outdatedClientCount > 0 ? (
+            <OutdatedClientBar onManage={() => router.push(OUTDATED_CLIENT_DEVICES_HREF)} />
+          ) : undefined
+        }
+      />
     );
+  } else if (!sessionResolved || (sessionReady && !isLocked && withOnboarding && chromeLoading)) {
+    // The slot is not open YET (`/me`, or the dashboard shell's onboarding progress, has not answered): the
+    // announcement's room, for a stored one that would draw a bar here (`announcement-cache.ts` marks `<html>`
+    // before paint; hidden otherwise), so the page does not move down when the bar arrives (CU-17tkuw69v1p). Only
+    // while the slot can still open: never on a locked workspace (the lock screen answers first above), and the
+    // progress wait is bounded by `chromeLoading`'s fail-open, so the room never outlives the wait.
+    topBar = <AnnouncementBarSeed />;
   }
 
   const displayName = useMemo(
@@ -911,32 +935,12 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   };
 
   // The page segment's boundary - what the chrome, bare or not, puts in its content
-  // slot. Its placement rules are on the core layout below. Every page draws its own
-  // loading state (its components in a loading scope, behind its own boundaries), so
-  // this one only keeps a read that escapes a page from suspending the chrome around
-  // it: it has no page of its own to draw.
+  // slot (`PageSlot`: the landing skeleton while held and until the page can draw
+  // itself). Its placement rules are on the core layout below.
   const pageContent = (
-    <Suspense fallback={null /* loading-standard-ok(SUSPENSE_FALLBACK): a backstop under the pages' own boundaries */}>
-      {showLockContent ? (
-        <SubscriptionLockContent />
-      ) : dashboardHeld ? (
-        composerRouteOf(pathname) === 'home' ? (
-          // A new chat: its greeting, nothing that loads.
-          manhattan ? (
-            // Manhattan v2: Start Work, its "Needs you" in its loading form.
-            <ManhattanStartWork live={false} />
-          ) : (
-            <MingoNewChat />
-          )
-        ) : (
-          <LoadingFallback label="Loading dashboard">
-            {isSaasTenantMode() ? <MingoDashboard live={false} /> : <DashboardOverviews />}
-          </LoadingFallback>
-        )
-      ) : (
-        children
-      )}
-    </Suspense>
+    <PageSlot pathname={pathname} manhattan={manhattan} held={dashboardHeld && !showLockContent}>
+      {showLockContent ? <SubscriptionLockContent /> : children}
+    </PageSlot>
   );
 
   return (

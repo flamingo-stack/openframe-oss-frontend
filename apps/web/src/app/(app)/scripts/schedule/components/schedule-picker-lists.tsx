@@ -21,6 +21,7 @@ import type { scheduleDevicePickerRelayPaginationQuery as AvailablePaginationQue
 import type { scheduleDevicePickerRelayQuery as AvailableQueryType } from '@/__generated__/scheduleDevicePickerRelayQuery.graphql';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { ContentErrorBoundary } from '@/app/components/shared/content-error-boundary';
+import { DEVICE_PICKER_TABLE_KEY } from '@/app/components/shared/device-selector/device-picker';
 import { DEVICE_PICKER_PAGE_SIZE } from '@/app/components/shared/device-selector/picker-narrowing';
 import { ServerDevicePickerLists } from '@/app/components/shared/device-selector/server-device-picker-lists';
 import { EMPTY_DEVICE_FILTERS } from '@/graphql/devices/device-facets-fields';
@@ -126,6 +127,7 @@ export function SchedulePickerLists({
   // without funnels instead of taking the picker down (see `ScheduleDeviceFacets`).
   const lists = (filterOptions: DeviceFilters) => (
     <ServerDevicePickerLists
+      tableStorageKey={DEVICE_PICKER_TABLE_KEY.schedule}
       available={{
         connection: (available.data as AvailableFragmentData | null)?.availableDevices,
         hasNext: available.hasNext,

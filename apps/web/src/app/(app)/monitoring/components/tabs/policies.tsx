@@ -8,7 +8,7 @@ import {
   PolicySummaryCards,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { PlusCircleIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { DataTable, Input, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { DataTable, Input, LoadingWhen, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
@@ -17,11 +17,13 @@ import { DIALOG_INTENT } from '@/app/(app)/tickets/constants';
 import { oneLineEmptyState, SectionLoadError } from '@/app/components/shared';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { ConfirmDeleteMonitoringModal } from '../../components/confirm-delete-monitoring-modal';
 import { usePolicies } from '../../hooks/use-policies';
 import type { Policy } from '../../types/policies.types';
+import { POLICIES_TABLE_SETTINGS } from '../monitoring-table-settings';
 import { PoliciesEmptyState } from '../policies-empty-state';
 
 const PAGE_SIZE = 20;
@@ -52,6 +54,8 @@ export function Policies() {
 
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
+  // Which table the page draws (`data-table-grid`). Until the flag answers the table is in a loading scope.
+  const tableGate = useTableGridGate();
 
   // Local search keeps typing responsive; the shared hook debounces the write to
   // the URL param so we don't navigate the router (and re-filter) on every keystroke.
@@ -181,27 +185,34 @@ export function Policies() {
 
           {/* Table */}
           {/* Platform column temporarily hidden from users — omit `showPlatform` to restore. */}
-          <PoliciesTable
-            rows={rows}
-            isLoading={isLoading}
-            rowAsLink
-            stickyHeader
-            stickyHeaderOffset={stickyHeaderOffset}
-            rightSlot={<DataTable.RowCount loading={isLoading} />}
-            skeletonRows={PAGE_SIZE}
-            // The table has its own emptiness claim, and zero rows after a failed
-            // or offline load would print "No policies found." under the strip
-            // above. Same rule, one component down.
-            emptyState={oneLineEmptyState(
-              canClaimEmpty
-                ? debouncedSearch
-                  ? `No policies found matching "${debouncedSearch}". Try adjusting your search.`
-                  : 'No policies found.'
-                : loadErrorProps(isOffline, LOAD_ERROR_MESSAGE).message,
-            )}
-            hasMore={visibleCount < filteredPolicies.length}
-            onLoadMore={handleLoadMore}
-          />
+          <LoadingWhen loading={tableGate === 'loading'}>
+            <PoliciesTable
+              rows={rows}
+              isLoading={isLoading}
+              rowAsLink
+              stickyHeader
+              stickyHeaderOffset={stickyHeaderOffset}
+              rightSlot={<DataTable.RowCount loading={isLoading} />}
+              skeletonRows={PAGE_SIZE}
+              // The grid table is the page's main content: it takes the height the page leaves and scrolls inside
+              // itself. A cards table reads neither the height nor the settings.
+              layout={tableLayoutFor(tableGate)}
+              tableMaxHeight="fill"
+              tableSettings={POLICIES_TABLE_SETTINGS}
+              // The table has its own emptiness claim, and zero rows after a failed
+              // or offline load would print "No policies found." under the strip
+              // above. Same rule, one component down.
+              emptyState={oneLineEmptyState(
+                canClaimEmpty
+                  ? debouncedSearch
+                    ? `No policies found matching "${debouncedSearch}". Try adjusting your search.`
+                    : 'No policies found.'
+                  : loadErrorProps(isOffline, LOAD_ERROR_MESSAGE).message,
+              )}
+              hasMore={visibleCount < filteredPolicies.length}
+              onLoadMore={handleLoadMore}
+            />
+          </LoadingWhen>
         </div>
       )}
       <ConfirmDeleteMonitoringModal

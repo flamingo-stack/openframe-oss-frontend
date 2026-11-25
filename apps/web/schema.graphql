@@ -1983,6 +1983,11 @@ type Machine implements Node & AssignableTarget {
   """
   softwareManagementSupported: Boolean!
   """
+  Integrated agents this device's OS version is below the minimum of: they are not installed, updated or kept on
+  it. Empty when the OS version is unknown or every agent supports it.
+  """
+  unsupportedTools: [UnsupportedTool!]!
+  """
   Package managers as last reported by the device agent. Null until the first report.
   """
   packageManagers: MachinePackageManagers
@@ -2531,12 +2536,16 @@ type Mutation {
   """
   updateSoftware(input: SoftwareManagementInput!): [SoftwareDispatchResult!]!
   """
-  Adopt a software title on devices that have it installed manually: reinstall it with a package manager,
-  so it can be updated. Runs now; an offline device starts when it comes online. The device picker lists
-  softwareDevices(softwareId, filter: {installedBy: [UNMANAGED]}). Returns one result per package manager used
-  (each its own execution, shown as an ADOPT row in Software Actions).
+  Adopt a software title on devices that have it installed by hand: the device reinstalls it with the title's
+  adoption package (Software.adoptionPackage), so it can be updated later. Sends the order to the devices now.
+  SoftwareOnDevice.adoption is ADOPTING until the device reports the reinstall done, then null; FAILED with the
+  error when the reinstall or its delivery failed.
+  Returns the devices (Machine global ids) the order was sent to; a device the package manager cannot run on is
+  left out. NOT_FOUND for an unknown title. BAD_REQUEST when the title has no adoption package, when no device
+  is left, when a device is not managed, and when the order cannot reach a device (the order is switched off or
+  the device's agent is too old for it).
   """
-  adoptSoftware(input: AdoptSoftwareInput!): [SoftwareDispatchResult!]!
+  adoptSoftware(input: AdoptSoftwareInput!): [ID!]!
   """
   Save the Auto-update form: on with these settings for the bundle's devices, off for the title's other
   devices. Runs no update; the bundle becomes COMPLETED.
@@ -2712,6 +2721,20 @@ type Mutation {
 
   "W3. Link a directory record to an agent machine: a suggestion or any machine from the search (D25)."
   linkDirectoryDevice(input: LinkDirectoryDeviceInput!): DirectoryDeviceLinkPayload!
+  createMailbox(input: CreateMailboxInput!): MailboxPayload!
+  updatePendingMailbox(input: UpdatePendingMailboxInput!): MailboxPayload!
+
+  """ STUB until CU-17tkuw66n94: always a top-level NOT_IMPLEMENTED error"""
+  runForwardingTest(input: MailboxIdInput!): MailboxPayload!
+
+  """ STUB until CU-17tkuw66n95: always a top-level NOT_IMPLEMENTED error"""
+  startSendAsSignIn(input: StartSendAsSignInInput!): StartSendAsSignInPayload!
+
+  """ STUB until CU-17tkuw66n95: always a top-level NOT_IMPLEMENTED error"""
+  signOutSendAs(input: MailboxIdInput!): MailboxPayload!
+  activateMailbox(input: ActivateMailboxInput!): MailboxPayload!
+  updateMailbox(input: UpdateMailboxInput!): MailboxPayload!
+  disconnectMailbox(input: MailboxIdInput!): DisconnectMailboxPayload!
 }
 
 input MutationDeleteInput {
@@ -3978,6 +4001,8 @@ type Query {
 
   "W3. Directory data of one agent machine: linked users and one card per linked directory record."
   deviceDirectory(machineId: ID!): DeviceDirectory!
+  mailboxes(search: String, filter: MailboxFilterInput, first: Int, after: String, sort: SortInput): MailboxConnection!
+  mailbox(id: ID!): Mailbox
 }
 
 """
@@ -5435,21 +5460,32 @@ type Software {
   Devices that have this title installed manually (installedBy UNMANAGED) and can be adopted — the
   ADOPTION column and the "N devices have … installed manually" banner with Adopt. Null or 0 = "–", no banner;
   always 0 when autoUpdate is NO_PACKAGE (nothing to adopt with).
-  Sortable as adoptionCount.
   """
   adoptionCount: Int
+
+  """
+  The package Adopt reinstalls this title with, shown to the admin for confirmation: the best match of a
+  package manager that updates only what it installed itself. softwareId is not set.
+  Null = no package to adopt into, or a package manager already manages the title.
+  """
+  adoptionPackage: SoftwareBundlePackage
 
   """Devices that have this title installed."""
   devicesCount: Int
 }
 
 """
-Install vs update — the two software management actions. Also scopes a package's Execution
-History (softwareExecutions).
+The software management actions. Also scopes a package's Execution History (softwareExecutions).
 """
 enum SoftwareAction {
   INSTALL
   UPDATE
+
+  """
+  A hand-installed copy reinstalled with a package manager (adoptSoftware). Not a bundle or schedule action:
+  BAD_REQUEST there.
+  """
+  ADOPT
 }
 
 """
@@ -6591,6 +6627,13 @@ enum ToolType {
   MESHCENTRAL
   FLEET_MDM
   OPENFRAME_RMM
+}
+
+"""An integrated agent that does not run on the device's OS version."""
+type UnsupportedTool {
+  toolType: ToolType!
+  minOsVersion: String!
+  osVersion: String!
 }
 
 type ToolUrl {
@@ -7880,24 +7923,14 @@ input SoftwareAutoUpdateInput {
 
 """ ────────── Adopt ──────────"""
 input AdoptSoftwareInput {
-  """The software title (Software.id) to adopt."""
+  """
+  The software title (Software.id). It is adopted into its Software.adoptionPackage: a Homebrew cask on
+  macOS, a Chocolatey package on Windows.
+  """
   softwareId: ID!
 
-  """
-  Selected devices (Machine global ids), 1..100. Devices that do not have the title installed manually are
-  skipped. Null = every device matching filter + search ("Add All Devices").
-  """
-  machineIds: [ID!]
-
-  """
-  With machineIds null: the devices to adopt, as the picker's softwareDevices(softwareId, filter, search) lists
-  them. Always narrowed to installedBy UNMANAGED. Ignored when machineIds is set.
-  """
-  filter: SoftwareOnDeviceFilterInput
-  search: String
-
-  """Package Manager for Windows. macOS devices always adopt with Brew."""
-  windowsPackageManager: SoftwareAdoptionWindowsManager! = MATCH_CUSTOMER
+  """The devices (Machine global ids), 1..100."""
+  machineIds: [ID!]!
 }
 
 """
@@ -7946,14 +7979,6 @@ enum SoftwareAdoptionStatus {
 
   """The reinstall failed; the manually installed copy is left as it was."""
   FAILED
-}
-
-"""Which package manager adopts the title on Windows devices."""
-enum SoftwareAdoptionWindowsManager {
-  """The manager each customer already uses for this app; Winget if none."""
-  MATCH_CUSTOMER
-  WINGET
-  CHOCOLATEY
 }
 
 """Auto-update of one software title across its devices."""
@@ -8184,4 +8209,185 @@ type InsightThreshold {
   Which side of `value` the measured value was on to open the insight; null under the same condition as `label`.
   """
   firesWhen: InsightThresholdDirection
+}
+
+input ActivateMailboxInput {
+  mailboxId: ID!
+  defaultOrganizationId: ID
+  defaultStatusId: ID
+  defaultAssigneeId: ID
+  blockList: [String!]
+}
+
+input CreateMailboxInput {
+  provider: MailboxProvider!
+  supportAddress: String!
+  replacesMailboxId: ID
+}
+
+type DisconnectMailboxPayload {
+  deletedId: ID
+  userErrors: [UserError!]!
+}
+
+type ForwardingTest {
+  state: ForwardingTestState!
+  startedAt: Instant
+  deadlineAt: Instant
+  finishedAt: Instant
+  checks: [ForwardingTestCheck!]!
+  failureReason: ForwardingTestFailureReason
+  ndrStatus: String
+  evidence: String
+}
+
+type ForwardingTestCheck {
+  kind: ForwardingTestCheckKind!
+  result: ForwardingTestCheckResult!
+}
+
+enum ForwardingTestCheckKind {
+  SENT
+  CAME_BACK
+  ORIGINAL_SENDER_KEPT
+}
+
+enum ForwardingTestCheckResult {
+  PASSED
+  FAILED
+  UNKNOWN
+}
+
+enum ForwardingTestFailureReason {
+  FORWARDING_BOUNCED
+  NOTHING_ARRIVED
+  GOOGLE_CONFIRMED_NO_EMAIL
+  ORIGINAL_SENDER_LOST
+}
+
+enum ForwardingTestState {
+  IDLE
+  WAITING
+  PASSED
+  FAILED
+}
+
+type Mailbox implements Node {
+  id: ID!
+  mailboxId: String!
+  supportAddress: String!
+  provider: MailboxProvider!
+  inboundAddress: String!
+  receivingState: MailboxReceivingState!
+  replyState: MailboxReplyState!
+  actions: [MailboxAction!]!
+  lastEmailAt: Instant
+  lastTest: ForwardingTest!
+  lastFinishedTestAt: Instant
+  nextAutomaticTestAt: Instant
+  setUpBy: User
+  setUpAt: Instant
+  signedInAccount: String
+  sendAsSignIn: SendAsSignIn
+  sendAsBrokenAt: Instant
+  defaultOrganization: Organization
+  defaultStatus: TicketStatusDefinition
+  defaultAssignee: User
+  stats: MailboxStats!
+  heldCount: Int!
+  blockListCount: Int!
+}
+
+enum MailboxAction {
+  CHECK_FORWARDING
+  SIGN_IN
+}
+
+type MailboxConnection {
+  edges: [MailboxEdge!]!
+  pageInfo: PageInfo!
+  filteredCount: Int!
+}
+
+type MailboxEdge {
+  cursor: String!
+  node: Mailbox!
+}
+
+input MailboxFilterInput {
+  receivingStates: [MailboxReceivingState!]
+  replyStates: [MailboxReplyState!]
+}
+
+input MailboxIdInput {
+  mailboxId: ID!
+}
+
+type MailboxPayload {
+  mailbox: Mailbox
+  userErrors: [UserError!]!
+}
+
+enum MailboxProvider {
+  MICROSOFT_365
+  GOOGLE_WORKSPACE
+}
+
+enum MailboxReceivingState {
+  PENDING
+  RECEIVING
+  QUIET
+  NOT_RECEIVING
+}
+
+enum MailboxReplyState {
+  AS_MAILBOX
+  NOT_SIGNED_IN
+  CANNOT_SEND_AS_MAILBOX
+}
+
+type MailboxStats {
+  received: Int!
+  ticketsCreated: Int!
+  held: Int!
+  dropped: Int!
+}
+
+type SendAsSignIn {
+  outcome: SendAsSignInOutcome
+  account: String
+  startedAt: Instant!
+  expiresAt: Instant!
+  completedAt: Instant
+}
+
+enum SendAsSignInOutcome {
+  GRANTED
+  SEND_AS_DENIED
+  CONSENT_DECLINED
+  EXPIRED
+  ERROR
+}
+
+input StartSendAsSignInInput {
+  mailboxId: ID!
+  returnUrl: String
+}
+
+type StartSendAsSignInPayload {
+  mailbox: Mailbox
+  authorizeUrl: String
+  userErrors: [UserError!]!
+}
+
+input UpdateMailboxInput {
+  mailboxId: ID!
+  defaultOrganizationId: ID
+  defaultStatusId: ID
+  defaultAssigneeId: ID
+}
+
+input UpdatePendingMailboxInput {
+  mailboxId: ID!
+  provider: MailboxProvider!
 }

@@ -6,6 +6,8 @@ import {
   getExpectedAgentTypes,
   getToolConnectionDisplayStatus,
   getToolConnectionState,
+  displayOsVersion,
+  getUnsupportedTool,
   isDeviceStillConnecting,
 } from './tool-connection-status';
 
@@ -82,6 +84,15 @@ describe('isDeviceStillConnecting', () => {
     expect(isDeviceStillConnecting(device({ toolConnections: undefined }))).toBe(true);
   });
 
+  it('does not wait for a Fleet its OS version does not support (old backend)', () => {
+    const fleetUnsupported = [{ toolType: 'FLEET_MDM', minOsVersion: '13.0', osVersion: '11.7.10' }];
+    expect(isDeviceStillConnecting(device({ toolConnections: [liveMesh], unsupportedTools: fleetUnsupported }))).toBe(
+      false,
+    );
+    // MeshCentral still holds the banner on its own.
+    expect(isDeviceStillConnecting(device({ toolConnections: [], unsupportedTools: fleetUnsupported }))).toBe(true);
+  });
+
   it('is false for a disconnected (torn down) tool — that is offline, not connecting', () => {
     const deadMesh = conn({ toolType: 'MESHCENTRAL', status: 'DISCONNECTED' });
     expect(isDeviceStillConnecting(device({ toolConnections: [liveFleet, deadMesh] }))).toBe(false);
@@ -102,6 +113,31 @@ describe('isDeviceStillConnecting', () => {
     for (const status of ['ARCHIVED', 'DELETED', 'PENDING_DELETION', 'DECOMMISSIONED']) {
       expect(isDeviceStillConnecting(device({ status, toolConnections: [] }))).toBe(false);
     }
+  });
+});
+
+describe('displayOsVersion', () => {
+  it('drops trailing zero parts only', () => {
+    expect(displayOsVersion('13.0')).toBe('13');
+    expect(displayOsVersion('13.0.0')).toBe('13');
+    expect(displayOsVersion('12.6')).toBe('12.6');
+    expect(displayOsVersion('11.7.10')).toBe('11.7.10');
+    expect(displayOsVersion('10.15')).toBe('10.15');
+  });
+});
+
+describe('getUnsupportedTool', () => {
+  const fleet = { toolType: 'FLEET_MDM', minOsVersion: '13.0', osVersion: '11.7.10' };
+
+  it('finds the entry for the tool type', () => {
+    expect(getUnsupportedTool(device({ unsupportedTools: [fleet] }), 'FLEET_MDM')).toEqual(fleet);
+  });
+
+  it('is undefined for another tool, an empty list, no list, or no device', () => {
+    expect(getUnsupportedTool(device({ unsupportedTools: [fleet] }), 'MESHCENTRAL')).toBeUndefined();
+    expect(getUnsupportedTool(device({ unsupportedTools: [] }), 'FLEET_MDM')).toBeUndefined();
+    expect(getUnsupportedTool(device({}), 'FLEET_MDM')).toBeUndefined();
+    expect(getUnsupportedTool(null, 'FLEET_MDM')).toBeUndefined();
   });
 });
 

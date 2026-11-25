@@ -8,13 +8,17 @@ import {
   type Row,
   useDataTable,
   useLoadingScope,
+  GRID_MIN_WIDTH,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
+import type { softwareDevicesTable_adoptQuery$key } from '@/__generated__/softwareDevicesTable_adoptQuery.graphql';
 import type {
   softwareDevicesTable_query$data,
   softwareDevicesTable_query$key,
 } from '@/__generated__/softwareDevicesTable_query.graphql';
+import type { softwareDevicesTableAdoptPaginationQuery as SoftwareDevicesTableAdoptPaginationQueryType } from '@/__generated__/softwareDevicesTableAdoptPaginationQuery.graphql';
+import type { softwareDevicesTableAdoptQuery as SoftwareDevicesTableAdoptQueryType } from '@/__generated__/softwareDevicesTableAdoptQuery.graphql';
 import type { softwareDevicesTablePaginationQuery as SoftwareDevicesTablePaginationQueryType } from '@/__generated__/softwareDevicesTablePaginationQuery.graphql';
 import type {
   SoftwareOnDeviceFilterInput,
@@ -31,13 +35,15 @@ import {
   useRetryKey,
 } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
-import { OpenRowButton } from '@/app/components/shared/open-row-button';
-import { openInNewTab } from '@/lib/open-in-new-tab';
+import { openRowColumn } from '@/app/components/shared/open-row-column';
+import { useTableGrid } from '@/app/components/shared/table-layout-scope';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
+import { useSoftwareAdoptGate } from '../../adopt/use-software-adopt-gate';
 import { singleColumnFilter } from '../../shared/column-filters';
+import { type SoftwareDeviceAdoptionRefs, SoftwareDeviceAdoptionRefsContext } from './software-device-adoption-tag';
 import { SoftwareDeviceAutoUpdateCell } from './software-device-auto-update-cell';
-import { SoftwareDeviceCell } from './software-device-cell';
+import { SoftwareDeviceCell, SoftwareDeviceGridCell } from './software-device-cell';
 import { SoftwareDeviceInstalledByCell } from './software-device-installed-by-cell';
 import { SoftwareDeviceVersionCell } from './software-device-version-cell';
 import { SOFTWARE_DEVICE_COLUMNS, SOFTWARE_DEVICES_PAGE_SIZE } from './software-devices-columns';
@@ -106,6 +112,66 @@ const softwareDevicesTableFragment = graphql`
   }
 `;
 
+/**
+ * The same rows with Adopt on: each also reads its adoption. A separate operation, not an `@include` on the shared one:
+ * a backend without Adopt rejects any document that names `adoption`, even a skipped one.
+ */
+const softwareDevicesTableAdoptQuery = graphql`
+  query softwareDevicesTableAdoptQuery(
+    $softwareId: ID!
+    $filter: SoftwareOnDeviceFilterInput
+    $search: String
+    $sort: SortInput
+    $first: Int!
+    $after: String
+  ) {
+    ...softwareDevicesTable_adoptQuery
+      @arguments(softwareId: $softwareId, filter: $filter, search: $search, sort: $sort, first: $first, after: $after)
+  }
+`;
+
+const softwareDevicesTableAdoptFragment = graphql`
+  fragment softwareDevicesTable_adoptQuery on Query
+  @refetchable(queryName: "softwareDevicesTableAdoptPaginationQuery")
+  @argumentDefinitions(
+    softwareId: { type: "ID!" }
+    filter: { type: "SoftwareOnDeviceFilterInput" }
+    search: { type: "String" }
+    sort: { type: "SortInput" }
+    first: { type: "Int", defaultValue: 20 }
+    after: { type: "String" }
+  ) {
+    softwareDevices(
+      softwareId: $softwareId
+      filter: $filter
+      search: $search
+      sort: $sort
+      first: $first
+      after: $after
+    ) @connection(key: "softwareDevicesTableAdopt_softwareDevices") {
+      filteredCount
+      edges {
+        node {
+          status
+          device {
+            id
+            machineId
+            ...softwareDeviceCell_machine
+          }
+          ...softwareDeviceVersionCell_softwareOnDevice
+          ...softwareDeviceInstalledByCell_softwareOnDevice
+          ...softwareDeviceAutoUpdateCell_softwareOnDevice
+          ...softwareDeviceAdoptionTag_softwareOnDevice
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
+
 type SoftwareDeviceRow = NonNullable<softwareDevicesTable_query$data['softwareDevices']>['edges'][number]['node'];
 
 /**
@@ -125,7 +191,13 @@ function buildColumns(): ColumnDef<SoftwareDeviceRow>[] {
       header: SOFTWARE_DEVICE_COLUMNS.device.header,
       cell: ({ row }: { row: Row<SoftwareDeviceRow> }) => <SoftwareDeviceCell machine={row.original.device} />,
       enableSorting: false,
-      meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.device),
+      size: 380,
+      minSize: GRID_MIN_WIDTH.icon,
+      meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.device, {
+        gridCell: ({ row }: { row: Row<SoftwareDeviceRow> }) => (
+          <SoftwareDeviceGridCell machine={row.original.device} />
+        ),
+      }),
     },
     {
       // Column id is the backend sort field, as everywhere else in the app.
@@ -135,7 +207,10 @@ function buildColumns(): ColumnDef<SoftwareDeviceRow>[] {
       cell: ({ row }: { row: Row<SoftwareDeviceRow> }) => <SoftwareDeviceVersionCell softwareOnDevice={row.original} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,
+      size: 280,
+      // One line already (the version, its status chip): the grid draws the same cell.
       meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.softwareVersion, {
+        label: 'Software version',
         // The column stretches to the row's end, so an end-anchored popover would
         // hang off the far right, nowhere near the header it belongs to.
         filter: { options: SOFTWARE_ON_DEVICE_STATUS_OPTIONS },
@@ -148,7 +223,8 @@ function buildColumns(): ColumnDef<SoftwareDeviceRow>[] {
         <SoftwareDeviceInstalledByCell softwareOnDevice={row.original} />
       ),
       enableSorting: false,
-      meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.installedBy),
+      size: 200,
+      meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.installedBy, { label: 'Managed by' }),
     },
     {
       id: SOFTWARE_DEVICE_COLUMNS.autoUpdate.id,
@@ -157,18 +233,13 @@ function buildColumns(): ColumnDef<SoftwareDeviceRow>[] {
         <SoftwareDeviceAutoUpdateCell softwareOnDevice={row.original} />
       ),
       enableSorting: false,
+      size: 180,
       meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.autoUpdate),
     },
-    {
-      id: SOFTWARE_DEVICE_COLUMNS.open.id,
-      cell: ({ row }: { row: Row<SoftwareDeviceRow> }) => {
-        // A loading placeholder row (or a device with no address) has nothing to open: the button is inert.
-        const href = deviceHref(row.original);
-        return <OpenRowButton label="Open device in new tab" onClick={openInNewTab(href ?? '')} disabled={!href} />;
-      },
-      enableSorting: false,
-      meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.open),
-    },
+    openRowColumn<SoftwareDeviceRow>(SOFTWARE_DEVICE_COLUMNS.open, row => ({
+      label: 'Open device in new tab',
+      href: deviceHref(row),
+    })),
   ];
 }
 
@@ -221,41 +292,85 @@ function SoftwareDevicesTableReader(props: SoftwareDevicesTableProps) {
   return <SoftwareDevicesTableQuery {...props} />;
 }
 
+/** Adopt's fields only on a backend that has them: with the flag off, the operation does not name them at all. */
 function SoftwareDevicesTableQuery(props: SoftwareDevicesTableProps) {
-  const { softwareId, backendFilters, debouncedSearch, sort } = props;
+  return useSoftwareAdoptGate() === 'on' ? (
+    <SoftwareDevicesAdoptQuery {...props} />
+  ) : (
+    <SoftwareDevicesPlainQuery {...props} />
+  );
+}
+
+const devicesVariables = ({ softwareId, backendFilters, debouncedSearch, sort }: SoftwareDevicesTableProps) => ({
+  softwareId,
+  filter: backendFilters,
+  search: debouncedSearch || null,
+  sort,
+  first: SOFTWARE_DEVICES_PAGE_SIZE,
+  after: null,
+});
+
+function SoftwareDevicesPlainQuery(props: SoftwareDevicesTableProps) {
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<SoftwareDevicesTableQueryType>(
     softwareDevicesTableQuery,
+    devicesVariables(props),
     {
-      softwareId,
-      filter: backendFilters,
-      search: debouncedSearch || null,
-      sort,
-      first: SOFTWARE_DEVICES_PAGE_SIZE,
-      after: null,
+      fetchPolicy: 'store-or-network',
+      fetchKey: retryKey,
     },
-    { fetchPolicy: 'store-or-network', fetchKey: retryKey },
   );
-
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
     SoftwareDevicesTablePaginationQueryType,
     softwareDevicesTable_query$key
   >(softwareDevicesTableFragment, queryData);
 
   const rows = (data.softwareDevices?.edges ?? []).map(edge => edge.node);
-  const totalCount = data.softwareDevices?.filteredCount ?? rows.length;
-
-  const fetchNextPage = () => {
-    if (hasNext && !isLoadingNext) loadNext(SOFTWARE_DEVICES_PAGE_SIZE);
-  };
-
   return (
     <SoftwareDevicesTableRows
       {...props}
       rows={rows}
-      totalCount={totalCount}
-      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+      totalCount={data.softwareDevices?.filteredCount ?? rows.length}
+      infiniteScroll={{
+        hasNextPage: hasNext,
+        isFetchingNextPage: isLoadingNext,
+        onLoadMore: () => {
+          if (hasNext && !isLoadingNext) loadNext(SOFTWARE_DEVICES_PAGE_SIZE);
+        },
+      }}
     />
+  );
+}
+
+function SoftwareDevicesAdoptQuery(props: SoftwareDevicesTableProps) {
+  const retryKey = useRetryKey();
+  const queryData = useLazyLoadQuery<SoftwareDevicesTableAdoptQueryType>(
+    softwareDevicesTableAdoptQuery,
+    devicesVariables(props),
+    { fetchPolicy: 'store-or-network', fetchKey: retryKey },
+  );
+  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
+    SoftwareDevicesTableAdoptPaginationQueryType,
+    softwareDevicesTable_adoptQuery$key
+  >(softwareDevicesTableAdoptFragment, queryData);
+
+  const rows = (data.softwareDevices?.edges ?? []).map(edge => edge.node);
+  const adoption: SoftwareDeviceAdoptionRefs = new Map(rows.map(row => [row.device.id, row]));
+  return (
+    <SoftwareDeviceAdoptionRefsContext value={adoption}>
+      <SoftwareDevicesTableRows
+        {...props}
+        rows={rows}
+        totalCount={data.softwareDevices?.filteredCount ?? rows.length}
+        infiniteScroll={{
+          hasNextPage: hasNext,
+          isFetchingNextPage: isLoadingNext,
+          onLoadMore: () => {
+            if (hasNext && !isLoadingNext) loadNext(SOFTWARE_DEVICES_PAGE_SIZE);
+          },
+        }}
+      />
+    </SoftwareDeviceAdoptionRefsContext>
   );
 }
 
@@ -281,6 +396,7 @@ function SoftwareDevicesTableRows({
   stickyHeaderOffset,
 }: SoftwareDevicesTableRowsProps) {
   const loading = useLoadingScope();
+  const tableGrid = useTableGrid('software-devices');
 
   const { columnFilters, onColumnFiltersChange } = singleColumnFilter(
     SOFTWARE_DEVICE_COLUMNS.softwareVersion.id,
@@ -324,6 +440,7 @@ function SoftwareDevicesTableRows({
 
   return (
     <LiveTable
+      {...tableGrid}
       table={table}
       pageSize={SOFTWARE_DEVICES_PAGE_SIZE}
       loadingCells={loading}
