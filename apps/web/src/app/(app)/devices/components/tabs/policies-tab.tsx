@@ -10,7 +10,8 @@ import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { routes } from '@/lib/routes';
 import type { Device, DevicePolicy } from '../../types/device.types';
-import { TabEmptyState, TabUnsupportedEmptyState } from './tab-empty-state';
+import { TabEmptyState } from './tab-empty-state';
+import { TabUnsupportedEmptyState } from './tab-unsupported-empty-state';
 
 interface PoliciesTabProps {
   device: Device | null;

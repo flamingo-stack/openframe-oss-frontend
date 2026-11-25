@@ -10,7 +10,8 @@ import type { Device } from '../../types/device.types';
 import { getVulnerabilitiesEmptyReason } from '../../utils/vulnerabilities-empty-state';
 import { DeviceSoftwareTable } from './device-software-table';
 import { FleetSoftwareTab } from './fleet-software-tab';
-import { TabDeployingEmptyState, TabEmptyState, TabUnsupportedEmptyState } from './tab-empty-state';
+import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
+import { TabUnsupportedEmptyState } from './tab-unsupported-empty-state';
 
 interface SoftwareTabProps {
   device: Device | null;

@@ -11,7 +11,8 @@ import { getVulnerabilitiesEmptyReason, isVulnerabilityScanPending } from '../..
 import { DataSyncBanner } from '../data-sync-banner';
 import { DeviceVulnerabilitiesTable } from './device-vulnerabilities-table';
 import { FleetVulnerabilitiesTab } from './fleet-vulnerabilities-tab';
-import { TabDeployingEmptyState, TabEmptyState, TabUnsupportedEmptyState } from './tab-empty-state';
+import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
+import { TabUnsupportedEmptyState } from './tab-unsupported-empty-state';
 
 interface VulnerabilitiesTabProps {
   device: Device | null;

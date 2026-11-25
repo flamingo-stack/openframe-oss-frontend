@@ -8,7 +8,8 @@ import { EMPTY_CARD, labelsOf } from '@/app/components/shared/info-card-loading'
 import { formatDateTimeOnDevice } from '@/lib/format-date';
 import type { Device } from '../../types/device.types';
 import { type DeviceInfoRow, deviceInfoItems, hasDeviceInfo } from '../../utils/device-info-rows';
-import { TabDeployingEmptyState, TabEmptyState, TabUnsupportedEmptyState } from './tab-empty-state';
+import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
+import { TabUnsupportedEmptyState } from './tab-unsupported-empty-state';
 
 interface HardwareTabProps {
   device: Device | null;

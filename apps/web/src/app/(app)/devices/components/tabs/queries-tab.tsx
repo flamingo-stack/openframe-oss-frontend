@@ -12,7 +12,8 @@ import { tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { routes } from '@/lib/routes';
 import { useHostQueries } from '../../hooks/use-host-queries';
 import type { Device } from '../../types/device.types';
-import { TabEmptyState, TabUnsupportedEmptyState } from './tab-empty-state';
+import { TabEmptyState } from './tab-empty-state';
+import { TabUnsupportedEmptyState } from './tab-unsupported-empty-state';
 
 /**
  * Rows drawn while the device's query reports are read. The reports come as one unpaged list with no limit: a typical

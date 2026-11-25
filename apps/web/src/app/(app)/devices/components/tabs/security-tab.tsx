@@ -17,7 +17,8 @@ import type { ReactNode } from 'react';
 import { formatDateTime } from '@/lib/format-date';
 import type { Device } from '../../types/device.types';
 import { getUnsupportedTool } from '../../utils/tool-connection-status';
-import { TabDeployingEmptyState, TabEmptyState, TabUnsupportedEmptyState } from './tab-empty-state';
+import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
+import { TabUnsupportedEmptyState } from './tab-unsupported-empty-state';
 
 interface SecurityTabProps {
   device: Device | null;

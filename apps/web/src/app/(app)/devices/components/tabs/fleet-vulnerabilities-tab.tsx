@@ -39,7 +39,8 @@ import type { Device, Software, Vulnerability } from '../../types/device.types';
 import { deviceQueryKeys } from '../../utils/query-keys';
 import { getVulnerabilitiesEmptyReason, isVulnerabilityScanPending } from '../../utils/vulnerabilities-empty-state';
 import { DataSyncBanner } from '../data-sync-banner';
-import { TabDeployingEmptyState, TabEmptyState, TabUnsupportedEmptyState } from './tab-empty-state';
+import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
+import { TabUnsupportedEmptyState } from './tab-unsupported-empty-state';
 
 /**
  * Vulnerabilities tab over the Fleet host payload (`software-management` off).

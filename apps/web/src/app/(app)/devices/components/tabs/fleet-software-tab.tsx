@@ -37,7 +37,8 @@ import { toValidDate } from '@/lib/format-date';
 import type { Device, Software } from '../../types/device.types';
 import { fleetTimestampMs } from '../../utils/fleet-timestamp';
 import { deviceQueryKeys } from '../../utils/query-keys';
-import { TabDeployingEmptyState, TabEmptyState, TabUnsupportedEmptyState } from './tab-empty-state';
+import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
+import { TabUnsupportedEmptyState } from './tab-unsupported-empty-state';
 
 /** Software tab over the Fleet host payload (`software-management` off). */
 const FLEET_SOFTWARE_COLUMNS = {

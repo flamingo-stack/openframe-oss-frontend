@@ -3,7 +3,9 @@
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { skipToken, useQuery } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
-import { fetchDeviceUnsupportedTools } from '@/graphql/devices/device-unsupported-tools-relay';
+import { graphql } from 'react-relay';
+import { fetchQuery } from 'relay-runtime';
+import type { useDeviceDetailsUnsupportedToolsQuery as UseDeviceDetailsUnsupportedToolsQueryType } from '@/__generated__/useDeviceDetailsUnsupportedToolsQuery.graphql';
 import { featureFlags } from '@/lib/feature-flags';
 import { fleetApiClient } from '@/lib/fleet-api-client';
 import {
@@ -11,6 +13,7 @@ import {
   parseMeshCentralDeviceStatus,
   parseMeshCentralLastSeen,
 } from '@/lib/meshcentral/meshcentral-api';
+import { getRelayEnvironment } from '@/lib/relay/environment';
 import { fetchDeviceNode } from '../queries/devices-api';
 import type {
   Battery,
@@ -312,6 +315,46 @@ export function createDevice(
     logged_in_username: loggedUser?.username,
     logged_username: loggedUser?.username,
   };
+}
+
+/**
+ * The integrated agents this device's OS version is below the minimum of (oss-lib#3138). Asked on its own, beside
+ * the device query, so a backend without the field fails only this request.
+ */
+const unsupportedToolsQuery = graphql`
+  query useDeviceDetailsUnsupportedToolsQuery($machineId: String!) {
+    device(machineId: $machineId) {
+      unsupportedTools {
+        toolType
+        minOsVersion
+        osVersion
+      }
+    }
+  }
+`;
+
+/**
+ * The agents this device's OS version does not support (`Machine.unsupportedTools`). Any failure reads as none: a
+ * backend that predates the field refuses the query, and the device page must keep working there exactly as before.
+ * `network-only`, like the detail node it is fetched beside, so every poll sees the latest OS report. Exported for
+ * its tests.
+ */
+export async function fetchDeviceUnsupportedTools(machineId: string): Promise<UnsupportedTool[]> {
+  try {
+    const data = await fetchQuery<UseDeviceDetailsUnsupportedToolsQueryType>(
+      getRelayEnvironment(),
+      unsupportedToolsQuery,
+      { machineId },
+      { fetchPolicy: 'network-only' },
+    ).toPromise();
+    return (data?.device?.unsupportedTools ?? []).map(tool => ({
+      toolType: tool.toolType,
+      minOsVersion: tool.minOsVersion,
+      osVersion: tool.osVersion,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 /** The device page's read: the GraphQL node merged with Fleet and MeshCentral. Exported for its tests. */

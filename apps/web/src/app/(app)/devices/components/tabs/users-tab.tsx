@@ -23,7 +23,8 @@ import { ValueText } from '@/app/components/shared/value-text';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import type { TableLayout } from '@/app/hooks/use-table-layout';
 import type { Device } from '../../types/device.types';
-import { TabDeployingEmptyState, TabEmptyState, TabUnsupportedEmptyState } from './tab-empty-state';
+import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
+import { TabUnsupportedEmptyState } from './tab-unsupported-empty-state';
 
 /** The Users table's columns. */
 const USER_COLUMNS = {
