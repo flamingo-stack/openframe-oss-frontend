@@ -125,15 +125,12 @@ export function UsersTab({ device, tableLayout = 'cards' }: UsersTabProps) {
     [device?.users],
   );
 
+  // The search finds accounts by their name and nothing else: a group named like the term (`Administrators` for
+  // `Administrator`) does not bring its members along.
   const filteredRows = useMemo(() => {
     const query = debouncedSearch.trim().toLowerCase();
     if (!query) return rows;
-    return rows.filter(
-      user =>
-        user.username.toLowerCase().includes(query) ||
-        (user.groupname ?? '').toLowerCase().includes(query) ||
-        (user.type ?? '').toLowerCase().includes(query),
-    );
+    return rows.filter(user => user.username.toLowerCase().includes(query));
   }, [rows, debouncedSearch]);
 
   const columns = useMemo<ColumnDef<UserRow>[]>(
@@ -282,7 +279,7 @@ export function UsersTab({ device, tableLayout = 'cards' }: UsersTabProps) {
           ref={toolbarRef}
           className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
         >
-          <SearchInput value={search} onChange={setSearch} placeholder="Search for User" showDropdown={false} />
+          <SearchInput value={search} onChange={setSearch} placeholder="Search for Account" showDropdown={false} />
         </div>
       )}
 
