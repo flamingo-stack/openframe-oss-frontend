@@ -285,7 +285,7 @@ export function LinkDeviceModal({ record, onClose, onLinked }: LinkDeviceModalPr
       }
     >
       <p className="text-ods-text-primary text-h4">{`Pick the OpenFrame device this ${record.origin} record belongs to.`}</p>
-      <SearchInput value={input} onChange={setInput} placeholder="Search for Devices" />
+      <SearchInput value={input} onChange={setInput} placeholder="Search for Devices" showDropdown={false} />
       {/* A failed read costs the whole list, suggestions too, so it drops the pick: Link links only what is shown. */}
       <ContentErrorBoundary
         onError={() => setPicked(null)}

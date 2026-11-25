@@ -3,7 +3,7 @@
  * is locked while the server would refuse the change.
  */
 import type { ActionsMenuItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -79,10 +79,16 @@ let container: HTMLDivElement;
 let root: Root;
 let client: QueryClient;
 
-function Probe({ chat }: { chat: MingoModelChatState }) {
+function Probe({
+  chat,
+  onSelection,
+}: {
+  chat: MingoModelChatState;
+  onSelection: (value: MingoModelSelection) => void;
+}) {
   const next = useMingoModelSelection(chat);
   useEffect(() => {
-    selection = next;
+    onSelection(next);
   });
   return null;
 }
@@ -91,14 +97,14 @@ async function render(chat: Partial<MingoModelChatState> = {}) {
   await act(async () =>
     root.render(
       <QueryClientProvider client={client}>
-        <Probe chat={{ ...IDLE, ...chat }} />
+        <Probe chat={{ ...IDLE, ...chat }} onSelection={next => (selection = next)} />
       </QueryClientProvider>,
     ),
   );
 }
 
-const choice = (id: string): ActionsMenuItem => {
-  const items = (selection.menu?.groups ?? []).flatMap(group => group.items);
+const choice = (id: string, tab = selection): ActionsMenuItem => {
+  const items = (tab.menu?.groups ?? []).flatMap(group => group.items);
   const found = items.flatMap(item => [item, ...(item.submenu ?? [])]).find(item => item.id === id);
   if (!found) throw new Error(`no menu item ${id}`);
   return found;
@@ -113,7 +119,9 @@ beforeEach(() => {
   env.rateFor.mockReset();
   env.pricingShown = true;
   useMingoModelDraftStore.setState({ draft: null });
-  client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: 60_000, refetchOnWindowFocus: false } },
+  });
   container = document.createElement('div');
   root = createRoot(container);
 });
@@ -184,8 +192,9 @@ describe('useMingoModelSelection', () => {
 
   it("reads a saved chat's model and changes it on the server", async () => {
     const saved: DialogModelState = { model: null, effectiveModel: GPT, modelTokenBudget: 150_000 };
-    env.fetchDialogModel.mockResolvedValue(saved);
-    env.updateDialogModel.mockResolvedValue({ model: SONNET, effectiveModel: SONNET, modelTokenBudget: 200_000 });
+    const updated: DialogModelState = { model: SONNET, effectiveModel: SONNET, modelTokenBudget: 200_000 };
+    env.fetchDialogModel.mockResolvedValueOnce(saved).mockResolvedValue(updated);
+    env.updateDialogModel.mockResolvedValue(updated);
     await render({ activeDialogId: 'd-1' });
     await vi.waitFor(() => expect(selection.current).toEqual(GPT));
 
@@ -218,6 +227,76 @@ describe('useMingoModelSelection', () => {
     await act(async () => choice('chat-model-default').onClick?.());
 
     expect(env.updateDialogModel).toHaveBeenCalledWith('d-1', null);
+  });
+
+  it('refreshes the same chat in another tab on change and reset without sending a message', async ({
+    onTestFinished,
+  }) => {
+    const defaultState = { model: null, effectiveModel: GPT, modelTokenBudget: 150_000 };
+    let saved: DialogModelState = defaultState;
+    env.fetchDialogModel.mockImplementation(async (dialogId: string) => (dialogId === 'd-1' ? saved : defaultState));
+    env.updateDialogModel.mockImplementation(async (_dialogId, model) => {
+      saved = model ? { model, effectiveModel: model, modelTokenBudget: 200_000 } : defaultState;
+      return saved;
+    });
+    const otherTabRoot = createRoot(document.createElement('div'));
+    const otherTabClient = new QueryClient();
+    onTestFinished(() => {
+      act(() => otherTabRoot.unmount());
+      otherTabClient.clear();
+    });
+    let otherTab!: MingoModelSelection;
+    let unrelatedChat!: MingoModelSelection;
+    await render({ activeDialogId: 'd-1' });
+    await act(async () =>
+      otherTabRoot.render(
+        <QueryClientProvider client={otherTabClient}>
+          <Probe chat={{ ...IDLE, activeDialogId: 'd-1' }} onSelection={next => (otherTab = next)} />
+          <Probe chat={{ ...IDLE, activeDialogId: 'd-2' }} onSelection={next => (unrelatedChat = next)} />
+        </QueryClientProvider>,
+      ),
+    );
+    await vi.waitFor(() => {
+      expect(selection.current).toEqual(GPT);
+      expect(otherTab.current).toEqual(GPT);
+      expect(unrelatedChat.current).toEqual(GPT);
+    });
+
+    await act(async () => choice('chat-model-ANTHROPIC-claude-sonnet-5').onClick?.());
+    await vi.waitFor(() => expect(otherTab.current).toEqual(SONNET));
+    expect(otherTab.contextSize).toBe(200_000);
+    expect(choice('chat-model-ANTHROPIC-claude-sonnet-5', otherTab).checked).toBe(true);
+    expect(choice('chat-model-default', otherTab)).toMatchObject({ label: 'Use default model', disabled: false });
+    expect(env.showToast).toHaveBeenCalledTimes(1);
+
+    await act(async () => choice('chat-model-default', otherTab).onClick?.());
+    await vi.waitFor(() => expect(selection.current).toEqual(GPT));
+    expect(selection.contextSize).toBe(150_000);
+    expect(choice('chat-model-default')).toMatchObject({ label: 'Using default model', disabled: true });
+    expect(env.updateDialogModel.mock.calls).toEqual([
+      ['d-1', SONNET],
+      ['d-1', null],
+    ]);
+    expect(env.fetchDialogModel.mock.calls.filter(([dialogId]) => dialogId === 'd-2')).toEqual([['d-2']]);
+    expect(env.showToast).toHaveBeenCalledTimes(2);
+  });
+
+  it('refreshes an open chat on return to the tab even if it missed the change notification', async ({
+    onTestFinished,
+  }) => {
+    env.fetchDialogModel
+      .mockResolvedValueOnce({ model: null, effectiveModel: GPT, modelTokenBudget: 150_000 })
+      .mockResolvedValue({ model: SONNET, effectiveModel: SONNET, modelTokenBudget: 200_000 });
+    focusManager.setFocused(false);
+    onTestFinished(() => focusManager.setFocused(undefined));
+    await render({ activeDialogId: 'd-1' });
+    await vi.waitFor(() => expect(selection.current).toEqual(GPT));
+
+    await act(async () => focusManager.setFocused(true));
+    await vi.waitFor(() => expect(selection.current).toEqual(SONNET));
+    expect(env.fetchDialogModel.mock.calls).toEqual([['d-1'], ['d-1']]);
+    expect(env.updateDialogModel).not.toHaveBeenCalled();
+    expect(env.showToast).not.toHaveBeenCalled();
   });
 
   it('offers reset after a saved model read fails', async () => {

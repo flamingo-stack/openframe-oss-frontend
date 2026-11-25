@@ -35,6 +35,7 @@ import { routes } from '@/lib/routes';
 import { AdminPrivilegesWarning } from '../components/admin-privileges-warning';
 import { AntivirusWarning } from '../components/antivirus-warning';
 import { DoctorModeWarning } from '../components/doctor-mode-warning';
+import { MacosFleetRequirementAlert } from '../components/macos-fleet-requirement-alert';
 import { type DeviceOrganizationOption, useDeviceOrganizations } from '../hooks/use-device-organizations';
 import { useInstallCommand } from '../hooks/use-install-command';
 import { useRemoteAccessApprovalGate } from '../hooks/use-remote-access-approval-gate';
@@ -53,6 +54,7 @@ import {
   isInstallMethodEnabled,
   PACKAGE_MANAGER_METHODS,
 } from '../utils/device-command-utils';
+import { selectorRowColumns } from './selector-row-columns';
 
 const newDeviceSchema = z.object({
   organizationId: z.string().min(1, 'Customer is required'),
@@ -251,12 +253,8 @@ function NewDeviceForm({ orgs, preselectedOrgId }: NewDeviceFormProps) {
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
       <div className="flex flex-col gap-6">
-        {/* Mockups 504-46017/46069/46131: one column on mobile, two on tablet,
-            all four selectors in a single row on desktop. Desktop columns are
-            plain `1fr` (min = content), not `grid-cols-4`'s `minmax(0,1fr)`: the
-            platform tabs don't shrink, and just past the content-lg step a
-            quarter of the row is narrower than Windows + macOS. */}
-        <div className="grid grid-cols-1 gap-6 content-md:grid-cols-2 content-lg:grid-cols-[repeat(4,1fr)]">
+        {/* One column on mobile, two on tablet, one row on desktop (selectorRowColumns). */}
+        <div className={`grid grid-cols-1 gap-6 content-md:grid-cols-2 ${selectorRowColumns(showRemoteAccess)}`}>
           <Controller
             name="organizationId"
             control={form.control}
@@ -393,6 +391,7 @@ function NewDeviceForm({ orgs, preselectedOrgId }: NewDeviceFormProps) {
           </Button>
         </div>
 
+        <MacosFleetRequirementAlert platform={platform} />
         <AdminPrivilegesWarning platform={platform} />
         <AntivirusWarning platform={platform} />
         <DoctorModeWarning platform={platform} />

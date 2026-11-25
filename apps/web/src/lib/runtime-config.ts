@@ -80,6 +80,14 @@ export const runtimeEnv = {
     return getEnvVar('NEXT_PUBLIC_APP_TYPE') || 'openframe-dashboard';
   },
   /**
+   * The core lib's platform namespace (its `getAppType()`, not exported): `NEXT_PUBLIC_APP_TYPE` as inlined at BUILD
+   * time, else `'openmsp'`. Deliberately not `appType()`: the lib's code reads the build-time value with its own
+   * default, and what keys its stores (the announcement dismissal cookie) must be matched exactly.
+   */
+  libPlatform(): string {
+    return process.env.NEXT_PUBLIC_APP_TYPE || 'openmsp';
+  },
+  /**
    * This install's configured address, or '' when none is set. No default here: the
    * fallback (registry URL in production, localhost in development) is the lib's
    * `getDeploymentUrl` rule, applied by `getAppUrl` in `./utils`.
