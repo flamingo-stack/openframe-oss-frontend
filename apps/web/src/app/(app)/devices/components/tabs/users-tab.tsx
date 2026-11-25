@@ -24,6 +24,7 @@ import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import type { TableLayout } from '@/app/hooks/use-table-layout';
 import type { Device } from '../../types/device.types';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
+import { TabUnsupportedEmptyState } from './tab-unsupported-empty-state';
 
 /** The Users table's columns. */
 const USER_COLUMNS = {
@@ -243,6 +244,9 @@ export function UsersTab({ device, tableLayout = 'cards' }: UsersTabProps) {
     }
 
     if (rows.length === 0) {
+      if (device.sources?.fleet === 'skipped-unsupported') {
+        return <TabUnsupportedEmptyState icon={<UsersIcon />} />;
+      }
       if (device.sources?.fleet === 'skipped-pending') {
         return <TabDeployingEmptyState icon={<UsersIcon />} section="Local Accounts" />;
       }

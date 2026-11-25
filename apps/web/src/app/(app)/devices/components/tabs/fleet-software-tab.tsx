@@ -38,6 +38,7 @@ import type { Device, Software } from '../../types/device.types';
 import { fleetTimestampMs } from '../../utils/fleet-timestamp';
 import { deviceQueryKeys } from '../../utils/query-keys';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
+import { TabUnsupportedEmptyState } from './tab-unsupported-empty-state';
 
 /** Software tab over the Fleet host payload (`software-management` off). */
 const FLEET_SOFTWARE_COLUMNS = {
@@ -310,6 +311,11 @@ export function FleetSoftwareTab({ device, tableLayout = 'cards' }: FleetSoftwar
             description="The Fleet agent for this device is disconnected, so its software inventory is unavailable."
           />
         );
+      }
+
+      // OS below Fleet's minimum and no live Fleet → it will never fill on this version.
+      if (fleetSource === 'skipped-unsupported') {
+        return <TabUnsupportedEmptyState icon={<WebDesignIcon />} />;
       }
 
       // Agent still deploying → the design's connecting-state copy.

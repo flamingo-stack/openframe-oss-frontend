@@ -1,7 +1,25 @@
 import { isManagedStatusSupported } from '@/lib/device-status-support';
-import type { Device, ToolConnection } from '../types/device.types';
+import type { Device, ToolConnection, UnsupportedTool } from '../types/device.types';
 
-export type ToolConnectionDisplayStatus = 'online' | 'offline' | 'pending';
+/** 'not-supported': the device's OS version is below the agent's minimum, so it will never deploy there. */
+export type ToolConnectionDisplayStatus = 'online' | 'offline' | 'pending' | 'not-supported';
+
+/** An OS version as people write it: trailing `.0` parts dropped ("13.0" → "13", "11.7.10" unchanged). */
+export function displayOsVersion(version: string): string {
+  return version.replace(/(\.0+)+$/, '');
+}
+
+/**
+ * The entry of `Machine.unsupportedTools` for a tool type, when the device's OS version is below that tool's
+ * minimum. Undefined when the version is unknown, supported, or the backend does not report the field: all of
+ * those keep today's behaviour.
+ */
+export function getUnsupportedTool(
+  device: Pick<Device, 'unsupportedTools'> | null | undefined,
+  toolType: string,
+): UnsupportedTool | undefined {
+  return device?.unsupportedTools?.find(tool => tool.toolType === toolType);
+}
 
 /**
  * Lifecycle state of a FLEET_MDM / MESHCENTRAL tool connection.
@@ -71,17 +89,19 @@ export function getExpectedAgentTypes(device: Device, saasTenant: boolean): read
  *
  * A backend with the MANAGED status decides it: the device is PENDING until the agent, Fleet and MeshCentral have
  * all connected, then MANAGED for good, so the banner is `status === 'PENDING'` and the API, the filters and the
- * banner read one value. An older backend (no MANAGED) has no such status, so the frontend works it out from the
- * tool connections as before: waiting for the first Fleet or MeshCentral registration, never on archive-lifecycle
- * records.
+ * banner read one value (a Mac below Fleet's minimum is promoted without Fleet there). An older backend (no MANAGED)
+ * has no such status, so the frontend works it out from the tool connections as before: waiting for the first Fleet
+ * (unless its OS is below Fleet's minimum) or MeshCentral registration, never on archive-lifecycle records.
  */
 export function isDeviceStillConnecting(device: Device): boolean {
   if (isManagedStatusSupported()) return device.status?.toUpperCase() === 'PENDING';
   if (isArchiveLifecycle(device)) return false;
   // The openframe-chat app has no tool connection to wait for, so it never holds the banner.
+  // Fleet on an OS below its minimum will never register, so it does not hold the banner either.
   const fleet = device.toolConnections?.find(tc => tc.toolType === 'FLEET_MDM');
   const mesh = device.toolConnections?.find(tc => tc.toolType === 'MESHCENTRAL');
-  return getToolConnectionState(fleet) === 'pending' || getToolConnectionState(mesh) === 'pending';
+  const fleetPending = getToolConnectionState(fleet) === 'pending' && !getUnsupportedTool(device, 'FLEET_MDM');
+  return fleetPending || getToolConnectionState(mesh) === 'pending';
 }
 
 /**

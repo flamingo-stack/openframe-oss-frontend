@@ -57,4 +57,17 @@ describe('HardwareTab', () => {
   it('renders a device that reports no Fleet disk totals', () => {
     expect(() => act(() => root.render(<HardwareTab device={{ id: 'd1' } as unknown as Device} />))).not.toThrow();
   });
+
+  it('says the OS is unsupported, not "still deploying", when Fleet does not run on it', () => {
+    act(() => root.render(<HardwareTab device={{ id: 'd1', sources: { fleet: 'skipped-unsupported' } } as Device} />));
+    expect(container.textContent).toContain('Not available on this macOS version');
+    expect(container.textContent).toContain('Upgrade macOS and Fleet installs automatically.');
+    expect(container.textContent).not.toContain('finishes deploying');
+  });
+
+  it('keeps the deploying copy while a supported Fleet is still installing', () => {
+    act(() => root.render(<HardwareTab device={{ id: 'd1', sources: { fleet: 'skipped-pending' } } as Device} />));
+    expect(container.textContent).toContain('finishes deploying');
+    expect(container.textContent).not.toContain('Not available on this macOS version');
+  });
 });
