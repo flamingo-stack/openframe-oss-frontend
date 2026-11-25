@@ -1,7 +1,6 @@
 'use client';
 
 import { useOptionalNotifications } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { AppLayout as CoreAppLayout } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { TicketLiveProvider } from '@flamingo-stack/openframe-frontend-core/components/tickets';
@@ -10,10 +9,6 @@ import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import type { NavigationSidebarConfig } from '@flamingo-stack/openframe-frontend-core/types/navigation';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { DashboardOverviews } from '@/app/(app)/dashboard/components/dashboard-content';
-import { ManhattanStartWork } from '@/app/(app)/mingo/home/manhattan-start-work';
-import { MingoDashboard } from '@/app/(app)/mingo/home/mingo-dashboard';
-import { MingoNewChat } from '@/app/(app)/mingo/home/mingo-new-chat';
 import { MingoChatProvider } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { countCompleted, USER_ONBOARDING_STEPS } from '@/app/(app)/onboarding/onboarding-steps';
 import { useSetupPending } from '@/app/(app)/setup/hooks/use-setup-pending';
@@ -107,6 +102,7 @@ import { OnboardingCoachMark } from './onboarding-coach-mark';
 import { OnboardingProgressHydrator } from './onboarding-progress-hydrator';
 import { OnboardingV2Redirect } from './onboarding-v2-redirect';
 import { OUTDATED_CLIENT_DEVICES_HREF, OutdatedClientBar, useOutdatedClientCount } from './outdated-client-bar';
+import { PageSlot } from './page-slot';
 import { PresenceHeartbeat } from './presence-heartbeat';
 import { SessionHealthWatcher } from './session-health-watcher';
 import { SessionUnavailableScreen } from './session-unavailable-screen';
@@ -931,32 +927,12 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   };
 
   // The page segment's boundary - what the chrome, bare or not, puts in its content
-  // slot. Its placement rules are on the core layout below. Every page draws its own
-  // loading state (its components in a loading scope, behind its own boundaries), so
-  // this one only keeps a read that escapes a page from suspending the chrome around
-  // it: it has no page of its own to draw.
+  // slot (`PageSlot`: the landing skeleton while held and until the page can draw
+  // itself). Its placement rules are on the core layout below.
   const pageContent = (
-    <Suspense fallback={null /* loading-standard-ok(SUSPENSE_FALLBACK): a backstop under the pages' own boundaries */}>
-      {showLockContent ? (
-        <SubscriptionLockContent />
-      ) : dashboardHeld ? (
-        composerRouteOf(pathname) === 'home' ? (
-          // A new chat: its greeting, nothing that loads.
-          manhattan ? (
-            // Manhattan v2: Start Work, its "Needs you" in its loading form.
-            <ManhattanStartWork live={false} />
-          ) : (
-            <MingoNewChat />
-          )
-        ) : (
-          <LoadingFallback label="Loading dashboard">
-            {isSaasTenantMode() ? <MingoDashboard live={false} /> : <DashboardOverviews />}
-          </LoadingFallback>
-        )
-      ) : (
-        children
-      )}
-    </Suspense>
+    <PageSlot pathname={pathname} manhattan={manhattan} held={dashboardHeld && !showLockContent}>
+      {showLockContent ? <SubscriptionLockContent /> : children}
+    </PageSlot>
   );
 
   return (
