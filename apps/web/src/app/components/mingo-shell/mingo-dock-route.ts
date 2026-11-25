@@ -1,3 +1,4 @@
+import { isSaasOnboardingRoute } from '@/app/components/app-shell-chrome';
 import { routes } from '@/lib/routes';
 
 /**
@@ -45,7 +46,9 @@ function withoutTrailingSlash(pathname: string): string {
 export function composerRouteOf(pathname: string | null): ComposerRoute {
   if (pathname === null) return 'page';
   const path = withoutTrailingSlash(pathname);
-  if (path === routes.mingo.home) return 'home';
+  // A SaaS tenant's `/onboarding` forwards to Mingo's home: drawn as a page until then, it was an
+  // empty "Onboarding" column beside Start Work.
+  if (path === routes.mingo.home || isSaasOnboardingRoute(path)) return 'home';
   if (path === MINGO_CHAT_PATH) return 'chat';
   if (isFullWidthPage(path)) return 'full-width';
   return 'page';

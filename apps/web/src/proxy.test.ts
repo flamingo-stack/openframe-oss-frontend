@@ -79,23 +79,3 @@ describe("Manhattan v2's dashboard", () => {
     expect(redirectedTo('/devices', 'saas-tenant')).toBeNull();
   });
 });
-
-/**
- * The saas-gateway lands a login whose user has not finished the tour on `/onboarding`.
- * A SaaS tenant has no such page: drawn first, it opened an empty "Onboarding" column
- * beside Start Work (CU-17tkuw69uzp).
- */
-describe("Manhattan v2's onboarding", () => {
-  it("sends a SaaS tenant's /onboarding to Start Work on the server, with its query", () => {
-    expect(redirectedTo('/onboarding', 'saas-tenant')).toMatch(/^https:\/\/openframe\.ai\/mingo\/?$/);
-    expect(redirectedTo('/onboarding/', 'saas-tenant')).toMatch(/^https:\/\/openframe\.ai\/mingo\/?$/);
-    process.env.NEXT_PUBLIC_APP_MODE = 'saas-tenant';
-    const response = proxy(new NextRequest(new URL('https://openframe.ai/onboarding/?utm_source=mail')));
-    expect(response.headers.get('location')).toMatch(/^https:\/\/openframe\.ai\/mingo\/?\?utm_source=mail$/);
-  });
-
-  it("keeps an OSS tenant's Get Started tour, and the SaaS tenant's paths under it", () => {
-    expect(redirectedTo('/onboarding', 'oss-tenant')).toBeNull();
-    expect(redirectedTo('/onboarding/x', 'saas-tenant')).toBeNull();
-  });
-});

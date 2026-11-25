@@ -58,21 +58,16 @@ function defaultRedirect(): string {
 }
 
 /**
- * Pages a SaaS tenant's shell (Manhattan v2) does not have, which forward to Start Work:
- * `/dashboard` (`app/(app)/dashboard/page.tsx`) and `/onboarding`
- * (`app/(app)/onboarding/page.tsx`, where the saas-gateway sends a login whose user has not
- * finished the tour). In the browser that forward runs only once the page mounts, behind the
- * page gates, and until then the shell draws the page it is leaving: the old dashboard's
- * skeleton, or an empty "Onboarding" column beside Start Work. Sent here first, a load of
- * either (a login, a bookmark, a reload, an old link) lands on Start Work without drawing it.
+ * A SaaS tenant's shell (Manhattan v2) has no dashboard: `app/(app)/dashboard/page.tsx`
+ * sends `/dashboard` to Start Work, but only in the browser, after the page has drawn the
+ * old dashboard's skeleton and an empty page. Sent here first, a load of `/dashboard` (a
+ * bookmark, a reload, an old link) lands on Start Work without drawing a page it leaves.
  * The client redirect stays for what this does not see (the native shells' static export,
  * a navigation inside the app).
  */
-const SHELL_FORWARDED_PATHS = new Set(['/dashboard', '/dashboard/', '/onboarding', '/onboarding/']);
-
 function shellRedirect(pathname: string): string | null {
   if (getMode() !== 'saas-tenant') return null;
-  return SHELL_FORWARDED_PATHS.has(pathname) ? '/mingo' : null;
+  return pathname === '/dashboard' || pathname === '/dashboard/' ? '/mingo' : null;
 }
 
 export function proxy(request: NextRequest) {

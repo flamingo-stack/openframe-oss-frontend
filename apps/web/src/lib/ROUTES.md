@@ -65,9 +65,9 @@ path constant. Each builder writes only params its page already reads from the U
 → `/dashboard`, `/approvals` → `/notifications`. On a SaaS tenant `/mingo` is a new chat and
 where a session starts (`getLandingPath`), `/dashboard` the Mingo-first shell's dashboard (the
 sidebar's Dashboard), and `/onboarding` forwards to `/mingo`. App mode is synchronous, so nothing waits.
-A page load of `/dashboard` or `/onboarding` on a SaaS tenant is sent to `/mingo` by the Edge proxy
-(`proxy.ts`, `shellRedirect`) before the shell draws it; the pages keep their own client redirect for the
-native shells' static export and in-app navigation.
+A SaaS `/onboarding` (where the saas-gateway lands a login whose user has not finished the tour) is Mingo's home
+and a landing route for the shell (`isSaasOnboardingRoute` in `app-shell-chrome.ts`), so it draws Start Work on the
+way and a session that owes its setup goes straight to `/setup`.
 
 Usage at call sites:
 
