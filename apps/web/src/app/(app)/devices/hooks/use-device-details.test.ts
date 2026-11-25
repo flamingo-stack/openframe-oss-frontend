@@ -6,18 +6,14 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DeviceGraphQlNode, ToolConnection } from '../types/device.types';
-import { createDevice, fetchDeviceDetails, fetchDeviceUnsupportedTools } from './use-device-details';
+import { createDevice, fetchDeviceDetails } from './use-device-details';
 
-const api = vi.hoisted(() => ({ fetchDeviceNode: vi.fn() }));
-const relay = vi.hoisted(() => ({ fetchQuery: vi.fn() }));
+const api = vi.hoisted(() => ({ fetchDeviceNode: vi.fn(), fetchDeviceUnsupportedTools: vi.fn() }));
 const fleet = vi.hoisted(() => ({ getHost: vi.fn() }));
 
-// The real modules carry graphql tags, which need the Relay babel plugin vitest does not run: the device query layer
-// is mocked, and this file's own graphql tag is stubbed (the query document is not under test).
+// The real modules carry graphql tags, which need the Relay babel plugin vitest does not run.
 vi.mock('../queries/devices-api', () => ({ fetchDeviceNode: api.fetchDeviceNode }));
-vi.mock('react-relay', () => ({ graphql: () => ({}) }));
-vi.mock('relay-runtime', () => ({ fetchQuery: relay.fetchQuery }));
-vi.mock('@/lib/relay/environment', () => ({ getRelayEnvironment: () => ({}) }));
+vi.mock('./device-unsupported-tools', () => ({ fetchDeviceUnsupportedTools: api.fetchDeviceUnsupportedTools }));
 vi.mock('@/lib/fleet-api-client', () => ({ fleetApiClient: fleet }));
 vi.mock('@/lib/feature-flags', () => ({ featureFlags: { softwareManagement: { enabled: () => false } } }));
 vi.mock('@/lib/meshcentral/meshcentral-api', () => ({
@@ -33,11 +29,6 @@ const NODE: DeviceGraphQlNode = {
   nickname: null,
   status: 'ONLINE',
 };
-
-/** The unsupported-tools query answers with this result (a resolved payload or a refusal). */
-function unsupportedToolsAnswer(result: Promise<unknown>) {
-  relay.fetchQuery.mockReturnValue({ toPromise: () => result });
-}
 
 const toDevice = (node: DeviceGraphQlNode) => createDevice(node, null, null, null, { fleet: 'skipped-pending' });
 
@@ -63,14 +54,14 @@ describe('fetchDeviceDetails on an OS below the Fleet minimum', () => {
 
   beforeEach(() => {
     api.fetchDeviceNode.mockReset();
-    relay.fetchQuery.mockReset();
+    api.fetchDeviceUnsupportedTools.mockReset();
     fleet.getHost.mockReset();
     fleet.getHost.mockResolvedValue({ ok: true, data: { host: { id: 23, hostname: 'workstation-23' } } });
   });
 
   it('skips the Fleet read and marks the source unsupported when no Fleet is live', async () => {
     api.fetchDeviceNode.mockResolvedValue({ ...NODE, toolConnections: [] });
-    unsupportedToolsAnswer(Promise.resolve({ device: { unsupportedTools: FLEET_UNSUPPORTED } }));
+    api.fetchDeviceUnsupportedTools.mockResolvedValue(FLEET_UNSUPPORTED);
 
     const device = await fetchDeviceDetails('machine-1');
 
@@ -81,7 +72,7 @@ describe('fetchDeviceDetails on an OS below the Fleet minimum', () => {
 
   it('still reads a live Fleet, so a Fleet that runs keeps its data on screen', async () => {
     api.fetchDeviceNode.mockResolvedValue({ ...NODE, toolConnections: [liveFleet] });
-    unsupportedToolsAnswer(Promise.resolve({ device: { unsupportedTools: FLEET_UNSUPPORTED } }));
+    api.fetchDeviceUnsupportedTools.mockResolvedValue(FLEET_UNSUPPORTED);
 
     const device = await fetchDeviceDetails('machine-1');
 
@@ -92,7 +83,7 @@ describe('fetchDeviceDetails on an OS below the Fleet minimum', () => {
 
   it("keeps today's pending state when nothing is unsupported (unknown version, or a backend without the field)", async () => {
     api.fetchDeviceNode.mockResolvedValue({ ...NODE, toolConnections: [] });
-    unsupportedToolsAnswer(Promise.resolve({ device: { unsupportedTools: [] } }));
+    api.fetchDeviceUnsupportedTools.mockResolvedValue([]);
 
     const device = await fetchDeviceDetails('machine-1');
 
@@ -102,49 +93,11 @@ describe('fetchDeviceDetails on an OS below the Fleet minimum', () => {
 
   it('asks for the device and its unsupported tools side by side', async () => {
     api.fetchDeviceNode.mockResolvedValue({ ...NODE, toolConnections: [] });
-    unsupportedToolsAnswer(Promise.resolve({ device: { unsupportedTools: [] } }));
+    api.fetchDeviceUnsupportedTools.mockResolvedValue([]);
 
     await fetchDeviceDetails('machine-1');
 
     expect(api.fetchDeviceNode).toHaveBeenCalledWith('machine-1');
-    expect(relay.fetchQuery).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      { machineId: 'machine-1' },
-      {
-        fetchPolicy: 'network-only',
-      },
-    );
-  });
-});
-
-describe('fetchDeviceUnsupportedTools', () => {
-  beforeEach(() => relay.fetchQuery.mockReset());
-
-  it('returns the reported entries, asked network-only for this machine', async () => {
-    const entry = { toolType: 'FLEET_MDM', minOsVersion: '13.0', osVersion: '11.7.10' };
-    unsupportedToolsAnswer(Promise.resolve({ device: { unsupportedTools: [entry] } }));
-
-    await expect(fetchDeviceUnsupportedTools('machine-1')).resolves.toEqual([entry]);
-    expect(relay.fetchQuery).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      { machineId: 'machine-1' },
-      { fetchPolicy: 'network-only' },
-    );
-  });
-
-  it('reads a refused query (a backend without the field) as none', async () => {
-    unsupportedToolsAnswer(
-      Promise.reject(new Error("Validation error: Field 'unsupportedTools' in type 'Machine' is undefined")),
-    );
-
-    await expect(fetchDeviceUnsupportedTools('machine-1')).resolves.toEqual([]);
-  });
-
-  it('reads a missing device as none', async () => {
-    unsupportedToolsAnswer(Promise.resolve({ device: null }));
-
-    await expect(fetchDeviceUnsupportedTools('machine-1')).resolves.toEqual([]);
+    expect(api.fetchDeviceUnsupportedTools).toHaveBeenCalledWith('machine-1');
   });
 });
