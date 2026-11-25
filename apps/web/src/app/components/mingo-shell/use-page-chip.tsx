@@ -11,6 +11,7 @@ import type { ReactNode } from 'react';
 import { useMingoContextEntityTypes } from '@/app/(app)/mingo/context/context-sources';
 import { isMingoHomeHref, pageContextHref, resolvePageContext } from '@/app/(app)/mingo/context/page-context';
 import { useMingoContextStore } from '@/app/(app)/mingo/stores/mingo-context-store';
+import { isSaasOnboardingRoute } from '@/app/components/app-shell-chrome';
 import { useIsMobileViewport } from '@/app/hooks/use-is-mobile-viewport';
 import { navModuleIcon, navModuleOf } from '@/lib/navigation-config';
 import { routes } from '@/lib/routes';
@@ -70,6 +71,8 @@ export function usePageChip(route: ComposerRoute, onAsk: (prompt: string) => voi
   const ask = () => onAsk(PAGE_OVERVIEW_PROMPT);
 
   if (route === 'home' || route === 'chat') {
+    // A SaaS `/onboarding` is Mingo's home on its way there: no page to ask about (CU-17tkuw69uzp).
+    if (isSaasOnboardingRoute(pathname)) return null;
     const location = { pathname, search: search ? `?${search}` : '' };
     const href = pageContextHref(location, lastPage, phone ? { newChatPage } : undefined);
     return isMingoHomeHref(href) ? null : <PageChip href={href} onAsk={ask} />;
