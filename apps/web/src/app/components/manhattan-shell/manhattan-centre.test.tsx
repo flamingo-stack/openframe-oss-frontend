@@ -804,6 +804,25 @@ describe('ManhattanCentre', () => {
       expect(dock()?.classList.contains('absolute')).toBe(false);
     });
 
+    // CU-17tkuw69vdn: the column took the composer card to its own width (2000px in a full-screen chat). The card is
+    // 800px at most there too: the composer's section only (the outermost in the slot), not the sections drawn inside
+    // the chat, and its ground stays the column's.
+    it.each([
+      ['over Start Work', null],
+      ['under an open chat', 'd-1'],
+    ])('caps the composer card at 800px, centred in the column, %s', (_name, dialog) => {
+      chatState.activeDialogId = dialog;
+      renderColumn();
+      const slot = container.querySelector('[data-testid="manhattan-column-dock"] > [data-composer-slot]');
+      const classes = slot?.className.split(' ') ?? [];
+      expect(classes).toContain(
+        '[&_section:not(&_section_section)]:max-w-[calc(800px+2*var(--spacing-system-lf)+2*var(--spacing-system-m))]',
+      );
+      expect(classes).toContain('[&_section:not(&_section_section)]:px-[var(--spacing-system-lf)]');
+      expect(classes.some(name => name.endsWith(':max-w-none'))).toBe(false);
+      expect(classes.every(name => name.startsWith('[&_section:not(&_section_section)]:'))).toBe(true);
+    });
+
     it('keeps the thread for a first send on its way (no chat id yet)', () => {
       chatState.messages = [{ id: 'm-1' }];
       renderColumn();
