@@ -2,7 +2,7 @@ import type { ChatMessage } from '@flamingo-stack/openframe-frontend-core/chat-p
 import { describe, expect, it } from 'vitest';
 import type { ClientView } from '@/app/(app)/settings/ai-settings/types/ai-settings';
 import { ASSISTANT_CONFIG } from '../constants';
-import { clientChatAssistant, withAssistantAvatar } from './client-chat-assistant';
+import { assistantAuthor, clientChatAssistant, withAssistantAvatar } from './client-chat-assistant';
 
 const view = (overrides: Partial<ClientView>): ClientView => ({
   id: 'v-1',
@@ -43,6 +43,24 @@ describe('clientChatAssistant', () => {
   it('is Fae with no avatar when nothing is set', () => {
     expect(clientChatAssistant(null, null)).toEqual({ name: ASSISTANT_CONFIG.FAE.name, avatar: undefined });
     expect(clientChatAssistant(view({ assistantName: '  ' }), null).name).toBe(ASSISTANT_CONFIG.FAE.name);
+  });
+});
+
+describe('assistantAuthor', () => {
+  it("authors the receipt as the assistant, with the customer's avatar", () => {
+    const author = assistantAuthor(clientChatAssistant(customerView, tenantView));
+    expect(author).toMatchObject({ name: 'Praesto', assistantType: ASSISTANT_CONFIG.FAE.type, authorType: 'fae' });
+    expect(author.avatar).toMatch(/\/api\/images\/assistant\/org-1\?v=h1$/);
+  });
+
+  it('carries no avatar when none is set, so the lib draws the Fae mark', () => {
+    const author = assistantAuthor(clientChatAssistant(null, null));
+    expect(author).toEqual({
+      name: ASSISTANT_CONFIG.FAE.name,
+      assistantType: ASSISTANT_CONFIG.FAE.type,
+      authorType: 'fae',
+    });
+    expect('avatar' in author).toBe(false);
   });
 });
 

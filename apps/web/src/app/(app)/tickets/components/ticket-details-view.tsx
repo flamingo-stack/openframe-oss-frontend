@@ -74,7 +74,7 @@ import { useTransitionTicket } from '../hooks/use-transition-ticket';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
 import type { ClientDialogOwner, DialogOwner } from '../types/dialog.types';
 import { hasActiveAiDialog } from '../utils/ai-dialog';
-import { clientChatAssistant, withAssistantAvatar } from '../utils/client-chat-assistant';
+import { assistantAuthor, clientChatAssistant, withAssistantAvatar } from '../utils/client-chat-assistant';
 import { lastClientMessageId } from '../utils/client-chat-read';
 import { isResolvedStatusId } from '../utils/is-resolved-status';
 import { ticketsQueryKeys } from '../utils/query-keys';
@@ -435,12 +435,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
               title: receiptTitle,
               description: receiptDescription,
             },
-            {
-              name: assistantName,
-              ...(assistantAvatar ? { avatar: assistantAvatar } : {}),
-              assistantType: ASSISTANT_CONFIG.FAE.type,
-              authorType: 'fae',
-            },
+            assistantAuthor({ name: assistantName, avatar: assistantAvatar }),
           ),
     [
       receiptTicketId,

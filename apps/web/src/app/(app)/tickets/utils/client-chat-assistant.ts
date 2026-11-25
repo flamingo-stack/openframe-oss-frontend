@@ -1,4 +1,4 @@
-import type { ChatMessage } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import type { ChatMessage, ChatMessageAuthor } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import type { ClientView } from '@/app/(app)/settings/ai-settings/types/ai-settings';
 import { getFullImageUrl } from '@/lib/image-url';
 import { ASSISTANT_CONFIG } from '../constants';
@@ -21,6 +21,16 @@ export function clientChatAssistant(
   return {
     name: view?.assistantName.trim() || ASSISTANT_CONFIG.FAE.name,
     avatar: getFullImageUrl(view?.assistantAvatar?.imageUrl, view?.assistantAvatar?.hash),
+  };
+}
+
+/** The assistant as the author of a message the page writes itself (the ticket receipt): its name, and its face when set. */
+export function assistantAuthor({ name, avatar }: ClientChatAssistant): ChatMessageAuthor {
+  return {
+    name,
+    ...(avatar ? { avatar } : {}),
+    assistantType: ASSISTANT_CONFIG.FAE.type,
+    authorType: 'fae',
   };
 }
 
