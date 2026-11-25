@@ -10,6 +10,7 @@ import type { ComponentType } from 'react';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PageFallbackProvider } from '@/app/components/page-fallback-context';
 import { toGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import ApprovalsPage from './approvals/page';
@@ -88,10 +89,25 @@ describe('a SaaS tenant', () => {
     expect(replace).not.toHaveBeenCalled();
   });
 
-  it('forwards the tour to Mingo home', () => {
+  it('forwards the tour to Mingo home, with its query and fragment', () => {
     renderAt('/onboarding', OnboardingPage, true);
     expect(container.textContent).toBe('');
     expect(replace).toHaveBeenCalledWith('/mingo');
+    renderAt('/onboarding/?utm_source=mail#step-tickets', OnboardingPage, true);
+    expect(replace).toHaveBeenLastCalledWith('/mingo?utm_source=mail#step-tickets');
+  });
+
+  it("draws the page slot's stand-in on the way, never an empty page (CU-17tkuw69uzq, CU-17tkuw69uzp)", () => {
+    mode.saas = true;
+    window.history.replaceState(null, '', '/onboarding/');
+    act(() =>
+      root.render(
+        <PageFallbackProvider value={<p>start work skeleton</p>}>
+          <OnboardingPage />
+        </PageFallbackProvider>,
+      ),
+    );
+    expect(container.textContent).toBe('start work skeleton');
   });
 
   it('swaps a Relay global chat id in the URL for the raw one', () => {

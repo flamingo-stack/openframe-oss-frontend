@@ -1,15 +1,15 @@
 'use client';
 
-import {
-  type DeviceFilters,
-  DeviceSelector,
-  type DeviceSelectorNarrowing,
-  type SubTab,
+import type {
+  DeviceFilters,
+  DeviceSelectorNarrowing,
+  SubTab,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback, useMemo } from 'react';
 import type { deviceSelectorFields_machine$key } from '@/__generated__/deviceSelectorFields_machine.graphql';
 import type { Device } from '@/app/(app)/devices/types/device.types';
+import { DevicePicker, type DevicePickerTableKey } from './device-picker';
 import { DEVICE_PICKER_PAGE_SIZE, toDevices } from './picker-narrowing';
 
 /**
@@ -40,6 +40,8 @@ export interface PickerHalf {
 }
 
 interface ServerDevicePickerListsProps {
+  /** The key this owner's picker keeps the viewer's column layout under (`DevicePicker`): one per owner. */
+  tableStorageKey: DevicePickerTableKey;
   available: PickerHalf;
   selected: PickerHalf;
   /**
@@ -84,6 +86,7 @@ interface ServerDevicePickerListsProps {
  * box mid-typing).
  */
 export function ServerDevicePickerLists({
+  tableStorageKey,
   available,
   selected,
   selectedCount,
@@ -134,7 +137,8 @@ export function ServerDevicePickerLists({
   }, [half]);
 
   return (
-    <DeviceSelector
+    <DevicePicker
+      tableStorageKey={tableStorageKey}
       devices={isAvailable ? availableRows : selectedRows}
       // While the halves are read the picker draws its own loading state: one picker page of rows.
       loading={loading}

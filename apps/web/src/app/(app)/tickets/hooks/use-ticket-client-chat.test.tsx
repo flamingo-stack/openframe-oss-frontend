@@ -25,6 +25,7 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', async importO
   },
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', () => ({ useToast: () => ({ toast: vi.fn() }) }));
+vi.mock('@/app/(app)/mingo/models/use-mingo-model-pricing', () => ({ useMingoModelPricing: vi.fn() }));
 vi.mock('@/lib/nats/nats-app-config', () => ({
   useNatsAppConfig: () => ({ getWsUrl: () => 'wss://nats.test', onBeforeReconnect: undefined }),
 }));

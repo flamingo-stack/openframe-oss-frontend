@@ -195,3 +195,20 @@ describe('CreateOrganizationSection validation', () => {
     expect(button('Create Account').disabled).toBe(true);
   });
 });
+
+describe('CreateOrganizationSection in an app shell', () => {
+  it('hands the email to the browser instead of opening the details step, and registers nothing', async () => {
+    const onContinueInBrowser = vi.fn();
+    act(() =>
+      root.render(<CreateOrganizationSection onRegister={onRegister} onContinueInBrowser={onContinueInBrowser} />),
+    );
+
+    expect(container.textContent).toContain('finishes in your browser');
+    type('username@mail.com', ' kate@acme.com ');
+    await click(button('Continue in Browser'));
+
+    expect(onContinueInBrowser).toHaveBeenCalledWith('kate@acme.com');
+    expect(field('Your Company Name')).toBeNull();
+    expect(onRegister).not.toHaveBeenCalled();
+  });
+});

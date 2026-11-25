@@ -11,9 +11,14 @@ import type { AiQuickAction } from '@/app/(app)/settings/ai-settings/types/ai-se
 import { ManhattanDockContext } from '../manhattan-shell/manhattan-dock-context';
 import { MingoDockQuickActions } from './mingo-dock-quick-actions';
 
-const { quickActions, viewport } = vi.hoisted(() => ({
+const { quickActions, viewport, composer } = vi.hoisted(() => ({
   quickActions: { value: [] as AiQuickAction[], loading: false },
   viewport: { mdUp: true as boolean | undefined },
+  /** The slot the composer hangs in (`useManhattanComposerPlace`). */
+  composer: { place: 'page' as 'page' | 'column' | null },
+}));
+vi.mock('../manhattan-shell/manhattan-composer-host', () => ({
+  useManhattanComposerPlace: () => composer.place,
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', async importOriginal => ({
   ...(await importOriginal<object>()),
@@ -94,14 +99,19 @@ describe('MingoDockQuickActions', () => {
     expect(all?.classList.contains('text-ods-text-panel-secondary')).toBe(true);
   });
 
-  // The row takes the composer's inset (the dock's `composerInset`), so the two line up at every width: in v2 from md
-  // none below 720px of content (`px-0 content-md:px-…`); on a phone, and outside v2, always spacing-system-m.
+  // The row takes the composer's inset (the dock's `composerInset`), so the two line up at every width: in the v2 chat
+  // column from md none below 720px of content (`px-0 content-md:px-…`), the column pads it; under a page, on a phone
+  // and outside v2, always spacing-system-m, so it never touches the sidebars beside a narrow centre (CU-17tkuw68taa).
+  const WIDE = ['px-0', 'content-md:px-[var(--spacing-system-m)]'];
+  const ALWAYS = ['px-[var(--spacing-system-m)]'];
   it.each([
-    ['v2 from md', true, true, ['px-0', 'content-md:px-[var(--spacing-system-m)]'], 'px-[var(--spacing-system-m)]'],
-    ['v2 on a phone', true, false, ['px-[var(--spacing-system-m)]'], 'px-0'],
-    ['outside v2', false, true, ['px-[var(--spacing-system-m)]'], 'px-0'],
-  ] as const)('is inset like the composer under it (%s)', (_name, manhattan, mdUp, expected, absent) => {
+    ['v2 chat column from md', true, true, 'column', WIDE, 'px-[var(--spacing-system-m)]'],
+    ['v2 under a page from md', true, true, 'page', ALWAYS, 'px-0'],
+    ['v2 on a phone', true, false, 'page', ALWAYS, 'px-0'],
+    ['outside v2', false, true, null, ALWAYS, 'px-0'],
+  ] as const)('is inset like the composer under it (%s)', (_name, manhattan, mdUp, place, expected, absent) => {
     viewport.mdUp = mdUp;
+    composer.place = place;
     quickActions.value = [{ id: 'qa-1', name: 'Machines online', instructions: 'List every online machine' }];
     act(() =>
       root.render(

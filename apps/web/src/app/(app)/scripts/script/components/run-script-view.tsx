@@ -21,7 +21,7 @@ import { useLazyLoadQuery, useMutation } from 'react-relay';
 import { z } from 'zod';
 import type { batchRunScriptMutation as BatchRunScriptMutationType } from '@/__generated__/batchRunScriptMutation.graphql';
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
-import { DeviceListPicker } from '@/app/components/shared/device-selector';
+import { DEVICE_PICKER_TABLE_KEY, DeviceListPicker } from '@/app/components/shared/device-selector';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { batchRunScriptMutation } from '@/graphql/scripts/batch-run-script-mutation';
 import { scriptDetailRelayQuery } from '@/graphql/scripts/script-detail-relay';
@@ -314,6 +314,7 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
 
           <div className="space-y-[var(--spacing-system-xxs)]">
             <DeviceListPicker
+              tableStorageKey={DEVICE_PICKER_TABLE_KEY.runScript}
               filter={deviceFilter}
               selected={selection}
               onSelectionChange={setSelection}

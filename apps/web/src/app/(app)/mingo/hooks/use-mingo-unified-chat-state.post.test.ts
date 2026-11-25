@@ -4,6 +4,7 @@ import { apiClient } from '@/lib/api-client';
 import { postMingoGraphql } from './use-mingo-unified-chat-state';
 
 vi.mock('@/lib/api-client', () => ({ apiClient: { post: vi.fn() } }));
+vi.mock('../models/use-mingo-model-pricing', () => ({ useMingoModelPricing: vi.fn() }));
 
 const post = vi.mocked(apiClient.post);
 // What QA's /chat/graphql answered (200, 2026-11-19) for a field its schema does not have.

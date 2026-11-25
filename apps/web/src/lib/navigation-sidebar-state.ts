@@ -18,6 +18,8 @@ export const MANHATTAN_CHATS_DRAWER_WIDTH = 300;
 const SIDEBAR_MINIMIZED_STORAGE_KEY = 'of.navigationSidebar.minimized';
 /** The Manhattan v2 right navigation's expanded width (Figma 200). */
 export const MANHATTAN_NAVIGATION_EXPANDED_WIDTH = 200;
+/** Marks the in-flow right navigation, which viewport-fixed model toasts must clear. */
+export const MANHATTAN_END_SIDEBAR_CLASS = 'manhattan-end-sidebar';
 /**
  * Where the Manhattan v2 right navigation keeps the collapse the user chose (JSON `true` / `false`).
  * Nothing stored: the default by window width ({@link MANHATTAN_NAV_OPEN_FROM_WIDTH}). A key of its

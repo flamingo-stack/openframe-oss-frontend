@@ -237,8 +237,8 @@ export function UsersTab({ device, tableLayout = 'cards' }: UsersTabProps) {
       return (
         <TabEmptyState
           icon={<UsersIcon />}
-          title="No users found"
-          description="User accounts on this device will appear here."
+          title="No local accounts found"
+          description="Local accounts on this device will appear here."
         />
       );
     }
@@ -248,13 +248,13 @@ export function UsersTab({ device, tableLayout = 'cards' }: UsersTabProps) {
         return <TabUnsupportedEmptyState icon={<UsersIcon />} />;
       }
       if (device.sources?.fleet === 'skipped-pending') {
-        return <TabDeployingEmptyState icon={<UsersIcon />} section="Users" />;
+        return <TabDeployingEmptyState icon={<UsersIcon />} section="Local Accounts" />;
       }
       return (
         <TabEmptyState
           icon={<UsersIcon />}
-          title="No users found"
-          description="User accounts on this device will appear here."
+          title="No local accounts found"
+          description="Local accounts on this device will appear here."
         />
       );
     }
@@ -282,7 +282,7 @@ export function UsersTab({ device, tableLayout = 'cards' }: UsersTabProps) {
           ref={toolbarRef}
           className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
         >
-          <SearchInput value={search} onChange={setSearch} placeholder="Search for User" />
+          <SearchInput value={search} onChange={setSearch} placeholder="Search for User" showDropdown={false} />
         </div>
       )}
 
@@ -299,10 +299,10 @@ export function UsersTab({ device, tableLayout = 'cards' }: UsersTabProps) {
           rowClassName={LIVE_ROW_GAP_CLASS}
           emptyState={{
             icon: <UsersIcon />,
-            title: 'No users found',
+            title: 'No local accounts found',
             description: debouncedSearch
               ? `No results for "${debouncedSearch}".`
-              : 'User accounts on this device will appear here.',
+              : 'Local accounts on this device will appear here.',
           }}
         />
       </DataTable>

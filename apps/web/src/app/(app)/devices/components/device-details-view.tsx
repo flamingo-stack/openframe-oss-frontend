@@ -33,7 +33,7 @@ import { displayOsVersion, getUnsupportedTool, isDeviceStillConnecting } from '.
 import { OutdatedClientBanner } from './outdated-client-banner';
 import { RecordingStorageBanner } from './remote-sessions/recording-storage-banner';
 import { RunScriptModal } from './run-script/run-script-modal';
-import { DeviceDirectoryGateContext, useDeviceTabs } from './tabs/device-tabs';
+import { DeviceDirectoryGateContext, resolveDeviceTab, useDeviceTabs } from './tabs/device-tabs';
 
 // Icon size for the "…" dropdown items only. The same registry feeds the header
 // buttons, but there this class never applies: every button variant styles its glyphs
@@ -81,7 +81,7 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
   const deviceTabIds = deviceTabs.map(tab => tab.id);
 
   const requestedTab = searchParams.get('tab') ?? DEFAULT_DEVICE_TAB;
-  const activeTab = (deviceTabIds as readonly string[]).includes(requestedTab) ? requestedTab : DEFAULT_DEVICE_TAB;
+  const activeTab = resolveDeviceTab(requestedTab, deviceTabIds, DEFAULT_DEVICE_TAB);
 
   // Controlled mode for TabNavigation: URL is the single source of truth.
   // Avoids a flicker bug in `urlSync` mode where the internal sync effect

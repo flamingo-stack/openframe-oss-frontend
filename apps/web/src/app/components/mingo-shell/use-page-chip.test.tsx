@@ -17,6 +17,11 @@ vi.mock('@/app/(app)/mingo/context/context-sources', () => ({
     { type: 'DEVICE', label: 'Device', icon: null },
   ],
 }));
+const { mode } = vi.hoisted(() => ({ mode: { saas: false } }));
+vi.mock('@/lib/app-mode', async importOriginal => ({
+  ...(await importOriginal<object>()),
+  isSaasTenantMode: () => mode.saas,
+}));
 const location = { pathname: '/devices/', search: '' };
 vi.mock('next/navigation', () => ({
   usePathname: () => location.pathname,
@@ -89,6 +94,13 @@ describe('usePageChip', () => {
   it("gives the page's own chip no ×: the page is always sent", () => {
     render('page');
     expect(buttons()).toHaveLength(1);
+  });
+
+  it("shows nothing on a SaaS tenant's /onboarding, Mingo's home on its way there (CU-17tkuw69uzp)", () => {
+    mode.saas = true;
+    render('home', '/onboarding/');
+    expect(probe.node).toBeNull();
+    mode.saas = false;
   });
 
   it("shows nothing on a desktop's new chat: no page to ask about, wherever the tab was", () => {

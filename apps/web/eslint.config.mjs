@@ -4,7 +4,27 @@ import relay from '@flamingo-stack/openframe-frontend-core/eslint-config/relay';
 import tests from '@flamingo-stack/openframe-frontend-core/eslint-config/tests';
 import { defineConfig } from 'eslint/config';
 
+import {
+  A11Y_BACKLOG,
+  BLACK_CANVAS,
+  FILES_WITH_OVERSIZED_FUNCTIONS,
+  LEGACY_RAW_GRAPHQL,
+  OVERSIZED_COMPONENTS,
+  OVERSIZED_FILES,
+  PUBLIC_ENV_READERS,
+  ROUTE_STRING_READERS,
+} from './eslint-rules/backlog.mjs';
+import {
+  A11Y_RECOMMENDED,
+  NO_SPINNERS,
+  restrictedSyntaxExcept,
+  restrictedSyntaxExceptions,
+} from './eslint-rules/conventions.mjs';
 import openframeRules from './eslint-rules/index.mjs';
+
+/** Source the size and mechanical-convention blocks below cover: app code, not tests or generated output. */
+const APP_SOURCE = ['src/**/*.{ts,tsx}'];
+const NOT_APP_SOURCE = ['**/*.test.{ts,tsx}', '**/__tests__/**', 'src/__generated__/**', 'src/generated/**'];
 
 /*
  * The fast pass — no type-aware rules. This is what the editor loads (see
@@ -247,7 +267,7 @@ export default defineConfig([
   },
 
   {
-    // The pre-paint seeds (the sidebar's, the super user strip's, the sign-up email's) are strings the
+    // The pre-paint seeds (the sidebar's, the super user strip's, the sign-up email's, the announcement's) are strings the
     // root layout inlines into `<head>`; their tests run those strings the way the browser does.
     // `no-new-func` assumes the source is untrusted or dynamic; here it is our own constant.
     name: 'openframe-frontend/inline-head-script-test',
@@ -255,6 +275,7 @@ export default defineConfig([
       'src/lib/navigation-sidebar-state.test.ts',
       'src/lib/super-user-seed.test.ts',
       'src/lib/signup-email-seed.test.ts',
+      'src/lib/announcement-cache.test.ts',
     ],
     rules: { 'no-new-func': 'off' },
   },
@@ -277,9 +298,13 @@ export default defineConfig([
     // the bearer (`useAuthedAsset`). `next/image` on its own 401s there, the way
     // the raw `<img>` that `@next/next/no-img-element` already refuses does.
     // `register-embed-shims.ts` is where the app hands `next/image` to the lib.
-    name: 'openframe-frontend/pictures-through-the-lib',
+    //
+    // The same rule also refuses the lib's spinners (`NO_SPINNERS`). One block, because a second block setting
+    // `no-restricted-imports` on the same files would replace these options, not add to them. `openframe-core-ui.tsx`
+    // is the client-boundary re-export of the whole UI barrel (`export *`), not a caller.
+    name: 'openframe-frontend/restricted-imports',
     files: ['src/**/*.{ts,tsx}'],
-    ignores: ['src/lib/register-embed-shims.ts'],
+    ignores: ['src/lib/register-embed-shims.ts', 'src/lib/openframe-core-ui.tsx'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -292,6 +317,7 @@ export default defineConfig([
                 '@flamingo-stack/openframe-frontend-core/embed-shims): next/image alone cannot load a gateway ' +
                 'picture in the native shells. See "Images and Avatars" in apps/web/CLAUDE.md.',
             },
+            ...NO_SPINNERS,
           ],
         },
       ],
@@ -423,6 +449,102 @@ export default defineConfig([
     name: 'openframe-frontend/lint-configs',
     files: ['eslint.*.mjs'],
     rules: { 'import/no-extraneous-dependencies': ['error', { devDependencies: true }] },
+  },
+
+  {
+    // A file holds at most 300 lines of code and a function (a component, a hook) at most 150, blank lines and
+    // comments not counted. Past that a unit is split by responsibility (hub rules SIZE-001 and SRP-001): the units
+    // nobody can hold in their head are where duplication, mode flags and effect chains grew. `warn`, because no fix
+    // is mechanical; CI runs with `--max-warnings 0`.
+    name: 'openframe-frontend/unit-size',
+    files: APP_SOURCE,
+    ignores: NOT_APP_SOURCE,
+    rules: {
+      'max-lines': ['warn', { max: 300, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': ['warn', { max: 150, skipBlankLines: true, skipComments: true }],
+    },
+  },
+
+  {
+    // The units that were over the limits when the rule came in. The lists only shrink (see the module).
+    name: 'openframe-frontend/unit-size-backlog-files',
+    files: OVERSIZED_FILES,
+    rules: { 'max-lines': 'off' },
+  },
+
+  {
+    name: 'openframe-frontend/unit-size-backlog-functions',
+    files: FILES_WITH_OVERSIZED_FUNCTIONS,
+    rules: { 'max-lines-per-function': 'off' },
+  },
+
+  {
+    // The shell globals are read in `platform.ts` (which shell is this) and `native-shell.ts` (typed bridge access)
+    // only; everything else asks the narrowest axis, `isAppShell()` / `isMobileShell()` / `isDesktopShell()` (hub rule
+    // OPENFRAM-006-2). Tauri is probed before Capacitor there, because the desktop shell injects a Capacitor-shaped
+    // bridge: a direct `window.Capacitor` check reports every desktop install as mobile.
+    name: 'openframe-frontend/shell-globals-through-platform',
+    files: APP_SOURCE,
+    ignores: [...NOT_APP_SOURCE, 'src/lib/platform.ts', 'src/lib/native-shell.ts'],
+    rules: {
+      'no-restricted-properties': [
+        'warn',
+        ...['Capacitor', '__TAURI__', '__TAURI_INTERNALS__', '__OPENFRAME_SHELL__'].map(property => ({
+          object: 'window',
+          property,
+          message: 'Ask src/lib/platform.ts (isAppShell / isMobileShell / isDesktopShell) or use native-shell.ts.',
+        })),
+      ],
+    },
+  },
+
+  {
+    // The mechanical conventions that share `no-restricted-syntax` (`eslint-rules/conventions.mjs`): `NEXT_PUBLIC_*`
+    // through runtimeEnv, ODS colour tokens in class strings, internal URLs from `routes`, no new raw-POST to
+    // /api/graphql. One rule, so the files that keep one of them off get a generated block that restates the others.
+    name: 'openframe-frontend/restricted-syntax',
+    files: APP_SOURCE,
+    ignores: NOT_APP_SOURCE,
+    rules: { 'no-restricted-syntax': ['warn', ...restrictedSyntaxExcept()] },
+  },
+
+  ...restrictedSyntaxExceptions({
+    publicEnv: PUBLIC_ENV_READERS,
+    colours: BLACK_CANVAS,
+    routes: ROUTE_STRING_READERS,
+    rawGraphql: LEGACY_RAW_GRAPHQL,
+  }),
+
+  {
+    // A component takes at most 10 props and a component or hook runs at most 3 effects of its own (hub rules SIZE-001
+    // and SRP-001): past that it is several components or several concerns. See the rule's header for what counts.
+    name: 'openframe-frontend/component-shape',
+    files: ['src/**/*.tsx', 'src/**/use-*.ts'],
+    ignores: NOT_APP_SOURCE,
+    plugins: { openframe: openframeRules },
+    rules: { 'openframe/component-shape': ['warn', { maxProps: 10, maxEffects: 3 }] },
+  },
+
+  {
+    name: 'openframe-frontend/component-shape-backlog',
+    files: OVERSIZED_COMPONENTS,
+    rules: { 'openframe/component-shape': 'off' },
+  },
+
+  {
+    // eslint-plugin-jsx-a11y's recommended set on top of the six rules the Next preset turns on (hub rule A11Y-001:
+    // WCAG 2.1 AA is a requirement here). The reviewer judges what lint cannot see: focus that lands and returns,
+    // announced state, contrast.
+    name: 'openframe-frontend/a11y',
+    files: ['src/**/*.tsx'],
+    ignores: NOT_APP_SOURCE,
+    rules: A11Y_RECOMMENDED,
+  },
+
+  {
+    name: 'openframe-frontend/a11y-backlog',
+    files: A11Y_BACKLOG,
+    rules: Object.fromEntries(Object.keys(A11Y_RECOMMENDED).map(rule => [rule, 'off'])),
   },
 
   ...prettierCompat,

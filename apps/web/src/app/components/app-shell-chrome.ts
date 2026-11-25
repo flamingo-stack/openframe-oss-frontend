@@ -1,4 +1,5 @@
 import type { HeaderLoadingCell } from '@flamingo-stack/openframe-frontend-core/components/navigation';
+import { isSaasTenantMode } from '@/lib/app-mode';
 
 /**
  * Shell constants the LIVE `AppLayout` needs. The chrome has no separate placeholder
@@ -64,13 +65,31 @@ export function isBareChromeRoute(pathname: string | null): boolean {
 }
 
 /**
+ * A SaaS tenant's `/onboarding`: no page of its own (`app/(app)/onboarding/page.tsx` forwards it
+ * to Mingo's home), yet the saas-gateway lands a login whose user has not finished the tour there.
+ * The shell treats it as Mingo's home (`composerRouteOf`) and as a landing route, so it draws
+ * Start Work and its skeleton on the way, never an "Onboarding" page column beside Start Work
+ * (CU-17tkuw69uzp). An OSS tenant's `/onboarding` is the Get Started tour, an ordinary page.
+ */
+export function isSaasOnboardingRoute(pathname: string | null): boolean {
+  return (pathname === '/onboarding' || pathname === '/onboarding/') && isSaasTenantMode();
+}
+
+/**
  * Where a session starts (`getLandingPath`) - Mingo's home on a SaaS tenant (a new chat,
  * where a login lands and the Mingo-first shell's setup ends), the dashboard on an OSS one -
- * and the SaaS dashboard beside it. The pages the onboarding redirect moves away from;
- * nothing deeper.
+ * and the SaaS dashboard beside it, and a SaaS tenant's `/onboarding`, where the gateway
+ * lands some logins (`isSaasOnboardingRoute`). The pages the onboarding redirect moves away
+ * from; nothing deeper.
  */
 export function isLandingRoute(pathname: string | null): boolean {
-  return pathname === '/dashboard' || pathname === '/dashboard/' || pathname === '/mingo' || pathname === '/mingo/';
+  return (
+    pathname === '/dashboard' ||
+    pathname === '/dashboard/' ||
+    pathname === '/mingo' ||
+    pathname === '/mingo/' ||
+    isSaasOnboardingRoute(pathname)
+  );
 }
 
 /**

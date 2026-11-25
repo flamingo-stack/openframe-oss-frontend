@@ -68,12 +68,24 @@ export const runtimeEnv = {
   gtmContainerId(): string | undefined {
     return getEnvVar('NEXT_PUBLIC_GTM_CONTAINER_ID');
   },
+  /** reCAPTCHA Enterprise site key of the edge firewall's signup check (public, per environment). */
+  recaptchaSiteKey(): string | undefined {
+    return getEnvVar('NEXT_PUBLIC_RECAPTCHA_SITE_KEY');
+  },
   appMode(): string {
     const mode = getEnvVar('NEXT_PUBLIC_APP_MODE');
     return mode || 'oss-tenant';
   },
   appType(): string {
     return getEnvVar('NEXT_PUBLIC_APP_TYPE') || 'openframe-dashboard';
+  },
+  /**
+   * The core lib's platform namespace (its `getAppType()`, not exported): `NEXT_PUBLIC_APP_TYPE` as inlined at BUILD
+   * time, else `'openmsp'`. Deliberately not `appType()`: the lib's code reads the build-time value with its own
+   * default, and what keys its stores (the announcement dismissal cookie) must be matched exactly.
+   */
+  libPlatform(): string {
+    return process.env.NEXT_PUBLIC_APP_TYPE || 'openmsp';
   },
   /**
    * This install's configured address, or '' when none is set. No default here: the
