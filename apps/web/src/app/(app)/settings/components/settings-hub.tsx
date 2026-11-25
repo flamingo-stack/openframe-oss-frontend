@@ -7,6 +7,7 @@ import {
   CompassIcon,
   Hierarchy02Icon,
   Logout01Icon,
+  MailboxIcon,
   PasscodeIcon,
   PiggyBankIcon,
   ShieldCheckIcon,
@@ -87,13 +88,21 @@ const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
     description: 'Device logs across every device in your workspace',
     badge: 'Beta',
   },
-  // LAST on purpose: it is the one cell whose presence waits on an answer (the flag and the caller's role). Drawn while
-  // the gates load, it is the cell that leaves when they say no, and nothing after it re-flows.
+  // The two cells whose presence waits on an answer close the grid: drawn while the gates load, they are the cells
+  // that leave when the gates say no, and nothing before them re-flows. Billing waits on its flag and the caller's role.
   {
     href: routes.settings.billingUsage(),
     icon: PiggyBankIcon,
     title: 'Billing & Usage',
     description: 'Subscription details, usage data, and payment settings',
+  },
+  // LAST: the newest flag, off on most environments, so it is the cell that leaves and nothing re-flows.
+  {
+    href: routes.settings.emailToTicket.list,
+    icon: MailboxIcon,
+    title: 'Email to ticket',
+    description: 'Turn emails to your support mailboxes into tickets',
+    badge: 'Beta',
   },
 ];
 
@@ -117,6 +126,7 @@ export function SettingsHub() {
   const billingsGate = useFeatureFlagGate('billings');
   // Billing & Usage is the workspace's money — owners and admins, nobody else.
   const billingAccessGate = useBillingAccessGate();
+  const emailToTicketGate = useFeatureFlagGate('email-to-ticket');
   const mobileShell = useIsMobileShell();
 
   // The app mode and the shell are build constants, so this list — every card this build
@@ -135,8 +145,12 @@ export function SettingsHub() {
     }
     return true;
   });
-  const gatesResolved = billingsGate !== 'loading' && billingAccessGate !== 'loading';
+  const gatesResolved =
+    billingsGate !== 'loading' && billingAccessGate !== 'loading' && emailToTicketGate !== 'loading';
   const visibleItems = defaultItems.filter(item => {
+    if (item.href === routes.settings.emailToTicket.list) {
+      return emailToTicketGate === 'on';
+    }
     if (item.href === routes.settings.billingUsage()) {
       return billingsGate === 'on' && billingAccessGate === 'allowed';
     }
@@ -193,7 +207,7 @@ export function SettingsHub() {
       </div>
 
       {/* Navigation Cards Grid: until every gate has answered, the full default set this build can show (the app
-          mode and the shell are known synchronously, so only Billing's presence is in question), each card drawing
+          mode and the shell are known synchronously, so only Email to ticket's and Billing's presence is in question), each card drawing
           itself in the loading scope, rather than a lone cell wedged between real cards. */}
       <LoadingWhen
         loading={!gatesResolved}
