@@ -533,6 +533,14 @@ export const routes = {
     billingUsage: (o?: { action?: BillingUsageAction }) => withQuery('/settings/billing-usage', { action: o?.action }),
     /** Tenant-wide device logs (the per-device ones are the device's `device-logs` tab). */
     troubleshooting: '/settings/troubleshooting',
+    /** Email to ticket: the support mailboxes whose forwarded mail becomes tickets. `id` is the Relay id. */
+    emailToTicket: {
+      list: '/settings/email-to-ticket',
+      // `id`: the Pending mailbox Generate already created, so a reload or Back resumes its setup.
+      new: (o?: { id?: string | number }) => withQuery('/settings/email-to-ticket/new', { id: o?.id }),
+      details: (id: string | number) => withQuery('/settings/email-to-ticket/details', { id }),
+      edit: (id: string | number) => withQuery('/settings/email-to-ticket/edit', { id }),
+    },
   },
 
   /**

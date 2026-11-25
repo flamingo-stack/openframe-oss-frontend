@@ -17,7 +17,7 @@ type PendingRequest = {
 };
 
 import { getAccessTokenSync, isBearerAuthMode } from '../token-store';
-import { buildWsUrl, MESH_PASS, MESH_USER } from './meshcentral-config';
+import { buildWsUrl } from './meshcentral-config';
 import { WebSocketManager } from './websocket-manager';
 
 export class MeshControlClient {
@@ -35,18 +35,14 @@ export class MeshControlClient {
   /** Keyed by `MeshTunnel.key`: a redial changes the relay id, not the tunnel. */
   private activeTunnels = new Map<string, ActiveTunnel>();
 
-  constructor(credentials?: { user: string; pass: string }, authCookie?: string) {
+  /**
+   * The control channel carries no MeshCentral credentials: the tenant gateway signs the upstream
+   * handshake in with its own (`x-meshauth`), so nothing secret goes into a URL that browsers,
+   * load balancers and access logs keep.
+   */
+  constructor(authCookie?: string) {
     const qs = new URLSearchParams();
 
-    // Add credentials for authentication
-    if (credentials?.user || MESH_USER) {
-      qs.append('user', credentials?.user || MESH_USER);
-    }
-    if (credentials?.pass || MESH_PASS) {
-      qs.append('pass', credentials?.pass || MESH_PASS);
-    }
-
-    // Add auth cookie if provided
     if (authCookie) {
       qs.append('auth', authCookie);
     }
@@ -115,17 +111,7 @@ export class MeshControlClient {
       if (msg && msg.action === 'authcookie' && msg.cookie) {
         this.cookies = { authCookie: msg.cookie as string, relayCookie: msg.rcookie };
 
-        try {
-          this.wsManager?.send(
-            JSON.stringify({
-              action: 'urlargs',
-              args: { auth: this.cookies.authCookie },
-            }),
-          );
-        } catch {
-          // The socket can close between the message arriving and this reply; the reconnect path re-sends the args on the next open.
-        }
-
+        // No `urlargs` reply: MeshCentral does nothing with it, and it put the auth cookie into the server's log.
         try {
           this.resendActiveTunnels();
         } catch {
