@@ -40,7 +40,7 @@ import { type CheckDialog, CheckDialogs, resetDefault, toggleCheck } from './che
 import { OverridesTable, type OverrideTableRow } from './overrides-table';
 
 const PRECEDENCE_NOTE =
-  'The most specific override wins: a device override, then device tags, then the customer, then the default. With several tags, the strictest value wins. New devices pick up overrides as soon as they join the customer or get the tag.';
+  'The most specific override wins: a device override, then device tags, then the customer, then the default. New devices pick up overrides as soon as they join the customer or get the tag.';
 
 /** A built-in check's page: its default for every device and every override that changes it. */
 export function CheckPageView({ checkKey }: { checkKey: string }) {
@@ -115,8 +115,8 @@ function CheckPageContent({ check, overrides }: CheckPageContentProps) {
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
       <div className="flex flex-col gap-[var(--spacing-system-l)]">
-        {/* The page header's switch is desktop only: on a phone it opens the content. */}
-        <div className="md:hidden">{enabledSwitch}</div>
+        {/* The header draws its selector from content-md up (PageActions); below that it opens the content. */}
+        <div className="content-md:hidden">{enabledSwitch}</div>
 
         {check && !check.enabled && (
           <Alert variant="warning">
