@@ -43,6 +43,13 @@ const WATCH_COMMANDS: ReadonlySet<number> = new Set([0x0008, 0x0006]);
 /** The agent's combined "all displays" view in cmd 11 / cmd 12. */
 const ALL_DISPLAYS = 0xffff;
 
+/**
+ * How long a scheduled draw waits for an animation frame before a timer drains the queue instead.
+ * A visible page draws on the frame (~16 ms) and cancels the timer; a hidden one gets no frames and
+ * drains on this timer (which the browser may stretch to a second or more while hidden).
+ */
+const DRAW_TIMER_FALLBACK_MS = 100;
+
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   return (
@@ -80,6 +87,9 @@ export class MeshDesktop implements DesktopInputHandlers {
   private readonly maxConcurrentDecodes = 3;
   private drawQueue: Array<{ x: number; y: number; bitmap: ImageBitmap | HTMLImageElement; url?: string }> = [];
   private drawScheduled = false;
+  /** The pending draw's animation frame and fallback timer: whichever fires first cancels the other. */
+  private drawFrame = 0;
+  private drawTimer: ReturnType<typeof setTimeout> | undefined;
 
   private displayList: DisplayInfo[] = [];
   /** The display the agent streams, as far as this side knows; null until the agent says. */
@@ -986,50 +996,66 @@ export class MeshDesktop implements DesktopInputHandlers {
     }
   }
 
+  /**
+   * Schedules one drain of the draw queue: on the next animation frame, or on a timer, whichever
+   * comes first, and the other is cancelled. A hidden page (the desktop window hidden or in the
+   * tray, a background tab) gets no animation frames at all, so with rAF alone every tile the agent
+   * keeps sending stayed decoded in memory until the window was shown again: tens of MB a minute
+   * with a busy remote screen. The stream keeps running while hidden, since the session recording
+   * needs what happens on the device then; only the drain moves to the timer.
+   */
   private scheduleDraw() {
     if (this.drawScheduled) return;
     this.drawScheduled = true;
-    requestAnimationFrame(() => {
+    const drain = () => {
+      cancelAnimationFrame(this.drawFrame);
+      clearTimeout(this.drawTimer);
       this.drawScheduled = false;
-      const ctx = this.ctx;
-      if (this.stopped || !ctx) {
-        for (const it of this.drawQueue) {
-          if (it.url) URL.revokeObjectURL(it.url);
-        }
-        this.drawQueue = [];
-        return;
+      this.drainDrawQueue();
+    };
+    this.drawFrame = requestAnimationFrame(drain);
+    this.drawTimer = setTimeout(drain, DRAW_TIMER_FALLBACK_MS);
+  }
+
+  private drainDrawQueue() {
+    const ctx = this.ctx;
+    if (this.stopped || !ctx) {
+      for (const it of this.drawQueue) {
+        if (it.url) URL.revokeObjectURL(it.url);
       }
-      // `ctx` is read once above: the field is nullable and cleared on teardown,
-      // and re-reading it per frame is what made the assertion look necessary.
-      for (;;) {
-        const it = this.drawQueue.shift();
-        if (!it) break;
+      this.drawQueue = [];
+      return;
+    }
+    // `ctx` is read once above: the field is nullable and cleared on teardown,
+    // and re-reading it per frame is what made the assertion look necessary.
+    for (;;) {
+      const it = this.drawQueue.shift();
+      if (!it) break;
+      try {
+        ctx.drawImage(it.bitmap, it.x, it.y);
+        if (!this.firstFrameDrawn) {
+          this.firstFrameDrawn = true;
+          this.onFirstFrameCallback?.();
+        }
+      } catch {
+        // A frame that fails to draw (a bitmap the GPU rejected, a canvas detached mid-teardown) is one lost frame in a video stream — the next one repaints over it.
+      }
+      // Only ImageBitmap has `close`; an HTMLImageElement is collected normally.
+      if (it.bitmap instanceof ImageBitmap) {
         try {
-          ctx.drawImage(it.bitmap, it.x, it.y);
-          if (!this.firstFrameDrawn) {
-            this.firstFrameDrawn = true;
-            this.onFirstFrameCallback?.();
-          }
+          it.bitmap.close();
         } catch {
-          // A frame that fails to draw (a bitmap the GPU rejected, a canvas detached mid-teardown) is one lost frame in a video stream — the next one repaints over it.
-        }
-        // Only ImageBitmap has `close`; an HTMLImageElement is collected normally.
-        if (it.bitmap instanceof ImageBitmap) {
-          try {
-            it.bitmap.close();
-          } catch {
-            // Releasing a bitmap is a hint to the GC; a browser that refuses it just collects later.
-          }
-        }
-        if (it.url) {
-          try {
-            URL.revokeObjectURL(it.url);
-          } catch {
-            // Same for the object URL: failing to revoke leaks one blob until the tab closes, which is not worth interrupting the draw loop for.
-          }
+          // Releasing a bitmap is a hint to the GC; a browser that refuses it just collects later.
         }
       }
-    });
+      if (it.url) {
+        try {
+          URL.revokeObjectURL(it.url);
+        } catch {
+          // Same for the object URL: failing to revoke leaks one blob until the tab closes, which is not worth interrupting the draw loop for.
+        }
+      }
+    }
   }
 
   private parseDisplayList(frame: Uint8Array) {
