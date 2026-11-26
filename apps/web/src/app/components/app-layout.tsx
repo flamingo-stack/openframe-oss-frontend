@@ -13,12 +13,14 @@ import { MingoChatProvider } from '@/app/(app)/mingo/providers/mingo-chat-provid
 import { countCompleted, USER_ONBOARDING_STEPS } from '@/app/(app)/onboarding/onboarding-steps';
 import { useSetupPending } from '@/app/(app)/setup/hooks/use-setup-pending';
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
+import { useSessionNeverResolved } from '@/app/(auth)/auth/hooks/use-session-never-resolved';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useLogoutConfirmStore } from '@/app/(auth)/auth/stores/logout-confirm-store';
 import { DesktopUpdateModal } from '@/app/components/desktop-update-modal';
 import { HydratorBoundary } from '@/app/components/shared/hydrator-boundary';
 import { LogoutConfirmModal } from '@/app/components/shared/logout-confirm-modal';
 import { SidebarUpdateButton } from '@/app/components/sidebar-update-button';
+import { FAIL_OPEN_AFTER_MS, useFailOpen } from '@/app/hooks/use-fail-open';
 import { useFeatureFlag, useFeatureFlagGate, useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
 import { BillingNoticeType } from '@/generated/schema-enums';
 import { isBillingHidden, isBillingReadOnly } from '@/lib/billing-visibility';
@@ -116,52 +118,11 @@ import { UnauthorizedOverlay } from './unauthorized-overlay';
 import { WalkthroughVideo } from './walkthrough-video';
 
 /**
- * How long the chrome may wait for the answers it renders from before giving up
- * and drawing itself anyway. Sized like the session latch's own fail-open in
- * `lib/session-ready.ts`: longer than any healthy pair of round trips, shorter
- * than a user's patience.
+ * How long the chrome may wait for the answers it renders from before giving up and drawing itself anyway
+ * (`useFailOpen`): the nav renders from whatever the flags currently read (their env defaults, if nothing answered)
+ * and without the onboarding entry, and recovers the moment a real answer lands.
  */
-const CHROME_LOADING_FAIL_OPEN_MS = 10_000;
-
-/**
- * `loading`, but never forever.
- *
- * The chrome's loading state is a latch over two async answers, and a latch with
- * no way out is one missing terminal outcome away from a permanent skeleton —
- * which is exactly what shipped: a store reset that arrived after hydration left
- * the sidebar and header loading for the rest of the session while the page
- * content worked normally. That specific cause is fixed at its source, but the
- * SHAPE of the bug is what this closes. `lib/session-ready.ts` spells out the
- * same rule for the request gate ("THIS GATE IS AN OPTIMIZATION AND MUST FAIL
- * OPEN"); the chrome's gate is the same kind of optimization and earns the same
- * predicate.
- *
- * Failing open degrades rather than breaks: the nav renders from whatever the
- * flags currently read (their env defaults, if nothing answered) and without the
- * onboarding entry. That is a nav that may be missing a row, against a rail of
- * grey placeholders that never resolves — and unlike the skeleton, it recovers
- * on its own the moment a real answer lands.
- */
-function useFailOpen(loading: boolean, afterMs: number): boolean {
-  const [failedOpen, setFailedOpen] = useState(false);
-
-  // Re-arm during render: a later load gets its own full window rather than
-  // inheriting a previous timeout's verdict, and doing it here means the chrome
-  // is never drawn once in the failed-open state after a fresh load begins.
-  const [wasLoading, setWasLoading] = useState(loading);
-  if (loading !== wasLoading) {
-    setWasLoading(loading);
-    if (!loading) setFailedOpen(false);
-  }
-
-  useEffect(() => {
-    if (!loading) return undefined;
-    const timer = setTimeout(() => setFailedOpen(true), afterMs);
-    return () => clearTimeout(timer);
-  }, [loading, afterMs]);
-
-  return loading && !failedOpen;
-}
+const CHROME_LOADING_FAIL_OPEN_MS = FAIL_OPEN_AFTER_MS;
 
 /**
  * The `/setup` wizard's shell: the page alone, full screen. Carries the same
@@ -1170,7 +1131,11 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
 
 function AppLayoutInner({ children, mainClassName }: { children: React.ReactNode; mainClassName?: string }) {
   const { isReady, isAuthenticated } = useAuthSession();
-  const sessionUnavailable = useSessionHealthStore(s => s.health === 'paused' && s.pauseReason === 'transient');
+  // A session paused mid-way (`session-health.ts`), or a first `/me` that never answered: the same state, the same
+  // screen, which retries on its own and leaves once `/me` answers.
+  const sessionPaused = useSessionHealthStore(s => s.health === 'paused' && s.pauseReason === 'transient');
+  const sessionNeverResolved = useSessionNeverResolved();
+  const sessionUnavailable = sessionPaused || sessionNeverResolved;
   const router = useRouter();
   const pathname = usePathname();
 

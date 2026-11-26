@@ -67,4 +67,23 @@ describe('DeviceStatusSupportGate', () => {
     expect(container.querySelector('[data-page]')).not.toBeNull();
     expect(container.querySelector('[data-skeleton]')).toBeNull();
   });
+
+  it('draws the page when the flags never answer, once the fail-open window has passed (CU-17tkuw69v8q)', () => {
+    state.known = true;
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    act(() =>
+      root.render(
+        <PageFallbackProvider value={skeleton}>
+          <DeviceStatusSupportGate>{page}</DeviceStatusSupportGate>
+        </PageFallbackProvider>,
+      ),
+    );
+    act(() => vi.advanceTimersByTime(9_999));
+    expect(container.querySelector('[data-skeleton]')).not.toBeNull();
+    act(() => vi.advanceTimersByTime(1));
+    expect(container.querySelector('[data-page]')).not.toBeNull();
+    expect(container.querySelector('[data-skeleton]')).toBeNull();
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
 });
