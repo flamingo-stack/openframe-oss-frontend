@@ -36,6 +36,14 @@ interface MailboxesRowsProps {
   page: { rows: readonly MailboxRow[]; totalCount: number; infiniteScroll: InfiniteScroll };
 }
 
+/** Why a search or a funnel found nothing: names what is set, both when both are. */
+function noMatchMessage(search: string, filtered: boolean): string {
+  if (search && filtered)
+    return `No mailboxes match "${search}" and the selected status. Try adjusting your search or filters.`;
+  if (search) return `No mailboxes found matching "${search}". Try adjusting your search.`;
+  return 'No mailboxes match the selected status. Try adjusting your filters.';
+}
+
 /** The Mailboxes table, or the page's empty state when there is no mailbox at all. */
 export function MailboxesRows({
   page: { rows, totalCount, infiniteScroll },
@@ -94,11 +102,7 @@ export function MailboxesRows({
       isPending={isPending}
       sort={ticketsSort ? { id: MAILBOX_COLUMNS.tickets.id, desc: ticketsSort === 'desc' } : null}
       onSortChange={onToggleTicketsSort}
-      emptyState={oneLineEmptyState(
-        debouncedSearch
-          ? `No mailboxes found matching "${debouncedSearch}". Try adjusting your search.`
-          : 'No mailboxes match the selected status. Try adjusting your filters.',
-      )}
+      emptyState={oneLineEmptyState(noMatchMessage(debouncedSearch, !!filter))}
       rowHref={mailboxRowHref}
       footer={rows.length > 0 ? infiniteScroll : null}
     />

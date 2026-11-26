@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MeshDesktop } from './meshcentral-desktop';
 
 function capture(): { desktop: MeshDesktop; frames: Uint8Array[] } {
@@ -253,5 +253,92 @@ describe('MeshDesktop watching', () => {
     const commands: number[] = [];
     desktop.setSender(bytes => commands.push((bytes[0] << 8) | bytes[1]));
     expect(commands).toEqual([0x000e, 0x0005, 0x0008, 0x0006, 0x000b]);
+  });
+});
+
+describe('MeshDesktop drawing', () => {
+  /** A KVM tile frame (cmd 3): header, x/y, then the JPEG bytes (never decoded here). */
+  function tile(x: number, y: number): Uint8Array {
+    const jpeg = [0xff, 0xd8, 0xff, 0xd9];
+    const size = 8 + jpeg.length;
+    return new Uint8Array([0x00, 0x03, size >> 8, size & 0xff, x >> 8, x & 0xff, y >> 8, y & 0xff, ...jpeg]);
+  }
+
+  function drawing(): { desktop: MeshDesktop; drawn: Array<[number, number]> } {
+    const drawn: Array<[number, number]> = [];
+    const ctx = { drawImage: (_bitmap: unknown, x: number, y: number) => drawn.push([x, y]) };
+    const canvas = document.createElement('canvas');
+    canvas.getContext = (() => ctx) as unknown as HTMLCanvasElement['getContext'];
+    const desktop = new MeshDesktop();
+    desktop.attachRenderOnly(canvas);
+    return { desktop, drawn };
+  }
+
+  beforeEach(() => {
+    // jsdom has no bitmap decoding: every tile decodes to a plain bitmap.
+    class FakeImageBitmap {
+      close() {}
+    }
+    vi.stubGlobal('ImageBitmap', FakeImageBitmap);
+    vi.stubGlobal('createImageBitmap', async () => new FakeImageBitmap());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('draws the tiles of a hidden page, which gets no animation frames', async () => {
+    // A hidden window (Cmd+H, the tray, a background tab): requestAnimationFrame never calls back.
+    vi.stubGlobal('requestAnimationFrame', () => 1);
+    vi.stubGlobal('cancelAnimationFrame', () => {});
+    const { desktop, drawn } = drawing();
+    await desktop.onBinaryFrame(tile(0, 0));
+    await desktop.onBinaryFrame(tile(64, 0));
+    await desktop.waitForIdle();
+    expect(drawn).toEqual([
+      [0, 0],
+      [64, 0],
+    ]);
+  });
+
+  it('draws a visible page on the animation frame, each tile once', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => frames.push(callback));
+    vi.stubGlobal('cancelAnimationFrame', () => {});
+    const { desktop, drawn } = drawing();
+    await desktop.onBinaryFrame(tile(0, 0));
+    await vi.waitFor(() => expect(frames).toHaveLength(1));
+    frames[0](0);
+    expect(drawn).toEqual([[0, 0]]);
+    await desktop.waitForIdle();
+    expect(drawn).toEqual([[0, 0]]);
+  });
+
+  it('releases the tiles still queued when the session stops', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      let closed = 0;
+      class CountedImageBitmap {
+        close() {
+          closed += 1;
+        }
+      }
+      vi.stubGlobal('ImageBitmap', CountedImageBitmap);
+      vi.stubGlobal('createImageBitmap', async () => new CountedImageBitmap());
+      vi.stubGlobal('requestAnimationFrame', () => 1);
+      vi.stubGlobal('cancelAnimationFrame', () => {});
+      const { desktop, drawn } = drawing();
+      await desktop.onBinaryFrame(tile(0, 0));
+      await desktop.onBinaryFrame(tile(64, 0));
+      // Decoded and queued; the fallback timer has not fired yet.
+      await vi.advanceTimersByTimeAsync(10);
+      desktop.detach();
+      expect(closed).toBe(2);
+      await vi.advanceTimersByTimeAsync(200);
+      expect(drawn).toEqual([]);
+      expect(closed).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
