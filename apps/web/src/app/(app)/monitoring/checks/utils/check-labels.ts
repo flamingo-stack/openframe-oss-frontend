@@ -12,7 +12,7 @@ export const INSIGHT_CHECK_PLATFORM_LABELS: Record<InsightCheckPlatform, string>
   ALL: 'All platforms',
 };
 
-/** What an override applies to, as the Add Override modal's picker and the table's filter name it. */
+/** What an exception applies to, as the Add Exception modal's picker and the table's filter name it. */
 export const OVERRIDE_SCOPE_LABELS: Record<OverrideScopeType, string> = {
   CUSTOMER: 'Customer',
   TAG: 'Device Tag',
@@ -84,7 +84,7 @@ function lowerFirst(text: string): string {
 /** What an on/off check (no thresholds) shows where a threshold would be. */
 export const NO_THRESHOLD_LABEL = 'On / off';
 
-/** The check's default for every device without an override: `Below 10%`, `On / off`. */
+/** The check's default for every device without an exception: `Below 10%`, `On / off`. */
 export function formatDefaultThreshold(check: Check): string {
   if (check.parameters.length === 0) return NO_THRESHOLD_LABEL;
   return joinThresholds(
@@ -93,28 +93,23 @@ export function formatDefaultThreshold(check: Check): string {
 }
 
 /**
- * An override's Threshold cell: what it stores, in the check's words. Turned off, it is "Off" (its
+ * An exception's Threshold cell: what it stores, in the check's words. Turned off, it is "Turned off" (its
  * thresholds no longer matter); on with no threshold of its own, "On".
  */
-export function formatOverrideThreshold(check: Check, override: CheckOverride): { value: string; note?: string } {
-  if (override.enabled === false) return { value: 'Off', note: 'check turned off' };
+export function formatOverrideThreshold(check: Check, override: CheckOverride): string {
+  if (override.enabled === false) return 'Turned off';
   const stored = check.parameters.flatMap(parameter => {
     const value = override.parameters[parameter.parameter];
     return value === undefined ? [] : [formatThreshold(value, parameter.unit, parameter.firesWhen)];
   });
-  if (stored.length > 0) return { value: joinThresholds(stored) };
-  return { value: override.enabled === true ? 'On' : NO_THRESHOLD_LABEL };
+  if (stored.length > 0) return joinThresholds(stored);
+  return override.enabled === true ? 'On' : NO_THRESHOLD_LABEL;
 }
 
-/** `1 override`, `7 overrides`. */
-export function overrideCountLabel(count: number): string {
-  return count === 1 ? '1 override' : `${count} overrides`;
-}
-
-/** `Every 1 hour`, `Every 15 min`, `Every 2 days`: how often a check runs. */
-export function formatCheckInterval(seconds: number): string {
-  if (seconds % 86400 === 0) return seconds === 86400 ? 'Every 1 day' : `Every ${seconds / 86400} days`;
-  if (seconds % 3600 === 0) return seconds === 3600 ? 'Every 1 hour' : `Every ${seconds / 3600} hours`;
-  if (seconds % 60 === 0) return `Every ${seconds / 60} min`;
-  return `Every ${seconds} s`;
+/** `1 h`, `15 min`, `2 d`: how often a check runs, as its page says it under "Runs every". */
+export function formatRunsEvery(seconds: number): string {
+  if (seconds % 86400 === 0) return `${seconds / 86400} d`;
+  if (seconds % 3600 === 0) return `${seconds / 3600} h`;
+  if (seconds % 60 === 0) return `${seconds / 60} min`;
+  return `${seconds} s`;
 }

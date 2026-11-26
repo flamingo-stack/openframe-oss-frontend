@@ -137,18 +137,15 @@ describe('toCheckOverride', () => {
 
 describe('formatOverrideThreshold', () => {
   it('shows only what the override stores', () => {
-    expect(formatOverrideThreshold(battery(), override())).toEqual({ value: 'Above 900' });
+    expect(formatOverrideThreshold(battery(), override())).toBe('Above 900');
   });
 
-  it('is Off when the override turns the check off', () => {
-    expect(formatOverrideThreshold(battery(), override({ enabled: false }))).toEqual({
-      value: 'Off',
-      note: 'check turned off',
-    });
+  it('is Turned off when the exception turns the check off', () => {
+    expect(formatOverrideThreshold(battery(), override({ enabled: false }))).toBe('Turned off');
   });
 
   it('is On when the override only turns the check on', () => {
-    expect(formatOverrideThreshold(battery(), override({ enabled: true, parameters: [] }))).toEqual({ value: 'On' });
+    expect(formatOverrideThreshold(battery(), override({ enabled: true, parameters: [] }))).toBe('On');
   });
 });
 

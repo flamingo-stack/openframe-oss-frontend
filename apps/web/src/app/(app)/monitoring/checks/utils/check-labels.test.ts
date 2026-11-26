@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  formatCheckInterval,
   formatParameterValue,
+  formatRunsEvery,
   formatThreshold,
   joinThresholds,
-  overrideCountLabel,
   thresholdScopeLabel,
 } from './check-labels';
 
@@ -43,17 +42,10 @@ describe('thresholdScopeLabel', () => {
   });
 });
 
-describe('overrideCountLabel', () => {
-  it('counts', () => {
-    expect(overrideCountLabel(1)).toBe('1 override');
-    expect(overrideCountLabel(7)).toBe('7 overrides');
-  });
-});
-
-describe('formatCheckInterval', () => {
+describe('formatRunsEvery', () => {
   it('uses the largest whole unit', () => {
-    expect(formatCheckInterval(3600)).toBe('Every 1 hour');
-    expect(formatCheckInterval(900)).toBe('Every 15 min');
-    expect(formatCheckInterval(172800)).toBe('Every 2 days');
+    expect(formatRunsEvery(3600)).toBe('1 h');
+    expect(formatRunsEvery(900)).toBe('15 min');
+    expect(formatRunsEvery(172800)).toBe('2 d');
   });
 });

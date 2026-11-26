@@ -43,21 +43,22 @@ function pickedOf(override: CheckOverride | null): PickedScope | null {
 
 interface OverrideModalProps {
   check: Check;
-  /** Every override the check has, so a scope that has one already is caught before saving; null while they load. */
+  /** Every exception the check has, so a scope that has one already is caught before saving; null while they load. */
   overrides: readonly CheckOverride[] | null;
-  /** The override being edited; null adds one. */
+  /** The exception being edited; null adds one. */
   editing: CheckOverride | null;
   isSaving: boolean;
   onClose: () => void;
-  onSave: (scope: CheckScope, draft: CheckSettingDraft) => void;
-  /** Switch to editing the override a picked scope already has. */
+  /** The scope's name rides along for the toast that says where the check is now off. */
+  onSave: (scope: CheckScope, draft: CheckSettingDraft, scopeName: string | null) => void;
+  /** Switch to editing the exception a picked scope already has. */
   onEditExisting: (override: CheckOverride) => void;
 }
 
 /**
- * Add or edit one override: which customer, device tag or device it is for, whether the check runs
- * there, and its thresholds there. What is saved is everything the override stores: the switch and,
- * while it is on, every threshold.
+ * Add or edit one exception (an override in the API): which customer, device tag or device it is for,
+ * whether the check runs there, and its thresholds there. What is saved is everything it stores: the
+ * switch and, while it is on, every threshold.
  */
 export function OverrideModal({
   check,
@@ -95,9 +96,10 @@ export function OverrideModal({
       { type: picked.type, id: picked.id },
       {
         enabled: values.enabled,
-        // Off, the check measures nothing against them: an override that turns it off stores no thresholds.
+        // Off, the check measures nothing against them: an exception that turns it off stores no thresholds.
         parameters: values.enabled ? thresholdsByParameter(check.parameters, values.thresholds) : {},
       },
+      picked.name,
     );
   });
 
@@ -105,7 +107,7 @@ export function OverrideModal({
     <SimpleModal
       isOpen
       onClose={onClose}
-      title={editing ? 'Edit Override' : 'Add Override'}
+      title={editing ? 'Edit Exception' : 'Add Exception'}
       className="text-left md:max-w-[600px]"
       footer={
         <>
@@ -159,7 +161,6 @@ export function OverrideModal({
             control={form.control}
             errors={form.formState.errors}
             defaultOf={parameter => parameter.value}
-            withRange={!editing}
           />
         )}
 
@@ -227,7 +228,7 @@ function AppliesToFields({ kind, picked, editing, existing, onKind, onPick, onEd
           )}
           {existing && (
             <span className="text-ods-error text-h6">
-              {existing.name ?? 'It'} already has an override for this check.{' '}
+              {existing.name ?? 'It'} already has an exception for this check.{' '}
               <button
                 type="button"
                 className="text-ods-accent underline hover:text-ods-accent-hover"

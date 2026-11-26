@@ -4,7 +4,8 @@ import type { ReactNode } from 'react';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import type { useCheckMutations } from '../hooks/use-check-mutations';
-import { formatDefaultThreshold } from '../utils/check-labels';
+import { NEXT_RUN_NOTE } from '../hooks/use-check-mutations';
+import { formatDefaultThreshold, thresholdScopeLabel } from '../utils/check-labels';
 import {
   type Check,
   type CheckOverride,
@@ -58,7 +59,7 @@ export function resetDefault(check: Check, mutations: CheckMutations) {
 
 interface CheckDialogsProps {
   check: Check;
-  /** The check's overrides when the caller has them (its page); read on demand otherwise (the list). */
+  /** The check's exceptions when the caller has them (its page); read on demand otherwise (the list). */
   overrides?: readonly CheckOverride[];
   dialog: CheckDialog | null;
   onDialog: (dialog: CheckDialog | null) => void;
@@ -107,8 +108,11 @@ export function CheckDialogs({ check, overrides, dialog, onDialog, mutations }: 
           isSaving={mutations.isSaving}
           onClose={close}
           onEditExisting={override => onDialog({ kind: 'override', editing: override })}
-          onSave={(scope, draft) =>
-            mutations.save(check.check, scope, draft, { title: 'Override saved', onDone: close })
+          onSave={(scope, draft, scopeName) =>
+            mutations.save(check.check, scope, draft, {
+              ...savedToast(check, dialog.editing === null && !draft.enabled ? scopeName : undefined),
+              onDone: close,
+            })
           }
         />
       ));
@@ -131,19 +135,24 @@ export function CheckDialogs({ check, overrides, dialog, onDialog, mutations }: 
       ));
     case 'delete-override': {
       const scope = overrideScope(dialog.override);
-      const name = dialog.override.name ?? 'this';
       return (
         <ConfirmDialog
           open
           onOpenChange={open => {
             if (!open) close();
           }}
-          title="Delete Override?"
-          description={`The ${name} override for ${check.name} is removed. Its devices go back to a less specific override or the default (${lowerFirst(formatDefaultThreshold(check))}). Devices with their own device override keep it.`}
+          title="Delete Exception?"
+          description={
+            <span className="flex flex-col gap-[var(--spacing-system-m)]">
+              <span>{deleteExceptionSentence(check, dialog.override)}</span>
+              <span className="text-ods-text-secondary">{NEXT_RUN_NOTE}</span>
+            </span>
+          }
           confirmLabel="Delete"
+          variant="default"
           isPending={mutations.isSaving}
           onConfirm={() => {
-            if (scope) mutations.reset(check.check, scope, { title: 'Override deleted', onDone: close });
+            if (scope) mutations.reset(check.check, scope, { title: 'Exception deleted', onDone: close });
           }}
         />
       );
@@ -155,13 +164,14 @@ export function CheckDialogs({ check, overrides, dialog, onDialog, mutations }: 
           onOpenChange={open => {
             if (!open) close();
           }}
-          title="Delete All Overrides?"
+          title="Delete All Exceptions?"
           description={`${overridesSentence(loaded, check.overrideCount)} Every device goes back to the default: ${lowerFirst(formatDefaultThreshold(check))}.`}
           confirmLabel="Delete All"
+          variant="default"
           isPending={mutations.isSaving}
           onConfirm={() =>
             mutations.deleteAllOverrides(check.check, {
-              title: 'Overrides deleted',
+              title: 'Exceptions deleted',
               description: 'Every device goes back to the default on the next run.',
               onDone: close,
             })
@@ -171,10 +181,33 @@ export function CheckDialogs({ check, overrides, dialog, onDialog, mutations }: 
   }
 }
 
-/** "3 overrides (NW-FS01, server, kiosk) are deleted." */
+/** The toast after an exception is saved; adding one that turns the check off names where it is off. */
+function savedToast(check: Check, offFor: string | null | undefined): { title: string; description?: string } {
+  if (offFor === undefined) return { title: 'Exception saved' };
+  return {
+    title: `${check.name} is off for ${offFor ?? 'this scope'}`,
+    description: `Exception added for ${check.name}. ${NEXT_RUN_NOTE}`,
+  };
+}
+
+/** Where an exception's devices go once it is deleted, by what it applied to. */
+function deleteExceptionSentence(check: Check, override: CheckOverride): string {
+  const deleted = `The ${thresholdScopeLabel(override.scopeType, override.name)} exception for ${check.name} is deleted.`;
+  const fallback = `the default (${lowerFirst(formatDefaultThreshold(check))})`;
+  switch (override.scopeType) {
+    case 'CUSTOMER':
+      return `${deleted} Its devices go back to ${fallback}. Devices with their own tag or device exception keep it.`;
+    case 'TAG':
+      return `${deleted} These devices go back to their customer’s exception or ${fallback}. Devices with their own device exception keep it.`;
+    default:
+      return `${deleted} The device goes back to its tag or customer exception, or ${fallback}.`;
+  }
+}
+
+/** "3 exceptions (NW-FS01, server, kiosk) are deleted." */
 function overridesSentence(overrides: readonly CheckOverride[] | null, count: number): string {
   const total = overrides?.length ?? count;
-  const what = total === 1 ? '1 override' : `${total} overrides`;
+  const what = total === 1 ? '1 exception' : `${total} exceptions`;
   const names =
     overrides && overrides.length > 0 ? ` (${overrides.map(item => item.name ?? EMPTY_VALUE).join(', ')})` : '';
   return `${what}${names} ${total === 1 ? 'is' : 'are'} deleted.`;

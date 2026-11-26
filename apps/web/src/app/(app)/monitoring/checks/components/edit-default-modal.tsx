@@ -11,19 +11,19 @@ import { formatOverrideThreshold, INSIGHT_CHECK_PLATFORM_LABELS } from '../utils
 import type { Check, CheckOverride } from '../utils/check-transform';
 import { ThresholdFields, thresholdsByParameter, thresholdsSchema, type ThresholdValues } from './threshold-fields';
 
-/** "Overrides keep their own values: lab (above 60), kiosk (above 25)." Nothing when no override sets a threshold. */
+/** "Exceptions keep their own values: lab (above 60), kiosk (above 25)." Nothing when no exception sets a threshold. */
 function overridesNote(check: Check, overrides: readonly CheckOverride[]): string {
   const withValues = overrides.flatMap(override => {
     if (Object.keys(override.parameters).length === 0 || override.enabled === false) return [];
-    const threshold = formatOverrideThreshold(check, override).value;
+    const threshold = formatOverrideThreshold(check, override);
     return [`${override.name ?? 'a removed scope'} (${threshold.charAt(0).toLowerCase()}${threshold.slice(1)})`];
   });
-  return withValues.length > 0 ? `Overrides keep their own values: ${withValues.join(', ')}. ` : '';
+  return withValues.length > 0 ? `Exceptions keep their own values: ${withValues.join(', ')}. ` : '';
 }
 
 interface EditDefaultModalProps {
   check: Check;
-  /** The check's overrides, to say which keep their own values; null while they load. */
+  /** The check's exceptions, to say which keep their own values; null while they load. */
   overrides: readonly CheckOverride[] | null;
   isSaving: boolean;
   onClose: () => void;
@@ -31,7 +31,7 @@ interface EditDefaultModalProps {
   onSave: (thresholds: Record<string, number>) => void;
 }
 
-/** The check's default thresholds: what every device without an override is measured against. */
+/** The check's default thresholds: what every device without an exception is measured against. */
 export function EditDefaultModal({ check, overrides, isSaving, onClose, onSave }: EditDefaultModalProps) {
   const form = useForm<ThresholdValues>({
     resolver: zodResolver(z.object({ thresholds: thresholdsSchema(check.parameters) })),
@@ -65,14 +65,13 @@ export function EditDefaultModal({ check, overrides, isSaving, onClose, onSave }
         }}
       >
         <p className="text-ods-text-secondary text-h6">
-          {[check.name, platform].filter(Boolean).join(' · ')} · used by every device without an override.
+          {[check.name, platform].filter(Boolean).join(' · ')} · used by every device without an exception.
         </p>
         <ThresholdFields
           parameters={check.parameters}
           control={form.control}
           errors={form.formState.errors}
           defaultOf={parameter => parameter.defaultValue}
-          withRange={false}
         />
         <p className="text-ods-text-secondary text-h6">
           {overrides ? overridesNote(check, overrides) : ''}

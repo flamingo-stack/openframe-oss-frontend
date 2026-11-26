@@ -29,7 +29,7 @@ export function CheckOverridesReader({ check, children }: CheckOverridesReaderPr
 
 function CheckOverridesReaderIsland({ check, children }: CheckOverridesReaderProps) {
   return (
-    <LoadingSuspense label="Loading overrides">
+    <LoadingSuspense label="Loading exceptions">
       <CheckOverridesReaderScope check={check}>{children}</CheckOverridesReaderScope>
     </LoadingSuspense>
   );

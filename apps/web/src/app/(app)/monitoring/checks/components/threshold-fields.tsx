@@ -40,9 +40,9 @@ interface ThresholdFieldsProps<T extends FieldValues & ThresholdValues> {
   parameters: readonly CheckParameter[];
   control: Control<T>;
   errors: FieldErrors<ThresholdValues>;
-  /** The default a field's hint names: the built-in value (editing the default) or the check's default (an override). */
+  /** The default a field's hint names: the built-in value (editing the default) or the check's default (an exception). */
   defaultOf: (parameter: CheckParameter) => number;
-  /** Whether the hint names the accepted range (Add Override does; the edit forms leave it to the error). */
+  /** Whether the hint names the accepted range (the design leaves it to the error). */
   withRange?: boolean;
   disabled?: boolean;
 }
@@ -53,10 +53,10 @@ export function ThresholdFields<T extends FieldValues & ThresholdValues>({
   control,
   errors,
   defaultOf,
-  withRange = true,
+  withRange = false,
   disabled,
 }: ThresholdFieldsProps<T>) {
-  return parameters.map((parameter, index) => {
+  const fields = parameters.map((parameter, index) => {
     const error = errors.thresholds?.[index]?.message;
     return (
       <div key={parameter.parameter} className="flex flex-col gap-[var(--spacing-system-xs)]">
@@ -87,6 +87,13 @@ export function ThresholdFields<T extends FieldValues & ThresholdValues>({
       </div>
     );
   });
+  if (parameters.length < 2) return fields;
+  return (
+    <>
+      {fields}
+      <span className="text-ods-text-secondary text-h6">An incident opens when either value is crossed.</span>
+    </>
+  );
 }
 
 /** The form's text values as numbers by parameter key. */

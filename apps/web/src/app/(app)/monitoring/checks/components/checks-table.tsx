@@ -1,6 +1,5 @@
 'use client';
 
-import { PenEditIcon, PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   ActionsMenuDropdown,
   type ActionsMenuItem,
@@ -20,8 +19,9 @@ import { LiveTable } from '@/app/components/shared/live-table';
 import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { InsightSeverity } from '@/generated/schema-enums';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import { formatDefaultThreshold, overrideCountLabel } from '../utils/check-labels';
+import { formatDefaultThreshold } from '../utils/check-labels';
 import type { Check } from '../utils/check-transform';
 import { CHECK_COLUMNS } from './checks-table-columns';
 
@@ -77,18 +77,15 @@ function SeverityCell({ check }: { check?: Check }) {
   );
 }
 
-/** The default for every device, then how many overrides change it: "Below 10% · 7 overrides". */
+/** The default for every device: "Below 10%", "On / off". */
 function ThresholdCell({ check }: { check?: Check }) {
-  return (
-    <div className="flex min-w-0 items-baseline gap-[var(--spacing-system-xs)]">
-      <TruncateText>{check ? formatDefaultThreshold(check) : ''}</TruncateText>
-      {check && check.overrideCount > 0 && (
-        <span className="shrink-0 whitespace-nowrap text-ods-text-secondary text-h6">
-          · {overrideCountLabel(check.overrideCount)}
-        </span>
-      )}
-    </div>
-  );
+  return <TruncateText>{check ? formatDefaultThreshold(check) : ''}</TruncateText>;
+}
+
+/** How many exceptions change the default; the empty mark when none does. */
+function ExceptionsCell({ check }: { check?: Check }) {
+  if (!check) return <TruncateText>{''}</TruncateText>;
+  return <TruncateText>{check.overrideCount > 0 ? String(check.overrideCount) : EMPTY_VALUE}</TruncateText>;
 }
 
 function EnabledCell({ check, actions }: { check?: Check; actions?: CheckRowActions | null }) {
@@ -112,15 +109,13 @@ function ActionsCell({ check, actions }: { check?: Check; actions?: CheckRowActi
     items.push({
       id: 'edit-default',
       label: 'Edit Default',
-      icon: <PenEditIcon className="size-6 text-ods-text-secondary" />,
       disabled: actions.busy,
       onClick: actions.editDefault,
     });
   }
   items.push({
-    id: 'add-override',
-    label: 'Add Override',
-    icon: <PlusCircleIcon className="size-6 text-ods-text-secondary" />,
+    id: 'add-exception',
+    label: 'Add Exception',
     disabled: actions.busy,
     onClick: actions.addOverride,
   });
@@ -157,6 +152,13 @@ const CHECK_TABLE_COLUMNS: ColumnDef<CheckTableRow>[] = [
     enableSorting: false,
     cell: ({ row }: CellProps) => <ThresholdCell check={row.original.check} />,
     meta: liveColumnMeta(CHECK_COLUMNS.threshold),
+  },
+  {
+    id: CHECK_COLUMNS.exceptions.id,
+    header: CHECK_COLUMNS.exceptions.header,
+    enableSorting: false,
+    cell: ({ row }: CellProps) => <ExceptionsCell check={row.original.check} />,
+    meta: liveColumnMeta(CHECK_COLUMNS.exceptions),
   },
   {
     id: CHECK_COLUMNS.enabled.id,

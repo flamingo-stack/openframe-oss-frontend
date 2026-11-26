@@ -4,7 +4,8 @@ import type { TableSkeletonColumn } from '@/app/components/shared/table-column-l
 export const CHECK_COLUMNS = {
   check: { id: 'check', header: 'Check', width: 'flex-1 min-w-0' },
   severity: { id: 'severity', header: 'Severity', width: 'w-[120px]', hideAt: 'md' },
-  threshold: { id: 'threshold', header: 'Threshold', width: 'w-[320px]', hideAt: 'md' },
+  threshold: { id: 'threshold', header: 'Threshold', width: 'w-[200px] content-lg:w-[240px]', hideAt: 'md' },
+  exceptions: { id: 'exceptions', header: 'Exceptions', width: 'w-[112px]', hideAt: 'lg' },
   enabled: { id: 'enabled', header: 'Enabled', width: 'w-[72px] content-md:w-[96px]' },
   actions: { id: 'actions', width: 'w-12 shrink-0 flex-none', align: 'right' },
   open: { id: 'open', width: 'w-12 shrink-0 flex-none', align: 'right', hideAt: 'md' },

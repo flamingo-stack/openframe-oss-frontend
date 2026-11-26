@@ -18,8 +18,8 @@ import { ChecksTable, type CheckTableRow } from './checks-table';
 
 /**
  * Queries → Checks: every built-in health check with its default for all devices and how many
- * overrides change it. A row opens the check's page; admins and owners switch a check on or off,
- * edit its default and add an override from the row.
+ * exceptions change it. A row opens the check's page; admins and owners switch a check on or off,
+ * edit its default and add an exception from the row.
  */
 export function ChecksList() {
   const [search, setSearch] = useState('');

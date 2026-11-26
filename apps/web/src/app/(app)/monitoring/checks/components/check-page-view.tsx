@@ -1,48 +1,41 @@
 'use client';
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { AlertTriangleClassicIcon, SlidersIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
-  AlertTriangleClassicIcon,
-  PenEditIcon,
-  PlusCircleIcon,
-  Refresh01LeftIcon,
-  SlidersIcon,
-  TrashIcon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import {
-  ActionsMenuDropdown,
   Alert,
   AlertDescription,
   AlertTitle,
-  Button,
   NoData,
   PageLayout,
   Switch,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useRouter } from 'next/navigation';
-import { type ReactNode, useState } from 'react';
+import { useState } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { insightCheckPageQuery as CheckPageQueryType } from '@/__generated__/insightCheckPageQuery.graphql';
-import { IncidentSeverityTag } from '@/app/(app)/incidents/components/incident-tags';
-import { INCIDENT_TYPE_LABELS, labelOf } from '@/app/(app)/incidents/utils/incident-labels';
 import { ContentErrorBoundary, useRetryKey } from '@/app/components/shared';
-import { InfoCell } from '@/app/components/shared/info-cell';
 import { useAdminGate } from '@/app/hooks/use-admin-gate';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { InsightCheckScopeType } from '@/generated/schema-enums';
 import { insightCheckPageQuery } from '@/graphql/insights/insight-check-page-query';
 import { routes } from '@/lib/routes';
 import { useCheckMutations } from '../hooks/use-check-mutations';
-import { formatCheckInterval, formatThreshold } from '../utils/check-labels';
 import { type Check, type CheckOverride, toCheck, toCheckOverride } from '../utils/check-transform';
-import { type CheckDialog, CheckDialogs, resetDefault, toggleCheck } from './check-dialogs';
+import { type CheckDialog, CheckDialogs, toggleCheck } from './check-dialogs';
+import {
+  CheckDetails,
+  DefaultThreshold,
+  DefaultThresholdActions,
+  ExceptionsActions,
+  Section,
+} from './check-page-sections';
 import { OverridesTable, type OverrideTableRow } from './overrides-table';
 
 const PRECEDENCE_NOTE =
-  'The most specific override wins: a device override, then device tags, then the customer, then the default. New devices pick up overrides as soon as they join the customer or get the tag.';
+  'The most specific exception wins: a device exception, then device tags, then the customer, then the default. New devices pick up exceptions as soon as they join the customer or get the tag.';
 
-/** A built-in check's page: its default for every device and every override that changes it. */
+/** A built-in check's page: its default for every device and every exception that changes it. */
 export function CheckPageView({ checkKey }: { checkKey: string }) {
   const retryKey = useRetryKey();
   return (
@@ -83,7 +76,6 @@ interface CheckPageContentProps {
 }
 
 function CheckPageContent({ check, overrides }: CheckPageContentProps) {
-  const router = useRouter();
   const handleBack = useSafeBack(routes.monitoring.root({ tab: 'checks' }));
   const canEdit = useAdminGate() === 'admin';
   const mutations = useCheckMutations();
@@ -123,94 +115,41 @@ function CheckPageContent({ check, overrides }: CheckPageContentProps) {
             <AlertTriangleClassicIcon className="size-5" />
             <AlertTitle>Turned off for all devices</AlertTitle>
             <AlertDescription>
-              It still runs where an override turns it on for a customer, a tag or a device.
+              It still runs where an exception turns it on for a customer, a tag or a device.
             </AlertDescription>
           </Alert>
         )}
 
-        <div className="grid grid-cols-2 gap-[var(--spacing-system-l)] rounded-[6px] border border-ods-border bg-ods-card p-[var(--spacing-system-l)] content-md:grid-cols-4">
-          <InfoCell label="Severity" value={<IncidentSeverityTag severity={check?.severity} />} />
-          <InfoCell
-            label="Category"
-            value={check ? labelOf(INCIDENT_TYPE_LABELS, check.type) : ''}
-            skeletonWidth="w-16"
-          />
-          <InfoCell
-            label="Runs every"
-            value={check ? formatCheckInterval(check.intervalSeconds).replace(/^Every /, '') : ''}
-            skeletonWidth="w-16"
-          />
-          <InfoCell label="Overrides" value={check ? String(check.overrideCount) : ''} skeletonWidth="w-8" />
-        </div>
-
-        {(!check || check.parameters.length > 0) && (
-          <Section
-            title="Default threshold"
-            actions={
-              editable && check ? (
-                <DefaultThresholdActions check={check} onDialog={setDialog} mutations={mutations} />
-              ) : null
-            }
-          >
-            <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] rounded-[6px] border border-ods-border bg-ods-card p-[var(--spacing-system-l)] content-md:grid-cols-2">
-              {check ? (
-                check.parameters.map(parameter => (
-                  <InfoCell
-                    key={parameter.parameter}
-                    label={parameter.label}
-                    value={formatThreshold(parameter.value, parameter.unit, parameter.firesWhen)}
-                  />
-                ))
-              ) : (
-                <InfoCell label="Threshold" value="" skeletonWidth="w-32" />
-              )}
-            </div>
-          </Section>
-        )}
+        <CheckDetails check={check} />
 
         <Section
-          title="Overrides"
+          title={check && check.parameters.length === 0 ? 'Threshold' : 'Default threshold'}
           actions={
-            editable && check ? (
-              <div className="flex items-center gap-[var(--spacing-system-xs)]">
-                <Button
-                  variant="outline"
-                  leftIcon={<PlusCircleIcon className="size-6 text-ods-text-secondary" />}
-                  onClick={() => setDialog({ kind: 'override', editing: null })}
-                >
-                  Add Override
-                </Button>
-                <ActionsMenuDropdown
-                  groups={[
-                    {
-                      items: [
-                        {
-                          id: 'delete-all',
-                          label: 'Delete All Overrides',
-                          icon: <TrashIcon className="size-6" />,
-                          danger: true,
-                          disabled: !overrides || overrides.length === 0,
-                          onClick: () => setDialog({ kind: 'delete-all' }),
-                        },
-                      ],
-                    },
-                  ]}
-                />
-              </div>
+            editable && check && check.parameters.length > 0 ? (
+              <DefaultThresholdActions check={check} onDialog={setDialog} mutations={mutations} />
+            ) : null
+          }
+        >
+          <DefaultThreshold check={check} />
+        </Section>
+
+        <Section
+          title="Exceptions"
+          actions={
+            editable ? (
+              <ExceptionsActions hasExceptions={Boolean(overrides && overrides.length > 0)} onDialog={setDialog} />
             ) : null
           }
         >
           {check && overrides && overrides.length === 0 ? (
             <NoData
               icon={<SlidersIcon />}
-              title="No overrides"
+              title="No exceptions"
               description="Every device uses the default threshold."
               className="py-[var(--spacing-system-xl)]"
             />
           ) : (
-            <OverridesTable
-              rows={check && overrides ? overrideRows(check, overrides, editable, setDialog, router) : []}
-            />
+            <OverridesTable rows={check && overrides ? overrideRows(check, overrides, editable, setDialog) : []} />
           )}
           <p className="text-ods-text-secondary text-h6">{PRECEDENCE_NOTE}</p>
         </Section>
@@ -228,92 +167,29 @@ function overrideRows(
   overrides: readonly CheckOverride[],
   editable: boolean,
   setDialog: (dialog: CheckDialog) => void,
-  router: ReturnType<typeof useRouter>,
 ): OverrideTableRow[] {
   return overrides.map(override => ({
     id: override.id,
     check,
     override,
+    devices: devicesTarget(override),
     actions: editable
       ? {
           busy: false,
           edit: () => setDialog({ kind: 'override', editing: override }),
           delete: () => setDialog({ kind: 'delete-override', override }),
-          open: openTarget(override, router),
         }
       : null,
   }));
 }
 
-/** Where "Open devices" goes: the customer's devices, or the device itself. A tag has nowhere to go yet. */
-function openTarget(
-  override: CheckOverride,
-  router: ReturnType<typeof useRouter>,
-): { label: string; go: () => void } | null {
+/** Where an exception's devices are: the customer's devices, or the device itself. A tag has nowhere to go yet. */
+function devicesTarget(override: CheckOverride): { label: string; href: string } | null {
   if (override.scopeType === InsightCheckScopeType.CUSTOMER) {
-    return {
-      label: 'Open devices',
-      go: () => router.push(routes.devices.filtered({ organizationIds: [override.scopeId] })),
-    };
+    return { label: 'Open Devices', href: routes.devices.filtered({ organizationIds: [override.scopeId] }) };
   }
   if (override.scopeType === InsightCheckScopeType.DEVICE) {
-    return { label: 'Open device', go: () => router.push(routes.devices.details(override.scopeId)) };
+    return { label: 'Open Device', href: routes.devices.details(override.scopeId) };
   }
   return null;
-}
-
-function DefaultThresholdActions({
-  check,
-  onDialog,
-  mutations,
-}: {
-  check: Check;
-  onDialog: (dialog: CheckDialog) => void;
-  mutations: ReturnType<typeof useCheckMutations>;
-}) {
-  const changed = check.parameters.some(parameter => parameter.setForAllDevices);
-  if (!changed) {
-    return (
-      <Button variant="outline" onClick={() => onDialog({ kind: 'edit-default' })}>
-        Edit
-      </Button>
-    );
-  }
-  return (
-    <ActionsMenuDropdown
-      groups={[
-        {
-          items: [
-            {
-              id: 'edit',
-              label: 'Edit',
-              icon: <PenEditIcon className="size-6 text-ods-text-secondary" />,
-              disabled: mutations.isSaving,
-              onClick: () => onDialog({ kind: 'edit-default' }),
-            },
-            {
-              id: 'reset',
-              label: 'Reset to default',
-              icon: <Refresh01LeftIcon className="size-6 text-ods-text-secondary" />,
-              disabled: mutations.isSaving,
-              onClick: () => resetDefault(check, mutations),
-            },
-          ],
-        },
-      ]}
-    />
-  );
-}
-
-/** A titled block of the page: its uppercase label and actions on one row, its content under them. */
-function Section({ title, actions, children }: { title: string; actions: ReactNode; children: ReactNode }) {
-  return (
-    <section className="flex flex-col gap-[var(--spacing-system-m)]">
-      <div className="flex min-h-10 items-center justify-between gap-[var(--spacing-system-m)]">
-        <h3 className="text-ods-text-secondary text-h5">{title}</h3>
-        {actions}
-      </div>
-      {children}
-    </section>
-  );
 }

@@ -13,17 +13,16 @@ import type { insightCheckOverrideImpactQuery as ImpactQueryType } from '@/__gen
 import { LoadingParagraph } from '@/app/components/shared/loading-paragraph';
 import { InsightCheckScopeType } from '@/generated/schema-enums';
 import { insightCheckOverrideImpactQuery } from '@/graphql/insights/insight-check-override-impact-query';
-import { NEXT_RUN_NOTE } from '../hooks/use-check-mutations';
 import type { OverrideScopeType } from '../utils/check-transform';
 
-/** The customer, tag or device an override is for, with its name for the lines that say it. */
+/** The customer, tag or device an exception is for, with its name for the lines that say it. */
 export interface PickedScope {
   type: OverrideScopeType;
   id: string;
   name: string | null;
 }
 
-/** How many devices the override covers, and a warning when other overrides take over on some of them. */
+/** How many devices the exception covers, and a warning when other exceptions take over on some of them. */
 export function OverrideImpact(props: { check: string; scope: PickedScope }) {
   return (
     <LoadingSuspense label="Counting devices">
@@ -47,9 +46,7 @@ function OverrideImpactLive({ check, scope }: { check: string; scope: PickedScop
   const warning = impactWarning(scope.type, impact.deviceCount, impact.affectedDeviceCount);
   return (
     <div className="flex flex-col gap-[var(--spacing-system-m)]">
-      <p className="text-ods-text-secondary text-h6">
-        {appliesToLine(scope, impact.deviceCount)} {NEXT_RUN_NOTE}
-      </p>
+      <p className="text-ods-text-secondary text-h6">{appliesToLine(scope, impact.deviceCount)}</p>
       {warning && (
         <Alert>
           <InfoCircleIcon className="size-5 text-ods-text-secondary" />
@@ -65,26 +62,21 @@ function devicesWord(count: number): string {
   return count === 1 ? '1 device' : `${count} devices`;
 }
 
-/** "Applies to 6 devices now and to every device that joins Northwind Logistics later." */
+/** "Applies to 6 devices." / "Applies to this device only." */
 function appliesToLine(scope: PickedScope, deviceCount: number): string {
   if (scope.type === InsightCheckScopeType.DEVICE) return 'Applies to this device only.';
-  const later =
-    scope.type === InsightCheckScopeType.CUSTOMER
-      ? `every device that joins ${scope.name ?? 'this customer'} later`
-      : 'every device that gets the tag later';
-  return `Applies to ${devicesWord(deviceCount)} now and to ${later}.`;
+  return `Applies to ${devicesWord(deviceCount)}.`;
 }
 
-/** Why another override takes over on some of the devices, by the kind of override being added. */
+/** Why another exception takes over on some of the devices, by the kind of exception being added. */
 const TAKEN_OVER_BECAUSE: Record<OverrideScopeType, (those: string) => string> = {
   CUSTOMER: those =>
-    `Device and tag overrides win over customer overrides, so this override does not apply on ${those}.`,
-  TAG: those =>
-    `A device override wins over a tag override, and among several tag overrides the strictest value applies on ${those}.`,
-  DEVICE: () => 'On this device this override replaces them.',
+    `Device and tag exceptions win over customer exceptions, so this exception does not apply on ${those}.`,
+  TAG: those => `A device exception or another tag exception applies on ${those} instead of this one.`,
+  DEVICE: () => 'On this device this exception replaces them.',
 };
 
-/** The warning over the devices another override takes over; nothing when there are none. */
+/** The warning over the devices another exception takes over; nothing when there are none. */
 function impactWarning(
   type: OverrideScopeType,
   deviceCount: number,
@@ -93,7 +85,7 @@ function impactWarning(
   if (affected <= 0) return null;
   const title =
     type === InsightCheckScopeType.DEVICE
-      ? 'This device has other overrides'
-      : `${affected} of ${devicesWord(deviceCount)} ${affected === 1 ? 'has' : 'have'} other overrides`;
+      ? 'This device has other exceptions'
+      : `${affected} of ${devicesWord(deviceCount)} ${affected === 1 ? 'has' : 'have'} other exceptions`;
   return { title, description: TAKEN_OVER_BECAUSE[type](affected === 1 ? 'that device' : 'those devices') };
 }
