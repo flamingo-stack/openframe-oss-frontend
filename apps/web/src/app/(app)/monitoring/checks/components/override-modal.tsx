@@ -108,7 +108,6 @@ export function OverrideModal({
       isOpen
       onClose={onClose}
       title={editing ? 'Edit Exception' : 'Add Exception'}
-      className="text-left md:max-w-[600px]"
       footer={
         <>
           <Button type="button" variant="outline" onClick={onClose} className="flex-1">

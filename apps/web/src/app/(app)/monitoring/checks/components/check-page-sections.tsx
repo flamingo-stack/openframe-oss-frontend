@@ -7,6 +7,7 @@ import {
   AlertDescription,
   AlertTitle,
   Button,
+  Card,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
@@ -19,19 +20,19 @@ import type { Check } from '../utils/check-transform';
 import { type CheckDialog, resetDefault } from './check-dialogs';
 
 /**
- * The design system's details panel: items with the label above the value, a divider between rows, the
- * columns as many as fit (an item is 240px at least).
+ * The details panel: the design system's panel card, items with the label above the value. Stacked under each other
+ * (a divider between them) in a narrow content area, one row from `content-md` up.
  */
 function DetailsPanel({ columns, children }: { columns: 'one' | 'three' | 'four'; children: ReactNode }) {
   const grid = {
     one: 'grid-cols-1',
     three: 'grid-cols-1 content-md:grid-cols-3',
-    four: 'grid-cols-1 content-md:grid-cols-2 content-lg:grid-cols-4',
+    four: 'grid-cols-1 content-md:grid-cols-4',
   }[columns];
   return (
-    <div className={`grid gap-y-[1px] overflow-hidden rounded-[8px] border border-ods-border bg-ods-border ${grid}`}>
+    <Card variant="panel" className={`grid divide-y divide-ods-border overflow-hidden content-md:divide-y-0 ${grid}`}>
       {children}
-    </div>
+    </Card>
   );
 }
 
@@ -46,7 +47,7 @@ interface DetailsItemProps {
 function DetailsItem({ label, value, skeletonWidth = 'w-24' }: DetailsItemProps) {
   const loading = useLoadingScope();
   return (
-    <div className="flex min-h-16 min-w-0 flex-col justify-center bg-ods-card p-[var(--spacing-system-xsf)]">
+    <div className="flex min-h-16 min-w-0 flex-col justify-center p-[var(--spacing-system-xsf)]">
       <p className="truncate text-ods-text-secondary text-h6">{label}</p>
       {typeof value === 'string' ? (
         <ValueText value={loading ? null : value} loading={loading} skeletonWidth={skeletonWidth} />
@@ -205,9 +206,9 @@ export function Section({ title, actions, children }: { title: string; actions: 
 /** No exception on the check: a card saying every device runs on the default. */
 export function NoExceptions() {
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-xxs)] rounded-[8px] border border-ods-border bg-ods-card p-[var(--spacing-system-l)]">
+    <Card variant="panel" className="flex flex-col gap-[var(--spacing-system-xxs)] p-[var(--spacing-system-l)]">
       <p className="text-ods-text-primary text-h3">No exceptions</p>
       <p className="text-ods-text-secondary text-h6">Every device uses the default threshold.</p>
-    </div>
+    </Card>
   );
 }

@@ -45,7 +45,6 @@ export function EditDefaultModal({ check, overrides, isSaving, onClose, onSave }
       isOpen
       onClose={onClose}
       title="Edit Default"
-      className="text-left md:max-w-[600px]"
       footer={
         <>
           <Button type="button" variant="outline" onClick={onClose} className="flex-1">
