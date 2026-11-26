@@ -303,7 +303,7 @@ describe('DevicesPanel and the directory gate', () => {
     render();
     await settle();
     expect(text()).toContain('host-1');
-    expect(funnels()).toEqual(expect.arrayContaining(['Filter by STATUS', 'Filter by OS', 'Filter by CUSTOMER']));
+    expect(funnels()).toEqual(expect.arrayContaining(['Filter by Status', 'Filter by OS', 'Filter by CUSTOMER']));
     expect(funnels()).not.toContain('Filter by USER');
   });
 
@@ -311,7 +311,7 @@ describe('DevicesPanel and the directory gate', () => {
     flagsOn();
     render();
     await settle();
-    expect(funnels()).toEqual(expect.arrayContaining(['Filter by USER', 'Filter by SOURCES', 'Filter by STATUS']));
+    expect(funnels()).toEqual(expect.arrayContaining(['Filter by USER', 'Filter by SOURCES', 'Filter by Status']));
   });
 
   it('keeps a funnel for a USER filter in the address, even with the facets failing', async () => {
@@ -427,7 +427,7 @@ describe('DevicesPanel and the directory gate', () => {
       expect(env.listsAsked.every(list => list === 'main')).toBe(true);
       expect(text()).not.toContain('USER');
       expect(text()).not.toContain('SOURCES');
-      expect(funnels()).toEqual(expect.arrayContaining(['Filter by STATUS', 'Filter by OS', 'Filter by CUSTOMER']));
+      expect(funnels()).toEqual(expect.arrayContaining(['Filter by Status', 'Filter by OS', 'Filter by CUSTOMER']));
       expect(funnels()).not.toContain('Filter by USER');
       expect(funnels()).not.toContain('Filter by SOURCES');
       expect(directoryCalls()).toEqual([]);
@@ -452,7 +452,7 @@ describe('DevicesPanel and the directory gate', () => {
       render({ emptyState: <div>No devices yet</div> });
       await settle();
       expect(text()).not.toContain('No devices yet');
-      expect(funnels()).toContain('Filter by STATUS');
+      expect(funnels()).toContain('Filter by Status');
     });
 
     it('is the panel when the flags fail, as they then read off', async () => {
