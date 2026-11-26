@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { insightChecksListQuery as ChecksListQueryType } from '@/__generated__/insightChecksListQuery.graphql';
 import { ContentErrorBoundary, useRetryKey } from '@/app/components/shared';
+import { TableLayoutScope } from '@/app/components/shared/table-layout-scope';
 import { useAdminGate } from '@/app/hooks/use-admin-gate';
 import { insightChecksListQuery } from '@/graphql/insights/insight-checks-list-query';
 import { routes } from '@/lib/routes';
@@ -34,7 +35,9 @@ export function ChecksList() {
           startAdornment={<SearchIcon />}
         />
         <ContentErrorBoundary message="Couldn't load the checks.">
-          <ChecksListIsland search={search} />
+          <TableLayoutScope fill>
+            <ChecksListIsland search={search} />
+          </TableLayoutScope>
         </ContentErrorBoundary>
       </div>
     </PageLayout>

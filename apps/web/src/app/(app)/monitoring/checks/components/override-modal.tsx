@@ -224,6 +224,7 @@ function AppliesToFields({ kind, picked, editing, existing, onKind, onPick, onEd
               value={picked?.id ?? null}
               selectedLabel={picked?.name ?? null}
               onChange={(id, name) => onPick(id ? { type: kind, id, name } : null)}
+              invalid={Boolean(existing)}
             />
           )}
           {existing && (

@@ -46,6 +46,8 @@ interface ScopeEntityPickerProps {
   selectedLabel: string | null;
   /** The picked entity's id and name (the option's label). */
   onChange: (id: string | null, name: string | null) => void;
+  /** The pick cannot be saved (it already has an exception): the field draws its error border; the host says why. */
+  invalid?: boolean;
 }
 
 /** The customer, device tag or device an override is for: a single pick, searched on the server where the list is long. */
@@ -86,14 +88,13 @@ function PickerField({
   loading,
   error,
   disabled,
-  searchOnServer = false,
+  invalid = false,
 }: ScopeEntityPickerProps & {
   options: readonly AutocompleteOption[];
   onSearch?: (search: string) => void;
   loading?: boolean;
   error?: string;
   disabled?: boolean;
-  searchOnServer?: boolean;
 }) {
   const withSelected = useMemo(() => {
     if (!value || options.some(option => option.value === value)) return [...options];
@@ -105,10 +106,12 @@ function PickerField({
       value={value}
       onChange={id => onChange(id, withSelected.find(option => option.value === id)?.label ?? null)}
       onInputChange={onSearch}
-      disableClientFilter={searchOnServer}
+      // A field that searches on the server shows the server's matches as they are.
+      disableClientFilter={Boolean(onSearch)}
       placeholder={ENTITY_PLACEHOLDERS[type]}
       loading={loading}
       error={error}
+      invalid={invalid}
       disabled={disabled}
     />
   );
@@ -118,7 +121,7 @@ function CustomerPicker(props: ScopeEntityPickerProps) {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
   const { options, isLoading } = useOrganizationOptions(debouncedSearch);
-  return <PickerField {...props} options={options} onSearch={setSearch} loading={isLoading} searchOnServer />;
+  return <PickerField {...props} options={options} onSearch={setSearch} loading={isLoading} />;
 }
 
 function DevicePicker(props: ScopeEntityPickerProps) {
@@ -146,7 +149,6 @@ function DevicePicker(props: ScopeEntityPickerProps) {
       onSearch={setSearch}
       loading={query.isLoading}
       error={query.isError ? "Couldn't load devices" : undefined}
-      searchOnServer
     />
   );
 }

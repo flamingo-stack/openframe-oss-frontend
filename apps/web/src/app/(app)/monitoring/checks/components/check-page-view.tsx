@@ -1,12 +1,11 @@
 'use client';
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
-import { AlertTriangleClassicIcon, SlidersIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { AlertTriangleClassicIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Alert,
   AlertDescription,
   AlertTitle,
-  NoData,
   PageLayout,
   Switch,
   useLoadingScope,
@@ -15,6 +14,7 @@ import { useState } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { insightCheckPageQuery as CheckPageQueryType } from '@/__generated__/insightCheckPageQuery.graphql';
 import { ContentErrorBoundary, useRetryKey } from '@/app/components/shared';
+import { TableLayoutScope } from '@/app/components/shared/table-layout-scope';
 import { useAdminGate } from '@/app/hooks/use-admin-gate';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { InsightCheckScopeType } from '@/generated/schema-enums';
@@ -28,6 +28,7 @@ import {
   DefaultThreshold,
   DefaultThresholdActions,
   ExceptionsActions,
+  NoExceptions,
   Section,
 } from './check-page-sections';
 import { OverridesTable, type OverrideTableRow } from './overrides-table';
@@ -142,14 +143,11 @@ function CheckPageContent({ check, overrides }: CheckPageContentProps) {
           }
         >
           {check && overrides && overrides.length === 0 ? (
-            <NoData
-              icon={<SlidersIcon />}
-              title="No exceptions"
-              description="Every device uses the default threshold."
-              className="py-[var(--spacing-system-xl)]"
-            />
+            <NoExceptions />
           ) : (
-            <OverridesTable rows={check && overrides ? overrideRows(check, overrides, editable, setDialog) : []} />
+            <TableLayoutScope>
+              <OverridesTable rows={check && overrides ? overrideRows(check, overrides, editable, setDialog) : []} />
+            </TableLayoutScope>
           )}
           <p className="text-ods-text-secondary text-h6">{PRECEDENCE_NOTE}</p>
         </Section>

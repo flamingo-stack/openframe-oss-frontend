@@ -22,10 +22,10 @@ import { type CheckDialog, resetDefault } from './check-dialogs';
  * The design system's details panel: items with the label above the value, a divider between rows, the
  * columns as many as fit (an item is 240px at least).
  */
-function DetailsPanel({ columns, children }: { columns: 'one' | 'two' | 'four'; children: ReactNode }) {
+function DetailsPanel({ columns, children }: { columns: 'one' | 'three' | 'four'; children: ReactNode }) {
   const grid = {
     one: 'grid-cols-1',
-    two: 'grid-cols-1 content-md:grid-cols-2',
+    three: 'grid-cols-1 content-md:grid-cols-3',
     four: 'grid-cols-1 content-md:grid-cols-2 content-lg:grid-cols-4',
   }[columns];
   return (
@@ -94,15 +94,24 @@ export function DefaultThreshold({ check }: { check?: Check }) {
     );
   }
   return (
-    <DetailsPanel columns={check && check.parameters.length > 1 ? 'two' : 'one'}>
+    <DetailsPanel columns={check && check.parameters.length > 1 ? 'three' : 'one'}>
       {check ? (
-        check.parameters.map(parameter => (
-          <DetailsItem
-            key={parameter.parameter}
-            label={parameter.label}
-            value={formatThreshold(parameter.value, parameter.unit, parameter.firesWhen)}
-          />
-        ))
+        <>
+          {check.parameters.map(parameter => (
+            <DetailsItem
+              key={parameter.parameter}
+              label={parameter.label}
+              value={formatThreshold(parameter.value, parameter.unit, parameter.firesWhen)}
+            />
+          ))}
+          {/* The API raises the incident when any one of the values is crossed. */}
+          {check.parameters.length > 1 && (
+            <DetailsItem
+              label="Raises an incident when"
+              value={check.parameters.length === 2 ? 'Either is true' : 'Any is true'}
+            />
+          )}
+        </>
       ) : (
         <DetailsItem label="Threshold" value="" skeletonWidth="w-32" />
       )}
@@ -152,7 +161,7 @@ export function DefaultThresholdActions({
   );
 }
 
-/** Add Exception, and a menu that deletes them all. */
+/** Add Exception, and once there are exceptions, a menu that deletes them all. */
 export function ExceptionsActions({
   hasExceptions,
   onDialog,
@@ -165,21 +174,17 @@ export function ExceptionsActions({
       <Button variant="outline" onClick={() => onDialog({ kind: 'override', editing: null })}>
         Add Exception
       </Button>
-      <ActionsMenuDropdown
-        groups={[
-          {
-            items: [
-              {
-                id: 'delete-all',
-                label: 'Delete All Exceptions',
-                danger: true,
-                disabled: !hasExceptions,
-                onClick: () => onDialog({ kind: 'delete-all' }),
-              },
-            ],
-          },
-        ]}
-      />
+      {hasExceptions && (
+        <ActionsMenuDropdown
+          groups={[
+            {
+              items: [
+                { id: 'delete-all', label: 'Delete All Exceptions', onClick: () => onDialog({ kind: 'delete-all' }) },
+              ],
+            },
+          ]}
+        />
+      )}
     </div>
   );
 }
@@ -194,5 +199,15 @@ export function Section({ title, actions, children }: { title: string; actions: 
       </div>
       {children}
     </section>
+  );
+}
+
+/** No exception on the check: a card saying every device runs on the default. */
+export function NoExceptions() {
+  return (
+    <div className="flex flex-col gap-[var(--spacing-system-xxs)] rounded-[8px] border border-ods-border bg-ods-card p-[var(--spacing-system-l)]">
+      <p className="text-ods-text-primary text-h3">No exceptions</p>
+      <p className="text-ods-text-secondary text-h6">Every device uses the default threshold.</p>
+    </div>
   );
 }
