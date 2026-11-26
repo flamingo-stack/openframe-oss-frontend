@@ -14,8 +14,15 @@ import type { pendingMailboxFormProviderMutation as ProviderMutationType } from 
 import { ForwardingTestState, MailboxProvider } from '@/generated/schema-enums';
 import { knownValue } from '@/lib/exhaustive-map';
 import { routes } from '@/lib/routes';
-import { mailboxRequestErrorMessage, mailboxUserErrorMessage } from '../../utils/mailbox-errors';
-import { EMPTY_MAILBOX_DEFAULTS, type MailboxDefaultsFormData, mailboxDefaultsSchema } from '../form/mailbox-defaults';
+import { blockListRowOfField, blockListValues } from '../../utils/block-list';
+import { mailboxRequestErrorMessage, mailboxUserErrorField, mailboxUserErrorMessage } from '../../utils/mailbox-errors';
+import { BlockListFields } from '../form/block-list-fields';
+import {
+  EMPTY_MAILBOX_SETTINGS,
+  type MailboxSettingsFormData,
+  mailboxDefaultsValues,
+  mailboxSettingsSchema,
+} from '../form/mailbox-defaults';
 import { MailboxDefaultsFields } from '../form/mailbox-defaults-fields';
 import { SAVE_MAILBOX_ACTION } from '../shared/mailbox-page-frame';
 import { ForwardingCard } from './forwarding-card';
@@ -63,7 +70,10 @@ const activateMutation = graphql`
   }
 `;
 
-/** The Pending mailbox's setup: provider, its forwarding address and steps, the routing defaults, Save Mailbox. */
+/**
+ * The Pending mailbox's setup: provider, its forwarding address, steps and test, the routing defaults, the Block list,
+ * Save Mailbox (once the test has passed).
+ */
 export function PendingMailboxForm({ mailbox }: { mailbox: pendingMailboxForm_mailbox$key }) {
   const data = useFragment(pendingMailboxFormFragment, mailbox);
   const { toast } = useToast();
@@ -73,9 +83,9 @@ export function PendingMailboxForm({ mailbox }: { mailbox: pendingMailboxForm_ma
   const { generate, isGenerating } = useGenerateMailbox();
   const [commitProvider, isChangingProvider] = useMutation<ProviderMutationType>(providerMutation);
   const [commitActivate, isSaving] = useMutation<ActivateMutationType>(activateMutation);
-  const form = useForm<MailboxDefaultsFormData>({
-    resolver: zodResolver(mailboxDefaultsSchema),
-    defaultValues: EMPTY_MAILBOX_DEFAULTS,
+  const form = useForm<MailboxSettingsFormData>({
+    resolver: zodResolver(mailboxSettingsSchema),
+    defaultValues: EMPTY_MAILBOX_SETTINGS,
   });
 
   // The forwarding address was made for the address it was generated for: another address needs its own.
@@ -102,11 +112,17 @@ export function PendingMailboxForm({ mailbox }: { mailbox: pendingMailboxForm_ma
       toast({ title: 'Could not save the mailbox', description, variant: 'destructive' });
     };
     commitActivate({
-      variables: { input: { mailboxId: data.id, ...values } },
+      variables: {
+        input: { mailboxId: data.id, ...mailboxDefaultsValues(values), blockList: blockListValues(values.blockList) },
+      },
       onCompleted: ({ activateMailbox: { userErrors } }) => {
         const [refusal] = userErrors;
         if (refusal) {
-          fail(mailboxUserErrorMessage(refusal));
+          const message = mailboxUserErrorMessage(refusal);
+          // A refused Block list value (`blockList.<i>`) is marked on its row as well.
+          const row = blockListRowOfField(values.blockList, mailboxUserErrorField(refusal));
+          if (row != null) form.setError(`blockList.${row}.value`, { message }, { shouldFocus: true });
+          fail(message);
           return;
         }
         toast({
@@ -152,9 +168,10 @@ export function PendingMailboxForm({ mailbox }: { mailbox: pendingMailboxForm_ma
           </Button>
         </div>
       ) : (
-        <ForwardingCard mailbox={data} />
+        <ForwardingCard mailbox={data} disabled={busy} />
       )}
       <MailboxDefaultsFields control={form.control} setValue={form.setValue} disabled={busy} />
+      <BlockListFields control={form.control} disabled={busy} />
     </NewMailboxFrame>
   );
 }

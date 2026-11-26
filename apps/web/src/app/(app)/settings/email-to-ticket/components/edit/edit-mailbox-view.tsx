@@ -19,14 +19,17 @@ const editMailboxViewQuery = graphql`
       receivingState
       ...editMailboxForm_mailbox
     }
+    emailBlockList(mailboxId: $id, first: 100) {
+      ...editMailboxForm_blockList
+    }
   }
 `;
 
 /**
- * `/settings/email-to-ticket/edit?id=` (Figma 4679-130269): the routing defaults of new tickets.
+ * `/settings/email-to-ticket/edit?id=` (Figma 4679-130269): the routing defaults of new tickets and the Block list.
  *
  * Not drawn yet, waiting on the backend: the send-only sign-in card (`startSendAsSignIn` / `signOutSendAs` answer
- * NOT_IMPLEMENTED until CU-17tkuw66n95) and the Block List (its storage is CU-17tkuw66n9x).
+ * NOT_IMPLEMENTED until CU-17tkuw66n95).
  */
 export function EditMailboxView({ id, loading = false }: { id: string; loading?: boolean }) {
   return (
@@ -37,14 +40,14 @@ export function EditMailboxView({ id, loading = false }: { id: string; loading?:
 }
 
 function EditMailboxReader({ id }: { id: string }) {
-  if (useLoadingScope()) return <EditMailboxForm mailbox={null} />;
+  if (useLoadingScope()) return <EditMailboxForm mailbox={null} blockList={null} />;
   return <EditMailboxQuery id={id} />;
 }
 
 function EditMailboxQuery({ id }: { id: string }) {
   const router = useRouter();
   const retryKey = useRetryKey();
-  const { mailbox } = useLazyLoadQuery<EditMailboxViewQueryType>(
+  const { mailbox, emailBlockList } = useLazyLoadQuery<EditMailboxViewQueryType>(
     editMailboxViewQuery,
     { id },
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
@@ -62,5 +65,5 @@ function EditMailboxQuery({ id }: { id: string }) {
     );
   }
   // On its way to the setup page: the form locked, not a blank page.
-  return <EditMailboxForm key={mailbox.id} mailbox={pending ? null : mailbox} />;
+  return <EditMailboxForm key={mailbox.id} mailbox={pending ? null : mailbox} blockList={emailBlockList} />;
 }

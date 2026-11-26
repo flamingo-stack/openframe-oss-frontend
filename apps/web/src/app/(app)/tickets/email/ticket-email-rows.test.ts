@@ -22,18 +22,17 @@ describe('the email rows of Ticket Details', () => {
         {
           id: 'requester-email',
           label: 'Email',
-          value: { text: 'jane@customer.test', href: 'mailto:jane@customer.test' },
+          value: { text: 'jane@customer.test' },
         },
       ],
       origin: [{ id: 'created-by', label: 'Created by', value: { text: 'support@acme.test' } }],
     });
   });
 
-  it('add the matched person, linked to their page, and the address they are answered at', () => {
+  it('add the matched person and the address they are answered at, as plain values', () => {
     const { person } = ticketEmailRows({
       ...FROM_EMAIL,
       requester: {
-        accountId: 'acc-1',
         name: 'Jane Doe',
         email: 'jane.doe@customer.test',
         matchedAddress: 'jane@customer.test',
@@ -41,7 +40,7 @@ describe('the email rows of Ticket Details', () => {
       },
     });
     expect(person.map(row => row.label)).toEqual(['User', 'Email']);
-    expect(person[0].value).toMatchObject({ text: 'Jane Doe', href: '/users/details?id=acc-1' });
-    expect(person[1].value).toMatchObject({ text: 'jane@customer.test' });
+    expect(person[0].value).toEqual({ text: 'Jane Doe' });
+    expect(person[1].value).toEqual({ text: 'jane@customer.test' });
   });
 });
