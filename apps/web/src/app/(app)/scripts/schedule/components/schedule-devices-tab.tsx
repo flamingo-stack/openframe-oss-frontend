@@ -7,7 +7,7 @@ import {
   type DevicesListNarrowing,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { MonitorOffIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { AutoRefreshControl, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import {
   CURSOR_PAGER_KEYS,
   type CursorPagerVariables,
@@ -182,8 +182,7 @@ function ScheduleDevicesTabContent({
       // "Nothing is assigned" is page 1's to say: an empty LATER page is a cursor about to be dropped.
       emptyState={pager.isFirstPage ? EMPTY_STATE : undefined}
       skeletonRows={PAGE_SIZE}
-      pager={paged.pager}
-      refresh={paged.refresh}
+      metaRow={{ pager: paged.pager, actions: paged.refresh && <AutoRefreshControl {...paged.refresh} /> }}
     />
   );
 
