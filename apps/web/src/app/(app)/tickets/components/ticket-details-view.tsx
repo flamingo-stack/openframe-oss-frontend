@@ -50,7 +50,6 @@ import { useClientView } from '@/app/(app)/settings/ai-settings/hooks/use-client
 import { useOrganizationClientAiConfig } from '@/app/(app)/settings/ai-settings/hooks/use-organization-ai-config';
 import { getProviderModelLabel, useSupportedModels } from '@/app/(app)/settings/ai-settings/hooks/use-supported-models';
 import { NotesSection } from '@/app/components/shared';
-import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { AssignedItemsView, useAssignedItems } from '@/components/assignments';
@@ -68,10 +67,9 @@ import { useDeviceActionsMenu } from '../../devices/hooks/use-device-actions-men
 import { useDeviceDetails } from '../../devices/hooks/use-device-details';
 import { WATCH_LIVE_ITEM_ID } from '../../devices/utils/device-menu-items';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
-import { ASSISTANT_CONFIG, CHAT_TYPE } from '../constants';
-import { ReplyChannelBar } from '../email/reply-channel-bar';
-import { replyChannelsOf } from '../email/reply-channels';
-import { useTicketEmail } from '../email/use-ticket-email';
+import { ASSISTANT_CONFIG, CHAT_TYPE, CREATION_SOURCE } from '../constants';
+import { EmailReplyComposer } from '../email/email-reply-composer';
+import { useTicketEmailSide } from '../email/use-ticket-email-side';
 import { useAssignTicket } from '../hooks/use-assign-ticket';
 import { useAssigneeOptions } from '../hooks/use-assignee-options';
 import { useDirectChat } from '../hooks/use-direct-chat';
@@ -167,13 +165,10 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     error: dialogError,
     refetch: refetchTicket,
   } = useTicketDetail(ticketId);
-  // The ticket's email side (email-to-ticket): read only where the backend serves it, which the flag says.
-  const emailGate = useFeatureFlagGate('email-to-ticket');
-  const emailOn = emailGate === 'on';
-  const { data: ticketEmailData } = useTicketEmail(ticketId, { enabled: emailOn });
-  const ticketEmail = emailOn ? (ticketEmailData ?? null) : null;
-  const emailOrigin = ticketEmail?.emailOrigin ?? null;
-  const requester = ticketEmail?.requester ?? null;
+  // The ticket's email side (email-to-ticket): its rows, its matched person and where a reply can go.
+  const emailSide = useTicketEmailSide(ticketId, {
+    closed: dialog?.statusKind === TICKET_STATUS_KIND.RESOLVED || dialog?.statusKind === TICKET_STATUS_KIND.ARCHIVED,
+  });
 
   // Register the open ticket as the Mingo "open view" so it rides on the sidebar
   // chat's context. `dialog.id` is the raw db id the backend TICKET resolver /
@@ -260,7 +255,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
 
   // The URL param is the ticket ID; messages belong to the linked dialog. Held until the email-to-ticket flag answers:
   // the history's first page asks for emails as emails only where the backend has them.
-  const messageDialogId = emailGate === 'loading' ? null : (dialog?.dialogId ?? null);
+  const messageDialogId = emailSide.gate === 'loading' ? null : (dialog?.dialogId ?? null);
 
   const transitionTicket = useTransitionTicket();
   // Target-status kinds, to recognize a resolve at click time (availableTransitions
@@ -302,7 +297,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   );
 
   const clientDisplayName = ticketDeviceName || undefined;
-  const requesterName = requester?.name || undefined;
+  const { requesterName } = emailSide;
 
   const { config: orgAiConfig } = useOrganizationClientAiConfig(dialog?.organizationId ?? '', {
     enabled: !!dialog?.organizationId,
@@ -334,7 +329,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     baselineModel: orgClientModel,
     modelsByProvider,
     onApprovalAnswered: refetchDialog,
-    email: emailOn,
+    email: emailSide.gate === 'on',
   });
   const clientMessages = clientChat.messages;
   const isClientChatTyping = clientChat.streamingPhase !== 'idle';
@@ -542,7 +537,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const isClosed = isResolved || isArchived;
   const clientTokenUsage = dialog?.tokenUsage?.find(t => t.chatType === CHAT_TYPE.CLIENT);
   // A ticket from email never runs the assistant (contract part C: no AI Handling), so it has no model to show.
-  const isFromEmail = dialog?.creationSource === 'EMAIL';
+  const isFromEmail = dialog?.creationSource === CREATION_SOURCE.EMAIL;
   const showTokenMemory = !isClosed && !isFromEmail;
 
   // The status tag is an inline changer driven by the ticket's available
@@ -562,8 +557,6 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const isStatusLocked = isStatusLockedByPendingApproval(dialog);
 
   const hasClientChat = !isAdminOwner;
-  // Where a reply can go, once the ticket's email side is read (email-to-ticket only).
-  const replyChannels = ticketEmail ? replyChannelsOf(ticketEmail, isClosed) : null;
   // While the ticket loads the page draws the TYPICAL ticket, one with no description: the desktop column is the
   // Client Chat heading and its chat, and the tab strip appears only once a description is read.
   const hasDescription = !!dialog?.description?.trim();
@@ -614,33 +607,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         href: machineId ? routes.devices.details(machineId) : undefined,
       },
     },
-    // A ticket from email (Figma tickets 8036-36516): the person who wrote, when the sender matched a directory user, and
-    // the address the thread is with.
-    ...(requester
-      ? [
-          {
-            id: 'requester',
-            label: 'User',
-            value: {
-              text: requester.name || requester.email || requester.matchedAddress,
-              imageFallback: requester.name || requester.matchedAddress,
-              href: routes.users.details(requester.accountId),
-            },
-          } satisfies InfoSectionRow,
-        ]
-      : []),
-    ...(emailOrigin
-      ? [
-          {
-            id: 'requester-email',
-            label: 'Email',
-            value: {
-              text: requester?.matchedAddress ?? emailOrigin.senderAddress,
-              href: `mailto:${requester?.matchedAddress ?? emailOrigin.senderAddress}`,
-            },
-          } satisfies InfoSectionRow,
-        ]
-      : []),
+    ...emailSide.rows.person,
     {
       id: 'assigned',
       label: 'Assigned',
@@ -667,16 +634,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
       label: 'Created',
       value: { text: dialog ? formatDateTime(dialog.createdAt) : EMPTY_VALUE },
     },
-    // The support mailbox the email came in through.
-    ...(emailOrigin
-      ? [
-          {
-            id: 'created-by',
-            label: 'Created by',
-            value: { text: emailOrigin.mailboxAddress },
-          } satisfies InfoSectionRow,
-        ]
-      : []),
+    ...emailSide.rows.origin,
     {
       id: 'status',
       label: 'Status',
@@ -816,30 +774,20 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
       )}
       {/* The composer: part of the typical ticket, so it is drawn (locked) while the ticket loads. */}
       {(loading || (!isClosed && isDirectMode)) &&
-        (emailOn ? (
-          // Email to ticket: the line saying where a reply goes over the composer, in one frame (Figma tickets
-          // 9355-67458). A reply that can reach no one locks the composer, and so does one not known yet.
-          <div className="mt-[var(--spacing-system-xsf)] overflow-hidden rounded-lg border border-ods-border bg-ods-card focus-within:border-ods-accent">
-            <ReplyChannelBar channels={replyChannels} />
-            <ChatInput
-              appearance={clientChatAppearance}
-              placeholder="Write your reply..."
-              disabled={loading || !replyChannels?.chat.available}
-              disabledPlaceholder={
-                replyChannels && !replyChannels.chat.available ? 'Replies are not available' : 'Write your reply...'
-              }
-              onSend={text => void clientChat.sendMessage(text)}
-              sending={clientChat.isLoading || isClientChatTyping || isClientCompacting}
-              autoFocus={false}
-              hideBorder
-              className="!max-w-full"
-            />
-          </div>
+        (emailSide.gate === 'on' ? (
+          <EmailReplyComposer
+            channels={emailSide.replyChannels}
+            loading={loading}
+            appearance={clientChatAppearance}
+            onSend={text => void clientChat.sendMessage(text)}
+            sending={clientChat.isLoading || isClientChatTyping || isClientCompacting}
+          />
         ) : (
           <ChatInput
             appearance={clientChatAppearance}
             placeholder="Enter your Message..."
-            disabled={loading}
+            // Locked until the email-to-ticket flag answers too: whether a reply line heads it is decided then.
+            disabled={loading || emailSide.gate === 'loading'}
             disabledPlaceholder="Enter your Message..."
             onSend={text => void clientChat.sendMessage(text)}
             sending={clientChat.isLoading || isClientChatTyping || isClientCompacting}
