@@ -86,7 +86,10 @@ export async function fetchDevicePackageManagers(machineId: string): Promise<Dev
   }
 }
 
-/** How long one answer stays fresh: the agent reports its package managers every 15 minutes. */
+/**
+ * How long one answer stays fresh. The agent reports its package managers every 15 minutes; a third of that keeps a
+ * reopened tab at most one report behind without a request on every tab switch.
+ */
 const PACKAGE_MANAGERS_STALE_MS = 5 * 60_000;
 
 /**

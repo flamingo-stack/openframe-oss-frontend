@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Instant } from '@/lib/graphql-scalars';
 import type { DevicePackageManager } from '../../hooks/device-package-managers';
 import type { Device, InstalledAgent, ToolConnection, ToolType } from '../../types/device.types';
-import { AgentsTab } from './agents-tab';
+import { AgentsTab, packageManagerCardData, UNKNOWN_PACKAGE_MANAGER_VERSION } from './agents-tab';
 
 const appMode = vi.hoisted(() => ({ isSaasTenantMode: vi.fn(() => false) }));
 
@@ -263,6 +263,16 @@ describe('AgentsTab package managers', () => {
     expect(card).not.toContain('Updated');
   });
 
+  it('says Version Unknown for an installed manager reported without a version', () => {
+    packageManagers.data = [manager({ type: 'CHOCO', version: null, versionChangedAt: null })];
+    render(device(windowsAgents));
+
+    const [card] = sections()[1].cards;
+    expect(card).toContain('Chocolatey');
+    expect(card).toContain(`Version${UNKNOWN_PACKAGE_MANAGER_VERSION}`);
+    expect(card).not.toContain('Updated');
+  });
+
   it('draws no section when no manager gets a card, or the backend has no such field', () => {
     packageManagers.data = [manager({ managed: false }), manager({ type: 'CHOCO', state: 'MISSING' })];
     render(device(windowsAgents));
@@ -286,5 +296,41 @@ describe('AgentsTab package managers', () => {
     render(device({ status: 'ARCHIVED', installedAgents: [], toolConnections: [] }));
 
     expect(container.textContent).toContain('No agents found');
+  });
+});
+
+describe('packageManagerCardData', () => {
+  const rowLabels = (card: Parameters<typeof packageManagerCardData>[0]) =>
+    packageManagerCardData(card).items.map(item => item.label);
+  const base = {
+    type: 'CHOCO' as const,
+    label: 'Chocolatey',
+    pending: false,
+    version: '2.7.5',
+    versionChangedAt: new Date(Date.now() - 3 * 24 * 3_600_000).toISOString() as Instant,
+  };
+
+  it('gives an installed manager Agent, Version and Updated, and no footer', () => {
+    const data = packageManagerCardData(base);
+
+    expect(data.items.map(item => item.label)).toEqual(['Agent', 'Version', 'Updated']);
+    expect(data.items[1].value).toBe('2.7.5');
+    expect(data.items[2].value).toBe('3d ago');
+    expect(data.footer).toBeUndefined();
+  });
+
+  it('gives a pending manager Agent and Status only', () => {
+    expect(rowLabels({ ...base, pending: true, version: null, versionChangedAt: null })).toEqual(['Agent', 'Status']);
+  });
+
+  it('keeps the Version row as Unknown and drops Updated when neither was reported', () => {
+    const data = packageManagerCardData({ ...base, version: null, versionChangedAt: null });
+
+    expect(data.items.map(item => item.label)).toEqual(['Agent', 'Version']);
+    expect(data.items[1].value).toBe(UNKNOWN_PACKAGE_MANAGER_VERSION);
+  });
+
+  it('drops Updated for a change time it cannot read', () => {
+    expect(rowLabels({ ...base, versionChangedAt: 'not a date' as Instant })).toEqual(['Agent', 'Version']);
   });
 });

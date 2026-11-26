@@ -271,6 +271,12 @@ const PACKAGE_MANAGER_ICON: Record<PackageManagerType, ComponentType<{ size?: nu
 };
 
 /**
+ * The Version of an installed manager the device reported without one (an agent older than the version report): the
+ * row stays, so the card does not read as broken, and says so as the device's other cards do.
+ */
+export const UNKNOWN_PACKAGE_MANAGER_VERSION = 'Unknown';
+
+/**
  * The rows of a package manager's card: Agent, then Version and Updated (when its version arrived on the device, not
  * when it last reported), or Status PENDING while OpenFrame installs it. No footer: the managers are not Flamingo builds.
  */
@@ -282,8 +288,9 @@ export function packageManagerCardData(card: PackageManagerCard): InfoCardData {
   if (card.pending) {
     const pending = getAgentStatusTag('pending');
     items.push({ label: AGENT_ROW_LABELS.status, value: <Tag label={pending.label} variant={pending.variant} /> });
+  } else {
+    items.push({ label: AGENT_ROW_LABELS.version, value: card.version ?? UNKNOWN_PACKAGE_MANAGER_VERSION });
   }
-  if (card.version) items.push({ label: AGENT_ROW_LABELS.version, value: card.version });
   const changedAt = card.versionChangedAt ? parseInstant(card.versionChangedAt) : null;
   if (changedAt) items.push({ label: AGENT_ROW_LABELS.updated, value: formatRelativeTime(changedAt) });
   // InfoCard models `value` as a string; these rows carry a badge and a tag (see agentCardData).
