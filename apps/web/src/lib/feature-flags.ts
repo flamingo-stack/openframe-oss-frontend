@@ -45,10 +45,6 @@ export const FEATURE_FLAG_NAMES = [
   'remote-session-watch',
   // The Incidents module (`/incidents`) over saas-api's `insights` API.
   'insights',
-  // Monitoring → Checks (`/monitoring/checks`, a check's page) and the check row in an incident's details: the
-  // built-in checks' thresholds and their exceptions. saas-api serves them only behind
-  // `openframe.insight.check-settings.enabled`, so this is registered where that is on (dev / qa); absent
-  // elsewhere, which reads as off.
   'insight-check-settings',
   // Cloud Tenant Management (`/cloud-tenant-management/*`, the sidebar's
   // "Integrations" item): connects Microsoft 365 / Google Workspace directories
