@@ -12,6 +12,7 @@ import {
   useDataTable,
   AutoRefreshControl,
   type AutoRefreshControlProps,
+  TABLE_PAGINATION_PENDING,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { CursorPagerFooterProps } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -116,8 +117,10 @@ interface LiveTableShellProps<T> {
   /** The next page's infinite-scroll sentinel; `null` (or omitted) draws none. */
   footer?: Omit<DataTableInfiniteFooterProps, 'skeletonRows'> | null;
   /**
-   * The First · Prev · Next footer of a paged list (`useCursorPager`'s `footerProps`), with the range ("21–40 of
-   * 340"). Wins over `footer`: a paged list has no infinite scroll.
+   * The pager of a paged list (`useCursorPager`'s `footerProps`): First · Previous · Next in the row above the table,
+   * with the page's range ("21–40 of 340 results") in place of the count. `null`: a paged list whose first page is
+   * being read (its loading form): the pager is drawn, waiting. Wins over `footer`: a paged list has no infinite
+   * scroll.
    */
   pager?: CursorPagerFooterProps | null;
   /**
@@ -154,8 +157,8 @@ export type LiveTableProps<T> = LiveTableShellProps<T> &
   );
 
 /**
- * THE live-list table shell: the pending dim, the sticky column header with its row count, the body and the
- * infinite-scroll footer. The loaded list hands it its table; its loading form hands it the same columns with no
+ * THE live-list table shell: the pending dim, the row above the table (the count, or a paged list's range with its
+ * pager, and the auto-refresh picker), the sticky column header, the body and the infinite-scroll footer. The loaded list hands it its table; its loading form hands it the same columns with no
  * table, so the loading table and the loaded one are the same markup and cannot lay out differently.
  *
  * A list moves to the grid layout by passing `layout="grid"` (with `maxHeight` and `settings` as it needs them), in
@@ -207,12 +210,17 @@ function LiveTableShell<T>({
 }: LiveTableShellProps<T> & LiveTableRows & { table: DataTableInstance<T> }) {
   const rows = pageSize ?? skeletonRows;
   const grid = layout === 'grid';
+  // An empty FIRST page draws no pager (the empty state is the whole answer); an empty later page keeps it.
+  const paged =
+    pager !== undefined &&
+    (pager === null || loadingCells || table.getRowModel().rows.length > 0 || !pager.isFirstPage);
   const rowCount = showRowCount && (
     <DataTable.RowCount itemName={itemName} totalCount={totalCount} loading={loadingCells} />
   );
   // The card header's right slot is drawn OVER the column titles: it fits the short count, not a control. A table
-  // with auto-refresh moves its count, with the control, into the row above the table, as a grid table keeps it.
-  const metaRow = showHeader && (grid || refresh) && (rowCount || refresh);
+  // with auto-refresh or a pager moves its count (a paged list: its range) into the row above the table, as a grid
+  // table keeps it. A paged list keeps the row even without its header, so the way back stays.
+  const metaRow = paged || (showHeader && (grid || refresh) && (rowCount || refresh));
   return (
     <PendingDim isPending={isPending}>
       {/* The height and the settings belong to the grid: a list left on cards passes neither. */}
@@ -222,19 +230,41 @@ function LiveTableShell<T>({
         maxHeight={grid ? maxHeight : undefined}
         settings={grid ? settings : undefined}
       >
-        {/* The grid's results count sits above the table (a direct child: the table keeps it out of its scroll area);
-            the card header carries its own in `rightSlot`, which the grid header does not draw. */}
+        {/* The row above the table (a direct child: the table keeps it out of its scroll area, so the pager never
+            scrolls with the rows): the results count, or a paged list's range, then the pager and the auto-refresh
+            picker. The card header carries the count in `rightSlot` when there is no such row. */}
         {metaRow && (
-          <DataTable.Meta>
-            {rowCount}
-            {refresh && <AutoRefreshControl {...refresh} className="ml-auto" />}
+          <DataTable.Meta
+            pagination={
+              paged && (
+                <DataTable.Pagination
+                  {...(pager ?? TABLE_PAGINATION_PENDING)}
+                  // While the next page (or a filter's) is read the rows on screen are the last ones: the buttons wait
+                  // (the range stays), so a second Next cannot resend the same cursor under the next page's index.
+                  loading={pager === null || loadingCells || isPending}
+                />
+              )
+            }
+            actions={refresh && <AutoRefreshControl {...refresh} />}
+          >
+            {paged
+              ? showRowCount && (
+                  <DataTable.PageRange
+                    itemName={itemName}
+                    rangeStart={pager?.rangeStart}
+                    totalCount={totalCount}
+                    hasNextPage={pager?.hasNextPage}
+                    loading={pager === null || loadingCells}
+                  />
+                )
+              : rowCount}
           </DataTable.Meta>
         )}
         {showHeader && (
           <DataTable.Header
             stickyHeader={stickyHeader}
             stickyHeaderOffset={stickyHeaderOffset}
-            rightSlot={refresh ? undefined : rowCount}
+            rightSlot={metaRow ? undefined : rowCount}
             sort={sort}
             onSortChange={onSortChange}
             // What the body gets: a loading grid table names no column (the card header does not read it).
@@ -252,20 +282,7 @@ function LiveTableShell<T>({
           loadingSubRows={loadingSubRows}
           rowHeightClassName={rowHeightClassName}
         />
-        {pager ? (
-          <DataTable.CursorFooter
-            {...pager}
-            // The footer's noun follows the total ("21–40 of 340 results", "1–1 of 1 result"); the row count
-            // pluralizes its own.
-            itemName={totalCount === 1 ? (itemName ?? 'result') : `${itemName ?? 'result'}s`}
-            totalCount={totalCount}
-            // While the next page (or a filter's) is read the rows on screen are the last ones: the buttons wait (the
-            // count stays), so a second Next cannot resend the same cursor under the next page's index.
-            loading={loadingCells || isPending}
-          />
-        ) : (
-          footer && <DataTable.InfiniteFooter {...footer} skeletonRows={rows} />
-        )}
+        {!paged && footer && <DataTable.InfiniteFooter {...footer} skeletonRows={rows} />}
       </DataTable>
     </PendingDim>
   );

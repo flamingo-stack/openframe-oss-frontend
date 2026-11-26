@@ -12,6 +12,7 @@ export const FIRST_PAGE_FOOTER: CursorPagerFooterProps = {
   hasNextPage: false,
   hasPreviousPage: false,
   isFirstPage: true,
+  page: 1,
   startCursor: null,
   endCursor: null,
   rangeStart: 1,

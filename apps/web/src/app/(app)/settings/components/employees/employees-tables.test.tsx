@@ -233,15 +233,16 @@ describe('UsersListTable', () => {
     await users();
 
     expect(container.textContent).toContain('Maya Chen');
-    // No grid table: the one row above the card rows is the auto-refresh picker's, with the count beside it.
+    // No grid table: the one row above the card rows holds the range, the pager and the auto-refresh picker.
     expect(gridRoot(container)).toBeNull();
     expect(gridHeaderColumns(container)).toEqual([]);
-    expect(gridMetaRow(container)?.textContent).toContain('2');
+    expect(gridMetaRow(container)).toBeNull();
+    expect(container.querySelector('[data-table-meta]')?.textContent).toContain('1–2 of 2 results');
     expect(openButton()?.className).toContain('bg-ods-card');
     expect(openButton()?.className).not.toContain('border-0');
   });
 
-  it('pages with First · Prev · Next: the range of the first page in the footer', async () => {
+  it('pages with Previous · Next: the range of the first page in the row above the table', async () => {
     answerTableFlag('off');
     await users();
 

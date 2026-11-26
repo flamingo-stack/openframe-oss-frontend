@@ -66,7 +66,7 @@ vi.mock('@/app/hooks/use-collapse-phase', async importOriginal => ({
 vi.mock('./action-list/use-software-action-filters', () => ({
   useSoftwareActionFilters: () => ({ actions: [], engines: [], statuses: [] }),
 }));
-// A table's footer and refresh picker come from its frame's pager (`usePagedTable`): here, a first page that never moves.
+// A table's pager and refresh picker come from its frame (`usePagedTable`): here, a first page that never moves.
 vi.mock('@/app/hooks/use-paged-table', async () => {
   const fixtures = await import('@/app/hooks/cursor-pager.fixtures');
   return { usePagedTable: () => ({ pager: fixtures.FIRST_PAGE_FOOTER, refresh: undefined }) };
