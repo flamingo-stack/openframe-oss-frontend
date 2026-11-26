@@ -11,8 +11,7 @@
  * `signup_started`, `signup_completed`, `identify`.
  */
 
-import { isAppShell, isDesktopShell } from '@/lib/platform';
-import { moveToTenantOrigin } from '@/lib/posthog/desktop-tenant-urls';
+import { isAppShell } from '@/lib/platform';
 
 /** dataLayer event names for the signup funnel. */
 export const FUNNEL_EVENTS = {
@@ -33,19 +32,6 @@ function pushDataLayer(payload: Record<string, unknown>): void {
   }
 }
 
-/**
- * Queues the desktop app's `before_send` hook and `app_platform` tag. Call before GTM loads: the GTM
- * PostHog tag's snippet adopts an existing `window.posthog` array as its call queue, and the SDK
- * replays that queue before the first `$pageview`, which calls made after load would miss.
- */
-export function queueDesktopPostHogSetup(): void {
-  if (!isDesktopShell()) return;
-  const w = window as unknown as { posthog?: unknown[] };
-  w.posthog = w.posthog || [];
-  w.posthog.push(['set_config', { before_send: moveToTenantOrigin }]);
-  w.posthog.push(['register', { app_platform: 'desktop' }]);
-}
-
 /** PostHog event for a tap on Sign in on the "Sign in required" overlay. */
 export const SIGN_IN_REQUIRED_CLICK_EVENT = 'sign_in_required_click';
 
@@ -64,9 +50,8 @@ export interface SignInRequiredClick {
  * than through the dataLayer: it needs no GTM trigger, and `sendBeacon` lets it survive the
  * cross-origin navigation the same tap starts.
  *
- * Best-effort and silent: a no-op until the SDK has loaded (on desktop `window.posthog` is a
- * plain call queue until GTM runs, see {@link queueDesktopPostHogSetup}), and in the native
- * shells, whose store privacy labels this event is not part of.
+ * Best-effort and silent: a no-op until the SDK has loaded, and in the native shells, whose store
+ * privacy labels this event is not part of.
  */
 export function captureSignInRequiredClick(properties: SignInRequiredClick): void {
   if (typeof window === 'undefined' || isAppShell()) return;
