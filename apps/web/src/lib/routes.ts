@@ -70,8 +70,7 @@ export const TAB_IDS = {
   scriptDetails: ['details', 'executions'],
   softwareDetails: ['devices', 'vulnerabilities'],
   scheduleDetails: ['scripts', 'devices', 'runs', 'executions'],
-  /** Policies, Queries, and Checks: the built-in health checks' defaults and overrides. */
-  monitoring: ['policies', 'queries', 'checks'],
+  monitoring: ['policies', 'queries'],
   /** Query detail page (`/monitoring/query?id=`) — the panel under its tab bar. */
   queryDetails: ['results', 'devices'],
   settings: ['ai-settings', 'architecture', 'company-and-users', 'api-keys', 'sso-configuration', 'profile'],
@@ -467,6 +466,8 @@ export const routes = {
     queryNew: '/monitoring/query/new',
     queryEdit: (id: string | number) => withQuery('/monitoring/query/edit', { id }),
     policy: (id: string | number) => withQuery('/monitoring/policy', { id }),
+    /** The built-in health checks: their defaults and exceptions. */
+    checks: '/monitoring/checks',
     /** A built-in check's page, by its key (`InsightCheck.check`, e.g. `resource-win-disk-low`). */
     check: (check: string) => withQuery('/monitoring/check', { id: check }),
     policyNew: '/monitoring/policy/new',

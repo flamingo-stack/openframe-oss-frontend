@@ -182,7 +182,7 @@ describe('grouped navigation (Mingo-first shell)', () => {
       'inventory: organizations, devices, software, users, integrations',
       'service-desk: tickets, worktime',
       'automation: scripts, schedules, policies, queries',
-      'monitor: incidents, logs',
+      'monitor: incidents, checks, logs',
       'knowledge-base',
     ]);
   });
@@ -221,6 +221,7 @@ describe('grouped navigation (Mingo-first shell)', () => {
 
         expect(has(grouped, 'tickets'), context).toBe(saas);
         expect(has(grouped, 'incidents'), context).toBe(saas && flags.insights);
+        expect(has(grouped, 'checks'), context).toBe(saas && flags.insights);
         expect(has(grouped, 'software'), context).toBe(flags.softwareManagement);
         expect(has(grouped, 'integrations'), context).toBe(flags.tenantManagement);
         expect(has(grouped, 'users'), context).toBe(flags.tenantManagement && flags.tenantManagementV2);
@@ -303,6 +304,8 @@ describe('grouped navigation (Mingo-first shell)', () => {
           '/monitoring?tab=queries',
           '/monitoring/policy?id=1',
           '/monitoring/query?id=1',
+          '/monitoring/checks',
+          '/monitoring/check?id=resource-win-disk-low',
           '/incidents',
           '/logs-page',
           '/log-details?id=1',
@@ -337,6 +340,8 @@ describe('grouped navigation (Mingo-first shell)', () => {
       '/monitoring?tab=queries': 'automation/queries',
       '/monitoring/policy?id=1': 'automation/policies',
       '/monitoring/query?id=1': 'automation/queries',
+      '/monitoring/checks': 'monitor/checks',
+      '/monitoring/check?id=resource-win-disk-low': 'monitor/checks',
       '/incidents': 'monitor/incidents',
       '/logs-page': 'monitor/logs',
       '/log-details?id=1': 'monitor/logs',
@@ -360,7 +365,7 @@ describe('sectioned navigation (Manhattan v2 shell)', () => {
     const items = getSectionedNavigationItems(ALL_ON);
     expect(items.map(item => [item.id, item.label, (item.children ?? []).map(child => child.label)])).toEqual([
       ['service-desk', 'Service Desk', ['Tickets', 'Worktime']],
-      ['monitoring', 'Monitoring', ['Incidents', 'Logs']],
+      ['monitoring', 'Monitoring', ['Incidents', 'Checks', 'Logs']],
       ['assets', 'Assets', ['Devices', 'Software']],
       ['directory', 'Directory', ['Customers', 'Users', 'Cloud Tenants']],
       ['automation', 'Automation', ['Scripts', 'Scheduled Scripts', 'Policies', 'Queries']],
@@ -384,7 +389,7 @@ describe('sectioned navigation (Manhattan v2 shell)', () => {
     const items = getSectionedNavigationItems(ALL_ON);
     expect(items.map(item => [item.id, iconOf(item), (item.children ?? []).map(iconOf)])).toEqual([
       ['service-desk', 'HeadsetIcon@20', ['TagIcon@20', 'ClockHistoryIcon@20']],
-      ['monitoring', 'ActivityIcon@20', ['AlertTriangleIcon@20', 'ClipboardListIcon@20']],
+      ['monitoring', 'ActivityIcon@20', ['AlertTriangleIcon@20', 'ListCheckIcon@20', 'ClipboardListIcon@20']],
       ['assets', 'LayersIcon@20', ['MonitorIcon@20', 'Parcel02Icon@20']],
       ['directory', 'AddressBookIcon@20', ['IdCardIcon@20', 'UsersIcon@20', 'CloudIcon@20']],
       [
@@ -425,6 +430,7 @@ describe('sectioned navigation (Manhattan v2 shell)', () => {
     });
     const ids = off.flatMap(item => [item.id, ...(item.children ?? []).map(child => child.id)]);
     expect(ids).not.toContain('incidents');
+    expect(ids).not.toContain('checks');
     expect(ids).not.toContain('software');
     expect(ids).not.toContain('integrations');
     expect(ids).not.toContain('users');
@@ -438,7 +444,7 @@ describe('sectioned navigation (Manhattan v2 shell)', () => {
     expect(rows.sections).toEqual(
       loaded.filter(item => item.children).map(item => ({ id: item.id, rows: item.children?.length ?? 0 })),
     );
-    expect(rows.sections.map(section => section.rows)).toEqual([2, 2, 2, 3, 4]);
+    expect(rows.sections.map(section => section.rows)).toEqual([2, 3, 2, 3, 4]);
     expect(rows.secondary).toBe(loaded.filter(item => item.section === 'secondary').length);
   });
 

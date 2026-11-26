@@ -66,9 +66,9 @@ describe('resolvePageContext', () => {
     ]);
   });
 
-  it('sends no list from the Checks tab, which is settings', () => {
-    expect(resolvePageContext('/monitoring/?tab=checks', null)).toEqual({
-      currentPage: { kind: 'OTHER', title: 'Queries', section: 'checks' },
+  it('sends no list from the Checks page, which is settings', () => {
+    expect(resolvePageContext('/monitoring/checks/', null)).toEqual({
+      currentPage: { kind: 'OTHER', title: 'Checks' },
     });
   });
 

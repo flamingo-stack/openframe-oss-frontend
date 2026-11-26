@@ -17,7 +17,7 @@ import { type CheckDialog, CheckDialogs, toggleCheck } from './check-dialogs';
 import { ChecksTable, type CheckTableRow } from './checks-table';
 
 /**
- * Queries → Checks: every built-in health check with its default for all devices and how many
+ * `/monitoring/checks`: every built-in health check with its default for all devices and how many
  * exceptions change it. A row opens the check's page; admins and owners switch a check on or off,
  * edit its default and add an exception from the row.
  */

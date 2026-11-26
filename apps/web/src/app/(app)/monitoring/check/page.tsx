@@ -9,7 +9,7 @@ import { useChecksGate } from '../checks/hooks/use-checks-gate';
 
 /** `/monitoring/check?id=<check key>`: one built-in check, its default and its overrides. */
 export default function CheckPage() {
-  const checkKey = useRequiredIdParam(routes.monitoring.root({ tab: 'checks' }));
+  const checkKey = useRequiredIdParam(routes.monitoring.checks);
   const gate = useChecksGate();
   if (!checkKey) return null;
   if (gate === 'off') return <NotFoundError message="Check not found" />;

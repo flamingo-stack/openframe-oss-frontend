@@ -76,7 +76,7 @@ interface CheckPageContentProps {
 }
 
 function CheckPageContent({ check, overrides }: CheckPageContentProps) {
-  const handleBack = useSafeBack(routes.monitoring.root({ tab: 'checks' }));
+  const handleBack = useSafeBack(routes.monitoring.checks);
   const canEdit = useAdminGate() === 'admin';
   const mutations = useCheckMutations();
   const [dialog, setDialog] = useState<CheckDialog | null>(null);
