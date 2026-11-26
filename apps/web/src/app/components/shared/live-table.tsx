@@ -238,7 +238,7 @@ function LiveTableShell<T>({
             pagination={
               paged && (
                 <DataTable.Pagination
-                  {...(pager ?? TABLE_PAGINATION_PENDING)}
+                  pager={pager ?? TABLE_PAGINATION_PENDING}
                   // While the next page (or a filter's) is read the rows on screen are the last ones: the buttons wait
                   // (the range stays), so a second Next cannot resend the same cursor under the next page's index.
                   loading={pager === null || loadingCells || isPending}
