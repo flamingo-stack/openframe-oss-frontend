@@ -10,17 +10,13 @@ import { getRelayErrorCodes } from '@/lib/handle-api-error';
 import { sessionPollsAllowed } from '@/lib/session-poll';
 import { mailboxRequestErrorMessage, mailboxUserErrorMessage } from '../../utils/mailbox-errors';
 
-// What a run changes on the mailbox (contract part A, "Async results: polling"): the run itself (the test row), and the
-// receiving state, actions and last finished test a finished run moves (the details page's card and actions). The
-// mutation selects the fragments of the components that read them; the poll is the caller's own query of the mailbox,
-// which spreads them where they are read, so each follows the run from the store.
+// The mutation answers the run it started (the test row's fragment); a page that shows more of the mailbox (the
+// details card and actions) reads it again with its own poll query while the run waits.
 const runMutation = graphql`
   mutation useForwardingTestRunMutation($input: MailboxIdInput!) {
     runForwardingTest(input: $input) {
       mailbox {
         ...forwardingTest_mailbox
-        ...mailboxSummaryCard_mailbox
-        ...mailboxDetailView_forwarding
       }
       userErrors {
         ...mailboxErrors_userError

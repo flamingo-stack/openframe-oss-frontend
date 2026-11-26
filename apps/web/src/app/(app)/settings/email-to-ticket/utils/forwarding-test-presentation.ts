@@ -2,12 +2,8 @@
 // label, and, for a failed run, the alert under them. Tables are keyed by the schema enums with `satisfies`, so a widened
 // enum stops type-checking until it has an answer; values reach the UI as plain strings, read through `presentationFor`.
 
-import {
-  ForwardingTestCheckKind,
-  ForwardingTestCheckResult,
-  ForwardingTestFailureReason,
-  ForwardingTestState,
-} from '@/generated/schema-enums';
+import type { forwardingTestFailure_test$data } from '@/__generated__/forwardingTestFailure_test.graphql';
+import { ForwardingTestFailureReason, ForwardingTestState } from '@/generated/schema-enums';
 import { presentationFor } from '@/lib/exhaustive-map';
 
 export type ForwardingTestTone = 'waiting' | 'success' | 'error';
@@ -39,12 +35,10 @@ export function forwardingTestHint(supportAddress: string): string {
   return `OpenFrame sends a test email to ${supportAddress} and waits up to a minute for it to come back here.`;
 }
 
-export interface FailedTest {
-  failureReason: string | null | undefined;
-  ndrStatus: string | null | undefined;
-  evidence: string | null | undefined;
-  checks: ReadonlyArray<{ readonly kind: string; readonly result: string }>;
-}
+/** A failed run as the alert reads it: its cause, and whether the test email left at all (the SENT check). */
+export type FailedTest = Pick<forwardingTestFailure_test$data, 'failureReason' | 'ndrStatus' | 'evidence'> & {
+  notSent: boolean;
+};
 
 export interface ForwardingTestFailure {
   title: string;
@@ -84,11 +78,8 @@ const REASON_COPY = {
 } satisfies Record<ForwardingTestFailureReason, ForwardingTestFailure | null>;
 
 /** A bounce: the known SMTP status gets its sentence, any other carries the delivery report's own text. */
-function bounceFailure({ ndrStatus, evidence, checks }: FailedTest): ForwardingTestFailure {
-  // Postmark refused to send at all (406, the support address suppressed after an earlier bounce): the SENT check failed.
-  const notSent = checks.some(
-    check => check.kind === ForwardingTestCheckKind.SENT && check.result === ForwardingTestCheckResult.FAILED,
-  );
+function bounceFailure({ ndrStatus, evidence, notSent }: FailedTest): ForwardingTestFailure {
+  // Postmark refused to send at all (406, the support address suppressed after an earlier bounce).
   if (notSent) return { title: DID_NOT_COME_BACK, description: SUPPRESSED_COPY };
   const known = ndrStatus ? NDR_COPY[ndrStatus] : undefined;
   if (known) return { title: DID_NOT_COME_BACK, description: known };

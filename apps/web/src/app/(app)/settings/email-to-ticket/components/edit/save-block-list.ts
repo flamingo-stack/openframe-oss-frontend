@@ -1,48 +1,12 @@
-import { graphql, readInlineData } from 'react-relay';
-import type { mailboxErrors_userError$key } from '@/__generated__/mailboxErrors_userError.graphql';
-import type { saveBlockListAddMutation as AddMutationType } from '@/__generated__/saveBlockListAddMutation.graphql';
-import type { saveBlockListRemoveMutation as RemoveMutationType } from '@/__generated__/saveBlockListRemoveMutation.graphql';
-import { commitMutationPromise } from '@/lib/relay/commit-mutation';
-import {
-  type BlockListRow,
-  blockListChanges,
-  normalizeBlockListValue,
-  type StoredBlockListEntry,
-} from '../../utils/block-list';
-import {
-  mailboxErrorsUserErrorFragment,
-  mailboxRequestErrorMessage,
-  mailboxUserErrorMessage,
-} from '../../utils/mailbox-errors';
+// The order of a save of Edit Mailbox's Block list. Removals go first, so an edited value and its replacement never
+// collide as a duplicate; then additions, one at a time in the order of the rows. A refused addition is reported on its
+// row and the rest go on; a failed removal stops the save before anything is added.
 
-const addMutation = graphql`
-  mutation saveBlockListAddMutation($input: AddEmailBlockListEntryInput!) {
-    addEmailBlockListEntry(input: $input) {
-      entry {
-        id
-        value
-      }
-      userErrors {
-        ...mailboxErrors_userError
-      }
-    }
-  }
-`;
+import { blockListChanges } from '../../utils/block-list-changes';
+import type { BlockListRow, StoredBlockListEntry } from '../../utils/block-list-rows';
 
-// The entry leaves the store, so a Block list read before shows it gone without a refetch.
-const removeMutation = graphql`
-  mutation saveBlockListRemoveMutation($input: RemoveEmailBlockListEntryInput!) {
-    removeEmailBlockListEntry(input: $input) {
-      deletedId @deleteRecord
-      userErrors {
-        ...mailboxErrors_userError
-      }
-    }
-  }
-`;
-
-/** Removing an entry someone else already removed is what the save wanted anyway. */
-const ENTRY_NOT_FOUND = 'EMAIL_BLOCK_LIST_ENTRY_NOT_FOUND';
+export type BlockListEntryAdd = (value: string) => Promise<{ entry: StoredBlockListEntry } | { error: string }>;
+export type BlockListEntryRemove = (id: string) => Promise<{ error?: string }>;
 
 export interface BlockListSaveResult {
   /** What is stored now, for the next save to compare against. */
@@ -51,90 +15,38 @@ export interface BlockListSaveResult {
   rows: BlockListRow[];
   /** Rows the server refused, with why. */
   rowErrors: { index: number; message: string }[];
-  /** A removal that failed: the save stops before adding anything. */
+  /** A removal that failed. */
   error: string | null;
 }
 
-/**
- * Saves Edit Mailbox's Block list: removals first (an edited value and its replacement never collide as a duplicate),
- * then additions, one at a time in the order of the rows. A refused addition is reported on its row; the rest go on.
- */
 export async function saveBlockList(
-  mailboxId: string,
   stored: readonly StoredBlockListEntry[],
   rows: readonly BlockListRow[],
+  { add, remove }: { add: BlockListEntryAdd; remove: BlockListEntryRemove },
 ): Promise<BlockListSaveResult> {
-  const { remove, add } = blockListChanges(stored, rows);
+  const { remove: toRemove, add: toAdd } = blockListChanges(stored, rows);
   const removed = new Set<string>();
-  for (const entry of remove) {
-    try {
-      const { removeEmailBlockListEntry } = await commitMutationPromise<RemoveMutationType>(removeMutation, {
-        input: { id: entry.id },
-      });
-      const [refusal] = removeEmailBlockListEntry.userErrors;
-      if (refusal && codeOf(refusal) !== ENTRY_NOT_FOUND) {
-        return halted(stored, rows, removed, mailboxUserErrorMessage(refusal));
-      }
-      removed.add(entry.id);
-    } catch (error) {
-      return halted(stored, rows, removed, mailboxRequestErrorMessage(error));
-    }
+  const unlinked = () =>
+    rows.map(row => ({ ...row, entryId: row.entryId && removed.has(row.entryId) ? undefined : row.entryId }));
+  const remaining = () => stored.filter(entry => !removed.has(entry.id));
+
+  for (const entry of toRemove) {
+    const { error } = await remove(entry.id);
+    if (error) return { stored: remaining(), rows: unlinked(), rowErrors: [], error };
+    removed.add(entry.id);
   }
 
-  const next = rows.map(row => ({
-    ...row,
-    entryId: row.entryId && removed.has(row.entryId) ? undefined : row.entryId,
-  }));
+  const next = unlinked();
   const added: StoredBlockListEntry[] = [];
   const rowErrors: BlockListSaveResult['rowErrors'] = [];
-  for (const { index, value } of add) {
-    try {
-      const { addEmailBlockListEntry } = await commitMutationPromise<AddMutationType>(addMutation, {
-        input: { mailboxId, value },
-      });
-      const [refusal] = addEmailBlockListEntry.userErrors;
-      const entry = addEmailBlockListEntry.entry;
-      if (refusal || !entry) {
-        rowErrors.push({ index, message: refusal ? mailboxUserErrorMessage(refusal) : 'Try again in a moment.' });
-        continue;
-      }
-      added.push({ id: entry.id, value: entry.value });
-      next[index] = { value: entry.value, entryId: entry.id };
-    } catch (error) {
-      rowErrors.push({ index, message: mailboxRequestErrorMessage(error) });
+  for (const { index, value } of toAdd) {
+    const outcome = await add(value);
+    if ('error' in outcome) {
+      rowErrors.push({ index, message: outcome.error });
+      continue;
     }
+    added.push(outcome.entry);
+    next[index] = { value: outcome.entry.value, entryId: outcome.entry.id };
   }
-  return {
-    stored: [...stored.filter(entry => !removed.has(entry.id)), ...added],
-    rows: next,
-    rowErrors,
-    error: null,
-  };
-}
-
-function codeOf(ref: mailboxErrors_userError$key): string {
-  return readInlineData(mailboxErrorsUserErrorFragment, ref).code;
-}
-
-/** A removal failed: what is stored is what was before, less what was already removed. */
-function halted(
-  stored: readonly StoredBlockListEntry[],
-  rows: readonly BlockListRow[],
-  removed: ReadonlySet<string>,
-  error: string,
-): BlockListSaveResult {
-  return {
-    stored: stored.filter(entry => !removed.has(entry.id)),
-    rows: rows.map(row => ({
-      value: row.value,
-      entryId: row.entryId && removed.has(row.entryId) ? undefined : row.entryId,
-    })),
-    rowErrors: [],
-    error,
-  };
-}
-
-/** The rows Edit Mailbox opens with: one per stored entry, newest first as the server lists them. */
-export function blockListRowsOf(stored: readonly StoredBlockListEntry[]): BlockListRow[] {
-  return stored.map(entry => ({ value: normalizeBlockListValue(entry.value), entryId: entry.id }));
+  return { stored: [...remaining(), ...added], rows: next, rowErrors, error: null };
 }

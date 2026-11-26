@@ -6,7 +6,7 @@ import type { AvatarOption } from '@/app/(app)/tickets/hooks/use-ticket-options'
 import { toUserSummary } from '@/graphql/users/user-summary-fields';
 import { getFullImageUrl } from '@/lib/image-url';
 import { rawIdOfType } from '@/lib/relay-id';
-import { blockListRowsSchema } from '../../utils/block-list';
+import { blockListRowsSchema } from '../../utils/block-list-rows';
 
 /**
  * A mailbox's settings form. The routing defaults (contract part A, `activateMailbox` / `updateMailbox`): null is "not

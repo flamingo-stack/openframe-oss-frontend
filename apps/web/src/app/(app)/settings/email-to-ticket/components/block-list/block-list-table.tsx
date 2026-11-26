@@ -2,7 +2,7 @@
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { useDataTable, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
+import { ConnectionHandler, graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { blockListTable_query$key } from '@/__generated__/blockListTable_query.graphql';
 import type { blockListTablePaginationQuery as BlockListTablePaginationQueryType } from '@/__generated__/blockListTablePaginationQuery.graphql';
 import type { blockListTableQuery as BlockListTableQueryType } from '@/__generated__/blockListTableQuery.graphql';
@@ -13,6 +13,13 @@ import { BLOCK_LIST_TABLE_COLUMNS } from './block-list-columns';
 import { type BlockListEntryRow, getBlockListEntryRowId, toBlockListEntryRow } from './block-list-entry-row';
 
 export const BLOCK_LIST_PAGE_SIZE = 20;
+
+const BLOCK_LIST_CONNECTION_KEY = 'blockListTable_emailBlockList';
+
+/** The table's connection for a mailbox: Edit Mailbox's additions and removals land in it. */
+export function blockListConnectionId(mailboxId: string): string {
+  return ConnectionHandler.getConnectionID('client:root', BLOCK_LIST_CONNECTION_KEY, { mailboxId });
+}
 
 const blockListTableQuery = graphql`
   query blockListTableQuery($mailboxId: ID!, $first: Int!, $after: String) {

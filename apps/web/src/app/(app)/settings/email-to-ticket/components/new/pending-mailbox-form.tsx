@@ -14,7 +14,7 @@ import type { pendingMailboxFormProviderMutation as ProviderMutationType } from 
 import { ForwardingTestState, MailboxProvider } from '@/generated/schema-enums';
 import { knownValue } from '@/lib/exhaustive-map';
 import { routes } from '@/lib/routes';
-import { blockListRowOfField, blockListValues } from '../../utils/block-list';
+import { blockListRowOfField, blockListValues } from '../../utils/block-list-rows';
 import { mailboxRequestErrorMessage, mailboxUserErrorField, mailboxUserErrorMessage } from '../../utils/mailbox-errors';
 import { BlockListFields } from '../form/block-list-fields';
 import {

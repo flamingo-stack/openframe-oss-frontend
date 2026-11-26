@@ -5,7 +5,7 @@ import { PlusCircleIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-co
 import { Button, Input, Label } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type Control, Controller, useFieldArray } from 'react-hook-form';
-import { BLOCK_LIST_SAVE_MAX } from '../../utils/block-list';
+import { BlockListHeading } from '../block-list/block-list-heading';
 import type { MailboxSettingsFormData } from './mailbox-defaults';
 
 interface BlockListFieldsProps {
@@ -14,20 +14,15 @@ interface BlockListFieldsProps {
 }
 
 /**
- * Block List (Figma 4527-132452, 4679-130269): the addresses and domains whose emails are dropped, one input per sender
- * with its trash button, and Add Sender below. Blank rows are dropped on save; a value the rules refuse is marked on its
- * row (`utils/block-list.ts`).
+ * Block List (Figma settings 6236-120500, 6236-120311): the addresses and domains whose emails are dropped, one input
+ * per sender with its trash button, and Add Sender below. Blank rows are dropped on save; a value the server refuses is
+ * marked on its row.
  */
 export function BlockListFields({ control, disabled = false }: BlockListFieldsProps) {
   const { fields, append, remove } = useFieldArray({ control, name: 'blockList' });
   return (
     <section className="flex flex-col gap-[var(--spacing-system-m)]">
-      <div className="flex flex-col">
-        <h2 className="text-ods-text-primary text-h2">Block List</h2>
-        <p className="text-ods-text-secondary text-h6">
-          Emails from these addresses and domains are dropped. They never become tickets.
-        </p>
-      </div>
+      <BlockListHeading />
       {fields.length > 0 && (
         <div className="flex flex-col gap-[var(--spacing-system-xsf)]">
           <Label variant="large">Email or Domain</Label>
@@ -80,7 +75,7 @@ export function BlockListFields({ control, disabled = false }: BlockListFieldsPr
         leftIcon={<PlusCircleIcon className="text-ods-text-secondary" />}
         className="self-start"
         onClick={() => append({ value: '' })}
-        disabled={disabled || fields.length >= BLOCK_LIST_SAVE_MAX}
+        disabled={disabled}
       >
         Add Sender
       </Button>

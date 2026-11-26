@@ -50,7 +50,9 @@ function EditMailboxQuery({ id }: { id: string }) {
   const { mailbox, emailBlockList } = useLazyLoadQuery<EditMailboxViewQueryType>(
     editMailboxViewQuery,
     { id },
-    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
+    // The form takes its values once, when it mounts: it starts from the server, never from a cached Block list that a
+    // save since has changed.
+    { fetchPolicy: 'network-only', fetchKey: retryKey },
   );
   const pending = mailbox?.receivingState === MailboxReceivingState.PENDING;
   useEffect(() => {

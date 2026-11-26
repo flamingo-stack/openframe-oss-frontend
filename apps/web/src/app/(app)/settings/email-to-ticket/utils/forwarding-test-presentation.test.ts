@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  ForwardingTestCheckKind,
-  ForwardingTestCheckResult,
-  ForwardingTestFailureReason,
-  ForwardingTestState,
-} from '@/generated/schema-enums';
+import { ForwardingTestFailureReason, ForwardingTestState } from '@/generated/schema-enums';
 import {
   type FailedTest,
   forwardingTestButtonLabel,
@@ -12,14 +7,8 @@ import {
   forwardingTestTag,
 } from './forwarding-test-presentation';
 
-const CHECKS_NOTHING_BACK = [
-  { kind: ForwardingTestCheckKind.SENT, result: ForwardingTestCheckResult.PASSED },
-  { kind: ForwardingTestCheckKind.CAME_BACK, result: ForwardingTestCheckResult.FAILED },
-  { kind: ForwardingTestCheckKind.ORIGINAL_SENDER_KEPT, result: ForwardingTestCheckResult.UNKNOWN },
-];
-
 function failed(test: Partial<FailedTest>): FailedTest {
-  return { failureReason: null, ndrStatus: null, evidence: null, checks: CHECKS_NOTHING_BACK, ...test };
+  return { failureReason: null, ndrStatus: null, evidence: null, notSent: false, ...test };
 }
 
 describe('forwardingTestTag', () => {
@@ -68,7 +57,7 @@ describe('forwardingTestFailure', () => {
       failed({
         failureReason: ForwardingTestFailureReason.FORWARDING_BOUNCED,
         evidence: 'Inactive recipient',
-        checks: [{ kind: ForwardingTestCheckKind.SENT, result: ForwardingTestCheckResult.FAILED }],
+        notSent: true,
       }),
     );
     expect(failure.description).toMatch(/^Tests to the support address are stopped/);
