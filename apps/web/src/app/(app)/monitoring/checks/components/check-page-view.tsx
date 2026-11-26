@@ -108,9 +108,6 @@ function CheckPageContent({ check, overrides }: CheckPageContentProps) {
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
       <div className="flex flex-col gap-[var(--spacing-system-l)]">
-        {/* The header draws its selector from content-md up (PageActions); below that it opens the content. */}
-        <div className="content-md:hidden">{enabledSwitch}</div>
-
         {check && !check.enabled && (
           <Alert variant="warning">
             <AlertTriangleClassicIcon className="size-5" />

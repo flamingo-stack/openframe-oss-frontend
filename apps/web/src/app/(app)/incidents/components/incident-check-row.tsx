@@ -1,8 +1,7 @@
 'use client';
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
-import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import Link from 'next/link';
+import { Button, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useLazyLoadQuery } from 'react-relay';
 import type { incidentCheckLinkQuery as CheckLinkQueryType } from '@/__generated__/incidentCheckLinkQuery.graphql';
 import { useChecksGate } from '@/app/(app)/monitoring/checks/hooks/use-checks-gate';
@@ -18,8 +17,6 @@ import { incidentCheckLinkQuery } from '@/graphql/insights/incident-check-link-q
 import { routes } from '@/lib/routes';
 import type { Incident } from '../utils/incident-transform';
 import { SummaryCell, SummaryRow } from './incident-summary-strip';
-
-const LINK_CLASS = 'text-ods-accent underline hover:text-ods-accent-hover';
 
 /**
  * The incident's check strip: the threshold it was measured against, where that threshold was set
@@ -61,16 +58,7 @@ export function IncidentCheckRow({ incident }: { incident: Incident }) {
 function CheckLinkCell({ check }: { check: string }) {
   return (
     <ContentErrorBoundary
-      fallback={() => (
-        <InfoCell
-          value={
-            <Link href={routes.monitoring.check(check)} className={LINK_CLASS}>
-              Open check
-            </Link>
-          }
-          label="Check"
-        />
-      )}
+      fallback={() => <InfoCell value={<CheckLink check={check}>Open check</CheckLink>} label="Check" />}
     >
       <CheckLinkIsland check={check} />
     </ContentErrorBoundary>
@@ -96,14 +84,14 @@ function CheckLinkCellLive({ check }: { check: string }) {
     { check },
     { fetchPolicy: 'store-or-network' },
   );
+  return <InfoCell value={<CheckLink check={check}>{data.insightCheck.title}</CheckLink>} label="Check" />;
+}
+
+/** The check's page, as the design system draws a value that opens something: the link button in the primary text. */
+function CheckLink({ check, children }: { check: string; children: string }) {
   return (
-    <InfoCell
-      value={
-        <Link href={routes.monitoring.check(check)} className={LINK_CLASS}>
-          {data.insightCheck.title}
-        </Link>
-      }
-      label="Check"
-    />
+    <Button variant="link" size="compact" noPaddingX data-tone="primary" href={routes.monitoring.check(check)}>
+      {children}
+    </Button>
   );
 }

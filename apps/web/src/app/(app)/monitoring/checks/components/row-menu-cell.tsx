@@ -1,5 +1,6 @@
 'use client';
 
+import { GRID_ACTION_BUTTON_CLASS } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Ellipsis01Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   ActionsMenuDropdown,
@@ -21,7 +22,7 @@ export function RowMenuCell({ groups, grid = false }: { groups: ActionsMenuGroup
             <Button
               variant="transparent"
               size="icon"
-              className="size-10 border-0 md:size-10"
+              className={GRID_ACTION_BUTTON_CLASS}
               aria-label="More actions"
               leftIcon={<Ellipsis01Icon className="size-5" />}
             />

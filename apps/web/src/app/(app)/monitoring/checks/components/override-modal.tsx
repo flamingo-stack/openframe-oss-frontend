@@ -229,13 +229,9 @@ function AppliesToFields({ kind, picked, editing, existing, onKind, onPick, onEd
           {existing && (
             <span className="text-ods-error text-h6">
               {existing.name ?? 'It'} already has an exception for this check.{' '}
-              <button
-                type="button"
-                className="text-ods-accent underline hover:text-ods-accent-hover"
-                onClick={() => onEditExisting(existing)}
-              >
+              <Button type="button" variant="link" size="compact" noPaddingX onClick={() => onEditExisting(existing)}>
                 Edit it
-              </button>
+              </Button>
             </span>
           )}
         </div>

@@ -15,7 +15,6 @@ import {
   TruncateText,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import Link from 'next/link';
 import { useState } from 'react';
 import { LiveTable } from '@/app/components/shared/live-table';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
@@ -94,19 +93,9 @@ function ThresholdCell({ check, override }: { check: Check; override: CheckOverr
   return <TruncateText>{formatOverrideThreshold(check, override)}</TruncateText>;
 }
 
-/** How many devices the exception covers, a link to them where the device list can show them. */
-function DevicesCell({ count, target }: { count: number; target: OverrideDevicesTarget | null }) {
-  if (!target) return <TruncateText>{String(count)}</TruncateText>;
-  return (
-    <Link
-      data-no-row-click
-      href={target.href}
-      className="pointer-events-auto truncate text-ods-accent text-h4 hover:text-ods-accent-hover"
-      aria-label={`${target.label}: ${count}`}
-    >
-      {count}
-    </Link>
-  );
+/** How many devices the exception covers; the row's menu opens them. */
+function DevicesCell({ count }: { count: number }) {
+  return <TruncateText>{String(count)}</TruncateText>;
 }
 
 function ActionsCell({
@@ -173,9 +162,7 @@ const OVERRIDE_TABLE_COLUMNS: ColumnDef<OverrideTableRow>[] = [
     size: OVERRIDE_GRID_SIZES.devices,
     header: OVERRIDE_COLUMNS.devices.header,
     enableSorting: false,
-    cell: ({ row }: CellProps) => (
-      <DevicesCell count={row.original.override.deviceCount} target={row.original.devices} />
-    ),
+    cell: ({ row }: CellProps) => <DevicesCell count={row.original.override.deviceCount} />,
     meta: liveColumnMeta(OVERRIDE_COLUMNS.devices, { label: 'Devices' }),
   },
   {
