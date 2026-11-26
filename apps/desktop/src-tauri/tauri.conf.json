@@ -13,7 +13,7 @@
     "security": {
       "csp": {
         "default-src": "'self'",
-        "script-src": "'self' 'unsafe-inline' https://www.googletagmanager.com https://us-assets.i.posthog.com",
+        "script-src": "'self' 'unsafe-inline'",
         "style-src": "'self' 'unsafe-inline'",
         "img-src": "'self' data: blob: https:",
         "font-src": "'self' data:",
@@ -27,7 +27,7 @@
       },
       "devCsp": {
         "default-src": "'self'",
-        "script-src": "'self' 'unsafe-inline' https://www.googletagmanager.com https://us-assets.i.posthog.com",
+        "script-src": "'self' 'unsafe-inline'",
         "style-src": "'self' 'unsafe-inline'",
         "img-src": "'self' data: blob: https: http://localhost:* http://127.0.0.1:*",
         "font-src": "'self' data:",

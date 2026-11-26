@@ -93,6 +93,12 @@ export const FEATURE_FLAG_NAMES = [
   // tokens and this chat's context. The backend reads the same key. Off = the
   // counter keeps its hover card. On for dev / qa, false elsewhere.
   'mingo-chat-usage',
+  // File attachments in the Mingo composer and thread: "Upload File" in the
+  // `+` menu, drag-and-drop, paste, the attachment tray and the files on sent
+  // messages. Off = the composer and the thread as before, and no chat query
+  // asks for an attachment field the backend may not have yet. On for dev /
+  // qa, absent elsewhere, which reads as off.
+  'mingo-chat-attachments',
   // Per-chat model in Mingo: picked in the chat's and the composer's ⋯ menus, the
   // footer name only shows it, and AI Settings stops offering the Mingo model.
   // Off = one model for every chat, chosen in AI Settings. Needs saas-tenant #4610.

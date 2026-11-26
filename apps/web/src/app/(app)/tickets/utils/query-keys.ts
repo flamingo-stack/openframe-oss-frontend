@@ -94,6 +94,8 @@ export const ticketsQueryKeys = {
   all: ['tickets'] as const,
   tags: () => [...ticketsQueryKeys.all, 'tags'] as const,
   detail: (id: string) => [...ticketsQueryKeys.all, 'detail', id] as const,
+  /** The ticket's email side (email-to-ticket): under its detail key, refreshed with it. */
+  email: (id: string) => [...ticketsQueryKeys.detail(id), 'email'] as const,
   // Edit-form ticket fetch. Distinct from `detail` (which caches a Dialog) so the
   // full Ticket shape (statusDefinition, availableTransitions) isn't clobbered by — or read from — the Dialog cache.
   editForm: (id: string) => [...ticketsQueryKeys.all, 'editForm', id] as const,

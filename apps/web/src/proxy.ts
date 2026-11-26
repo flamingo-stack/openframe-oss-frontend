@@ -21,9 +21,10 @@ function isAllowed(pathname: string): boolean {
     return true;
   }
 
-  // RFC 9116 security contact (public/.well-known/security.txt): scanners and
-  // researchers fetch it signed out, on any host, so it is open in every mode —
-  // saas-shared would otherwise send it to `/auth`.
+  // RFC 9116 security contact (public/.well-known/security.txt, written by the
+  // hub's documentation run, never by hand): scanners and researchers fetch it
+  // signed out, on any host, so it is open in every mode — saas-shared would
+  // otherwise send it to `/auth`.
   if (pathname === '/.well-known/security.txt') {
     return true;
   }

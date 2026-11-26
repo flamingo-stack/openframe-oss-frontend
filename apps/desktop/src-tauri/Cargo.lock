@@ -151,11 +151,12 @@ dependencies = [
 [[package]]
 name = "async-nats"
 version = "0.42.0"
-source = "git+https://github.com/flamingo-stack/nats.rs.git?branch=main#ee7dfd1233a40660f1ccd7e8ec2bd34181333191"
+source = "git+https://github.com/flamingo-stack/nats.rs.git?branch=main#7514c5986b09c8f2a6564e7f54d27d1273f05ee3"
 dependencies = [
  "base64 0.22.1",
  "bytes",
  "futures-util",
+ "http",
  "memchr",
  "nkeys",
  "nuid",
@@ -167,7 +168,7 @@ dependencies = [
  "ring",
  "rustls-native-certs 0.7.3",
  "rustls-pemfile",
- "rustls-webpki 0.102.8",
+ "rustls-webpki",
  "serde",
  "serde_json",
  "serde_nanos",
@@ -3628,7 +3629,7 @@ dependencies = [
  "once_cell",
  "ring",
  "rustls-pki-types",
- "rustls-webpki 0.103.17",
+ "rustls-webpki",
  "subtle",
  "zeroize",
 ]
@@ -3691,7 +3692,7 @@ dependencies = [
  "rustls",
  "rustls-native-certs 0.8.4",
  "rustls-platform-verifier-android",
- "rustls-webpki 0.103.17",
+ "rustls-webpki",
  "security-framework 3.7.0",
  "security-framework-sys",
  "webpki-root-certs",
@@ -3703,16 +3704,6 @@ name = "rustls-platform-verifier-android"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f87165f0995f63a9fbeea62b64d10b4d9d8e78ec6d7d51fb2125fda7bb36788f"
-
-[[package]]
-name = "rustls-webpki"
-version = "0.102.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64ca1bc8749bd4cf37b5ce386cc146580777b4e8572c7b97baf22c83f444bee9"
-dependencies = [
- "rustls-pki-types",
- "untrusted",
-]
 
 [[package]]
 name = "rustls-webpki"

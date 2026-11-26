@@ -338,9 +338,9 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
         {/* A page's topic is its path, read by the lib from the address for the FAQ blocks, their ask cards and
             the chat's quick actions. The Help Center mounts the hub's pages, so a page there asks with the hub
             page's path (`/help-center/roadmap` asks `/roadmap`); every other screen asks with its own (`/devices`).
-            `showTopic`: each of them prints it as a faint stamp, in every build (the web app and the desktop app
-            alike), the hub's own rule, so whoever tags FAQs and quick actions on the hub can read the path to use
-            on the screen they are looking at. */}
+            `showTopic`: each of them prints a faint stamp, in every build (the web app and the desktop app alike),
+            the hub's own rule: the page's own address (`/help-center/roadmap`), and on hover, where the Help
+            Center mount makes them differ, the path to tag on the hub ("Tagged as /roadmap"). */}
         <PageTopicsProvider basePath={routes.helpCenter.root} showTopic>
           {children}
         </PageTopicsProvider>

@@ -81,7 +81,6 @@ make build-staged …   # the same over a real export already in www/ (what CI r
 | Variable | Purpose |
 |---|---|
 | `OPENFRAME_SHARED_HOST_URL` | **Required for `build` and `build-staged`.** Baked into the binary; see [Configuration](#configuration). |
-| `OPENFRAME_GTM_CONTAINER_ID` | Optional. Baked into the binary; unset means no GTM and no analytics. |
 | `OPENFRAME_VERSION` | App version, applied via `tauri build --config`. Defaults to `tauri.conf.json`. |
 | `TARGET` | Rust target triple for cross-compilation. |
 | `BUNDLES` | Bundle subset, e.g. `BUNDLES=app` for an unsigned macOS `.app`. |
@@ -178,9 +177,6 @@ The shared host is baked in at build time and can be overridden per install by
   "learned_host": "https://acme.example.com"
 }
 ```
-
-An install whose `shared_host` differs from the baked one loads no GTM, and so no
-PostHog: test environments stay out of production analytics.
 
 `learned_host` is written by the shell after login; it is not meant to be edited.
 Tokens live next to it in `tokens.json` (owner-readable only, plaintext —
