@@ -231,6 +231,8 @@ export function OverridesTable({ rows }: { rows: OverrideTableRow[] }) {
       table={table}
       skeletonRows={OVERRIDES_SKELETON_ROWS}
       itemName="exception"
+      // The section's own header says what the table is; the design draws no count above it.
+      showRowCount={false}
       onRowClick={(row: OverrideTableRow) => row.actions?.edit()}
       {...grid}
     />
