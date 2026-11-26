@@ -30,6 +30,7 @@ describe('getVulnerabilitiesEmptyReason', () => {
   it('reports the fleet fan-out outcome first', () => {
     expect(getVulnerabilitiesEmptyReason(device({ fleet: 'error' }))).toBe('error');
     expect(getVulnerabilitiesEmptyReason(device({ fleet: 'skipped-disconnected' }))).toBe('disconnected');
+    expect(getVulnerabilitiesEmptyReason(device({ fleet: 'skipped-unsupported' }))).toBe('unsupported');
     expect(getVulnerabilitiesEmptyReason(device({ fleet: 'skipped-pending' }))).toBe('collecting');
   });
 
@@ -112,6 +113,7 @@ describe('isVulnerabilityScanPending', () => {
     expect(isVulnerabilityScanPending(device({ fleet: 'error' }))).toBe(false);
     expect(isVulnerabilityScanPending(device({ fleet: 'skipped-disconnected' }))).toBe(false);
     expect(isVulnerabilityScanPending(device({ fleet: 'skipped-pending' }))).toBe(false);
+    expect(isVulnerabilityScanPending(device({ fleet: 'skipped-unsupported' }))).toBe(false);
     // Inventory never scanned (missing or Fleet sentinel) → collecting, not syncing.
     expect(isVulnerabilityScanPending(device({ fleet: 'ok' }))).toBe(false);
     expect(isVulnerabilityScanPending(device({ fleet: 'ok', software_updated_at: '0001-01-01T00:00:00Z' }))).toBe(

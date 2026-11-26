@@ -346,3 +346,8 @@ html[data-shell='mobile'] .fixed.bottom-0.left-0.right-0.z-50 {
 [data-work-area] [data-surface='mingo'] {
   --color-bg: var(--ods-backgrounds-openframe-background);
 }
+/* The reCAPTCHA badge is hidden: it tells a bot there is a captcha. Google allows it with `RecaptchaNotice` in the
+   flow; `visibility`, not `display: none`, keeps the widget running. */
+.grecaptcha-badge {
+  visibility: hidden !important;
+}

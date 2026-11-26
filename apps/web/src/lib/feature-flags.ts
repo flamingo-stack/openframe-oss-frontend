@@ -78,6 +78,12 @@ export const FEATURE_FLAG_NAMES = [
   // Off = Force Update alone, and a Wait & notify is submitted as Force Update.
   // Absent everywhere until the notifications ship, which reads as off.
   'software-update-notifications',
+  // Adopt (`/software/adopt`): reinstalling a title installed by hand through a
+  // package manager, the "installed manually" banner, the adoption chips on a
+  // title's devices and the All Software Adoption column. Off = none of it, and
+  // no query asks for an adoption field, which a backend before oss-lib #3102
+  // rejects. On for dev / qa, absent elsewhere, which reads as off.
+  'software-adopt',
   // "Compact chat memory" under the Mingo composer: summarizes a dialog's AI
   // context on demand. Off = the action is absent; auto-compaction is
   // unaffected either way.
@@ -86,6 +92,12 @@ export const FEATURE_FLAG_NAMES = [
   // tokens and this chat's context. The backend reads the same key. Off = the
   // counter keeps its hover card. On for dev / qa, false elsewhere.
   'mingo-chat-usage',
+  // File attachments in the Mingo composer and thread: "Upload File" in the
+  // `+` menu, drag-and-drop, paste, the attachment tray and the files on sent
+  // messages. Off = the composer and the thread as before, and no chat query
+  // asks for an attachment field the backend may not have yet. On for dev /
+  // qa, absent elsewhere, which reads as off.
+  'mingo-chat-attachments',
   // Per-chat model in Mingo: picked in the chat's and the composer's ⋯ menus, the
   // footer name only shows it, and AI Settings stops offering the Mingo model.
   // Off = one model for every chat, chosen in AI Settings. Needs saas-tenant #4610.
@@ -130,6 +142,11 @@ export const FEATURE_FLAG_NAMES = [
   // (`graphql-router.ts`). On where the router runs (dev), absent elsewhere,
   // which reads as off: the router path fails there.
   'graphql-router',
+  // Email to ticket (Settings → Email to ticket): the support mailboxes whose forwarded mail becomes tickets, over the
+  // mailbox API that the backend serves only under its own `openframe.features.email-to-ticket.enabled`. Off = no
+  // Settings card and every `/settings/email-to-ticket` route 404s. Turn it on only where that backend flag is on: the
+  // frontend would otherwise ask for a schema that is not there.
+  'email-to-ticket',
 ] as const;
 
 export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[number];

@@ -24,6 +24,7 @@ import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import type { TableLayout } from '@/app/hooks/use-table-layout';
 import type { Device } from '../../types/device.types';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
+import { TabUnsupportedEmptyState } from './tab-unsupported-empty-state';
 
 /** The Users table's columns. */
 const USER_COLUMNS = {
@@ -124,15 +125,12 @@ export function UsersTab({ device, tableLayout = 'cards' }: UsersTabProps) {
     [device?.users],
   );
 
+  // The search finds accounts by their name and nothing else: a group named like the term (`Administrators` for
+  // `Administrator`) does not bring its members along.
   const filteredRows = useMemo(() => {
     const query = debouncedSearch.trim().toLowerCase();
     if (!query) return rows;
-    return rows.filter(
-      user =>
-        user.username.toLowerCase().includes(query) ||
-        (user.groupname ?? '').toLowerCase().includes(query) ||
-        (user.type ?? '').toLowerCase().includes(query),
-    );
+    return rows.filter(user => user.username.toLowerCase().includes(query));
   }, [rows, debouncedSearch]);
 
   const columns = useMemo<ColumnDef<UserRow>[]>(
@@ -236,21 +234,24 @@ export function UsersTab({ device, tableLayout = 'cards' }: UsersTabProps) {
       return (
         <TabEmptyState
           icon={<UsersIcon />}
-          title="No users found"
-          description="User accounts on this device will appear here."
+          title="No local accounts found"
+          description="Local accounts on this device will appear here."
         />
       );
     }
 
     if (rows.length === 0) {
+      if (device.sources?.fleet === 'skipped-unsupported') {
+        return <TabUnsupportedEmptyState icon={<UsersIcon />} />;
+      }
       if (device.sources?.fleet === 'skipped-pending') {
-        return <TabDeployingEmptyState icon={<UsersIcon />} section="Users" />;
+        return <TabDeployingEmptyState icon={<UsersIcon />} section="Local Accounts" />;
       }
       return (
         <TabEmptyState
           icon={<UsersIcon />}
-          title="No users found"
-          description="User accounts on this device will appear here."
+          title="No local accounts found"
+          description="Local accounts on this device will appear here."
         />
       );
     }
@@ -278,7 +279,7 @@ export function UsersTab({ device, tableLayout = 'cards' }: UsersTabProps) {
           ref={toolbarRef}
           className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
         >
-          <SearchInput value={search} onChange={setSearch} placeholder="Search for User" />
+          <SearchInput value={search} onChange={setSearch} placeholder="Search for Account" showDropdown={false} />
         </div>
       )}
 
@@ -295,10 +296,10 @@ export function UsersTab({ device, tableLayout = 'cards' }: UsersTabProps) {
           rowClassName={LIVE_ROW_GAP_CLASS}
           emptyState={{
             icon: <UsersIcon />,
-            title: 'No users found',
+            title: 'No local accounts found',
             description: debouncedSearch
               ? `No results for "${debouncedSearch}".`
-              : 'User accounts on this device will appear here.',
+              : 'Local accounts on this device will appear here.',
           }}
         />
       </DataTable>

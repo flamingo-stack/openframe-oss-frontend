@@ -16,12 +16,19 @@
  * Fixed, not a floor: a floor still lets the taller side move things. The
  * leftover height goes to the video, which holds 16:9 and derives its width
  * from it.
+ *
+ * No video (the read settled with no playable source): the video block draws
+ * nothing, so the card drops that height and fits its copy — held, it was an
+ * empty block under the CTA (CU-17tkuw6a7wz). The swap to the scheduler then
+ * grows the card; with nothing to fill, that shift is the lesser cost. While
+ * the read is in flight the height stays, so a video that lands moves nothing.
  */
 
 import { CalendarBookmarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { MEETING_SCHEDULER_H } from '@flamingo-stack/openframe-frontend-core/components/meeting-scheduler';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import { useWalkthroughVideoData } from '@/app/hooks/use-walkthrough-video-data';
 import { BookCallWalkthroughVideo } from './book-call-walkthrough-video';
 
 export interface BookCallPromoProps {
@@ -32,6 +39,10 @@ export interface BookCallPromoProps {
 }
 
 export function BookCallPromo({ onBookCall, disabled, className }: BookCallPromoProps) {
+  // Same query key as the video block, so this reads the cache, not the network.
+  const { video, isLoading } = useWalkthroughVideoData();
+  const holdsVideoHeight = isLoading || Boolean(video?.mainVideoUrl || video?.youtubeUrl);
+
   return (
     <section
       className={cn(
@@ -40,7 +51,7 @@ export function BookCallPromo({ onBookCall, disabled, className }: BookCallPromo
         // layouts; desktop lays them side by side and takes the gap back.
         'gap-[var(--spacing-system-xl)]',
         'content-lg:flex-row content-lg:items-center content-lg:justify-between content-lg:gap-[var(--spacing-system-l)]',
-        MEETING_SCHEDULER_H,
+        holdsVideoHeight && MEETING_SCHEDULER_H,
         className,
       )}
     >

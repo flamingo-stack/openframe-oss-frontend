@@ -444,6 +444,8 @@ export const routes = {
     updateSoftware: (softwareId: string | number) => withQuery('/software/update', { softwareId }),
     /** One title's Auto-update settings, by `Software.id`. */
     autoUpdate: (id: string | number) => withQuery('/software/auto-update', { id }),
+    /** Adopt <software>: reinstall a hand-installed title with its adoption package, by `Software.id`. */
+    adopt: (id: string | number) => withQuery('/software/adopt', { id }),
     /**
      * Software Update Details — one install or update run, by its Software
      * Action id (the opaque one the Software Actions table links by; the run's
@@ -529,6 +531,14 @@ export const routes = {
     billingUsage: (o?: { action?: BillingUsageAction }) => withQuery('/settings/billing-usage', { action: o?.action }),
     /** Tenant-wide device logs (the per-device ones are the device's `device-logs` tab). */
     troubleshooting: '/settings/troubleshooting',
+    /** Email to ticket: the support mailboxes whose forwarded mail becomes tickets. `id` is the Relay id. */
+    emailToTicket: {
+      list: '/settings/email-to-ticket',
+      // `id`: the Pending mailbox Generate already created, so a reload or Back resumes its setup.
+      new: (o?: { id?: string | number }) => withQuery('/settings/email-to-ticket/new', { id: o?.id }),
+      details: (id: string | number) => withQuery('/settings/email-to-ticket/details', { id }),
+      edit: (id: string | number) => withQuery('/settings/email-to-ticket/edit', { id }),
+    },
   },
 
   /**

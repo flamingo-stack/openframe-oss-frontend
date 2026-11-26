@@ -3,17 +3,21 @@
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { Parcel02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import type { CursorPageInfo } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { graphql, useLazyLoadQuery } from 'react-relay';
+import type { softwareListTableAdoptQuery as SoftwareListTableAdoptQueryType } from '@/__generated__/softwareListTableAdoptQuery.graphql';
 import type { softwareListTableQuery as SoftwareListTableQueryType } from '@/__generated__/softwareListTableQuery.graphql';
 import { EmptyState, useRetryKey } from '@/app/components/shared';
 import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
 import { forwardPage } from '@/app/hooks/forward-page';
 import { usePagedTable } from '@/app/hooks/use-paged-table';
 import { useRefetchPage } from '@/app/hooks/use-refetch-page';
+import { useSoftwareAdoptGate } from '../adopt/use-software-adopt-gate';
 import type { SoftwareListFrameRenderProps } from '../shared/software-list-frame';
+import { type SoftwareAdoptionRefs, SoftwareAdoptionRefsContext } from './software-adoption-cell';
 import { SOFTWARE_LIST_PAGE_SIZE } from './software-list-columns';
 import { toSoftwareFilter } from './software-list-filters';
-import { SoftwareTable } from './software-table';
+import { SoftwareTable, type SoftwareTableProps } from './software-table';
 import { useSoftwareListFilters } from './use-software-list-filters';
 
 /**
@@ -29,6 +33,32 @@ const softwareListTableQuery = graphql`
       edges {
         node {
           ...softwareTable_software
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+`;
+
+/**
+ * The same page with Adopt on: each row also reads its Adoption count. A separate operation, not an `@include` on the
+ * shared one: a backend without Adopt rejects any document that names `adoptionCount`, even a skipped one. Paged the
+ * same way (no `@connection`).
+ */
+const softwareListTableAdoptQuery = graphql`
+  query softwareListTableAdoptQuery($filter: SoftwareFilterInput, $search: String, $first: Int!, $after: String) {
+    softwares(filter: $filter, search: $search, first: $first, after: $after) {
+      filteredCount
+      edges {
+        node {
+          id
+          ...softwareTable_software
+          ...softwareAdoptionCell_software
         }
       }
       pageInfo {
@@ -93,8 +123,72 @@ function SoftwareListTableReader(props: SoftwareListTableProps) {
   return <SoftwareListTableQuery {...props} />;
 }
 
-function SoftwareListTableQuery({
-  deferredSelections,
+/** Adopt's fields only on a backend that has them: with the flag off, the operation does not name them at all. */
+function SoftwareListTableQuery(props: SoftwareListTableProps) {
+  return useSoftwareAdoptGate() === 'on' ? (
+    <SoftwareListAdoptQuery {...props} />
+  ) : (
+    <SoftwareListPlainQuery {...props} />
+  );
+}
+
+/** Both operations' variables: the URL's funnels and search, and its page. */
+function listVariables({ deferredSelections, debouncedSearch, pageVariables }: SoftwareListTableProps) {
+  return {
+    filter: toSoftwareFilter(deferredSelections),
+    search: debouncedSearch || null,
+    ...forwardPage(pageVariables, SOFTWARE_LIST_PAGE_SIZE),
+  };
+}
+
+function SoftwareListPlainQuery(props: SoftwareListTableProps) {
+  const retryKey = useRetryKey();
+  const variables = listVariables(props);
+  const data = useLazyLoadQuery<SoftwareListTableQueryType>(softwareListTableQuery, variables, {
+    fetchPolicy: 'store-or-network',
+    fetchKey: retryKey,
+  });
+  const refetch = useRefetchPage<SoftwareListTableQueryType>(softwareListTableQuery, variables);
+  return (
+    <SoftwareListPage
+      {...props}
+      rows={data.softwares.edges.map(edge => edge.node)}
+      totalCount={data.softwares.filteredCount}
+      pageInfo={data.softwares.pageInfo}
+      refetch={refetch}
+    />
+  );
+}
+
+function SoftwareListAdoptQuery(props: SoftwareListTableProps) {
+  const retryKey = useRetryKey();
+  const variables = listVariables(props);
+  const data = useLazyLoadQuery<SoftwareListTableAdoptQueryType>(softwareListTableAdoptQuery, variables, {
+    fetchPolicy: 'store-or-network',
+    fetchKey: retryKey,
+  });
+  const refetch = useRefetchPage<SoftwareListTableAdoptQueryType>(softwareListTableAdoptQuery, variables);
+  const rows = data.softwares.edges.map(edge => edge.node);
+  const adoption: SoftwareAdoptionRefs = new Map(rows.map(row => [row.id, row]));
+  return (
+    <SoftwareAdoptionRefsContext value={adoption}>
+      <SoftwareListPage
+        {...props}
+        rows={rows}
+        totalCount={data.softwares.filteredCount}
+        pageInfo={data.softwares.pageInfo}
+        refetch={refetch}
+      />
+    </SoftwareAdoptionRefsContext>
+  );
+}
+
+/** The fleet table over one page as either operation read it: the pager and the auto-refresh picker from its `pageInfo`. */
+function SoftwareListPage({
+  rows,
+  totalCount,
+  pageInfo,
+  refetch,
   selections,
   onSelectionsChange,
   debouncedSearch,
@@ -106,26 +200,16 @@ function SoftwareListTableQuery({
   filtersOpen,
   onFiltersClose,
   pager,
-  pageVariables,
   paramPrefix,
-}: SoftwareListTableProps) {
-  const retryKey = useRetryKey();
-  const variables = {
-    filter: toSoftwareFilter(deferredSelections),
-    search: debouncedSearch || null,
-    ...forwardPage(pageVariables, SOFTWARE_LIST_PAGE_SIZE),
-  };
-  const data = useLazyLoadQuery<SoftwareListTableQueryType>(softwareListTableQuery, variables, {
-    fetchPolicy: 'store-or-network',
-    fetchKey: retryKey,
-  });
-  const refetch = useRefetchPage<SoftwareListTableQueryType>(softwareListTableQuery, variables);
-
-  const rows = data.softwares.edges.map(edge => edge.node);
+}: SoftwareListTableProps &
+  Pick<SoftwareTableProps, 'rows' | 'totalCount'> & {
+    pageInfo: CursorPageInfo | null | undefined;
+    refetch: () => Promise<unknown>;
+  }) {
   const paged = usePagedTable({
     pager,
-    pageInfo: data.softwares.pageInfo,
-    rowCount: rows.length,
+    pageInfo,
+    rowCount: rows?.length ?? 0,
     prefix: paramPrefix,
     refetch,
     isPending,
@@ -137,7 +221,7 @@ function SoftwareListTableQuery({
     <SoftwareTable
       surface="fleet"
       rows={rows}
-      totalCount={data.softwares.filteredCount}
+      totalCount={totalCount}
       debouncedSearch={debouncedSearch}
       isPending={isPending}
       emptyState={<EmptyState icon={<Parcel02Icon />} title={emptyTitle} description={emptyDescription} />}

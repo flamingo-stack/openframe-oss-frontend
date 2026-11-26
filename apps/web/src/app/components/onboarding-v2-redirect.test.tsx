@@ -72,6 +72,23 @@ describe('OnboardingV2Redirect', () => {
     expect(replace).not.toHaveBeenCalled();
   });
 
+  it("sends a SaaS tenant's /onboarding (a gateway login) to the wizard while the setup is pending", () => {
+    mode.saas = true;
+    at('/onboarding/', 'setup');
+    expect(replace).toHaveBeenCalledWith(routes.setup);
+  });
+
+  it("leaves a SaaS tenant's /onboarding to its own forward once nothing is pending", () => {
+    mode.saas = true;
+    at('/onboarding/', 'none');
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("leaves an OSS tenant's Get Started tour alone, setup pending or not", () => {
+    at('/onboarding/', 'setup');
+    expect(replace).not.toHaveBeenCalled();
+  });
+
   it('honours a deep link to any other page', () => {
     at('/devices', 'setup');
     at('/devices', 'none');

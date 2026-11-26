@@ -13,6 +13,7 @@ import { DataSyncBanner } from '../data-sync-banner';
 import { DeviceVulnerabilitiesTable } from './device-vulnerabilities-table';
 import { FleetVulnerabilitiesTab } from './fleet-vulnerabilities-tab';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
+import { TabUnsupportedEmptyState } from './tab-unsupported-empty-state';
 
 interface VulnerabilitiesTabProps {
   device: Device | null;
@@ -41,6 +42,10 @@ const NO_VULNERABILITIES = (
  */
 function vulnerabilitiesEmptyState(device: Device) {
   const reason = getVulnerabilitiesEmptyReason(device);
+
+  if (reason === 'unsupported') {
+    return <TabUnsupportedEmptyState icon={<BracketSquareCheckIcon />} />;
+  }
 
   if (reason === 'disconnected') {
     return (
@@ -101,8 +106,7 @@ function ModuleVulnerabilitiesTab({ device, loading }: VulnerabilitiesTabProps &
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
       <SoftwareListFrame
         paramPrefix="cve"
-        pageSize={VULNERABILITY_LIST_PAGE_SIZE}
-        pagedList="deviceVulnerabilities"
+        paging={{ pageSize: VULNERABILITY_LIST_PAGE_SIZE, list: 'deviceVulnerabilities' }}
         placeholder={SEARCH_PLACEHOLDER}
         loading={loading}
         // The last matching run predates the current software inventory — e.g. a patched CVE may still show as

@@ -1,7 +1,9 @@
 import { NamedIcon } from '@flamingo-stack/openframe-frontend-core/components';
-import type { ActionsMenuItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import type { ModelMenu } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { showToast } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
 import {
   type SupportedModelsByProvider,
   useSupportedModels,
@@ -11,7 +13,7 @@ import {
   LLM_PROVIDER_LABEL,
   LLM_PROVIDER_OPTIONS,
 } from '@/app/(app)/settings/ai-settings/utils/ai-settings-display';
-import { useAiModelStatus } from '@/app/hooks/use-ai-model';
+import { type AiModel, useAiModelStatus } from '@/app/hooks/use-ai-model';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import type { FeatureFlagGate } from '@/lib/feature-flags';
 import {
@@ -21,9 +23,19 @@ import {
   fetchDialogModel,
   updateDialogModel,
 } from './dialog-model-api';
+import styles from './mingo-model-change-toast.module.css';
+import {
+  comparisonDescription,
+  comparisonOptions,
+  comparisonPrices,
+  ModelComparisonFooter,
+  ModelComparisonRow,
+} from './mingo-model-comparison';
 import { useMingoModelDraftStore } from './mingo-model-draft-store';
+import { useMingoModelPricing } from './use-mingo-model-pricing';
 
 export const MINGO_MODEL_FLAG = 'ai-mingo-chat-model-selection';
+const MODEL_CHANGES_CHANNEL = 'openframe:mingo-dialog-model-changes';
 
 /** What of the chat decides whether its model can change now. */
 export interface MingoModelChatState {
@@ -39,34 +51,79 @@ export interface MingoModelSelection {
   current: DialogModel | null;
   /** The answering model's context, once the server said. */
   contextSize: number | null;
-  /** "Chat Model" for the chat's and the composer's ⋯ menus; empty while the flag is not on. */
-  menuItems: ActionsMenuItem[];
+  /** The composer's model menu; null while the flag is not on. */
+  menu: ModelMenu | null;
 }
 
-const sameModel = (a: DialogModelChoice | null, b: DialogModelChoice) =>
-  a !== null && a.provider === b.provider && a.modelName === b.modelName;
+type ModelIdentity = Pick<AiModel, 'provider' | 'modelName'>;
 
-/** The model for one Mingo chat: read from the chat, picked in its ⋯ menus; a new chat keeps its pick in a draft. */
+function isSameModel(previous: ModelIdentity | null, next: ModelIdentity) {
+  return previous !== null && previous.provider === next.provider && previous.modelName === next.modelName;
+}
+
+/** The model for one Mingo chat: read from the chat, picked from its composer; a new chat keeps its pick in a draft. */
 export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSelection {
   const gate = useFeatureFlagGate(MINGO_MODEL_FLAG);
   const enabled = gate === 'on';
   const { activeDialogId } = chat;
   const { modelsByProvider } = useSupportedModels();
   const { aiModel } = useAiModelStatus();
+  const pricing = useMingoModelPricing(enabled);
   const draft = useMingoModelDraftStore(s => s.draft);
   const setDraft = useMingoModelDraftStore(s => s.setDraft);
   const queryClient = useQueryClient();
+  const modelChanges = useRef<BroadcastChannel | null>(null);
   const { toast } = useToast();
+  const showChange = (label: string) =>
+    showToast({
+      title: 'Chat model changed',
+      description: `${label} answers from your next message. Your other chats keep their model.`,
+      variant: 'success',
+      className: styles.modelChangeToast,
+    });
+
+  useEffect(() => {
+    if (!enabled || typeof BroadcastChannel === 'undefined') return undefined;
+
+    const channel = new BroadcastChannel(MODEL_CHANGES_CHANNEL);
+    modelChanges.current = channel;
+    channel.onmessage = ({ data }) => {
+      if (activeDialogId === null || data !== activeDialogId) return;
+      const filters = { queryKey: dialogModelQueryKey(activeDialogId), exact: true };
+      // Restart even an initial read that may have started before the other tab saved.
+      void queryClient.cancelQueries(filters).then(() => queryClient.invalidateQueries(filters));
+    };
+    return () => {
+      modelChanges.current = null;
+      channel.close();
+    };
+  }, [activeDialogId, enabled, queryClient]);
 
   const query = useQuery({
     queryKey: dialogModelQueryKey(activeDialogId ?? ''),
     queryFn: () => fetchDialogModel(activeDialogId ?? ''),
     enabled: enabled && activeDialogId !== null,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
   const mutation = useMutation({
-    mutationFn: ({ dialogId, model }: { dialogId: string; model: DialogModelChoice | null }) =>
-      updateDialogModel(dialogId, model),
-    onSuccess: (state, { dialogId }) => queryClient.setQueryData(dialogModelQueryKey(dialogId), state),
+    mutationFn: ({
+      dialogId,
+      model,
+    }: {
+      dialogId: string;
+      model: DialogModelChoice | null;
+      previousModel: ModelIdentity | null;
+    }) => updateDialogModel(dialogId, model),
+    onSuccess: (state, { dialogId, previousModel }) => {
+      const queryKey = dialogModelQueryKey(dialogId);
+      queryClient.setQueryData(queryKey, state);
+      // A concurrent change in another tab can already have superseded this response.
+      void queryClient.invalidateQueries({ queryKey, exact: true });
+      modelChanges.current?.postMessage(dialogId);
+      if (!isSameModel(previousModel, state.effectiveModel))
+        showChange(labelOf(state.effectiveModel, modelsByProvider));
+    },
     onError: error =>
       toast({
         title: 'Could not change chat model',
@@ -75,11 +132,15 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
       }),
   });
 
-  if (!enabled) return { gate, current: null, contextSize: null, menuItems: [] };
+  if (!enabled) return { gate, current: null, contextSize: null, menu: null };
 
   const saved = activeDialogId ? query.data : undefined;
   const selected = activeDialogId ? (saved?.model ?? null) : draft;
   const current = activeDialogId ? (saved?.effectiveModel ?? null) : draft;
+  // The tenant default fills a new chat only. A saved chat uses its own server-resolved model.
+  const answering = activeDialogId === null ? (current ?? aiModel ?? null) : current;
+  const selectionKnown = activeDialogId === null || saved !== undefined;
+  const followsDefault = selectionKnown && selected === null;
   const locked =
     mutation.isPending ||
     (activeDialogId !== null && query.isPending) ||
@@ -87,61 +148,71 @@ export function useMingoModelSelection(chat: MingoModelChatState): MingoModelSel
     chat.archived ||
     chat.isCompacting;
 
-  // The entry names the model that answers: the chat's, else the tenant default a new chat starts on.
-  const shown = current
-    ? { label: labelOf(current, modelsByProvider), provider: current.provider }
-    : aiModel && { label: aiModel.displayName, provider: LLM_PROVIDER_OPTIONS.find(p => p === aiModel.provider) };
-
   const choose = (model: DialogModel | null) => {
-    if (activeDialogId) mutation.mutate({ dialogId: activeDialogId, model });
-    else setDraft(model);
+    if (locked || (model ? selectionKnown && isSameModel(answering, model) : followsDefault)) return;
+    if (activeDialogId) {
+      mutation.mutate({ dialogId: activeDialogId, model, previousModel: answering });
+      return;
+    }
+    setDraft(model);
+    const next = model ?? aiModel;
+    if (next && !isSameModel(answering, next)) {
+      showChange(model ? labelOf(model, modelsByProvider) : (aiModel?.displayName ?? next.modelName));
+    }
   };
 
   return {
     gate,
     current: current && { ...current, displayName: labelOf(current, modelsByProvider) },
     contextSize: saved?.modelTokenBudget ?? null,
-    menuItems: [
-      {
-        id: 'chat-model',
-        label: shown?.label ?? 'Chat Model',
-        description: shown ? 'Chat Model' : undefined,
-        icon: shown?.provider ? <NamedIcon icon={LLM_PROVIDER_ICON[shown.provider]} className="h-5 w-5" /> : undefined,
-        type: 'submenu',
-        // The cascade is three menus wide: it may leave the chat's column, which is narrower than that.
-        submenuBoundary: 'viewport',
-        disabled: locked,
-        submenu: [
-          {
-            id: 'chat-model-default',
-            label: 'Use Default Model',
-            type: 'radio',
-            checked: selected === null,
-            onClick: () => choose(null),
-          },
-          ...LLM_PROVIDER_OPTIONS.flatMap(provider => {
+    menu: {
+      disabled: locked,
+      mobileDrillDown: true,
+      groups: [
+        {
+          separator: true,
+          items: [
+            {
+              id: 'chat-model-default',
+              label: followsDefault ? 'Using default model' : 'Use default model',
+              disabled: followsDefault,
+              onClick: () => choose(null),
+            },
+          ],
+        },
+        {
+          items: LLM_PROVIDER_OPTIONS.flatMap(provider => {
             const options = modelsByProvider?.[provider] ?? [];
             if (options.length === 0) return [];
             return {
               id: `chat-model-${provider}`,
               label: LLM_PROVIDER_LABEL[provider],
-              icon: <NamedIcon icon={LLM_PROVIDER_ICON[provider]} className="h-5 w-5" />,
+              icon: <NamedIcon icon={LLM_PROVIDER_ICON[provider]} />,
               type: 'submenu' as const,
-              submenu: options.map(option => {
+              submenuBoundary: 'viewport' as const,
+              checked: answering?.provider === provider,
+              submenuWidth: 440,
+              footer: <ModelComparisonFooter pricing={pricing.shown} />,
+              submenu: comparisonOptions(provider, options).map(option => {
                 const model = { provider, modelName: option.value, displayName: option.label };
+                const prices = pricing.shown
+                  ? comparisonPrices(pricing.rateFor(provider, option.value), pricing.usdPerMillionOpenFrameTokens)
+                  : null;
                 return {
                   id: `chat-model-${provider}-${option.value}`,
                   label: option.label,
+                  description: comparisonDescription(option.details, prices),
+                  content: <ModelComparisonRow label={option.label} details={option.details} pricing={prices} />,
                   type: 'radio' as const,
-                  checked: sameModel(selected, model),
+                  checked: isSameModel(answering, model),
                   onClick: () => choose(model),
                 };
               }),
             };
           }),
-        ],
-      },
-    ],
+        },
+      ],
+    },
   };
 }
 

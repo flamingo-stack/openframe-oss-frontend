@@ -1,5 +1,6 @@
+# Generated from the Security Policy (security@flamingo.run); do not edit by hand.
 Contact: mailto:security@flamingo.run
-Expires: 2027-11-19T00:00:00Z
+Expires: 2027-11-25T00:00:00Z
 Policy: https://www.flamingo.run/security-policy
 Preferred-Languages: en
 Canonical: https://openframe.ai/.well-known/security.txt

@@ -12,6 +12,7 @@ import { getVulnerabilitiesEmptyReason } from '../../utils/vulnerabilities-empty
 import { DeviceSoftwareTable } from './device-software-table';
 import { FleetSoftwareTab } from './fleet-software-tab';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
+import { TabUnsupportedEmptyState } from './tab-unsupported-empty-state';
 
 interface SoftwareTabProps {
   device: Device | null;
@@ -41,6 +42,10 @@ const NO_SOFTWARE = (
  */
 function softwareEmptyState(device: Device) {
   const reason = getVulnerabilitiesEmptyReason(device);
+
+  if (reason === 'unsupported') {
+    return <TabUnsupportedEmptyState icon={<WebDesignIcon />} />;
+  }
 
   if (reason === 'disconnected') {
     return (
@@ -90,8 +95,7 @@ function ModuleSoftwareTab({ device, loading }: SoftwareTabProps & { loading: bo
   return (
     <SoftwareListFrame
       paramPrefix="software"
-      pageSize={SOFTWARE_LIST_PAGE_SIZE}
-      pagedList="deviceSoftware"
+      paging={{ pageSize: SOFTWARE_LIST_PAGE_SIZE, list: 'deviceSoftware' }}
       placeholder={SEARCH_PLACEHOLDER}
       loading={scoped}
     >

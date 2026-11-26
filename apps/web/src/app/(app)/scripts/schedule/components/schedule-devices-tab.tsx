@@ -7,7 +7,12 @@ import {
   type DevicesListNarrowing,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { MonitorOffIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { AutoRefreshControl, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  AutoRefreshControl,
+  type DataTableSettings,
+  LoadingWhen,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import {
   CURSOR_PAGER_KEYS,
   type CursorPagerVariables,
@@ -28,6 +33,7 @@ import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { usePagedTable } from '@/app/hooks/use-paged-table';
 import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { useSearchParam } from '@/app/hooks/use-search-param';
+import { type TableLayout, tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { type DeviceConnectivity, type DeviceStatus, ScheduleDeviceSelectionMode } from '@/generated/schema-enums';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
 import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedule-detail-relay';
@@ -54,6 +60,17 @@ const EMPTY_STATE = {
   title: 'No Assigned Devices',
   description: 'Devices added to this schedule will be displayed here.',
 };
+
+/** The grid table's settings: the viewer's column layout, kept in the browser under this list's own key. */
+const TABLE_SETTINGS: DataTableSettings = { storageKey: 'schedule-assigned-devices' };
+
+/**
+ * The list's table props for a layout. The grid has its settings and no height of its own: the tab is one section of
+ * the schedule's page, so the page scrolls, not the table.
+ */
+function tableProps(tableLayout: TableLayout) {
+  return { tableLayout, tableSettings: tableLayout === 'grid' ? TABLE_SETTINGS : undefined };
+}
 
 /**
  * The `DeviceFilterInput` fields this list can set. Declared here rather than
@@ -94,6 +111,8 @@ function toDeviceFilter(narrowing: Omit<DevicesListNarrowing, 'search'>): Assign
 
 interface ScheduleDevicesTabContentProps {
   scheduleId: string;
+  /** The table the flag picked, read once by the tab: every form of the list (its loading state too) draws it. */
+  tableLayout: TableLayout;
   /** What the list draws as narrowed: the URL's funnels and tag chips, the box's typed search. */
   narrowing: DevicesListNarrowing;
   onNarrowingChange: (next: DevicesListNarrowing) => void;
@@ -137,6 +156,7 @@ function ScheduleDevicesTabContent({
   isPending,
   pager,
   pageVariables,
+  tableLayout,
 }: ScheduleDevicesTabContentProps) {
   const retryKey = useRetryKey();
   const detail = useLazyLoadQuery<ScheduleDetailQueryType>(
@@ -182,6 +202,7 @@ function ScheduleDevicesTabContent({
       // "Nothing is assigned" is page 1's to say: an empty LATER page is a cursor about to be dropped.
       emptyState={pager.isFirstPage ? EMPTY_STATE : undefined}
       skeletonRows={PAGE_SIZE}
+      {...tableProps(tableLayout)}
       metaRow={{ pager: paged.pager, actions: paged.refresh && <AutoRefreshControl {...paged.refresh} /> }}
     />
   );
@@ -251,6 +272,7 @@ function ScheduleDevicesTabReader(props: ScheduleDevicesTabContentProps) {
           onNarrowingChange={props.onNarrowingChange}
           emptyState={EMPTY_STATE}
           skeletonRows={PAGE_SIZE}
+          {...tableProps(props.tableLayout)}
         />
       </div>
     );
@@ -269,6 +291,10 @@ function ScheduleDevicesTabReader(props: ScheduleDevicesTabContentProps) {
  * `memo` for the reason given in `schedule-detail-tabs.ts`.
  */
 export const ScheduleDevicesTab = memo(function ScheduleDevicesTabImpl({ scheduleId }: { scheduleId: string }) {
+  // The new grid table, behind the app's one table flag; card rows while it is off. Read ONCE here and handed to
+  // every form of the list (its loading state too), so the two never draw different tables.
+  const tableGate = useTableGridGate();
+  const tableLayout = tableLayoutFor(tableGate);
   const { params, setParam, setParams } = useApiParams(
     {
       search: { type: 'string', default: '' },
@@ -333,16 +359,20 @@ export const ScheduleDevicesTab = memo(function ScheduleDevicesTabImpl({ schedul
   };
 
   return (
-    <ScheduleDevicesTabBody
-      scheduleId={scheduleId}
-      narrowing={narrowing}
-      onNarrowingChange={handleNarrowingChange}
-      filter={deferredFilters}
-      search={deferredSearch}
-      isPending={isPending}
-      pager={pager}
-      pageVariables={deferredPage}
-    />
+    // Until the flag answers the tab is its loading state: a guess would draw one table and replace it with the other.
+    <LoadingWhen loading={tableGate === 'loading'}>
+      <ScheduleDevicesTabBody
+        scheduleId={scheduleId}
+        narrowing={narrowing}
+        onNarrowingChange={handleNarrowingChange}
+        filter={deferredFilters}
+        search={deferredSearch}
+        isPending={isPending}
+        pager={pager}
+        pageVariables={deferredPage}
+        tableLayout={tableLayout}
+      />
+    </LoadingWhen>
   );
 });
 ScheduleDevicesTab.displayName = 'ScheduleDevicesTab';

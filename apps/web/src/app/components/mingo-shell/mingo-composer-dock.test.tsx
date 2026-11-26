@@ -6,11 +6,14 @@
  * holds its place while the chat loads, and its own crash fallback.
  */
 
-import type { ActionsMenuItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import type { ModelMenu } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { act, forwardRef, type ReactNode, useEffect, useImperativeHandle } from 'react';
 import { createPortal } from 'react-dom';
-import { createRoot, type Root } from 'react-dom/client';
+import { createRoot, hydrateRoot, type Root } from 'react-dom/client';
+import { renderToString } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ContextRefWithLabel } from '@/app/(app)/mingo/context/context-types';
+import { useMingoContextStore } from '@/app/(app)/mingo/stores/mingo-context-store';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { routes } from '@/lib/routes';
 import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
@@ -30,6 +33,7 @@ const {
   identity,
   chips,
   viewport,
+  composer,
   tour,
   CONTEXT_MEMORY,
   RENDER_MENTION,
@@ -59,6 +63,8 @@ const {
   chips: { onSend: null as ((text: string) => void) | null },
   /** `useMdUp()`: false on a phone. */
   viewport: { mdUp: true as boolean | undefined },
+  /** The slot the v2 composer hangs in (`useManhattanComposerPlace`). */
+  composer: { place: null as 'page' | 'column' | null },
   /** What the dock handed the tour: where its conversation is on screen, and the block's ×. */
   tour: {
     input: null as { onScreen?: boolean; onClose?: () => void } | null,
@@ -110,9 +116,18 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => {
       identity.enabled = enabled;
       return children;
     },
+    // Draws what its props say about the context strip, so a server render and a hydration that
+    // were handed different strips differ in their markup, as the real composer's do.
     ChatComposer: (props: Record<string, unknown>) => {
       panel.loading = props;
-      return <p>locked composer</p>;
+      const memory = (props.contextMemoryItems as unknown[] | undefined) ?? [];
+      return (
+        <>
+          <p>locked composer</p>
+          {memory.length > 0 && <i>{memory.length} in context</i>}
+          {props.contextLeading ? <b>{props.contextLeading as ReactNode}</b> : null}
+        </>
+      );
     },
     ModelDisplay: () => null,
   };
@@ -138,6 +153,7 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/ui', () => ({
   ),
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', () => ({ useMdUp: () => viewport.mdUp }));
+vi.mock('../manhattan-shell/manhattan-composer-host', () => ({ useManhattanComposerPlace: () => composer.place }));
 vi.mock('@flamingo-stack/openframe-frontend-core/utils', () => ({
   cn: (...classes: unknown[]) => classes.filter(Boolean).join(' '),
 }));
@@ -213,15 +229,13 @@ function setSurface({
   enabled = true,
   error = null as Error | null,
   identityEnabled = true,
-  modelMenuItems = null as ActionsMenuItem[] | null,
+  modelMenu = null as ModelMenu | null,
 } = {}) {
   surface.value = {
     chat: error
       ? null
       : {
-          ...(modelMenuItems
-            ? { modelSelection: { gate: 'on', current: null, contextSize: null, menuItems: modelMenuItems } }
-            : {}),
+          ...(modelMenu ? { modelSelection: { gate: 'on', current: null, contextSize: null, menu: modelMenu } } : {}),
           state: {
             activeDialogId,
             dialogs: [],
@@ -303,6 +317,7 @@ describe('MingoComposerDock', () => {
       outsidePage: null,
     });
     viewport.mdUp = true;
+    composer.place = null;
     tour.input = null;
     tour.block = null;
     container = document.createElement('div');
@@ -521,12 +536,11 @@ describe('MingoComposerDock', () => {
       setSurface({ activeDialogId: 'a' });
       const sheetNode = document.createElement('div');
       useMingoSheetStore.setState({ open: true, node: sheetNode });
-      chips.onSend = null;
       render('/mingo/');
       expect(props().threadContainer).toBe(sheetNode);
       expect(headerActions().map(action => action.label)).toEqual(['Open as full chat', 'Back to page']);
       // The composer replies to the chat in the sheet: no quick actions for a new one.
-      expect(chips.onSend).toBeNull();
+      expect(props().composerQuickActions).toBe(false);
       expect(selectDialog).not.toHaveBeenCalledWith(null);
     });
   });
@@ -683,17 +697,11 @@ describe('MingoComposerDock', () => {
     }
   });
 
-  it('sends a quick action at once, in a new chat', () => {
+  it("sends a quick action from the chat's row at once, in a new chat", () => {
     render('/mingo/');
-    act(() => chips.onSend?.('List every online machine'));
+    act(() => (props().onQuickActionSend as (text: string) => void)('List every online machine'));
     expect(startNewDialog).toHaveBeenCalledWith({ prompt: 'List every online machine' });
     expect(panel.prefillDraft).not.toHaveBeenCalled();
-  });
-
-  it('leaves the keyboard in the composer after a quick action: its row goes away with the send', () => {
-    render('/mingo/');
-    act(() => chips.onSend?.('List every online machine'));
-    expect(panel.focusComposer).toHaveBeenCalledTimes(1);
   });
 
   it("draws the session's engine as it is, and is told of the panel's sends", () => {
@@ -709,31 +717,33 @@ describe('MingoComposerDock', () => {
 
   describe('per route', () => {
     it('home: a new chat — its own prompt, the model row, the quick actions', () => {
-      chips.onSend = null;
       render('/mingo/');
-      expect(chips.onSend).toBeTypeOf('function');
+      expect(props().composerQuickActions).toBe(true);
       // The lib's default: the model row is on every route, so the composer keeps its height.
       expect(props().showModel).toBeUndefined();
       expect(props()).toMatchObject({
         composerPlaceholder: 'Ask Mingo or describe a task…',
         contextMemory: CONTEXT_MEMORY,
       });
-      expect(container.querySelector('section')?.className).toContain('max-w-[880px]');
+      expect(container.querySelector('section')?.className).toContain('max-w-[calc(800px+2*var(--spacing-system-l))]');
     });
 
-    it('no other page carries the quick actions, a full-width one included', () => {
-      for (const pathname of ['/devices/', '/devices/details/file-manager/']) {
-        chips.onSend = null;
+    it('every page carries its quick actions', () => {
+      for (const pathname of ['/devices/', '/tickets/', '/help-center/tickets/']) {
         render(pathname);
-        expect(chips.onSend).toBeNull();
+        expect(props().composerQuickActions).toBe(true);
       }
     });
 
+    it('a full-width page carries none: it keeps its height', () => {
+      render('/devices/details/file-manager/');
+      expect(props().composerQuickActions).toBe(false);
+    });
+
     it('the chat page carries none: its new chat draws them in its empty state', () => {
-      chips.onSend = null;
       setSurface({ activeDialogId: 'd-1' });
       render('/mingo/chat/');
-      expect(chips.onSend).toBeNull();
+      expect(props().composerQuickActions).toBe(false);
     });
 
     it('chat: the 760px column and the model row', () => {
@@ -751,7 +761,7 @@ describe('MingoComposerDock', () => {
         composerPlaceholder: 'Ask Mingo about this page…',
         contextMemory: CONTEXT_MEMORY,
       });
-      expect(container.querySelector('section')?.className).toContain('max-w-[880px]');
+      expect(container.querySelector('section')?.className).toContain('max-w-[calc(800px+2*var(--spacing-system-l))]');
     });
 
     it('full-width pages: no memory strip, the model row kept', () => {
@@ -793,11 +803,31 @@ describe('MingoComposerDock', () => {
       });
     });
 
+    // CU-17tkuw68taa: under a page the composer keeps its side inset at every width (it touched the sidebars below
+    // 720px of content); only the chat column, which pads it itself, takes it away there. Its loading form alike.
+    it.each([
+      ['under a page', 'page', undefined, 'always'],
+      ['in the chat column', 'column', 'wide', 'wide'],
+    ] as const)('insets the composer and its loading form %s', (_name, place, live, loading) => {
+      composer.place = place;
+      useManhattanCentreStore.setState({ chatView: 'hidden' });
+      renderV2('/devices/');
+      expect(props().composerInset).toBe(live);
+      act(() =>
+        root.render(
+          <ManhattanDockContext.Provider value>
+            <MingoComposerDock held />
+          </ManhattanDockContext.Provider>,
+        ),
+      );
+      expect(panel.loading?.inset).toBe(loading);
+    });
+
     it('with no chat open, Start Work holds the column: no thread portalled, a new chat composer, the quick actions', () => {
       renderV2('/devices/');
       expect(props().threadContainer).toBeNull();
       expect(props().composerPlaceholder).toBe(dockViewOf('home').placeholder);
-      expect(chips.onSend).not.toBeNull();
+      expect(props().composerQuickActions).toBe(true);
     });
 
     it("draws no Getting Started block on Start Work, and the tour's block beside a page", () => {
@@ -899,13 +929,17 @@ describe('MingoComposerDock', () => {
     expect(props().composerMenuItems).toBeUndefined();
   });
 
-  it("puts the chat's model in both ⋯ menus and leaves the footer name display-only", () => {
-    const menuItems: ActionsMenuItem[] = [{ id: 'chat-model', label: 'GPT-5.5', type: 'submenu', submenu: [] }];
-    setSurface({ activeDialogId: 'a', modelMenuItems: menuItems });
+  it("opens the chat's model menu from the composer's model name only", () => {
+    const menu: ModelMenu = {
+      disabled: false,
+      groups: [{ items: [{ id: 'chat-model-default', label: 'Use Default Model' }] }],
+    };
+    setSurface({ activeDialogId: 'a', modelMenu: menu });
     render('/mingo/chat/');
 
-    expect(props().chatMenuExtraItems).toEqual(expect.arrayContaining(menuItems));
-    expect(props().composerMenuItems).toEqual(menuItems);
+    expect(props().composerModelMenu).toBe(menu);
+    expect(props().chatMenuExtraItems).toBeUndefined();
+    expect(props().composerMenuItems).toBeUndefined();
     expect(props().onModelClick).toBeUndefined();
     expect(props().modelTooltip).toBeUndefined();
   });
@@ -1062,6 +1096,56 @@ describe('MingoComposerDock', () => {
       act(() => root.render(<MingoComposerDock held />));
       expect(panel.props).toBeNull();
       expect(panel.loading).toMatchObject({ lock: { placeholder: 'Ask Mingo or describe a task…' } });
+    });
+
+    // CU-17tkuw65g9r: the server has neither the saved recent context (localStorage) nor the page a
+    // chat page was opened from (sessionStorage); the browser has both before its first render.
+    describe('hydrating the server markup', () => {
+      const RECENT: ContextRefWithLabel[] = [{ type: 'ORGANIZATION', id: 'o-1', label: 'Acme' }];
+
+      /** The server's markup with nothing saved, then a hydration in a browser that holds `client`. */
+      function hydrateWith(href: string, client: { recents?: typeof RECENT; chip?: ReactNode }) {
+        setSurface({ enabled: false });
+        const [pathname, search = ''] = href.split('?');
+        nav.pathname = pathname;
+        nav.search = search;
+        useMingoContextStore.setState({ openView: null, recentViews: [] });
+        pageChip.node = null;
+        const html = renderToString(<MingoComposerDock />);
+
+        useMingoContextStore.setState({ recentViews: client.recents ?? [] });
+        pageChip.node = client.chip ?? null;
+        act(() => root.unmount());
+        container.innerHTML = html;
+        const recoverable = vi.fn();
+        act(() => {
+          root = hydrateRoot(container, <MingoComposerDock />, { onRecoverableError: recoverable });
+        });
+        return recoverable;
+      }
+
+      afterEach(() => {
+        useMingoContextStore.setState({ openView: null, recentViews: [] });
+      });
+
+      it('matches with recent context saved, then shows it (the ticket: chat beside Customers)', () => {
+        // A page's own chip comes from its URL: the same on both sides, so not part of this case.
+        const recoverable = hydrateWith('/customers/', { recents: RECENT });
+        expect(recoverable).not.toHaveBeenCalled();
+        expect(container.textContent).toContain('1 in context');
+      });
+
+      it("matches on a chat page opened from another page, then shows that page's chip", () => {
+        const recoverable = hydrateWith('/mingo/chat/?id=d-1', { chip: <span>Customers</span> });
+        expect(recoverable).not.toHaveBeenCalled();
+        expect(container.textContent).toContain('Customers');
+      });
+
+      it('matches on Mingo home with recent context saved, then shows it', () => {
+        const recoverable = hydrateWith('/mingo/', { recents: RECENT });
+        expect(recoverable).not.toHaveBeenCalled();
+        expect(container.textContent).toContain('1 in context');
+      });
     });
 
     it('keeps it until the chat module has loaded, then hands over — and tells the chat page', () => {

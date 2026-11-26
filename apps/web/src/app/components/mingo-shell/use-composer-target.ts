@@ -88,12 +88,14 @@ export function followsToChatPage(route: ComposerRoute, sheetOpen: boolean): boo
 /**
  * A send that will create a chat; `from` is the chat open when it started. A panel send (`settlesWithCreate`) is told
  * only that it went out, so it ends when the engine's create does (`isDialogsLoading` rises and falls): `creating` is
- * set once it has risen.
+ * set once it has risen. `created` is the chat a wrapped send returned before React committed it: only that one is
+ * followed.
  */
 interface PendingFollow {
   from: string | null;
   settlesWithCreate?: boolean;
   creating?: boolean;
+  created?: string;
 }
 
 export function useComposerTarget({
@@ -130,8 +132,12 @@ export function useComposerTarget({
     committedIdRef.current = activeDialogId;
     if (activeDialogId === null || activeDialogId === previous) return;
     const follow = followRef.current;
-    const created = follow !== null && follow.from !== activeDialogId;
-    if (created) followRef.current = null;
+    const created =
+      follow !== null &&
+      follow.from !== activeDialogId &&
+      (follow.created === undefined || follow.created === activeDialogId);
+    // A send waiting for the chat it returned ends at the next commit: that chat, or another the user picked first.
+    if (created || follow?.created !== undefined) followRef.current = null;
     // The chat page follows its selection itself (`use-chat-page-selection.ts`).
     if (route === 'chat') return;
     if (created) openChat(activeDialogId, { phone, navigate, openSheet });
@@ -148,13 +154,15 @@ export function useComposerTarget({
   }, [isDialogsLoading]);
 
   // Wraps a send that may create a chat. A send that ends with no new chat (the
-  // create failed) disarms, so a later selection is not taken for its chat. One
-  // that created it was already followed by the effect above: the id commits before
-  // the send itself returns.
+  // create failed) disarms, so a later selection is not taken for its chat. A prompt's
+  // chat was already followed by the effect above: its send publishes after the create,
+  // and the id commits meanwhile. An intent's create returns the id as soon as the
+  // engine has opened it, before React commits that selection (CU-17tkuw6924d): the
+  // follow waits for that id, which the effect above then follows.
   //
   // `catch` + rethrow, not `finally`: the React Compiler cannot lower a `try` without
   // a `catch`, and skipped this whole hook over it.
-  const following = async <T>(send: () => Promise<T>): Promise<T> => {
+  const following = async (send: () => Promise<string | null>): Promise<string | null> => {
     const follow: PendingFollow = { from: committedIdRef.current };
     followRef.current = follow;
     const disarm = () => {
@@ -162,7 +170,9 @@ export function useComposerTarget({
     };
     try {
       const result = await send();
-      disarm();
+      if (result !== null && followRef.current === follow && committedIdRef.current === follow.from) {
+        follow.created = result;
+      } else disarm();
       return result;
     } catch (error) {
       disarm();

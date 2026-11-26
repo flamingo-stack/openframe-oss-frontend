@@ -62,10 +62,11 @@ interface SoftwareListFrameProps {
    * lists never fight over one param.
    */
   paramPrefix?: string;
-  /** Rows per page. */
-  pageSize: number;
-  /** What the list's API can do for the pager (server Prev, a reliable `hasPreviousPage`). */
-  pagedList: PagedListId;
+  /**
+   * The pager: rows per page, and which list it pages (`PAGED_LISTS`: what the list's API can do for the pager, server
+   * Prev and a reliable `hasPreviousPage`).
+   */
+  paging: { pageSize: number; list: PagedListId };
   placeholder: string;
   /** Column ids the surface's connection sorts by — the toggles drawn. Omit for a list with no sort. */
   sortableIds?: readonly string[];
@@ -116,8 +117,7 @@ function readArray(params: Readonly<Record<string, unknown>>, key: string): stri
  */
 export function SoftwareListFrame({
   paramPrefix = '',
-  pageSize,
-  pagedList,
+  paging,
   placeholder,
   sortableIds = NO_ITEMS,
   filterKeys = NO_ITEMS,
@@ -145,8 +145,8 @@ export function SoftwareListFrame({
   );
   const pager = useCursorPager({
     prefix: paramPrefix,
-    pageSize,
-    ...PAGED_LISTS[pagedList],
+    pageSize: paging.pageSize,
+    ...PAGED_LISTS[paging.list],
     resetOn: JSON.stringify(params),
   });
 

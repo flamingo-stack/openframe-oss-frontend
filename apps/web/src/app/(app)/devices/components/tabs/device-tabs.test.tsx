@@ -1,9 +1,8 @@
 /**
- * The Users tab swaps the machine's local accounts for directory users only where the tenant has a directory. A tenant
- * without one must keep its local accounts: "No users yet" there would hide accounts the machine really has. While the
- * flags are read, the page is main's (stage and prod run without `tenant-management-v2`): local accounts in their loading
- * form, and no Directory tab. Once phase 2 is on and only the synced-connection count is out, the directory tabs keep
- * their place in their loading form. Where Users is the directory's, Local Accounts beside it keeps the machine's own.
+ * The machine's own accounts are always the Local Accounts tab, under that name. Users is the directory's users and is
+ * shown only where the tenant has a directory, with Directory beside it. While the flags are read, the page is main's
+ * (stage and prod run without `tenant-management-v2`): Local Accounts and no directory tabs. Once phase 2 is on and only
+ * the synced-connection count is out, the directory tabs keep their place in their loading form.
  */
 
 import { act, type ComponentType } from 'react';
@@ -81,7 +80,7 @@ vi.mock('@/app/(app)/knowledge-base/components/assigned-articles/assigned-articl
   deviceArticlesTarget: () => null,
 }));
 
-import { ALL_DEVICE_TABS, DeviceDirectoryGateContext, useDeviceTabs } from './device-tabs';
+import { ALL_DEVICE_TABS, DeviceDirectoryGateContext, resolveDeviceTab, useDeviceTabs } from './device-tabs';
 
 let container: HTMLDivElement;
 let root: Root;
@@ -123,11 +122,15 @@ describe('device tabs and the directory gate', () => {
     container.remove();
   });
 
-  it('keeps local accounts and hides Directory and Local Accounts where the tenant has no directory', () => {
-    expect(renderTab('users', 'off')).toBe('local accounts');
+  it('shows Local Accounts and no Users or Directory where the tenant has no directory', () => {
+    expect(renderTab('local-accounts', 'off')).toBe('local accounts');
+    expect(tabIds('off')).toContain('local-accounts');
+    expect(tabIds('off')).not.toContain('users');
     expect(tabIds('off')).not.toContain('directory');
-    expect(tabIds('off')).not.toContain('local-accounts');
-    expect(tabIds('off')).toContain('users');
+  });
+
+  it('labels the local accounts tab Local Accounts', () => {
+    expect(ALL_DEVICE_TABS.find(tab => tab.id === 'local-accounts')?.label).toBe('Local Accounts');
   });
 
   it('shows directory users, the local accounts beside them and the Directory tab where it has one', () => {
@@ -137,16 +140,15 @@ describe('device tabs and the directory gate', () => {
     expect(tabIds('on')?.indexOf('local-accounts')).toBe((tabIds('on')?.indexOf('users') ?? -2) + 1);
   });
 
-  it("draws main's Users tab in its loading form, and no directory tabs, while the flags are read", () => {
+  it("draws main's Local Accounts tab, and no directory tabs, while the flags are read", () => {
     flags.phase2 = 'loading';
+    expect(tabIds('loading')).toContain('local-accounts');
+    expect(tabIds('loading')).not.toContain('users');
     expect(tabIds('loading')).not.toContain('directory');
-    expect(tabIds('loading')).not.toContain('local-accounts');
-    expect(tabIds('loading')).toContain('users');
-    expect(renderTab('users', 'loading')).toBe('local accounts, loading');
   });
 
   it('keeps the directory tabs in place, loading, while phase 2 is on and the connection count is out', () => {
-    expect(tabIds('loading')).toEqual(expect.arrayContaining(['directory', 'local-accounts']));
+    expect(tabIds('loading')).toEqual(expect.arrayContaining(['users', 'directory', 'local-accounts']));
     expect(renderTab('users', 'loading')).toBe('directory users, loading');
     expect(renderTab('directory', 'loading')).toBe('directory records, loading');
     expect(renderTab('local-accounts', 'loading')).toBe('local accounts');
@@ -154,9 +156,9 @@ describe('device tabs and the directory gate', () => {
 
   it("is main's page where phase 2 is off", () => {
     flags.phase2 = 'off';
+    expect(tabIds('off')).toContain('local-accounts');
+    expect(tabIds('off')).not.toContain('users');
     expect(tabIds('off')).not.toContain('directory');
-    expect(tabIds('off')).not.toContain('local-accounts');
-    expect(renderTab('users', 'off')).toBe('local accounts');
   });
 });
 
@@ -190,19 +192,36 @@ describe('device tabs and the table flag', () => {
     flags.tableGrid = 'on';
     for (const id of TABLE_TABS) expect(tableOf(id), id).toBe('grid');
     // The machine's local accounts, where the tenant has no directory.
-    expect(tableOf('users', 'off')).toBe('grid');
+    expect(tableOf('local-accounts', 'off')).toBe('grid');
     expect(container.textContent).toBe('local accounts');
   });
 
   it('keeps every table tab on card rows while the flag is off', () => {
     flags.tableGrid = 'off';
     for (const id of TABLE_TABS) expect(tableOf(id), id).toBe('cards');
-    expect(tableOf('users', 'off')).toBe('cards');
+    expect(tableOf('local-accounts', 'off')).toBe('cards');
   });
 
   it('draws every table tab in its loading form, on card rows, while the flag is read', () => {
     flags.tableGrid = 'loading';
     for (const id of TABLE_TABS) expect(tableOf(id), id).toBe('cards, loading');
-    expect(tableOf('users', 'off')).toBe('cards, loading');
+    expect(tableOf('local-accounts', 'off')).toBe('cards, loading');
+  });
+});
+
+/** A `?tab=` link opens its tab where it is shown; `users` from before Local Accounts was its own tab opens that tab. */
+describe('resolveDeviceTab', () => {
+  it('opens a visible tab as asked', () => {
+    expect(resolveDeviceTab('users', ['overview', 'users', 'local-accounts'], 'overview')).toBe('users');
+    expect(resolveDeviceTab('local-accounts', ['overview', 'local-accounts'], 'overview')).toBe('local-accounts');
+  });
+
+  it('opens Local Accounts for a users link where Users is not shown', () => {
+    expect(resolveDeviceTab('users', ['overview', 'local-accounts'], 'overview')).toBe('local-accounts');
+  });
+
+  it('falls back for any other tab that is not shown', () => {
+    expect(resolveDeviceTab('directory', ['overview', 'local-accounts'], 'overview')).toBe('overview');
+    expect(resolveDeviceTab('users', ['overview'], 'overview')).toBe('overview');
   });
 });

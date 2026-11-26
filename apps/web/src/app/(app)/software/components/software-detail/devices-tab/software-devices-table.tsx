@@ -12,12 +12,14 @@ import {
   GRID_MIN_WIDTH,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type {
+  CursorPageInfo,
   CursorPagerFooterProps,
   CursorPagerVariables,
   UseCursorPagerReturn,
 } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
+import type { softwareDevicesTableAdoptQuery as SoftwareDevicesTableAdoptQueryType } from '@/__generated__/softwareDevicesTableAdoptQuery.graphql';
 import type {
   SoftwareOnDeviceFilterInput,
   softwareDevicesTableQuery as SoftwareDevicesTableQueryType,
@@ -34,7 +36,9 @@ import { usePagedTable } from '@/app/hooks/use-paged-table';
 import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
+import { useSoftwareAdoptGate } from '../../adopt/use-software-adopt-gate';
 import { singleColumnFilter } from '../../shared/column-filters';
+import { type SoftwareDeviceAdoptionRefs, SoftwareDeviceAdoptionRefsContext } from './software-device-adoption-tag';
 import { SoftwareDeviceAutoUpdateCell } from './software-device-auto-update-cell';
 import { SoftwareDeviceCell, SoftwareDeviceGridCell } from './software-device-cell';
 import { SoftwareDeviceInstalledByCell } from './software-device-installed-by-cell';
@@ -81,6 +85,53 @@ const softwareDevicesTableQuery = graphql`
           ...softwareDeviceVersionCell_softwareOnDevice
           ...softwareDeviceInstalledByCell_softwareOnDevice
           ...softwareDeviceAutoUpdateCell_softwareOnDevice
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+`;
+
+/**
+ * The same page with Adopt on: each row also reads its adoption. A separate operation, not an `@include` on the shared
+ * one: a backend without Adopt rejects any document that names `adoption`, even a skipped one. Paged the same way (no
+ * `@connection`: a cursor from a link must read exactly its page).
+ */
+const softwareDevicesTableAdoptQuery = graphql`
+  query softwareDevicesTableAdoptQuery(
+    $softwareId: ID!
+    $filter: SoftwareOnDeviceFilterInput
+    $search: String
+    $sort: SortInput
+    $first: Int!
+    $after: String
+  ) {
+    softwareDevices(
+      softwareId: $softwareId
+      filter: $filter
+      search: $search
+      sort: $sort
+      first: $first
+      after: $after
+    ) {
+      filteredCount
+      edges {
+        node {
+          status
+          device {
+            id
+            machineId
+            ...softwareDeviceCell_machine
+          }
+          ...softwareDeviceVersionCell_softwareOnDevice
+          ...softwareDeviceInstalledByCell_softwareOnDevice
+          ...softwareDeviceAutoUpdateCell_softwareOnDevice
+          ...softwareDeviceAdoptionTag_softwareOnDevice
         }
       }
       pageInfo {
@@ -230,38 +281,102 @@ function SoftwareDevicesTableReader(props: SoftwareDevicesTableProps) {
   return <SoftwareDevicesTableQuery {...props} />;
 }
 
+/** Adopt's fields only on a backend that has them: with the flag off, the operation does not name them at all. */
 function SoftwareDevicesTableQuery(props: SoftwareDevicesTableProps) {
-  const { softwareId, backendFilters, debouncedSearch, sort, isPending, pager, pageVariables, paramPrefix } = props;
-  const retryKey = useRetryKey();
-  const variables = {
+  return useSoftwareAdoptGate() === 'on' ? (
+    <SoftwareDevicesAdoptQuery {...props} />
+  ) : (
+    <SoftwareDevicesPlainQuery {...props} />
+  );
+}
+
+/** Both operations' variables: the narrowing, the sort and the page in the URL. */
+function devicesVariables({
+  softwareId,
+  backendFilters,
+  debouncedSearch,
+  sort,
+  pageVariables,
+}: SoftwareDevicesTableProps) {
+  return {
     softwareId,
     filter: backendFilters,
     search: debouncedSearch || null,
     sort,
     ...forwardPage(pageVariables, SOFTWARE_DEVICES_PAGE_SIZE),
   };
+}
+
+function SoftwareDevicesPlainQuery(props: SoftwareDevicesTableProps) {
+  const retryKey = useRetryKey();
+  const variables = devicesVariables(props);
   const data = useLazyLoadQuery<SoftwareDevicesTableQueryType>(softwareDevicesTableQuery, variables, {
     fetchPolicy: 'store-or-network',
     fetchKey: retryKey,
   });
   const refetch = useRefetchPage<SoftwareDevicesTableQueryType>(softwareDevicesTableQuery, variables);
+  const connection = data.softwareDevices;
+  return (
+    <SoftwareDevicesPage
+      {...props}
+      rows={(connection?.edges ?? []).map(edge => edge.node)}
+      filteredCount={connection?.filteredCount}
+      pageInfo={connection?.pageInfo}
+      refetch={refetch}
+    />
+  );
+}
 
-  const rows = (data.softwareDevices?.edges ?? []).map(edge => edge.node);
-  const totalCount = data.softwareDevices?.filteredCount ?? rows.length;
-  const paged = usePagedTable({
-    pager,
-    pageInfo: data.softwareDevices?.pageInfo,
-    rowCount: rows.length,
-    prefix: paramPrefix,
-    refetch,
-    isPending,
+function SoftwareDevicesAdoptQuery(props: SoftwareDevicesTableProps) {
+  const retryKey = useRetryKey();
+  const variables = devicesVariables(props);
+  const data = useLazyLoadQuery<SoftwareDevicesTableAdoptQueryType>(softwareDevicesTableAdoptQuery, variables, {
+    fetchPolicy: 'store-or-network',
+    fetchKey: retryKey,
   });
+  const refetch = useRefetchPage<SoftwareDevicesTableAdoptQueryType>(softwareDevicesTableAdoptQuery, variables);
+  const connection = data.softwareDevices;
+  const rows = (connection?.edges ?? []).map(edge => edge.node);
+  const adoption: SoftwareDeviceAdoptionRefs = new Map(rows.map(row => [row.device.id, row]));
+  return (
+    <SoftwareDeviceAdoptionRefsContext value={adoption}>
+      <SoftwareDevicesPage
+        {...props}
+        rows={rows}
+        filteredCount={connection?.filteredCount}
+        pageInfo={connection?.pageInfo}
+        refetch={refetch}
+      />
+    </SoftwareDeviceAdoptionRefsContext>
+  );
+}
 
+/** One page as either operation read it: the pager and the auto-refresh picker from its `pageInfo`, then the table. */
+function SoftwareDevicesPage({
+  rows,
+  filteredCount,
+  pageInfo,
+  refetch,
+  ...props
+}: SoftwareDevicesTableProps & {
+  rows: readonly SoftwareDeviceRow[];
+  filteredCount: number | null | undefined;
+  pageInfo: CursorPageInfo | null | undefined;
+  refetch: () => Promise<unknown>;
+}) {
+  const paged = usePagedTable({
+    pager: props.pager,
+    pageInfo,
+    rowCount: rows.length,
+    prefix: props.paramPrefix,
+    refetch,
+    isPending: props.isPending,
+  });
   return (
     <SoftwareDevicesTableRows
       {...props}
       rows={rows}
-      totalCount={totalCount}
+      totalCount={filteredCount ?? rows.length}
       pager={paged.pager}
       refresh={paged.refresh}
     />

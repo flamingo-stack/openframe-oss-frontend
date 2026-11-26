@@ -56,13 +56,17 @@ export { MANHATTAN_WORK_AREA_STORAGE_KEY } from '@/lib/navigation-sidebar-state'
 export const MANHATTAN_WORK_AREA_SQUEEZE_FLOOR = 0.3;
 
 /**
- * The column's composer: the lib's chat `<section>` loses the dock's max width and takes the
- * column's inset. Only that section, the outermost in the slot: Tailwind writes this as
- * `.slot section:not(.slot section section)`, so a section drawn inside the chat (the Getting
- * Started block above the composer) keeps its own padding. A bare `[&_section]` reached them all.
+ * The column's composer: the lib's chat `<section>` takes the column's inset in place of the dock's, and the
+ * composer card is at most 800px (Figma `chat/composer`, node 4368:13203), centred in the column, as it is under a
+ * page (CU-17tkuw69vdn). The section holds the column's inset (`spacing-system-lf`) and, inside it, the composer's
+ * own (`spacing-system-m`, from `content-md`), so its max width is the card's 800px plus both on each side. Below
+ * that width nothing changes: the card spans the column minus its inset. The thread above keeps the column's width.
+ * Only that section, the outermost in the slot: Tailwind writes this as `.slot section:not(.slot section section)`,
+ * so a section drawn inside the chat (the Getting Started block above the composer) keeps its own padding. A bare
+ * `[&_section]` reached them all.
  */
 const COLUMN_COMPOSER_SECTION =
-  '[&_section:not(&_section_section)]:max-w-none [&_section:not(&_section_section)]:px-[var(--spacing-system-lf)]';
+  '[&_section:not(&_section_section)]:max-w-[calc(800px+2*var(--spacing-system-lf)+2*var(--spacing-system-m))] [&_section:not(&_section_section)]:px-[var(--spacing-system-lf)]';
 
 /**
  * The Manhattan v2 centre: the chat column and the page column of
@@ -303,7 +307,7 @@ export function ManhattanCentre({
         wrapDock: dock => (
           <>
             <ManhattanComposerPortal>{dock}</ManhattanComposerPortal>
-            <ManhattanComposerSlot active={shown === 'page'} />
+            <ManhattanComposerSlot place="page" active={shown === 'page'} />
           </>
         ),
         // Start Work is a page of blocks ("Needs you"), not a centred greeting: the dock lies
@@ -389,8 +393,8 @@ function ManhattanChatColumn({
         data-testid="manhattan-chat-thread"
         className={cn('flex min-h-0 flex-1 flex-col', startWork && 'hidden')}
       />
-      {/* The composer spans the column (the dock's max width is for under a page), its ground
-          edge to edge and the composer inset in it. Over Start Work it floats: Start Work runs on
+      {/* The composer's ground spans the column edge to edge, and the composer card is inset in it
+          and 800px at most, centred (`COLUMN_COMPOSER_SECTION`). Over Start Work it floats: Start Work runs on
           under its ground and fades out above it. The width and inset go to the composer's own
           section only (the outermost in the slot), not to the sections drawn inside the chat
           above the composer: the Getting Started block took the column's 24px inset as its
@@ -400,7 +404,7 @@ function ManhattanChatColumn({
         data-testid="manhattan-column-dock"
         className={cn('shrink-0', startWork && 'pointer-events-none absolute inset-x-0 bottom-0 z-10')}
       >
-        <ManhattanComposerSlot active={shown} className={COLUMN_COMPOSER_SECTION} />
+        <ManhattanComposerSlot place="column" active={shown} className={COLUMN_COMPOSER_SECTION} />
       </div>
     </div>
   );

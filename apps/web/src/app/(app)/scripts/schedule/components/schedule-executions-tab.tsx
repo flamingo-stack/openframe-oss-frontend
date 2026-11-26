@@ -17,6 +17,7 @@ import {
   type UiExecution,
   useExecutionFacetOptions,
 } from '../../shared/components/executions-table';
+import { SCRIPTS_TABLE_SETTINGS } from '../../shared/utils/grid-columns';
 
 /** Design 1:48878 — the placeholder for a schedule that has never fired. */
 const EMPTY_STATE = {
@@ -105,7 +106,7 @@ export const ScheduleExecutionsTab = memo(function ScheduleExecutionsTabImpl({
   scheduleId,
 }: ScheduleExecutionsTabProps) {
   return (
-    <ExecutionsTabShell paging={PAGING}>
+    <ExecutionsTabShell paging={PAGING} tableSettings={SCRIPTS_TABLE_SETTINGS.scheduleExecutions}>
       {state => <ScheduleExecutionsContent scheduleId={scheduleId} state={state} />}
     </ExecutionsTabShell>
   );

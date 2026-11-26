@@ -2,6 +2,7 @@
 
 import {
   SOFTWARE_ACTION_COPY,
+  type SoftwareActionKind,
   type SoftwareRow,
   type SoftwareRunMode,
   type SoftwareUpdateSettingsValues,
@@ -16,7 +17,7 @@ import { fetchQuery, graphql, useMutation, useRelayEnvironment } from 'react-rel
 import type { useSoftwareActionSubmitActionQuery as ActionQueryType } from '@/__generated__/useSoftwareActionSubmitActionQuery.graphql';
 import type { useSoftwareActionSubmitMutation as SubmitMutationType } from '@/__generated__/useSoftwareActionSubmitMutation.graphql';
 import { toScheduleInstant } from '@/app/(app)/scripts/schedule/utils/schedule-timing';
-import type { ScheduleTimeReference, SoftwareAction } from '@/generated/schema-enums';
+import type { ScheduleTimeReference } from '@/generated/schema-enums';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { pluralize } from '@/lib/pluralize';
 import { routes } from '@/lib/routes';
@@ -87,7 +88,7 @@ interface SoftwareActionSubmit {
 
 /** The page's submit: validates what the server would reject anyway, then submits the draft. */
 export function useSoftwareActionSubmit(
-  action: SoftwareAction,
+  action: SoftwareActionKind,
   { onSubmitted }: SoftwareActionSubmitOptions,
 ): SoftwareActionSubmit {
   const copy = SOFTWARE_ACTION_COPY[action];

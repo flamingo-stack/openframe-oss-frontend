@@ -12,6 +12,7 @@ import {
   type DateRange,
   FilterModal,
   Input,
+  LoadingWhen,
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -39,6 +40,7 @@ import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
 import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { type TableLayout, tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { ScriptExecutionStatus } from '@/generated/schema-enums';
 import { scheduleRunsRelayQuery } from '@/graphql/scripts/schedule-runs-relay';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
@@ -46,6 +48,7 @@ import { formatDateTime } from '@/lib/format-date';
 import { PAGED_LISTS } from '@/lib/paged-lists';
 import { toInitiator } from '../../shared/components/initiator-identity';
 import { executionStatusLabel } from '../../shared/utils/execution-helpers';
+import { SCRIPTS_TABLE_SETTINGS } from '../../shared/utils/grid-columns';
 import {
   RUNS_PAGE_SIZE,
   runDetailsHref,
@@ -103,6 +106,17 @@ interface ContentProps {
   pageVariables: CursorPagerVariables;
   /** The URL prefix of the tab's params (its auto-refresh interval sits beside them). */
   paramPrefix: string;
+  /** The table's layout, from the app's one table flag: read once by the tab and handed to every form of the list. */
+  tableLayout: TableLayout;
+}
+
+/**
+ * The table's layout props, the same for the loaded table and its loading form. The tab is one section of the
+ * schedule's page, so the page scrolls and the grid table takes no height of its own; `LiveTable` passes the
+ * settings on only in the grid layout.
+ */
+function gridTableProps(tableLayout: TableLayout) {
+  return { layout: tableLayout, settings: SCRIPTS_TABLE_SETTINGS.scheduleRuns };
 }
 
 function ScheduleRunsContent({
@@ -121,6 +135,7 @@ function ScheduleRunsContent({
   pager,
   pageVariables,
   paramPrefix,
+  tableLayout,
 }: ContentProps) {
   // One page per request, its cursor in the URL (`runCursor`); the list pages back on the server.
   const retryKey = useRetryKey();
@@ -180,7 +195,7 @@ function ScheduleRunsContent({
     });
   }, [queryData.scheduleRuns?.edges]);
 
-  const columns = useScheduleRunColumns(statusOptions, dateFilter);
+  const columns = useScheduleRunColumns(statusOptions, dateFilter, tableLayout);
 
   // The SAME options the desktop column funnel gets — the server facet, not the
   // whole enum, so the mobile modal cannot offer a status these runs never
@@ -260,6 +275,7 @@ function ScheduleRunsContent({
         pageSize={RUNS_PAGE_SIZE}
         totalCount={queryData.scheduleRuns?.filteredCount ?? undefined}
         stickyHeaderOffset={stickyHeaderOffset}
+        {...gridTableProps(tableLayout)}
         showHeader={showHeader}
         emptyState={emptyState}
         rowHref={runDetailsHref}
@@ -316,6 +332,7 @@ function ScheduleRunsTableReader(props: ContentProps) {
         columns={SCHEDULE_RUN_LOADING_COLUMNS}
         pageSize={RUNS_PAGE_SIZE}
         stickyHeaderOffset={props.stickyHeaderOffset}
+        {...gridTableProps(props.tableLayout)}
       />
     );
   return <ScheduleRunsContent {...props} />;
@@ -333,6 +350,8 @@ function ScheduleRunsTableReader(props: ContentProps) {
  */
 export const ScheduleRunsTab = memo(function ScheduleRunsTabImpl({ scheduleId }: { scheduleId: string }) {
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
+  // The new grid table, behind the app's one table flag; card rows while it is off.
+  const tableGate = useTableGridGate();
   // Under the `run` prefix (see `PARAM_PREFIX`). A change to the search, the funnel or the calendar drops the pager's
   // cursor in the SAME URL write (one history entry on page 2+, so Back returns to the old view).
   const { params, setParam, setParams } = useApiParams(
@@ -465,23 +484,27 @@ export const ScheduleRunsTab = memo(function ScheduleRunsTabImpl({ scheduleId }:
           />
         </div>
       )}
-      <ScheduleRunsTable
-        scheduleId={scheduleId}
-        debouncedSearch={deferredSearch}
-        backendFilters={deferredVars.filter}
-        sort={deferredVars.sort}
-        isPending={isPending}
-        tableFilters={tableFilters}
-        dateFilter={dateFilter}
-        onFilterChange={handleFilterChange}
-        mobileFilterOpen={mobileFilterOpen}
-        onMobileFilterClose={() => setMobileFilterOpen(false)}
-        stickyHeaderOffset={stickyHeaderOffset}
-        onEmptyChange={setIsEmpty}
-        pager={pager}
-        pageVariables={deferredPage}
-        paramPrefix={PARAM_PREFIX}
-      />
+      {/* Until the flag answers the list is its loading form: a guess would draw one table and replace it. */}
+      <LoadingWhen loading={tableGate === 'loading'}>
+        <ScheduleRunsTable
+          scheduleId={scheduleId}
+          debouncedSearch={deferredSearch}
+          backendFilters={deferredVars.filter}
+          sort={deferredVars.sort}
+          isPending={isPending}
+          tableFilters={tableFilters}
+          dateFilter={dateFilter}
+          onFilterChange={handleFilterChange}
+          mobileFilterOpen={mobileFilterOpen}
+          onMobileFilterClose={() => setMobileFilterOpen(false)}
+          stickyHeaderOffset={stickyHeaderOffset}
+          onEmptyChange={setIsEmpty}
+          pager={pager}
+          pageVariables={deferredPage}
+          paramPrefix={PARAM_PREFIX}
+          tableLayout={tableLayoutFor(tableGate)}
+        />
+      </LoadingWhen>
     </div>
   );
 });

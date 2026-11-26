@@ -10,8 +10,6 @@ vi.mock('../token-refresh-manager', () => ({
 
 vi.mock('./meshcentral-config', () => ({
   buildWsUrl: (path: string) => `wss://mesh.test${path}`,
-  MESH_USER: '',
-  MESH_PASS: '',
 }));
 
 class FakeSocket {
@@ -184,6 +182,59 @@ describe('MeshControlClient tunnel requests', () => {
     authcookie(control());
 
     expect(control().tunnelRequests).toEqual([]);
+
+    ctrl.close();
+  });
+});
+
+describe('MeshControlClient control socket URL', () => {
+  beforeEach(() => {
+    FakeSocket.instances = [];
+    vi.stubGlobal('WebSocket', FakeSocket);
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('carries no MeshCentral credentials: the gateway signs the upstream handshake in', () => {
+    const ctrl = new MeshControlClient();
+    ctrl.openSession().catch(() => {});
+
+    const params = new URL(control().url).searchParams;
+    expect(params.has('user')).toBe(false);
+    expect(params.has('pass')).toBe(false);
+
+    ctrl.close();
+  });
+});
+
+describe('MeshControlClient auth cookie', () => {
+  beforeEach(() => {
+    FakeSocket.instances = [];
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', FakeSocket);
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('is not echoed back to the server as urlargs', async () => {
+    const ctrl = new MeshControlClient();
+    const session = ctrl.openSession();
+    control().open();
+    authcookie(control());
+    await vi.advanceTimersByTimeAsync(200);
+    await session;
+
+    const actions = control().sent.map(data => (typeof data === 'string' ? JSON.parse(data)?.action : null));
+    expect(actions).not.toContain('urlargs');
 
     ctrl.close();
   });

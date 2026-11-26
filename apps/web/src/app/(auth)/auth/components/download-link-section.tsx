@@ -11,7 +11,8 @@ import { useMutation } from '@tanstack/react-query';
 import { useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { authApiClient } from '@/lib/auth-api-client';
+import { authApiClient, getRecaptchaCheckedFailureMessage } from '@/lib/auth-api-client';
+import { RecaptchaNotice } from './recaptcha-notice';
 
 /**
  * Every word the page says. The form's are the marketing site's "Send me download link" dialog's,
@@ -62,12 +63,12 @@ export function DownloadLinkSection() {
         email,
         website: honeypotRef.current?.value ?? '',
       });
-      if (!response.ok) throw new Error(response.error);
+      if (!response.ok) throw new Error(getRecaptchaCheckedFailureMessage(response, DOWNLOAD_LINK_COPY.failedBody));
     },
-    onError: () => {
+    onError: error => {
       toast({
         title: DOWNLOAD_LINK_COPY.failedTitle,
-        description: DOWNLOAD_LINK_COPY.failedBody,
+        description: error.message,
         variant: 'destructive',
       });
     },
@@ -117,7 +118,10 @@ export function DownloadLinkSection() {
             <Button type="submit" variant="accent" fullWidth loading={request.isPending} disabled={request.isPending}>
               {DOWNLOAD_LINK_COPY.submit}
             </Button>
-            <p className="text-ods-text-secondary text-h6">{DOWNLOAD_LINK_COPY.consent}</p>
+            <div>
+              <p className="text-ods-text-secondary text-h6">{DOWNLOAD_LINK_COPY.consent}</p>
+              <RecaptchaNotice />
+            </div>
           </form>
         </>
       )}

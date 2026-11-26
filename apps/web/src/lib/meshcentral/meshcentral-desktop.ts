@@ -8,6 +8,7 @@ import {
   isSecureAttentionCombo,
   keyboardEventToVk,
 } from './meshcentral-keys';
+import { TileDrawQueue, type TileDrawer } from './meshcentral-tile-draw-queue';
 
 export interface DisplayInfo {
   id: number;
@@ -78,8 +79,7 @@ export class MeshDesktop implements DesktopInputHandlers {
   private tileQueue: Array<{ x: number; y: number; bytes: Uint8Array }> = [];
   private activeDecodes = 0;
   private readonly maxConcurrentDecodes = 3;
-  private drawQueue: Array<{ x: number; y: number; bitmap: ImageBitmap | HTMLImageElement; url?: string }> = [];
-  private drawScheduled = false;
+  private readonly drawQueue = new TileDrawQueue(() => this.tileDrawer());
 
   private displayList: DisplayInfo[] = [];
   /** The display the agent streams, as far as this side knows; null until the agent says. */
@@ -173,7 +173,7 @@ export class MeshDesktop implements DesktopInputHandlers {
     return new Promise(resolve => {
       const startedAt = Date.now();
       const check = () => {
-        const idle = this.tileQueue.length === 0 && this.activeDecodes === 0 && this.drawQueue.length === 0;
+        const idle = this.tileQueue.length === 0 && this.activeDecodes === 0 && this.drawQueue.size === 0;
         if (idle || this.stopped || Date.now() - startedAt >= timeoutMs) {
           resolve();
           return;
@@ -451,7 +451,7 @@ export class MeshDesktop implements DesktopInputHandlers {
     this.suppressedKeys.clear();
     this.stopped = true;
     this.tileQueue = [];
-    this.drawQueue = [];
+    this.drawQueue.clear();
     this.activeDecodes = 0;
     this.accum = null;
     this.accumOffset = 0;
@@ -965,7 +965,6 @@ export class MeshDesktop implements DesktopInputHandlers {
         bitmap = await createImageBitmap(blob);
         if (this.stopped || !bitmap) return;
         this.drawQueue.push({ x: task.x, y: task.y, bitmap });
-        this.scheduleDraw();
       } catch {
         const url = URL.createObjectURL(blob);
         const img = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -979,57 +978,23 @@ export class MeshDesktop implements DesktopInputHandlers {
           return;
         }
         this.drawQueue.push({ x: task.x, y: task.y, bitmap: img, url });
-        this.scheduleDraw();
       }
     } catch {
       // ignore
     }
   }
 
-  private scheduleDraw() {
-    if (this.drawScheduled) return;
-    this.drawScheduled = true;
-    requestAnimationFrame(() => {
-      this.drawScheduled = false;
-      const ctx = this.ctx;
-      if (this.stopped || !ctx) {
-        for (const it of this.drawQueue) {
-          if (it.url) URL.revokeObjectURL(it.url);
-        }
-        this.drawQueue = [];
-        return;
+  /** Draws a tile on the canvas; null once the session is stopped or has no canvas, so queued tiles are dropped. */
+  private tileDrawer(): TileDrawer | null {
+    const ctx = this.ctx;
+    if (this.stopped || !ctx) return null;
+    return tile => {
+      ctx.drawImage(tile.bitmap, tile.x, tile.y);
+      if (!this.firstFrameDrawn) {
+        this.firstFrameDrawn = true;
+        this.onFirstFrameCallback?.();
       }
-      // `ctx` is read once above: the field is nullable and cleared on teardown,
-      // and re-reading it per frame is what made the assertion look necessary.
-      for (;;) {
-        const it = this.drawQueue.shift();
-        if (!it) break;
-        try {
-          ctx.drawImage(it.bitmap, it.x, it.y);
-          if (!this.firstFrameDrawn) {
-            this.firstFrameDrawn = true;
-            this.onFirstFrameCallback?.();
-          }
-        } catch {
-          // A frame that fails to draw (a bitmap the GPU rejected, a canvas detached mid-teardown) is one lost frame in a video stream — the next one repaints over it.
-        }
-        // Only ImageBitmap has `close`; an HTMLImageElement is collected normally.
-        if (it.bitmap instanceof ImageBitmap) {
-          try {
-            it.bitmap.close();
-          } catch {
-            // Releasing a bitmap is a hint to the GC; a browser that refuses it just collects later.
-          }
-        }
-        if (it.url) {
-          try {
-            URL.revokeObjectURL(it.url);
-          } catch {
-            // Same for the object URL: failing to revoke leaks one blob until the tab closes, which is not worth interrupting the draw loop for.
-          }
-        }
-      }
-    });
+    };
   }
 
   private parseDisplayList(frame: Uint8Array) {

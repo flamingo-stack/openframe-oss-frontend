@@ -26,8 +26,7 @@ export function SoftwareListView({ title, emptyTitle, emptyDescription, loading 
     // boundary, so a thrown query keeps the title indented.
     <PageLayout title={title}>
       <SoftwareListFrame
-        pageSize={SOFTWARE_LIST_PAGE_SIZE}
-        pagedList="softwares"
+        paging={{ pageSize: SOFTWARE_LIST_PAGE_SIZE, list: 'softwares' }}
         placeholder="Search for Software"
         filterKeys={SOFTWARE_LIST_FILTER_KEYS}
         filterModal

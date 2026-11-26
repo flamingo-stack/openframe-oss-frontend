@@ -4,11 +4,17 @@ import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/compone
 import {
   EXECUTION_COLUMNS,
   ExecutionDeviceCell,
+  ExecutionDeviceGridCell,
   ExecutionInitiatorCell,
   ExecutionResultCell,
+  ExecutionResultGridCell,
+  ExecutionSourceBadge,
   ExecutionStatusCell,
+  ExecutionStatusGridCell,
   ExecutionTimestampCell,
+  ExecutionTimestampGridCell,
   getDeviceName,
+  OpenInNewTabCell,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
@@ -22,10 +28,12 @@ import {
   type AutoRefreshControlProps,
   Button,
   type ColumnDef,
+  type DataTableSettings,
   type DateFilterResult,
   type DateRange,
   FilterModal,
   Input,
+  LoadingWhen,
   type NoDataProps,
   type Row,
   useDataTable,
@@ -46,14 +54,14 @@ import type { executionFacets_filters$key as ExecutionFacetsKey } from '@/__gene
 import type { executionFields_execution$key as ExecutionFieldsKey } from '@/__generated__/executionFields_execution.graphql';
 import type { ScriptExecutionFilterInput, SortInput } from '@/__generated__/scriptExecutionsRelayQuery.graphql';
 import { ValueText } from '@/app/components/shared';
-import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
+import { dateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
 import { LiveTable } from '@/app/components/shared/live-table';
 import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
-import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { type TableLayout, tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { executionFacetsFragment } from '@/graphql/scripts/execution-facets';
 import { executionFieldsFragment } from '@/graphql/scripts/execution-fields';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
@@ -64,6 +72,7 @@ import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { executionOutput, executionStatusLabel } from '../utils/execution-helpers';
 import { type FacetOption, facetFilter, facetToSortedOptions } from '../utils/facet-options';
+import { scriptsLiveColumnMeta, scriptsLiveColumnSize } from '../utils/grid-columns';
 import { type Initiator, InitiatorAvatar, InitiatorName, toInitiator } from './initiator-identity';
 
 /**
@@ -244,6 +253,10 @@ interface ExecutionsTableBaseProps {
   onMobileFilterClose: () => void;
   /** See `ExecutionsTabState.onEmptyChange` — arrives with the shell's state. */
   onEmptyChange?: (empty: boolean) => void;
+  /** The table's layout — arrives with the shell's state. Default: card rows. */
+  tableLayout?: TableLayout;
+  /** The grid table's settings (the viewer's saved column layout) — arrives with the shell's state. */
+  tableSettings?: DataTableSettings;
 }
 
 /** How the table goes past its first page: a paged tab's footer, or the infinite scroll of a list narrowed on the client. */
@@ -296,31 +309,70 @@ function OpenExecutionButton({ executionId }: { executionId: string }) {
   );
 }
 
+/** The device and its customer on one line (the grid layout); the empty mark where the execution names no device. */
+function DeviceGridCell({ execution }: { execution: UiExecution }) {
+  const loading = useLoadingScope();
+  if (!loading && !execution.machineName) return <ValueText value={null} />;
+  return <ExecutionDeviceGridCell name={execution.machineName} organization={execution.organization} />;
+}
+
+/**
+ * "Executed by" on one line (the grid layout): the avatar, the name, the chip of what dispatched it and the script
+ * beside them. The name stays the link to that person's page, as in the card rows; the script's name is the part
+ * that gives way.
+ */
+function InitiatorGridCell({ execution }: { execution: UiExecution }) {
+  // A placeholder row (the table's loading form) has no initiator.
+  const initiator = execution.initiator ?? NO_INITIATOR;
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xsf)]">
+      <InitiatorAvatar initiator={initiator} size="sm" />
+      <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xxs)]">
+        <InitiatorName initiator={initiator} inRow />
+        <ExecutionSourceBadge source={execution.source} />
+        {execution.scriptName && (
+          <span className="min-w-0 flex-1 truncate text-ods-text-secondary text-h6">{execution.scriptName}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /**
  * The table's columns: the loaded table and its loading state draw the same ones. With no `facetOptions` (loading)
- * the filterable columns' funnels are pending and the Execution header's calendar is inert.
+ * the filterable columns' funnels are pending and the Execution header's calendar is inert. Each column also states
+ * what the grid layout reads: its width, its name in the settings menu and its one-line cell.
  */
 function executionColumns({
   facetOptions,
   dateFilter,
   renderRowActions,
+  layout,
 }: {
   facetOptions: ExecutionFacetOptions | null;
   dateFilter: TableDateFilter | null;
   renderRowActions: (execution: UiExecution) => ReactNode;
+  /** The table's layout: which of the two date headers the Execution column gets. Default: card rows. */
+  layout?: TableLayout;
 }): ColumnDef<UiExecution>[] {
+  // The cell's first line IS the dispatched timestamp, so the calendar (date range + newest/oldest first) belongs on
+  // this header rather than on a column of its own.
+  const date = dateColumnHeader(EXECUTION_COLUMNS.executionId.header, dateFilter ?? undefined, layout);
   return [
     {
       accessorKey: 'executionId',
-      // The cell's first line IS the dispatched timestamp, so the calendar
-      // (date range + newest/oldest first) belongs on this header rather than
-      // on a column of its own.
-      header: () => <DateColumnHeader label={EXECUTION_COLUMNS.executionId.header} filter={dateFilter ?? undefined} />,
+      header: date.header,
       cell: ({ row }: { row: Row<UiExecution> }) => (
         <ExecutionTimestampCell timestamp={row.original.timestamp} executionId={row.original.executionId} />
       ),
       enableSorting: false,
-      meta: liveColumnMeta(EXECUTION_COLUMNS.executionId),
+      ...scriptsLiveColumnSize(EXECUTION_COLUMNS.executionId),
+      meta: scriptsLiveColumnMeta(EXECUTION_COLUMNS.executionId, {
+        dateFilter: date.dateFilter,
+        gridCell: ({ row }: { row: Row<UiExecution> }) => (
+          <ExecutionTimestampGridCell timestamp={row.original.timestamp} executionId={row.original.executionId} />
+        ),
+      }),
     },
     {
       accessorKey: 'status',
@@ -328,7 +380,11 @@ function executionColumns({
       cell: ({ row }: { row: Row<UiExecution> }) => <ExecutionStatusCell status={row.original.status} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(EXECUTION_COLUMNS.status, { filter: facetFilter(facetOptions?.statusOptions) }),
+      ...scriptsLiveColumnSize(EXECUTION_COLUMNS.status),
+      meta: scriptsLiveColumnMeta(EXECUTION_COLUMNS.status, {
+        filter: facetFilter(facetOptions?.statusOptions),
+        gridCell: ({ row }: { row: Row<UiExecution> }) => <ExecutionStatusGridCell status={row.original.status} />,
+      }),
     },
     {
       // accessorKey is `machineId` so the filter option values (machineIds)
@@ -343,7 +399,11 @@ function executionColumns({
       ),
       enableSorting: false,
       filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(EXECUTION_COLUMNS.machineId, { filter: facetFilter(facetOptions?.machineOptions) }),
+      ...scriptsLiveColumnSize(EXECUTION_COLUMNS.machineId),
+      meta: scriptsLiveColumnMeta(EXECUTION_COLUMNS.machineId, {
+        filter: facetFilter(facetOptions?.machineOptions),
+        gridCell: ({ row }: { row: Row<UiExecution> }) => <DeviceGridCell execution={row.original} />,
+      }),
     },
     {
       // The column's value is the initiator's id so the filter option values (user ids)
@@ -367,7 +427,11 @@ function executionColumns({
       },
       enableSorting: false,
       filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(EXECUTION_COLUMNS.initiatorId, { filter: facetFilter(facetOptions?.initiatorOptions) }),
+      ...scriptsLiveColumnSize(EXECUTION_COLUMNS.initiatorId),
+      meta: scriptsLiveColumnMeta(EXECUTION_COLUMNS.initiatorId, {
+        filter: facetFilter(facetOptions?.initiatorOptions),
+        gridCell: ({ row }: { row: Row<UiExecution> }) => <InitiatorGridCell execution={row.original} />,
+      }),
     },
     {
       accessorKey: 'result',
@@ -376,7 +440,12 @@ function executionColumns({
         <ExecutionResultCell result={row.original.result} empty={<ValueText value={null} />} />
       ),
       enableSorting: false,
-      meta: liveColumnMeta(EXECUTION_COLUMNS.result),
+      ...scriptsLiveColumnSize(EXECUTION_COLUMNS.result),
+      meta: scriptsLiveColumnMeta(EXECUTION_COLUMNS.result, {
+        gridCell: ({ row }: { row: Row<UiExecution> }) => (
+          <ExecutionResultGridCell result={row.original.result} empty={<ValueText value={null} />} />
+        ),
+      }),
     },
     {
       id: 'actions',
@@ -386,13 +455,23 @@ function executionColumns({
         </div>
       ),
       enableSorting: false,
-      meta: liveColumnMeta(EXECUTION_COLUMNS.actions),
+      ...scriptsLiveColumnSize(EXECUTION_COLUMNS.actions),
+      meta: scriptsLiveColumnMeta(EXECUTION_COLUMNS.actions),
     },
     {
       id: 'open',
       cell: ({ row }: { row: Row<UiExecution> }) => <OpenExecutionButton executionId={row.original.id} />,
       enableSorting: false,
-      meta: liveColumnMeta(EXECUTION_COLUMNS.open),
+      ...scriptsLiveColumnSize(EXECUTION_COLUMNS.open),
+      meta: scriptsLiveColumnMeta(EXECUTION_COLUMNS.open, {
+        gridCell: ({ row }: { row: Row<UiExecution> }) => (
+          <OpenInNewTabCell
+            href={routes.scripts.execution(row.original.id)}
+            grid
+            label="Open execution details in new tab"
+          />
+        ),
+      }),
     },
   ];
 }
@@ -417,6 +496,8 @@ export function ExecutionsTable({
   mobileFilterOpen,
   onMobileFilterClose,
   onEmptyChange,
+  tableLayout,
+  tableSettings,
 }: ExecutionsTableProps) {
   const { toast } = useToast();
   const { statusOptions, machineOptions, initiatorOptions } = facetOptions;
@@ -453,8 +534,9 @@ export function ExecutionsTable({
         facetOptions: { statusOptions, machineOptions, initiatorOptions },
         dateFilter,
         renderRowActions,
+        layout: tableLayout,
       }),
-    [statusOptions, machineOptions, initiatorOptions, dateFilter, renderRowActions],
+    [statusOptions, machineOptions, initiatorOptions, dateFilter, renderRowActions, tableLayout],
   );
 
   const filterGroups = useMemo(
@@ -546,6 +628,10 @@ export function ExecutionsTable({
         pageSize={EXECUTIONS_PAGE_SIZE}
         totalCount={totalCount}
         stickyHeaderOffset={stickyHeaderOffset}
+        // The list is one section of a script's, a schedule's or a run's page: the page scrolls, so the grid table
+        // takes no height of its own.
+        layout={tableLayout}
+        settings={tableSettings}
         showHeader={showHeader}
         emptyState={resolvedEmptyState}
         rowHref={executionHref}
@@ -623,6 +709,13 @@ export interface ExecutionsTabState {
    * {@link ExecutionsTable}, which is what knows.
    */
   onEmptyChange: (empty: boolean) => void;
+  /**
+   * The table's layout, from the app's one table flag. The shell reads the flag ONCE and hands the layout to the
+   * loading table and, through this state, to {@link ExecutionsTable}: the two never draw different tables.
+   */
+  tableLayout: TableLayout;
+  /** The grid table's settings: the list's own storage key. Spread into {@link ExecutionsTable} with the layout. */
+  tableSettings?: DataTableSettings;
 }
 
 /**
@@ -661,7 +754,9 @@ interface ExecutionsQueryVars {
   sort: SortInput;
 }
 
-interface ExecutionsTabBodyProps<S extends Pick<ExecutionsTabState, 'stickyHeaderOffset'>> {
+interface ExecutionsTabBodyProps<
+  S extends Pick<ExecutionsTabState, 'stickyHeaderOffset' | 'tableLayout' | 'tableSettings'>,
+> {
   state: S;
   children: (state: S) => ReactNode;
 }
@@ -670,7 +765,9 @@ interface ExecutionsTabBodyProps<S extends Pick<ExecutionsTabState, 'stickyHeade
  * The tab's rows under its toolbar, with their own boundary: in its scope the reader draws the table's loading form.
  * The whole output of its own component (the loading standard); a paged tab draws it under its stale-cursor boundary.
  */
-function ExecutionsTabBody<S extends Pick<ExecutionsTabState, 'stickyHeaderOffset'>>(props: ExecutionsTabBodyProps<S>) {
+function ExecutionsTabBody<S extends Pick<ExecutionsTabState, 'stickyHeaderOffset' | 'tableLayout' | 'tableSettings'>>(
+  props: ExecutionsTabBodyProps<S>,
+) {
   return (
     <LoadingSuspense label="Loading executions">
       <ExecutionsTabBodyReader {...props} />
@@ -678,10 +775,9 @@ function ExecutionsTabBody<S extends Pick<ExecutionsTabState, 'stickyHeaderOffse
   );
 }
 
-function ExecutionsTabBodyReader<S extends Pick<ExecutionsTabState, 'stickyHeaderOffset'>>({
-  state,
-  children,
-}: ExecutionsTabBodyProps<S>) {
+function ExecutionsTabBodyReader<
+  S extends Pick<ExecutionsTabState, 'stickyHeaderOffset' | 'tableLayout' | 'tableSettings'>,
+>({ state, children }: ExecutionsTabBodyProps<S>) {
   // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
   if (useLoadingScope()) {
     return (
@@ -689,6 +785,8 @@ function ExecutionsTabBodyReader<S extends Pick<ExecutionsTabState, 'stickyHeade
         columns={LOADING_COLUMNS}
         pageSize={EXECUTIONS_PAGE_SIZE}
         stickyHeaderOffset={state.stickyHeaderOffset}
+        layout={state.tableLayout}
+        settings={state.tableSettings}
       />
     );
   }
@@ -785,6 +883,14 @@ function PagedExecutionsTabRows({
 type ExecutionsTabShellProps = {
   /** The search box's placeholder — the lists name their rows differently. */
   searchPlaceholder?: string;
+  /**
+   * The grid table's settings: the storage key the viewer's column layout is kept under. Each list names its own
+   * (`SCRIPTS_TABLE_SETTINGS`); lists that draw the same columns share one.
+   *
+   * Naming it is how a list takes part in the app's table flag: with it the list draws the grid table where the flag
+   * is on. A list that names none stays on card rows whatever the flag says.
+   */
+  tableSettings?: DataTableSettings;
 } & (
   | {
       /**
@@ -827,7 +933,7 @@ type ExecutionsTabShellProps = {
  * query wiring through `children`.
  */
 export function ExecutionsTabShell(props: ExecutionsTabShellProps) {
-  const { searchPlaceholder = 'Search for Executions' } = props;
+  const { searchPlaceholder = 'Search for Executions', tableSettings } = props;
   const prefix = props.paging?.prefix;
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
   // A paged tab keeps these under its prefix (`execSearch`, …), and a change to any of them drops the pager's cursor
@@ -848,6 +954,11 @@ export function ExecutionsTabShell(props: ExecutionsTabShellProps) {
     prefix === undefined ? {} : { prefix, resetKeys: CURSOR_PAGER_KEYS, resetHistory: 'push' },
   );
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  // The new grid table, behind the app's one table flag; card rows while it is off, and for a list that has not
+  // named its storage key (it has not moved to the grid).
+  const tableGate = useTableGridGate();
+  const followsTableFlag = tableSettings !== undefined;
+  const tableLayout = followsTableFlag ? tableLayoutFor(tableGate) : 'cards';
   // Set by the table below (the only thing that knows how many rows there are):
   // an un-narrowed empty list has nothing to search, so the toolbar goes away and
   // leaves the placeholder alone.
@@ -940,6 +1051,8 @@ export function ExecutionsTabShell(props: ExecutionsTabShellProps) {
     onMobileFilterClose: () => setMobileFilterOpen(false),
     stickyHeaderOffset,
     onEmptyChange: setIsEmpty,
+    tableLayout,
+    tableSettings,
   };
 
   return (
@@ -975,28 +1088,31 @@ export function ExecutionsTabShell(props: ExecutionsTabShellProps) {
           />
         </div>
       )}
-      {props.paging ? (
-        <PagedExecutionsTabRows
-          queryVars={queryVars}
-          // The URL's search, not the box's debounced value: the URL write that carries a new search drops the cursor
-          // in the same navigation, so the two can never meet in one request (the box runs one commit ahead).
-          search={params.search}
-          controls={controls}
-          paging={props.paging}
-          resetOn={JSON.stringify(params)}
-        >
-          {props.children}
-        </PagedExecutionsTabRows>
-      ) : (
-        <ExecutionsTabRows
-          queryVars={queryVars}
-          search={debouncedSearch}
-          controls={controls}
-          clientSearch={props.clientSearch ?? false}
-        >
-          {props.children}
-        </ExecutionsTabRows>
-      )}
+      {/* Until the flag answers the list is its loading form: a guess would draw one table and replace it. */}
+      <LoadingWhen loading={followsTableFlag && tableGate === 'loading'}>
+        {props.paging ? (
+          <PagedExecutionsTabRows
+            queryVars={queryVars}
+            // The URL's search, not the box's debounced value: the URL write that carries a new search drops the cursor
+            // in the same navigation, so the two can never meet in one request (the box runs one commit ahead).
+            search={params.search}
+            controls={controls}
+            paging={props.paging}
+            resetOn={JSON.stringify(params)}
+          >
+            {props.children}
+          </PagedExecutionsTabRows>
+        ) : (
+          <ExecutionsTabRows
+            queryVars={queryVars}
+            search={debouncedSearch}
+            controls={controls}
+            clientSearch={props.clientSearch ?? false}
+          >
+            {props.children}
+          </ExecutionsTabRows>
+        )}
+      </LoadingWhen>
     </div>
   );
 }

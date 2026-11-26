@@ -15,6 +15,8 @@ const SOFTWARE_LIST_COLUMNS = {
   engine: { id: 'engine', header: 'Engine', width: 'flex-1 min-w-0', hideAt: 'lg' },
   // Wide enough for its funnel beside the result count, which the table draws over the row's end.
   autoUpdate: { id: 'autoUpdate', header: 'Auto-update', width: 'w-[160px]', hideAt: 'md' },
+  // With Adopt on (`useSoftwareAdoptGate`): the devices Adopt would reach. Not sortable, the API has no order by it.
+  adoption: { id: 'adoption', header: 'Adoption', width: 'w-[96px]', hideAt: 'lg' },
   open: { id: 'open', width: 'w-12 shrink-0 flex-none', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;
 
