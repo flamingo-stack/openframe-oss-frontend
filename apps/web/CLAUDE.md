@@ -423,7 +423,7 @@ src/
 │                          #   app-layout.tsx = AppShell, mingo-shell/ = Mingo-first shell UI)
 ├── components/            # Root-level shared (route-guard, feature-flags-loader, assignments/)
 ├── stores/                # Zustand stores (feature-flags-store, devices-store [mostly unused])
-├── graphql/               # Relay operations by domain (notifications/, scripts/, time-tracker/)
+├── graphql/               # LEGACY, frozen: Relay operations parked by domain; never extend, move them to their readers
 ├── __generated__/         # Relay artifacts (owned by relay-compiler — never import enums from here)
 ├── generated/             # schema-enums.ts (from npm run generate-enums)
 ├── lib/                   # Utilities & config
@@ -741,7 +741,16 @@ Rules for anything automatic (heartbeats, registrations, telemetry, hydrators):
 - **Custom scalars are typed through `customScalarTypes` in `relay.config.json` and owned by `src/lib/graphql-scalars.ts`.** `Instant` and `Date` are branded strings (`Instant`, `LocalDate`), `Long` is `number`, `JSON` is `unknown`; `requireCustomScalarTypes` makes a new scalar without a mapping a compile error. Read an `Instant` through `parseInstant` / the `format-date` formatters (Java prints up to nine fraction digits; `Date` reads three), a `Date` through `parseLocalDate` (a local day; `new Date('yyyy-MM-dd')` would put it at UTC midnight), and build an `Instant` through `toInstant(date)` / `asInstant(string)` — never `new Date(x).toISOString()` into a variable, never `String(x)` out of a fragment. A hand-written type that mirrors a wire field carries the scalar type, not `string` or `unknown`.
 - **Enum types come from `@/generated/schema-enums`, NEVER from a query's Relay artifact.** `src/generated/schema-enums.ts` is generated from `schema.graphql` by `npm run generate-enums` (Prisma-style: the same name is both a `const` value and a `type`, so `ScriptShell.CMD` and `const s: ScriptShell` both work). Do NOT `import type { ScriptShell } from '@/__generated__/<someQuery>.graphql'` — relay-compiler owns `src/__generated__/`, re-emits per-operation copies, and prunes them, so those imports are unstable. Refresh the SDL with `npm run fetch-schema`, then `npm run generate-enums`.
 
-**Reference implementations** (notifications domain, fully on Relay):
+**`src/graphql/` is frozen, and we are removing it.** Never add a file there. A query lives in the
+component that runs it, a fragment beside the component or `@inline` reader that reads it, a mutation
+in the hook that owns the action (Checks: `monitoring/checks/utils/check-transform.ts`,
+`components/check-page-view.tsx`, `hooks/use-check-mutations.ts`). An operation you touch in
+`src/graphql/` moves to its reader in the same change. Why: `relay/unused-fields` judges each file on
+its own, so an operation parked away from its reader hides over-fetching. Check with the full
+`npx eslint <dir>`: `lint:ci` drops that rule, and `src/graphql/**` is exempt from
+`relay/must-colocate-fragment-spreads`.
+
+**Reference implementations** (notifications domain, fully on Relay; its operations still sit in the old `src/graphql/` layout):
 - `src/graphql/notifications/` — query/fragment/mutation definitions, connection updaters via `ConnectionHandler`
 - `src/app/components/notifications/notifications-data-provider.tsx` — `useLazyLoadQuery`, `usePaginationFragment`, `commitLocalUpdate` for NATS live updates
 - `src/graphql/notifications/unread-counts-relay.ts` — small query + `fetchQuery` store refresh pattern
@@ -775,7 +784,7 @@ renders an empty column instead of failing to compile. Declare the selection onc
 `@inline` fragment, spread it in every operation, and read it in the plain function:
 
 ```typescript
-// src/graphql/<domain>/<thing>-fields.ts
+// <module>/utils/<thing>-transform.ts: the fragment beside the function that reads it
 export const executionFieldsFragment = graphql`
   fragment executionFields_execution on ScriptExecution @inline { id status source … }
 `;
@@ -804,9 +813,10 @@ export function toUiExecution(ref: executionFields_execution$key): UiExecution {
 - **Non-Relay callers** (legacy raw-POST paths) have no fragment reference: give them
   `Omit<someFragment$data, ' $fragmentType'>` plus a mapper taking that data, so they are
   type-checked against the generated shape instead of casting through `unknown`.
-- Reference: `src/graphql/devices/device-{row,selector,}-fields.ts` +
-  `devices/utils/device-transform.ts`; `src/graphql/scripts/execution-fields.ts`;
-  `src/graphql/notifications/notification-fields.ts`.
+- Reference: `monitoring/checks/utils/check-transform.ts` (fragments beside their readers). The
+  older ladders still sit in `src/graphql/` (`devices/device-{row,selector,}-fields.ts` +
+  `devices/utils/device-transform.ts`, `scripts/execution-fields.ts`,
+  `notifications/notification-fields.ts`) until they move.
 
 **Backticks end a `graphql` template literal.** Never write a backticked word inside a GraphQL
 `#` comment — the template closes there and relay-compiler reports a bogus syntax error at 1:1.
