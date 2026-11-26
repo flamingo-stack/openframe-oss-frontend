@@ -2,7 +2,6 @@ fn main() {
     // The shared auth host is baked in via option_env!; without this, changing
     // it would not invalidate the cached build and the old host would ship.
     println!("cargo:rerun-if-env-changed=OPENFRAME_SHARED_HOST_URL");
-    println!("cargo:rerun-if-env-changed=OPENFRAME_GTM_CONTAINER_ID");
     // Declaring the app's commands is what puts them under the ACL: without a
     // manifest Tauri lets any local page call any of them, and capabilities/main.json
     // only governs core and plugin commands. A new command goes here and, if the page

@@ -126,13 +126,6 @@ const LOGIN_INCOMPLETE_ERROR: &str = "LOGIN_INCOMPLETE";
 /// gateway without a rebuild.
 const DEFAULT_SHARED_HOST: Option<&str> = option_env!("OPENFRAME_SHARED_HOST_URL");
 
-/// GTM container, set at compile time like the shared host. GTM is what loads
-/// PostHog (the web app bundles no SDK), so a build without it sends no analytics.
-/// It is the web app's container, so a tag added there runs here too: the CSP keeps
-/// its remote scripts out, but an inline tag can call this shell's commands.
-/// [`gtm_container`] decides whether an install gets it.
-const GTM_CONTAINER_ID: Option<&str> = option_env!("OPENFRAME_GTM_CONTAINER_ID");
-
 static WINDOW_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 /// Emitted to the main window each time it comes back in front of the user
@@ -410,25 +403,6 @@ pub(crate) fn tenant_host(cfg: &AppConfig) -> Option<String> {
         .map(str::to_string)
 }
 
-/// The GTM container this install may load: none unless it is on the shared host
-/// the binary was built for. One release serves every environment, and an install
-/// reaches stage or QA through `shared_host` in config.json, so the build cannot tell
-/// them apart and their test traffic would land in production analytics.
-fn gtm_container<'a>(
-    shared_host: Option<&str>,
-    built_for: Option<&str>,
-    container: Option<&'a str>,
-) -> &'a str {
-    let origin = |host: Option<&str>| {
-        host.and_then(|host| url::Url::parse(host).ok())
-            .map(|url| url.origin())
-    };
-    match (origin(shared_host), origin(built_for), container) {
-        (Some(host), Some(built_for), Some(container)) if host == built_for => container,
-        _ => "",
-    }
-}
-
 /// RFC 3986 unreserved set. Anything the shell interpolates into a URL — an id
 /// into a path, a bearer into a query — is escaped against this, so a value can
 /// never smuggle in a path or a parameter of its own.
@@ -621,8 +595,6 @@ fn env_init_script(app: &AppHandle) -> String {
         "NEXT_PUBLIC_SHARED_HOST_URL": shared.as_deref().unwrap_or_default(),
         "NEXT_PUBLIC_APP_MODE": "saas-tenant",
         "NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER": "true",
-        "NEXT_PUBLIC_GTM_CONTAINER_ID":
-            gtm_container(shared.as_deref(), DEFAULT_SHARED_HOST, GTM_CONTAINER_ID),
     });
     format!(
         r#"window.__ENV = {env};
@@ -2082,7 +2054,7 @@ mod tests {
     /// and then every inline script of the export is blocked: a blank page. So Tauri
     /// must not touch `script-src` while it admits inline script.
     #[test]
-    fn the_csp_keeps_its_allowlist_and_tauri_leaves_it_alone() {
+    fn the_csp_admits_no_remote_script_and_tauri_leaves_it_alone() {
         let conf: serde_json::Value =
             serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
         let security = &conf["app"]["security"];
@@ -2096,12 +2068,14 @@ mod tests {
                     .any(|source| source == "https:"),
                 "{script_src}"
             );
-            for host in [
-                "https://www.googletagmanager.com",
-                "https://us-assets.i.posthog.com",
-            ] {
-                assert!(script_src.contains(host), "{script_src}");
-            }
+            // No third-party tag loads in the app (CU-17tkuw6abhg): an inline script can
+            // call this shell's commands, so the page runs only the bundle's own code.
+            assert!(
+                !script_src
+                    .split_whitespace()
+                    .any(|source| source.starts_with("https://")),
+                "{script_src}"
+            );
         }
         let untouched = security["dangerousDisableAssetCspModification"]
             .as_array()
@@ -2291,44 +2265,5 @@ mod tests {
         assert!(!on_read_only_mount(&std::env::temp_dir()));
         assert!(!on_read_only_mount(std::path::Path::new("/Applications")));
         assert!(!on_read_only_mount(std::path::Path::new("/no/such/path")));
-    }
-
-    const BUILT_FOR: Option<&str> = Some("https://openframe.ai");
-    const CONTAINER: Option<&str> = Some("GTM-TEST");
-
-    #[test]
-    fn an_install_on_the_host_it_was_built_for_gets_the_container() {
-        assert_eq!(gtm_container(BUILT_FOR, BUILT_FOR, CONTAINER), "GTM-TEST");
-        for spelling in ["https://openframe.ai/", "HTTPS://OpenFrame.AI:443"] {
-            assert_eq!(
-                gtm_container(Some(spelling), BUILT_FOR, CONTAINER),
-                "GTM-TEST",
-                "{spelling}"
-            );
-        }
-    }
-
-    #[test]
-    fn an_install_pointed_at_another_environment_gets_no_container() {
-        for host in [
-            "https://openframe.miami",
-            "https://qa.openframe.build",
-            "https://dev.openframe.build",
-            "https://openframe.ai.example.com",
-        ] {
-            assert_eq!(
-                gtm_container(Some(host), BUILT_FOR, CONTAINER),
-                "",
-                "{host}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_build_without_a_container_or_a_host_injects_nothing() {
-        assert_eq!(gtm_container(BUILT_FOR, BUILT_FOR, None), "");
-        assert_eq!(gtm_container(BUILT_FOR, BUILT_FOR, Some("")), "");
-        assert_eq!(gtm_container(BUILT_FOR, None, CONTAINER), "");
-        assert_eq!(gtm_container(None, BUILT_FOR, CONTAINER), "");
     }
 }

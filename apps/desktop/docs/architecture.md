@@ -49,28 +49,19 @@ Every window hosting bundle content gets a Tauri initialization script
 (`env_init_script`), which runs before any page script and supplies what the SSR
 server would have:
 
-- `window.__ENV` — `NEXT_PUBLIC_SHARED_HOST_URL`, `NEXT_PUBLIC_APP_MODE`, the
-  dev-ticket observer flag, and `NEXT_PUBLIC_GTM_CONTAINER_ID`. This is what
+- `window.__ENV` — `NEXT_PUBLIC_SHARED_HOST_URL`, `NEXT_PUBLIC_APP_MODE` and the
+  dev-ticket observer flag. This is what
   `next-runtime-env` reads; export builds omit `<PublicEnvScript />`.
   `release.yml` and `scripts/build-web.sh` prerender the export in the same
   `NEXT_PUBLIC_APP_MODE` (`saas-tenant`), so a change of mode changes all three.
   `NEXT_PUBLIC_TENANT_HOST_URL` is deliberately **absent**, so the frontend falls
   through to the tenant host learned at login.
 
-  The GTM id is baked in from `OPENFRAME_GTM_CONTAINER_ID`; GTM is what loads
-  PostHog, so a build without it sends no analytics. It is the web app's container.
-  Only release builds carry it, and the shell injects it only on the shared host the
-  build was made for: one release serves every environment, and an install pointed
-  at stage or QA must stay out of production analytics. A tag added to that container
-  runs here too: the CSP keeps its remote scripts out, but an inline tag can call the
-  shell's commands.
-
-  Page URLs on events, recordings and heatmaps report the tenant's origin rather than
-  `tauri://localhost`, or the shared host when not signed in
-  (`desktop-tenant-urls.ts` in `apps/web`, PostHog's `before_send`).
-  `app_platform: desktop` on the session's events is what tells them from the web's:
-  a recording's own batches carry no super properties. Links and images inside a
-  replayed page keep the bundle origin.
+  No GTM id, and no analytics (CU-17tkuw6abhg). The web app's container loads GA4,
+  PostHog with session recording, surveys and dead-click capture, and a pixel tag on
+  every page view, all held in the app's one long-lived page, and any inline tag added
+  to the container could call the shell's commands. `GoogleTagManager` in
+  `apps/web` renders nothing in the desktop shell as well.
 - **`window.__OPENFRAME_SHELL__.nativeAuth`** — the auth bridge, backed by the
   `native_auth_*` Tauri commands. Its method names match openframe-mobile's
   `NativeAuthPlugin`, so the frontend keeps one interface with two
@@ -253,8 +244,8 @@ install - and it writes the command itself.
 ## Security model
 
 The threat this section is written against is a script running in the document:
-an XSS, or a third-party tag, and the webview's CSP admits both GTM and inline
-script on purpose (PostHog runs through GTM's Custom HTML tags). Such a script runs
+an XSS, or a script the page was tricked into loading, and the webview's CSP admits
+inline script (the static export inlines its own). Such a script runs
 with the document's origin (`tauri://localhost`), so nothing here can tell it from
 our own code. Assume one runs. What protects the machine and the session is what the
 shell itself refuses.
@@ -277,20 +268,18 @@ shell itself refuses.
 refresh token through the bridge, point the shell at a host outside the shared host's
 zone, or call a command the capability does not grant.
 
-- **CSP.** `tauri.conf.json`. It limits which remote hosts can serve a `<script
-  src>` (`www.googletagmanager.com`, `us-assets.i.posthog.com`) and blocks `eval`.
-  **It does not stop injected code.** `script-src` has `'unsafe-inline'`, which GTM's
-  Custom HTML tags need, so an injected inline script runs, and since `connect-src`
-  takes any `https:` it can fetch code from any host and run that inline too. The
-  allowlist keeps a Meta or Reddit tag added to the container from loading its
-  remote script. It is not a boundary against a script already running.
+- **CSP.** `tauri.conf.json`. `script-src` admits no remote host, so no `<script
+  src>` loads from outside the bundle, and it blocks `eval`. **It does not stop
+  injected code.** `script-src` has `'unsafe-inline'`, which the export's inline
+  scripts need, so an injected inline script runs, and since `connect-src` takes any
+  `https:` it can fetch code from any host and run that inline too. It is not a
+  boundary against a script already running.
   - Tauri's asset modification is off for `script-src` and `style-src`
     (`dangerousDisableAssetCspModification`). A hash or a nonce in a directive makes
     browsers ignore `'unsafe-inline'` there, and Tauri would add both. With hashes on,
     every inline script of the export but the ones it hashed is blocked; a test holds
     this setting in place.
-  - No `'unsafe-eval'`, and no bare `https:` in `script-src`. A new remote script
-    host has to be added here on purpose, in `csp` and `devCsp`.
+  - No `'unsafe-eval'`, and no remote host in `script-src`; a test holds both.
   - `connect-src`, `img-src`, `media-src` and `frame-src` take any `https:`, since
     tenants, presigned storage URLs, Mux and embeds are not a list this shell can know
     at build time. A script that runs can send what it can read anywhere.

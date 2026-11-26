@@ -9,7 +9,11 @@ import {
   ModelDisplay,
   NotFoundError,
 } from '@flamingo-stack/openframe-frontend-core';
-import { type ChatMessage, OPENFRAME_RECORD_KIND } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import {
+  type ChatMessage,
+  emailEnvelopeOf,
+  OPENFRAME_RECORD_KIND,
+} from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { isCompactingTail, ticketReceiptMessage } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { getDeviceName, useOptionalTimeTracker } from '@flamingo-stack/openframe-frontend-core/components/features';
@@ -63,7 +67,9 @@ import { useDeviceActionsMenu } from '../../devices/hooks/use-device-actions-men
 import { useDeviceDetails } from '../../devices/hooks/use-device-details';
 import { WATCH_LIVE_ITEM_ID } from '../../devices/utils/device-menu-items';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
-import { ASSISTANT_CONFIG, CHAT_TYPE } from '../constants';
+import { ASSISTANT_CONFIG, CHAT_TYPE, CREATION_SOURCE } from '../constants';
+import { EmailReplyComposer } from '../email/email-reply-composer';
+import { useTicketEmailSide } from '../email/use-ticket-email-side';
 import { useAssignTicket } from '../hooks/use-assign-ticket';
 import { useAssigneeOptions } from '../hooks/use-assignee-options';
 import { useDirectChat } from '../hooks/use-direct-chat';
@@ -159,6 +165,10 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     error: dialogError,
     refetch: refetchTicket,
   } = useTicketDetail(ticketId);
+  // The ticket's email side (email-to-ticket): its rows, its matched person and where a reply can go.
+  const emailSide = useTicketEmailSide(ticketId, {
+    closed: dialog?.statusKind === TICKET_STATUS_KIND.RESOLVED || dialog?.statusKind === TICKET_STATUS_KIND.ARCHIVED,
+  });
 
   // Register the open ticket as the Mingo "open view" so it rides on the sidebar
   // chat's context. `dialog.id` is the raw db id the backend TICKET resolver /
@@ -243,8 +253,9 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     }));
   }, [dialog, currentUser]);
 
-  // The URL param is the ticket ID; messages belong to the linked dialog
-  const messageDialogId = dialog?.dialogId ?? null;
+  // The URL param is the ticket ID; messages belong to the linked dialog. Held until the email-to-ticket flag answers:
+  // the history's first page asks for emails as emails only where the backend has them.
+  const messageDialogId = emailSide.gate === 'loading' ? null : (dialog?.dialogId ?? null);
 
   const transitionTicket = useTransitionTicket();
   // Target-status kinds, to recognize a resolve at click time (availableTransitions
@@ -286,6 +297,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   );
 
   const clientDisplayName = ticketDeviceName || undefined;
+  const { requesterName } = emailSide;
 
   const { config: orgAiConfig } = useOrganizationClientAiConfig(dialog?.organizationId ?? '', {
     enabled: !!dialog?.organizationId,
@@ -317,6 +329,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     baselineModel: orgClientModel,
     modelsByProvider,
     onApprovalAnswered: refetchDialog,
+    email: emailSide.gate === 'on',
   });
   const clientMessages = clientChat.messages;
   const isClientChatTyping = clientChat.streamingPhase !== 'idle';
@@ -408,12 +421,15 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
           metadata: { ...msg.metadata, author: { ...author, name: technicianName, authorType: 'admin' } },
         };
       }
-      const name = author?.authorType === 'user' && clientDisplayName ? clientDisplayName : undefined;
+      // An email names its own sender. A chat message from the end user is named by the person the email ticket was
+      // matched to (Figma tickets 8036-36560), else by their device.
+      const endUserName = requesterName || clientDisplayName;
+      const name = author?.authorType === 'user' && endUserName && !emailEnvelopeOf(msg) ? endUserName : undefined;
       const shown = name ?? (msg.role === 'assistant' ? assistantName : undefined);
       const named = shown ? { ...msg, metadata: { ...msg.metadata, author: { ...author, name: shown } } } : msg;
       return withAssistantAvatar(named, assistantAvatar);
     },
-    [clientDisplayName, assistantName, assistantAvatar, technicianName],
+    [requesterName, clientDisplayName, assistantName, assistantAvatar, technicianName],
   );
 
   // The receipt a ticket made by a form opens with: the lib's one copy, the Fae client's too. One object per what it
@@ -520,7 +536,9 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const isArchived = dialog?.statusKind === TICKET_STATUS_KIND.ARCHIVED;
   const isClosed = isResolved || isArchived;
   const clientTokenUsage = dialog?.tokenUsage?.find(t => t.chatType === CHAT_TYPE.CLIENT);
-  const showTokenMemory = !isClosed;
+  // A ticket from email never runs the assistant (contract part C: no AI Handling), so it has no model to show.
+  const isFromEmail = dialog?.creationSource === CREATION_SOURCE.EMAIL;
+  const showTokenMemory = !isClosed && !isFromEmail;
 
   // The status tag is an inline changer driven by the ticket's available
   // transitions. resolveStatusTagProps applies the
@@ -589,6 +607,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         href: machineId ? routes.devices.details(machineId) : undefined,
       },
     },
+    ...emailSide.rows.person,
     {
       id: 'assigned',
       label: 'Assigned',
@@ -615,6 +634,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
       label: 'Created',
       value: { text: dialog ? formatDateTime(dialog.createdAt) : EMPTY_VALUE },
     },
+    ...emailSide.rows.origin,
     {
       id: 'status',
       label: 'Status',
@@ -753,18 +773,28 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         </div>
       )}
       {/* The composer: part of the typical ticket, so it is drawn (locked) while the ticket loads. */}
-      {(loading || (!isClosed && isDirectMode)) && (
-        <ChatInput
-          appearance={clientChatAppearance}
-          placeholder="Enter your Message..."
-          disabled={loading}
-          disabledPlaceholder="Enter your Message..."
-          onSend={text => void clientChat.sendMessage(text)}
-          sending={clientChat.isLoading || isClientChatTyping || isClientCompacting}
-          autoFocus={false}
-          className="mt-[var(--spacing-system-xsf)] !max-w-full rounded-lg bg-ods-card"
-        />
-      )}
+      {(loading || (!isClosed && isDirectMode)) &&
+        (emailSide.gate === 'on' ? (
+          <EmailReplyComposer
+            channels={emailSide.replyChannels}
+            loading={loading}
+            appearance={clientChatAppearance}
+            onSend={text => void clientChat.sendMessage(text)}
+            sending={clientChat.isLoading || isClientChatTyping || isClientCompacting}
+          />
+        ) : (
+          <ChatInput
+            appearance={clientChatAppearance}
+            placeholder="Enter your Message..."
+            // Locked until the email-to-ticket flag answers too: whether a reply line heads it is decided then.
+            disabled={loading || emailSide.gate === 'loading'}
+            disabledPlaceholder="Enter your Message..."
+            onSend={text => void clientChat.sendMessage(text)}
+            sending={clientChat.isLoading || isClientChatTyping || isClientCompacting}
+            autoFocus={false}
+            className="mt-[var(--spacing-system-xsf)] !max-w-full rounded-lg bg-ods-card"
+          />
+        ))}
       {/* The model row's place is kept while the ticket loads (an open ticket shows it); the row draws its own
           skeleton in the loading scope. */}
       {(loading || (showTokenMemory && (displayClientModel || clientTokenUsage))) && (

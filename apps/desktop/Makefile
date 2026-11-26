@@ -29,11 +29,6 @@ NPM ?= npm
 OPENFRAME_SHARED_HOST_URL ?=
 export OPENFRAME_SHARED_HOST_URL
 
-# The web app's GTM container baked into the binary, which is how PostHog reaches
-# the app. Unset (local builds) means no GTM and no analytics.
-OPENFRAME_GTM_CONTAINER_ID ?=
-export OPENFRAME_GTM_CONTAINER_ID
-
 # Checked at parse time so a shippable build fails before the minutes-long
 # frontend export or Rust build, not after. Same guard as openframe-mobile's
 # inject-env.mjs: without it the bundle renders and then 401s every call.

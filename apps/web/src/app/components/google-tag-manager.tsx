@@ -2,7 +2,7 @@
 
 import Script from 'next/script';
 import { useEffect } from 'react';
-import { queueDesktopPostHogSetup } from '@/lib/posthog/posthog-events';
+import { isDesktopShell } from '@/lib/platform';
 import { runtimeEnv } from '@/lib/runtime-config';
 
 interface GoogleTagManagerProps {
@@ -14,8 +14,13 @@ interface GoogleTagManagerProps {
   noscriptFallback: boolean;
 }
 
+/**
+ * Never in the desktop app (CU-17tkuw6abhg). The container loads GA4, PostHog with session recording,
+ * surveys and dead-click capture, and a pixel tag on every page view, all of it held in the app's one
+ * long-lived page. The shell injects no id either.
+ */
 export function GoogleTagManager({ containerId, noscriptFallback }: GoogleTagManagerProps) {
-  const id = containerId || runtimeEnv.gtmContainerId();
+  const id = isDesktopShell() ? undefined : containerId || runtimeEnv.gtmContainerId();
 
   useEffect(() => {
     if (!id) return;
@@ -23,7 +28,6 @@ export function GoogleTagManager({ containerId, noscriptFallback }: GoogleTagMan
     // exists before the tag script loads.
     const w = window as unknown as { dataLayer?: unknown[] };
     w.dataLayer = w.dataLayer || [];
-    queueDesktopPostHogSetup();
   }, [id]);
 
   if (!id) return null;

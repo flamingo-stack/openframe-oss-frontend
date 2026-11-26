@@ -15,7 +15,7 @@ import { useAssigneeOptions } from '@/app/(app)/tickets/hooks/use-assignee-optio
 import { type AvatarOption, useOrganizationOptions } from '@/app/(app)/tickets/hooks/use-ticket-options';
 import { useTicketStatusesQuery } from '@/app/(app)/tickets/statuses/hooks/use-ticket-statuses-query';
 import { TICKET_STATUS_KIND } from '@/app/(app)/tickets/utils/ticket-statistics';
-import type { MailboxDefaultsFormData, StoredDefaultOptions } from './mailbox-defaults';
+import { type MailboxDefaultsFormData, type StoredDefaultOptions, statusPickerId } from './mailbox-defaults';
 
 /** A list page holds one page of options: the stored value is pinned in so it keeps its label. */
 function withOption<T extends { value: string }>(options: T[], pinned: T | null): T[] {
@@ -55,15 +55,16 @@ export function MailboxDefaultsFields({ control, setValue, disabled = false, sto
       withOption(
         (statusesQuery.data?.snapshot ?? [])
           .filter(status => !status.isSystem || status.kind === TICKET_STATUS_KIND.TECH_REQUIRED)
-          .map(status => ({ label: status.name, value: status.id, color: status.color })),
+          .map(status => ({ label: status.name, value: statusPickerId(status.id), color: status.color })),
         stored?.status ?? null,
       ),
     [statusesQuery.data, stored],
   );
   // Not set reads as Tech Required on the server: the picker says so instead of a blank field.
-  const techRequiredId = statusesQuery.data?.systemStatuses.find(
+  const techRequiredStatus = statusesQuery.data?.systemStatuses.find(
     status => status.kind === TICKET_STATUS_KIND.TECH_REQUIRED,
-  )?.id;
+  );
+  const techRequiredId = techRequiredStatus ? statusPickerId(techRequiredStatus.id) : undefined;
   const statusId = useWatch({ control, name: 'defaultStatusId' });
   useEffect(() => {
     if (!statusId && techRequiredId) setValue('defaultStatusId', techRequiredId);
