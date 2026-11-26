@@ -1986,6 +1986,13 @@ type Machine implements Node & AssignableTarget {
   """
   packageManagers: MachinePackageManagers
 
+  """
+  One entry per package manager the platform knows (BREW, CHOCO, WINGET): its reported state and version, when that
+  version arrived, whether OpenFrame runs it on this device and whether OpenFrame is installing it. [] before the first
+  report.
+  """
+  packageManagerDetails: [MachinePackageManager!]!
+
   """SOURCES column: the directories that know this machine besides the agent; [] when none, and always in OSS."""
   directorySources: [DirectorySource!]!
   """USER column: who the machine is tied to; NONE when nobody, and always in OSS."""
@@ -4581,6 +4588,23 @@ enum PackageManagerState {
   MISSING
   UNSUPPORTED
   UNKNOWN
+}
+
+"""
+One package manager on one device (CU-17tkuw6a84n).
+"""
+type MachinePackageManager {
+  type: PackageManagerType!
+  """The state as the agent reports it."""
+  state: PackageManagerState!
+  """True only when OpenFrame runs this manager on this device (supported there and not disabled)."""
+  managed: Boolean!
+  """True while OpenFrame installs it: the last bootstrap started after the last report and has not failed."""
+  installing: Boolean!
+  """The manager's own version in the last report. Null when unknown."""
+  version: String
+  """When the reported version last changed on the device. Null when unknown."""
+  versionChangedAt: Instant
 }
 
 """

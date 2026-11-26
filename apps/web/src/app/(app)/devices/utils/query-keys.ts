@@ -28,6 +28,8 @@ export const deviceQueryKeys = {
   full: (filter: DeviceFilterInput) => [...deviceQueryKeys.lists(), 'full', filter] as const,
 
   detail: (machineId: string) => [...deviceQueryKeys.all, 'detail', machineId] as const,
+  /** One device's package managers (the Agents tab's own read, outside the detail poll). */
+  packageManagers: (machineId: string) => [...deviceQueryKeys.all, 'package-managers', machineId] as const,
 
   /** Remote sessions of one device (the Remote Sessions tab). */
   sessionRecordings: (deviceId: string) => [...deviceQueryKeys.all, 'session-recordings', deviceId] as const,
