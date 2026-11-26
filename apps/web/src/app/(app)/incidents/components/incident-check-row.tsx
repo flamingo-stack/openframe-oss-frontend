@@ -1,5 +1,9 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { graphql, useLazyLoadQuery } from 'react-relay';
+import type { incidentCheckRowQuery as IncidentCheckRowQueryType } from '@/__generated__/incidentCheckRowQuery.graphql';
 import { useChecksGate } from '@/app/(app)/monitoring/checks/hooks/use-checks-gate';
 import {
   formatThreshold,
@@ -7,21 +11,67 @@ import {
   NO_THRESHOLD_LABEL,
   thresholdScopeLabel,
 } from '@/app/(app)/monitoring/checks/utils/check-labels';
+import { ContentErrorBoundary } from '@/app/components/shared';
 import { InfoCell } from '@/app/components/shared/info-cell';
-import type { Incident } from '../utils/incident-transform';
 import { IncidentCheckLinkCell } from './incident-check-link-cell';
 import { SummaryCell } from './incident-summary-cell';
 import { SummaryRow } from './incident-summary-row';
 
 /**
- * The incident's check strip: the threshold it was measured against, where that threshold was set
- * ("Tag · kiosk", "Default · all devices"), and a link to the check's page. Nothing for an incident
- * no built-in check opened, nor for one recorded before thresholds were kept.
+ * What the incident was measured against and the check that opened it. Its own read, behind the check settings flag:
+ * the API serves these fields only where the check settings run.
  */
-export function IncidentCheckRow({ incident }: { incident: Incident }) {
-  const gate = useChecksGate();
-  const thresholds = incident.thresholds ?? [];
-  if (thresholds.length === 0 && !incident.check) return null;
+const incidentCheckRowQuery = graphql`
+  query incidentCheckRowQuery($id: ID!) {
+    insight(id: $id) {
+      thresholds {
+        unit
+        firesWhen
+        value
+        scopeType
+        scopeName
+      }
+      check
+    }
+  }
+`;
+
+/**
+ * The incident's check strip: the threshold it was measured against, where that threshold was set ("Tag · kiosk",
+ * "Default · all devices"), and a link to the check's page. Nothing while the flag is off or the strip is read, and
+ * nothing for an incident no built-in check opened or one recorded before thresholds were kept.
+ */
+export function IncidentCheckRow({ incidentId }: { incidentId: string }) {
+  if (useChecksGate() !== 'on') return null;
+  return (
+    <ContentErrorBoundary fallback={() => null}>
+      <IncidentCheckRowIsland incidentId={incidentId} />
+    </ContentErrorBoundary>
+  );
+}
+
+function IncidentCheckRowIsland({ incidentId }: { incidentId: string }) {
+  return (
+    <LoadingSuspense label="Loading the check">
+      <IncidentCheckRowReader incidentId={incidentId} />
+    </LoadingSuspense>
+  );
+}
+
+/** An optional strip: nothing is drawn until it is read. */
+function IncidentCheckRowReader({ incidentId }: { incidentId: string }) {
+  if (useLoadingScope()) return null;
+  return <IncidentCheckRowLive incidentId={incidentId} />;
+}
+
+function IncidentCheckRowLive({ incidentId }: { incidentId: string }) {
+  const { insight } = useLazyLoadQuery<IncidentCheckRowQueryType>(
+    incidentCheckRowQuery,
+    { id: incidentId },
+    { fetchPolicy: 'store-or-network' },
+  );
+  const thresholds = insight.thresholds ?? [];
+  if (thresholds.length === 0 && !insight.check) return null;
 
   const threshold =
     thresholds.length > 0
@@ -40,9 +90,9 @@ export function IncidentCheckRow({ incident }: { incident: Incident }) {
           <InfoCell value={appliesTo.join(', ')} label="Applies to" />
         </SummaryCell>
       )}
-      {gate === 'on' && incident.check && (
+      {insight.check && (
         <SummaryCell optional>
-          <IncidentCheckLinkCell check={incident.check} />
+          <IncidentCheckLinkCell check={insight.check} />
         </SummaryCell>
       )}
     </SummaryRow>

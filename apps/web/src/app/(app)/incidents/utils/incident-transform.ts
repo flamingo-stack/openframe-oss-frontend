@@ -1,10 +1,7 @@
 import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { QueryResultRow } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { readInlineData } from 'react-relay';
-import type {
-  insightFields_insight$data,
-  insightFields_insight$key,
-} from '@/__generated__/insightFields_insight.graphql';
+import type { insightFields_insight$key } from '@/__generated__/insightFields_insight.graphql';
 import type {
   insightRowFields_insight$data,
   insightRowFields_insight$key,
@@ -97,9 +94,6 @@ export function toIncidentUser(rawId: string, ref: userSummaryFields_user$key | 
   return { id: rawId, name, avatarUrl, deleted };
 }
 
-/** A threshold the finding was made against, and the scope that set it (DEFAULT, GLOBAL, TAG, CUSTOMER or DEVICE). */
-export type IncidentThreshold = NonNullable<insightFields_insight$data['thresholds']>[number];
-
 /** The detail page's incident: the row plus what only it draws. */
 export interface Incident extends IncidentRow {
   description: string | null;
@@ -107,10 +101,6 @@ export interface Incident extends IncidentRow {
   interval: number | null;
   /** The osquery evidence rows; null for incidents recorded before evidence was kept. */
   queryResult: QueryResultRow[] | null;
-  /** Empty for an on/off check; null for incidents recorded before thresholds were kept. */
-  thresholds: readonly IncidentThreshold[] | null;
-  /** The key of the built-in check that opened it; null when none did (or several could have, for an old one). */
-  check: string | null;
   organizationImageUrl?: string;
 }
 
@@ -135,8 +125,6 @@ export function toIncident(ref: insightFields_insight$key): Incident {
     description: node.description ?? null,
     interval: node.interval ?? null,
     queryResult: node.queryResult ? node.queryResult.map(toQueryResultRow) : null,
-    thresholds: node.thresholds ?? null,
-    check: node.check ?? null,
     organizationImageUrl: getFullImageUrl(node.organization?.image?.imageUrl, node.organization?.image?.hash),
   };
 }

@@ -137,7 +137,7 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
 
       {/* What the finding was measured against and the check that made it: an optional strip, absent from an
           incident no built-in check opened and from one recorded before thresholds were kept. */}
-      {incident && <IncidentCheckRow incident={incident} />}
+      {incident && <IncidentCheckRow incidentId={incident.id} />}
     </div>
   );
 }
