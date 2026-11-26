@@ -277,6 +277,8 @@ export function useAuthSession() {
     isReady,
     isAuthenticated: !!query.data?.authenticated,
     isError: query.isError,
+    /** Waiting for the network to come back (offline): not asking, so not failing either. */
+    isPaused: query.isPaused,
     user: query.data?.user ?? null,
     recheck,
   };
