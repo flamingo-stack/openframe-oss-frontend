@@ -11,6 +11,7 @@ import {
 import { LoadingItems, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { formatRelativeTime, normalizeToolTypeWithFallback } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ComponentType, ReactNode } from 'react';
+import { EmptyValue } from '@/app/components/shared/empty-value';
 import { EMPTY_CARD } from '@/app/components/shared/info-card-loading';
 import { PackageManagerType } from '@/generated/schema-enums';
 import { isSaasTenantMode } from '@/lib/app-mode';
@@ -271,14 +272,10 @@ const PACKAGE_MANAGER_ICON: Record<PackageManagerType, ComponentType<{ size?: nu
 };
 
 /**
- * The Version of an installed manager the device reported without one (an agent older than the version report): the
- * row stays, so the card does not read as broken, and says so as the device's other cards do.
- */
-export const UNKNOWN_PACKAGE_MANAGER_VERSION = 'Unknown';
-
-/**
  * The rows of a package manager's card: Agent, then Version and Updated (when its version arrived on the device, not
  * when it last reported), or Status PENDING while OpenFrame installs it. No footer: the managers are not Flamingo builds.
+ * An installed manager reported without a version (an agent older than the version report) keeps its Version row with
+ * the empty mark, so the card does not read as broken.
  */
 export function packageManagerCardData(card: PackageManagerCard): InfoCardData {
   const Icon = PACKAGE_MANAGER_ICON[card.type];
@@ -289,7 +286,7 @@ export function packageManagerCardData(card: PackageManagerCard): InfoCardData {
     const pending = getAgentStatusTag('pending');
     items.push({ label: AGENT_ROW_LABELS.status, value: <Tag label={pending.label} variant={pending.variant} /> });
   } else {
-    items.push({ label: AGENT_ROW_LABELS.version, value: card.version ?? UNKNOWN_PACKAGE_MANAGER_VERSION });
+    items.push({ label: AGENT_ROW_LABELS.version, value: card.version ?? <EmptyValue /> });
   }
   const changedAt = card.versionChangedAt ? parseInstant(card.versionChangedAt) : null;
   if (changedAt) items.push({ label: AGENT_ROW_LABELS.updated, value: formatRelativeTime(changedAt) });

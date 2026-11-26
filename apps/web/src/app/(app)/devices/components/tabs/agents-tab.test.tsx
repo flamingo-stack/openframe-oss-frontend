@@ -3,13 +3,15 @@
  * registers: one that has not reported yet reads PENDING instead of being absent, and the slot
  * turns into the live card once its installed-agent / tool-connection row lands.
  */
-import { act } from 'react';
+import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { EmptyValue } from '@/app/components/shared/empty-value';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import type { Instant } from '@/lib/graphql-scalars';
 import type { DevicePackageManager } from '../../hooks/device-package-managers';
 import type { Device, InstalledAgent, ToolConnection, ToolType } from '../../types/device.types';
-import { AgentsTab, packageManagerCardData, UNKNOWN_PACKAGE_MANAGER_VERSION } from './agents-tab';
+import { AgentsTab, packageManagerCardData } from './agents-tab';
 
 const appMode = vi.hoisted(() => ({ isSaasTenantMode: vi.fn(() => false) }));
 
@@ -263,13 +265,13 @@ describe('AgentsTab package managers', () => {
     expect(card).not.toContain('Updated');
   });
 
-  it('says Version Unknown for an installed manager reported without a version', () => {
+  it('shows the empty mark as the Version of an installed manager reported without one', () => {
     packageManagers.data = [manager({ type: 'CHOCO', version: null, versionChangedAt: null })];
     render(device(windowsAgents));
 
     const [card] = sections()[1].cards;
     expect(card).toContain('Chocolatey');
-    expect(card).toContain(`Version${UNKNOWN_PACKAGE_MANAGER_VERSION}`);
+    expect(card).toContain(`Version${EMPTY_VALUE}`);
     expect(card).not.toContain('Updated');
   });
 
@@ -323,11 +325,11 @@ describe('packageManagerCardData', () => {
     expect(rowLabels({ ...base, pending: true, version: null, versionChangedAt: null })).toEqual(['Agent', 'Status']);
   });
 
-  it('keeps the Version row as Unknown and drops Updated when neither was reported', () => {
+  it('keeps the Version row with the empty mark and drops Updated when neither was reported', () => {
     const data = packageManagerCardData({ ...base, version: null, versionChangedAt: null });
 
     expect(data.items.map(item => item.label)).toEqual(['Agent', 'Version']);
-    expect(data.items[1].value).toBe(UNKNOWN_PACKAGE_MANAGER_VERSION);
+    expect((data.items[1].value as unknown as ReactElement).type).toBe(EmptyValue);
   });
 
   it('drops Updated for a change time it cannot read', () => {
