@@ -5,7 +5,7 @@ import type { StatusOption } from '@/app/(app)/tickets/components/status-autocom
 import type { AvatarOption } from '@/app/(app)/tickets/hooks/use-ticket-options';
 import { toUserSummary } from '@/graphql/users/user-summary-fields';
 import { getFullImageUrl } from '@/lib/image-url';
-import { rawIdOf } from '@/lib/relay-id';
+import { rawIdOfType } from '@/lib/relay-id';
 
 /**
  * The routing defaults of a mailbox (contract part A, `activateMailbox` / `updateMailbox`): null is "not set", which
@@ -51,6 +51,15 @@ export const mailboxDefaultsFragment = graphql`
  * The saved customer and status as picker options: the form holds their ids from its first render, before the
  * pickers' own options arrive (and a page of customers may not hold the saved one).
  */
+/**
+ * A ticket status's id as the Default Status picker holds it. The statuses list (ai-agent) and a mailbox's
+ * `defaultStatus` (api) spell one status's id differently (a Relay id, a raw id), and a picker that compared the two
+ * listed the saved status twice. The API takes either.
+ */
+export function statusPickerId(id: string): string {
+  return rawIdOfType('TicketStatusDefinition', id);
+}
+
 export interface StoredDefaultOptions {
   customer: AvatarOption | null;
   status: StatusOption | null;
@@ -66,7 +75,7 @@ export function toStoredDefaults(ref: mailboxDefaults_mailbox$key): {
     defaultStatus: status,
     defaultAssignee,
   } = readInlineData(mailboxDefaultsFragment, ref);
-  const statusOption = status ? { value: rawIdOf(status.id), label: status.name, color: status.color } : null;
+  const statusOption = status ? { value: statusPickerId(status.id), label: status.name, color: status.color } : null;
   return {
     values: {
       defaultOrganizationId: customer?.organizationId ?? null,

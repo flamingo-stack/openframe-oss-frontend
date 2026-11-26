@@ -7,6 +7,7 @@ import {
   isLandingRoute,
   isSaasOnboardingRoute,
   mingoHeaderLoadingCells,
+  sessionRootFor,
 } from './app-shell-chrome';
 
 const { mode } = vi.hoisted(() => ({ mode: { saas: false } }));
@@ -107,5 +108,41 @@ describe("a SaaS tenant's /onboarding", () => {
     expect(isSaasOnboardingRoute('/onboarding')).toBe(false);
     expect(isLandingRoute('/onboarding/')).toBe(false);
     expect(holdsDashboard('/onboarding/', 'on', 'setup', false)).toBe(false);
+  });
+});
+
+describe('sessionRootFor', () => {
+  const healthy = {
+    authOnly: false,
+    saasTenant: true,
+    isReady: true,
+    isAuthenticated: true,
+    sessionUnavailable: false,
+  };
+
+  it('draws the shell for a resolved, signed-in session', () => {
+    expect(sessionRootFor(healthy)).toBe('shell');
+  });
+
+  it('draws the session screen for a first /me that never answered (CU-17tkuw69v8q)', () => {
+    expect(sessionRootFor({ ...healthy, isReady: false, isAuthenticated: false, sessionUnavailable: true })).toBe(
+      'session-unavailable',
+    );
+  });
+
+  it('keeps the shell while the first /me is still inside its window', () => {
+    expect(sessionRootFor({ ...healthy, isReady: false, isAuthenticated: false })).toBe('shell');
+  });
+
+  it('puts signed out on a SaaS tenant before an unavailable session', () => {
+    expect(sessionRootFor({ ...healthy, isAuthenticated: false, sessionUnavailable: true })).toBe('signed-out');
+  });
+
+  it('keeps the shell for signed out on an OSS tenant, which is redirected to /auth', () => {
+    expect(sessionRootFor({ ...healthy, saasTenant: false, isAuthenticated: false })).toBe('shell');
+  });
+
+  it('draws the page alone on an auth-only surface, whatever the session', () => {
+    expect(sessionRootFor({ ...healthy, authOnly: true, isReady: false, sessionUnavailable: true })).toBe('page-only');
   });
 });
