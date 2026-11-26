@@ -4,7 +4,8 @@ import { IncidentSeverityTag } from '@/app/(app)/incidents/components/incident-t
 import { INCIDENT_TYPE_LABELS, labelOf } from '@/app/(app)/incidents/utils/incident-labels';
 import { formatRunsEvery } from '../utils/check-labels';
 import type { Check } from '../utils/check-transform';
-import { DetailsItem, DetailsPanel } from './details-panel';
+import { DetailsItem } from './details-item';
+import { DetailsPanel } from './details-panel';
 
 /**
  * Severity, category, how often it runs and how many exceptions change it. The API has no open incidents,

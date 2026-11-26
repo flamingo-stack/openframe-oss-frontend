@@ -14,13 +14,10 @@ export const insightFieldsFragment = graphql`
     interval
     queryResult
     thresholds {
-      parameter
-      label
       unit
       firesWhen
       value
       scopeType
-      scopeId
       scopeName
     }
     check

@@ -4,7 +4,8 @@ import { InfoCircleIcon } from '@flamingo-stack/openframe-frontend-core/componen
 import { Alert, AlertDescription, AlertTitle } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { formatThreshold } from '../utils/check-labels';
 import type { Check } from '../utils/check-transform';
-import { DetailsItem, DetailsPanel } from './details-panel';
+import { DetailsItem } from './details-item';
+import { DetailsPanel } from './details-panel';
 
 /** The default each device is measured against, one item per threshold; an on/off check says it has none. */
 export function DefaultThreshold({ check }: { check?: Check }) {

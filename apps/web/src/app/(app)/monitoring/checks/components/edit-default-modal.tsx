@@ -7,26 +7,16 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
-import { NEXT_RUN_NOTE } from '../hooks/use-check-mutations';
-import { formatOverrideThreshold, INSIGHT_CHECK_PLATFORM_LABELS } from '../utils/check-labels';
+import { INSIGHT_CHECK_PLATFORM_LABELS } from '../utils/check-labels';
+import { exceptionsKeepTheirValues, NEXT_RUN_NOTE } from '../utils/check-messages';
 import type { Check, CheckOverride } from '../utils/check-transform';
 import {
   invalidThresholdsToast,
-  ThresholdFields,
   thresholdsByParameter,
   thresholdsSchema,
   type ThresholdValues,
-} from './threshold-fields';
-
-/** "Exceptions keep their own values: lab (above 60), kiosk (above 25)." Nothing when no exception sets a threshold. */
-function overridesNote(check: Check, overrides: readonly CheckOverride[]): string {
-  const withValues = overrides.flatMap(override => {
-    if (Object.keys(override.parameters).length === 0 || override.enabled === false) return [];
-    const threshold = formatOverrideThreshold(check, override);
-    return [`${override.name ?? 'a removed scope'} (${threshold.charAt(0).toLowerCase()}${threshold.slice(1)})`];
-  });
-  return withValues.length > 0 ? `Exceptions keep their own values: ${withValues.join(', ')}. ` : '';
-}
+} from '../utils/threshold-form';
+import { ThresholdFields } from './threshold-fields';
 
 interface EditDefaultModalProps {
   check: Check;
@@ -84,7 +74,7 @@ export function EditDefaultModal({ check, overrides, isSaving, onClose, onSave }
           defaultOf={parameter => parameter.defaultValue}
         />
         <p className="text-ods-text-secondary text-h6">
-          {overrides ? overridesNote(check, overrides) : ''}
+          {overrides ? exceptionsKeepTheirValues(check, overrides) : ''}
           {NEXT_RUN_NOTE}
         </p>
       </form>

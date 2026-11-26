@@ -1,9 +1,10 @@
 'use client';
 
 import { ActionsMenuDropdown, Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import type { useCheckMutations } from '../hooks/use-check-mutations';
+import { resetDefault } from '../hooks/check-actions';
+import type { CheckMutations } from '../hooks/use-check-mutations';
 import type { Check } from '../utils/check-transform';
-import { type CheckDialog, resetDefault } from './check-dialogs';
+import type { CheckDialog } from './check-dialogs';
 
 /** Edit the default; once it differs from the built-in one, a menu that can also reset it. */
 export function DefaultThresholdActions({
@@ -13,7 +14,7 @@ export function DefaultThresholdActions({
 }: {
   check: Check;
   onDialog: (dialog: CheckDialog) => void;
-  mutations: ReturnType<typeof useCheckMutations>;
+  mutations: CheckMutations;
 }) {
   const changed = check.parameters.some(parameter => parameter.setForAllDevices);
   if (!changed) {

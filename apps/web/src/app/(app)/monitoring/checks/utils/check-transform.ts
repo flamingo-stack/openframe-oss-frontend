@@ -1,14 +1,80 @@
-import { readInlineData } from 'react-relay';
+import { graphql, readInlineData } from 'react-relay';
 import type {
-  insightCheckFields_insightCheck$data,
-  insightCheckFields_insightCheck$key,
-} from '@/__generated__/insightCheckFields_insightCheck.graphql';
-import type { insightCheckOverrideFields_override$key } from '@/__generated__/insightCheckOverrideFields_override.graphql';
-import type { UpdateInsightCheckSettingInput } from '@/__generated__/updateInsightCheckSettingMutation.graphql';
+  checkTransform_insightCheck$data,
+  checkTransform_insightCheck$key,
+} from '@/__generated__/checkTransform_insightCheck.graphql';
+import type {
+  checkTransform_override$data,
+  checkTransform_override$key,
+} from '@/__generated__/checkTransform_override.graphql';
+import type { checkTransform_withOverrides$key } from '@/__generated__/checkTransform_withOverrides.graphql';
+import type { UpdateInsightCheckSettingInput } from '@/__generated__/useCheckMutationsUpdateMutation.graphql';
 import { InsightCheckScopeType } from '@/generated/schema-enums';
-import { insightCheckFieldsFragment } from '@/graphql/insights/insight-check-fields';
-import { insightCheckOverrideFieldsFragment } from '@/graphql/insights/insight-check-override-fields';
 import type { Instant } from '@/lib/graphql-scalars';
+
+/**
+ * One built-in check as a scope sees it: whether it runs and its thresholds, each with the scope it was taken from.
+ * The list, the check page and the writes spread it; `toCheck` reads it. `id` is the check at the scope asked about,
+ * so an answer at GLOBAL replaces the list's row and the page.
+ */
+export const checkFragment = graphql`
+  fragment checkTransform_insightCheck on InsightCheck @inline {
+    id
+    check
+    title
+    platform
+    description
+    severity
+    intervalSeconds
+    enabled
+    enabledScopeType
+    type
+    overrideCount
+    parameters {
+      parameter
+      label
+      unit
+      firesWhen
+      value
+      defaultValue
+      min
+      max
+      scopeType
+    }
+  }
+`;
+
+/** What one customer, tag or device stores for a check. Spread by the check page's reads; `toCheckOverride` reads it. */
+export const overrideFragment = graphql`
+  fragment checkTransform_override on InsightCheckOverride @inline {
+    id
+    scopeType
+    scopeId
+    scopeName
+    enabled
+    parameters {
+      parameter
+      value
+    }
+    deviceCount
+    updatedAt
+    updatedBy {
+      firstName
+      lastName
+      email
+    }
+  }
+`;
+
+/** A check and every exception it has: the check page's read, and what a write reads again. */
+export const checkWithOverridesFragment = graphql`
+  fragment checkTransform_withOverrides on InsightCheck @inline {
+    ...checkTransform_insightCheck
+    overrides {
+      ...checkTransform_override
+    }
+  }
+`;
 
 /** The scopes an override is set at: a customer, a device tag or one device. */
 export type OverrideScopeType = Extract<InsightCheckScopeType, 'CUSTOMER' | 'TAG' | 'DEVICE'>;
@@ -32,50 +98,38 @@ export type CheckScope =
 
 export const GLOBAL_SCOPE: CheckScope = { type: InsightCheckScopeType.GLOBAL, id: null };
 
-type CheckData = insightCheckFields_insightCheck$data;
+/** The customer, tag or device an exception is for, with its name for the lines that say it. */
+export interface PickedScope {
+  type: OverrideScopeType;
+  id: string;
+  name: string | null;
+}
 
-export interface CheckParameter {
-  parameter: string;
-  label: string;
-  firesWhen: CheckData['parameters'][number]['firesWhen'];
-  unit: string;
-  /** The value at GLOBAL: the tenant's default, else the built-in one. */
-  value: number;
-  /** The built-in value, the one "Reset to default" goes back to. */
-  defaultValue: number;
-  min: number;
-  max: number;
+type CheckData = checkTransform_insightCheck$data;
+type ParameterData = CheckData['parameters'][number];
+
+export type CheckParameter = Pick<
+  ParameterData,
+  'parameter' | 'label' | 'firesWhen' | 'unit' | 'value' | 'defaultValue' | 'min' | 'max'
+> & {
   /** The default was changed for this tenant (stored at GLOBAL), not the built-in one. */
   setForAllDevices: boolean;
-}
+};
 
 /** One built-in check as it runs at GLOBAL: its default for every device without an override. */
-export interface Check {
-  /** The check at GLOBAL (Relay id): an answer at GLOBAL carries the same one. */
-  id: string;
-  /** The stable key the API takes, e.g. `resource-win-disk-low`; the check page's `?id=`. */
-  check: string;
+export type Check = Pick<
+  CheckData,
+  'id' | 'check' | 'platform' | 'description' | 'severity' | 'type' | 'intervalSeconds' | 'enabled' | 'overrideCount'
+> & {
   name: string;
-  platform: CheckData['platform'];
-  description: string;
-  severity: CheckData['severity'];
-  /** The category of the incident it opens (IT, Security). */
-  type: CheckData['type'];
-  /** How often it runs on each device, in seconds. */
-  intervalSeconds: number;
-  /** Whether it runs on a device no override covers. */
-  enabled: boolean;
   /** `enabled` is stored at GLOBAL (it was turned off or back on), so a write there keeps it. */
   enabledSetForAllDevices: boolean;
-  /** Something is stored at GLOBAL: a changed default threshold or the switch. */
-  customized: boolean;
-  overrideCount: number;
   /** Empty for an on/off check. */
   parameters: CheckParameter[];
-}
+};
 
-export function toCheck(ref: insightCheckFields_insightCheck$key): Check {
-  const node = readInlineData(insightCheckFieldsFragment, ref);
+export function toCheck(ref: checkTransform_insightCheck$key): Check {
+  const node = readInlineData(checkFragment, ref);
   return {
     id: node.id,
     check: node.check,
@@ -87,7 +141,6 @@ export function toCheck(ref: insightCheckFields_insightCheck$key): Check {
     intervalSeconds: node.intervalSeconds,
     enabled: node.enabled,
     enabledSetForAllDevices: node.enabledScopeType === InsightCheckScopeType.GLOBAL,
-    customized: node.customized,
     overrideCount: node.overrideCount,
     parameters: node.parameters.map(parameter => ({
       parameter: parameter.parameter,
@@ -103,28 +156,21 @@ export function toCheck(ref: insightCheckFields_insightCheck$key): Check {
   };
 }
 
-/** What one customer, tag or device stores for a check. */
-export interface CheckOverride {
-  /** Stable for the check and scope across reads. */
-  id: string;
-  /** The scope type keeps the artifact's union: a scope this build does not know still renders. */
-  scopeType: string;
-  scopeId: string;
+/** What one customer, tag or device stores for a check. `scopeType` keeps the artifact's union: an unknown one renders. */
+export type CheckOverride = Pick<checkTransform_override$data, 'id' | 'scopeType' | 'scopeId' | 'deviceCount'> & {
   /** The customer's name, the tag's key or the device's name; null once it is gone. */
   name: string | null;
   /** As stored here; null keeps whatever a less specific scope says. */
   enabled: boolean | null;
   /** Only the thresholds stored here, by parameter key. */
   parameters: Readonly<Record<string, number>>;
-  /** Connected devices on the check's platform it covers now. */
-  deviceCount: number;
   updatedAt: Instant | null;
   /** Who last changed it: their name, else their email; null when unknown. */
   updatedBy: string | null;
-}
+};
 
-export function toCheckOverride(ref: insightCheckOverrideFields_override$key): CheckOverride {
-  const node = readInlineData(insightCheckOverrideFieldsFragment, ref);
+export function toCheckOverride(ref: checkTransform_override$key): CheckOverride {
+  const node = readInlineData(overrideFragment, ref);
   const user = node.updatedBy;
   const userName = user ? [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email || null : null;
   return {
@@ -138,6 +184,14 @@ export function toCheckOverride(ref: insightCheckOverrideFields_override$key): C
     updatedAt: node.updatedAt ?? null,
     updatedBy: userName,
   };
+}
+
+export function toCheckWithOverrides(ref: checkTransform_withOverrides$key): {
+  check: Check;
+  overrides: CheckOverride[];
+} {
+  const node = readInlineData(checkWithOverridesFragment, ref);
+  return { check: toCheck(node), overrides: node.overrides.map(toCheckOverride) };
 }
 
 /** The scope an override is written at; null for a scope type this build does not know. */
@@ -161,6 +215,16 @@ export function storedDefaultDraft(check: Check): CheckSettingDraft {
     if (parameter.setForAllDevices) parameters[parameter.parameter] = parameter.value;
   }
   return { enabled: check.enabledSetForAllDevices ? check.enabled : null, parameters };
+}
+
+/** The default thresholds Edit Default stores: only what differs from the built-in value is a change. */
+export function changedDefaults(check: Check, thresholds: Readonly<Record<string, number>>): Record<string, number> {
+  return Object.fromEntries(
+    check.parameters.flatMap(parameter => {
+      const value = thresholds[parameter.parameter];
+      return value === undefined || value === parameter.defaultValue ? [] : [[parameter.parameter, value]];
+    }),
+  );
 }
 
 /** A draft that stores nothing: the write is a reset, since the API refuses an update with nothing in it. */
@@ -190,4 +254,18 @@ export function toUpdateInput(
 /** The overrides that keep the check running while it is off for every device: the "Still running for" list. */
 export function overridesKeepingItOn(overrides: readonly CheckOverride[]): CheckOverride[] {
   return overrides.filter(override => override.enabled === true);
+}
+
+/** The override a picked scope already has, other than the one being edited; null when it has none. */
+export function existingOverride(
+  overrides: readonly CheckOverride[] | null,
+  scope: PickedScope | null,
+  editingId: string | null,
+): CheckOverride | null {
+  if (!scope || !overrides) return null;
+  return (
+    overrides.find(
+      override => override.scopeType === scope.type && override.scopeId === scope.id && override.id !== editingId,
+    ) ?? null
+  );
 }

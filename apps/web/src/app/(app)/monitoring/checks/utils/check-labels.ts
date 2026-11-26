@@ -4,6 +4,7 @@ import {
   InsightCheckScopeType,
   InsightThresholdDirection,
 } from '@/generated/schema-enums';
+import { pluralize } from '@/lib/pluralize';
 import type { Check, CheckOverride, OverrideScopeType } from './check-transform';
 
 export const INSIGHT_CHECK_PLATFORM_LABELS: Record<InsightCheckPlatform, string> = {
@@ -45,7 +46,7 @@ export function formatParameterValue(value: number, unit: InsightCheckParameterU
     case 'PERCENT':
       return `${value}%`;
     case 'DAYS':
-      return value === 1 ? '1 day' : `${value} days`;
+      return pluralize(value, 'day');
     default:
       return String(value);
   }
@@ -80,7 +81,8 @@ export function joinThresholds(thresholds: readonly string[]): string {
   return thresholds.map((threshold, index) => (index === 0 ? threshold : lowerFirst(threshold))).join(' or ');
 }
 
-function lowerFirst(text: string): string {
+/** A phrase made to start a sentence, put inside one: `Above 30 days` → `above 30 days`. */
+export function lowerFirst(text: string): string {
   return text.charAt(0).toLowerCase() + text.slice(1);
 }
 

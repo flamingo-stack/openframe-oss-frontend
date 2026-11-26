@@ -14,7 +14,8 @@ import { formatInterval } from '../utils/format-interval';
 import { INCIDENT_TYPE_LABELS, labelOf } from '../utils/incident-labels';
 import type { Incident } from '../utils/incident-transform';
 import { IncidentCheckRow } from './incident-check-row';
-import { SummaryCell as Cell, SummaryRow as Row } from './incident-summary-strip';
+import { SummaryCell } from './incident-summary-cell';
+import { SummaryRow } from './incident-summary-row';
 import { IncidentSeverityTag, IncidentStatusTag } from './incident-tags';
 
 /** How many lines the detecting query's description typically runs to (a sentence or two at the card's width). */
@@ -60,8 +61,8 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
         className="gap-[var(--spacing-system-xxs)] border-b border-ods-border p-[var(--spacing-system-m)]"
       />
 
-      <Row>
-        <Cell>
+      <SummaryRow>
+        <SummaryCell>
           <InfoCell
             loading={loading}
             icon={renderDeviceTypeIcon(
@@ -85,8 +86,8 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
             }
             label="Device"
           />
-        </Cell>
-        <Cell>
+        </SummaryCell>
+        <SummaryCell>
           <CustomerInfoCell
             label="Customer"
             customer={
@@ -99,40 +100,40 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
                 : null
             }
           />
-        </Cell>
-        <Cell>
+        </SummaryCell>
+        <SummaryCell>
           <InfoCell loading={loading} value={incident ? formatDateTime(incident.detectedAt) : ''} label="Detected" />
-        </Cell>
-        <Cell>{assigneeSlot}</Cell>
-      </Row>
+        </SummaryCell>
+        <SummaryCell>{assigneeSlot}</SummaryCell>
+      </SummaryRow>
 
-      <Row>
-        <Cell>
+      <SummaryRow>
+        <SummaryCell>
           <InfoCell loading={loading} value={<IncidentSeverityTag severity={incident?.severity} />} label="Severity" />
-        </Cell>
-        <Cell>
+        </SummaryCell>
+        <SummaryCell>
           <InfoCell
             loading={loading}
             value={incident ? labelOf(INCIDENT_TYPE_LABELS, incident.type) : ''}
             label="Category"
           />
-        </Cell>
-        <Cell>
+        </SummaryCell>
+        <SummaryCell>
           <InfoCell
             loading={loading}
             value={!incident || incident.interval === null ? EMPTY_VALUE : formatInterval(incident.interval)}
             label="Interval"
           />
-        </Cell>
-        <Cell>
+        </SummaryCell>
+        <SummaryCell>
           <InfoCell loading={loading} value={<IncidentStatusTag status={incident?.status} />} label="Status" />
-        </Cell>
+        </SummaryCell>
         {snoozedUntil && (
-          <Cell optional>
+          <SummaryCell optional>
             <InfoCell value={formatDateTime(snoozedUntil)} label="Until" />
-          </Cell>
+          </SummaryCell>
         )}
-      </Row>
+      </SummaryRow>
 
       {/* What the finding was measured against and the check that made it: an optional strip, absent from an
           incident no built-in check opened and from one recorded before thresholds were kept. */}

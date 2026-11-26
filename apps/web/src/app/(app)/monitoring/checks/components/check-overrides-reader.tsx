@@ -3,11 +3,19 @@
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
-import { useLazyLoadQuery } from 'react-relay';
-import type { insightCheckPageQuery as CheckPageQueryType } from '@/__generated__/insightCheckPageQuery.graphql';
+import { graphql, useLazyLoadQuery } from 'react-relay';
+import type { checkOverridesReaderQuery as CheckOverridesReaderQueryType } from '@/__generated__/checkOverridesReaderQuery.graphql';
 import { ContentErrorBoundary } from '@/app/components/shared';
-import { insightCheckPageQuery } from '@/graphql/insights/insight-check-page-query';
-import { type CheckOverride, toCheckOverride } from '../utils/check-transform';
+import { type CheckOverride, toCheckWithOverrides } from '../utils/check-transform';
+
+/** A check's exceptions: the same read as its page's, so a modal opened from the list finds them in the store. */
+const checkOverridesReaderQuery = graphql`
+  query checkOverridesReaderQuery($check: String!) {
+    insightCheck(check: $check) {
+      ...checkTransform_withOverrides
+    }
+  }
+`;
 
 interface CheckOverridesReaderProps {
   check: string;
@@ -30,21 +38,21 @@ export function CheckOverridesReader({ check, children }: CheckOverridesReaderPr
 function CheckOverridesReaderIsland({ check, children }: CheckOverridesReaderProps) {
   return (
     <LoadingSuspense label="Loading exceptions">
-      <CheckOverridesReaderScope check={check}>{children}</CheckOverridesReaderScope>
+      <CheckOverridesScope check={check}>{children}</CheckOverridesScope>
     </LoadingSuspense>
   );
 }
 
-function CheckOverridesReaderScope({ check, children }: CheckOverridesReaderProps) {
+function CheckOverridesScope({ check, children }: CheckOverridesReaderProps) {
   if (useLoadingScope()) return children(null);
   return <CheckOverridesReaderLive check={check}>{children}</CheckOverridesReaderLive>;
 }
 
 function CheckOverridesReaderLive({ check, children }: CheckOverridesReaderProps) {
-  const data = useLazyLoadQuery<CheckPageQueryType>(
-    insightCheckPageQuery,
+  const data = useLazyLoadQuery<CheckOverridesReaderQueryType>(
+    checkOverridesReaderQuery,
     { check },
     { fetchPolicy: 'store-or-network' },
   );
-  return children(data.insightCheck.overrides.map(toCheckOverride));
+  return children(toCheckWithOverrides(data.insightCheck).overrides);
 }

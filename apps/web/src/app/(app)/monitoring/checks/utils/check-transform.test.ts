@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { insightCheckFields_insightCheck$key } from '@/__generated__/insightCheckFields_insightCheck.graphql';
-import type { insightCheckOverrideFields_override$key } from '@/__generated__/insightCheckOverrideFields_override.graphql';
+import type { checkTransform_insightCheck$key } from '@/__generated__/checkTransform_insightCheck.graphql';
+import type { checkTransform_override$key } from '@/__generated__/checkTransform_override.graphql';
 import { formatDefaultThreshold, formatOverrideThreshold } from './check-labels';
 import {
   GLOBAL_SCOPE,
@@ -31,9 +31,6 @@ function battery(fields: Record<string, unknown> = {}) {
     intervalSeconds: 3600,
     enabled: false,
     enabledScopeType: 'GLOBAL',
-    enabledScopeId: null,
-    enabledScopeName: null,
-    customized: true,
     overrideCount: 2,
     parameters: [
       {
@@ -46,8 +43,6 @@ function battery(fields: Record<string, unknown> = {}) {
         min: 1,
         max: 100,
         scopeType: 'GLOBAL',
-        scopeId: null,
-        scopeName: null,
       },
       {
         parameter: 'maxCycles',
@@ -59,12 +54,10 @@ function battery(fields: Record<string, unknown> = {}) {
         min: 1,
         max: 5000,
         scopeType: 'DEFAULT',
-        scopeId: null,
-        scopeName: null,
       },
     ],
     ...fields,
-  } as unknown as insightCheckFields_insightCheck$key);
+  } as unknown as checkTransform_insightCheck$key);
 }
 
 function override(fields: Record<string, unknown> = {}) {
@@ -79,7 +72,7 @@ function override(fields: Record<string, unknown> = {}) {
     updatedAt: '2026-11-19T10:00:00Z',
     updatedBy: { firstName: 'Rin', lastName: 'Sowande', email: 'rin@example.com' },
     ...fields,
-  } as unknown as insightCheckOverrideFields_override$key);
+  } as unknown as checkTransform_override$key);
 }
 
 describe('toCheck', () => {

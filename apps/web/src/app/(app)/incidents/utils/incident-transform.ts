@@ -1,7 +1,10 @@
 import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { QueryResultRow } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { readInlineData } from 'react-relay';
-import type { insightFields_insight$key } from '@/__generated__/insightFields_insight.graphql';
+import type {
+  insightFields_insight$data,
+  insightFields_insight$key,
+} from '@/__generated__/insightFields_insight.graphql';
 import type {
   insightRowFields_insight$data,
   insightRowFields_insight$key,
@@ -94,22 +97,8 @@ export function toIncidentUser(rawId: string, ref: userSummaryFields_user$key | 
   return { id: rawId, name, avatarUrl, deleted };
 }
 
-/** A threshold the finding was made against, and the scope that set it. */
-export interface IncidentThreshold {
-  parameter: string;
-  /** The parameter's key when the API cannot name it (an old incident whose kind no longer names one check). */
-  label: string;
-  /** Null under the same condition, so the value shows as a bare number. */
-  firesWhen: string | null;
-  unit: string | null;
-  value: number;
-  /** DEFAULT (the built-in value), GLOBAL, TAG, CUSTOMER or DEVICE; the artifact's union. */
-  scopeType: string;
-  /** `organizationId`, `Tag.id` or `machineId`; null for DEFAULT and GLOBAL. */
-  scopeId: string | null;
-  /** The customer's name, the tag's key or the device's name; null for DEFAULT and GLOBAL and once it is gone. */
-  scopeName: string | null;
-}
+/** A threshold the finding was made against, and the scope that set it (DEFAULT, GLOBAL, TAG, CUSTOMER or DEVICE). */
+export type IncidentThreshold = NonNullable<insightFields_insight$data['thresholds']>[number];
 
 /** The detail page's incident: the row plus what only it draws. */
 export interface Incident extends IncidentRow {
@@ -119,7 +108,7 @@ export interface Incident extends IncidentRow {
   /** The osquery evidence rows; null for incidents recorded before evidence was kept. */
   queryResult: QueryResultRow[] | null;
   /** Empty for an on/off check; null for incidents recorded before thresholds were kept. */
-  thresholds: IncidentThreshold[] | null;
+  thresholds: readonly IncidentThreshold[] | null;
   /** The key of the built-in check that opened it; null when none did (or several could have, for an old one). */
   check: string | null;
   organizationImageUrl?: string;
@@ -146,18 +135,7 @@ export function toIncident(ref: insightFields_insight$key): Incident {
     description: node.description ?? null,
     interval: node.interval ?? null,
     queryResult: node.queryResult ? node.queryResult.map(toQueryResultRow) : null,
-    thresholds: node.thresholds
-      ? node.thresholds.map(threshold => ({
-          parameter: threshold.parameter,
-          label: threshold.label ?? threshold.parameter,
-          firesWhen: threshold.firesWhen ?? null,
-          unit: threshold.unit ?? null,
-          value: threshold.value,
-          scopeType: threshold.scopeType,
-          scopeId: threshold.scopeId ?? null,
-          scopeName: threshold.scopeName ?? null,
-        }))
-      : null,
+    thresholds: node.thresholds ?? null,
     check: node.check ?? null,
     organizationImageUrl: getFullImageUrl(node.organization?.image?.imageUrl, node.organization?.image?.hash),
   };

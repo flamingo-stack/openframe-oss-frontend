@@ -5,17 +5,27 @@ import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/i
 import { Input, PageLayout, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { useLazyLoadQuery } from 'react-relay';
-import type { insightChecksListQuery as ChecksListQueryType } from '@/__generated__/insightChecksListQuery.graphql';
+import { graphql, useLazyLoadQuery } from 'react-relay';
+import type { checksListQuery as ChecksListQueryType } from '@/__generated__/checksListQuery.graphql';
 import { ContentErrorBoundary, useRetryKey } from '@/app/components/shared';
 import { TableLayoutScope } from '@/app/components/shared/table-layout-scope';
 import { useAdminGate } from '@/app/hooks/use-admin-gate';
-import { insightChecksListQuery } from '@/graphql/insights/insight-checks-list-query';
 import { routes } from '@/lib/routes';
+import { toggleCheck } from '../hooks/check-actions';
 import { useCheckMutations } from '../hooks/use-check-mutations';
 import { type Check, toCheck } from '../utils/check-transform';
-import { type CheckDialog, CheckDialogs, toggleCheck } from './check-dialogs';
-import { ChecksTable, type CheckTableRow } from './checks-table';
+import { type CheckDialog, CheckDialogs } from './check-dialogs';
+import { ChecksTable } from './checks-table';
+import type { CheckTableRow } from './checks-table-row';
+
+/** Every built-in check as it runs for every device. */
+const checksListQuery = graphql`
+  query checksListQuery {
+    insightChecks(scopeType: GLOBAL) {
+      ...checkTransform_insightCheck
+    }
+  }
+`;
 
 /**
  * `/monitoring/checks`: every built-in health check with its default for all devices and how many
@@ -66,7 +76,7 @@ function ChecksListLive({ search }: { search: string }) {
   const router = useRouter();
   const retryKey = useRetryKey();
   const data = useLazyLoadQuery<ChecksListQueryType>(
-    insightChecksListQuery,
+    checksListQuery,
     {},
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
