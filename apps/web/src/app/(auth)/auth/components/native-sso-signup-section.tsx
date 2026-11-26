@@ -11,6 +11,7 @@ import {
   AppleRegisterError,
   completeNativeSsoSignup,
   type PendingSsoSignup,
+  SsoSignupTicketError,
 } from '@/lib/native-login';
 import { markPendingSignup } from '@/lib/posthog/posthog-events';
 
@@ -47,11 +48,11 @@ export function NativeSsoSignupSection({ pending, onRegistered, onExit }: Native
   const [identity, setIdentity] = useState<SsoSetupIdentity | null>(
     pending.kind === 'apple' ? { email: appleIdentityEmail(pending.credential), provider: 'apple' } : null,
   );
-  // Set once Apple's authorization code has been consumed by a failed register. Apple will not
-  // reissue it, so this screen is finished either way and must stop offering a retry it cannot
-  // honour. Kept separate from the message: an error carrying none must still end the screen.
-  const [isSpent, setIsSpent] = useState(false);
-  const [spentMessage, setSpentMessage] = useState<string | null>(null);
+  // Set once a failed submit has consumed the credential: Apple's authorization code, or a ticket
+  // the server may have redeemed. Neither is reissued, so this screen is finished either way and
+  // must stop offering a retry it cannot honour. Set even when the error carries no message.
+  // `organizationCreated`: the ticket was redeemed and the organization exists; only signing in failed.
+  const [spent, setSpent] = useState<{ message: string | null; organizationCreated: boolean } | null>(null);
   // Covers the register call itself; the shared form's own busy flag covers only its availability
   // re-check. Without this the button re-enables mid-flight and a second tap would resubmit.
   const [isRegistering, setIsRegistering] = useState(false);
@@ -90,12 +91,18 @@ export function NativeSsoSignupSection({ pending, onRegistered, onExit }: Native
         }
       } catch (error) {
         setIsRegistering(false);
-        // Apple: a failure that did NOT redeem the authorization code is correctable in place;
-        // one that did ends the screen. A ticket failure is always correctable or expired, and
-        // either way the form (and its Back action) stays up — rethrow so the form surfaces it.
-        if (pending.kind === 'apple' && !(error instanceof AppleRegisterError && !error.credentialSpent)) {
-          setIsSpent(true);
-          setSpentMessage(error instanceof Error && error.message ? error.message : null);
+        // A failure that did NOT consume the credential is correctable in place: rethrow so the form
+        // surfaces it. One that did ends the screen. Apple's default is spent; a ticket's is not, so
+        // an error before the request (no native plugin) keeps the form.
+        const isSpent =
+          pending.kind === 'apple'
+            ? !(error instanceof AppleRegisterError && !error.credentialSpent)
+            : error instanceof SsoSignupTicketError && error.ticketSpent;
+        if (isSpent) {
+          setSpent({
+            message: error instanceof Error && error.message ? error.message : null,
+            organizationCreated: error instanceof SsoSignupTicketError && error.organizationCreated,
+          });
           return;
         }
         throw error;
@@ -108,13 +115,19 @@ export function NativeSsoSignupSection({ pending, onRegistered, onExit }: Native
     [pending, onRegistered],
   );
 
-  if (isSpent) {
+  if (spent) {
     return (
       <div className="flex w-full flex-col gap-[var(--spacing-system-l)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-xl)]">
-        <h1 className="tracking-[-0.64px] text-ods-text-primary text-h2">Couldn't create your organization</h1>
+        <h1 className="tracking-[-0.64px] text-ods-text-primary text-h2">
+          {spent.organizationCreated ? 'Your organization is created' : "Couldn't create your organization"}
+        </h1>
         <p className="text-ods-text-secondary text-h4">
-          {spentMessage ? `${spentMessage} ` : ''}
-          Sign in with Apple again to retry.
+          {spent.message ? `${spent.message} ` : ''}
+          {pending.kind === 'apple'
+            ? 'Sign in with Apple again to retry.'
+            : spent.organizationCreated
+              ? 'Sign in again to open it.'
+              : 'Sign in again to retry.'}
         </p>
         <Button variant="accent" fullWidth onClick={onExit}>
           Back to sign in
