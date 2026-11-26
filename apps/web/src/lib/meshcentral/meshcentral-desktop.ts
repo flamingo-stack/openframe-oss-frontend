@@ -8,6 +8,7 @@ import {
   isSecureAttentionCombo,
   keyboardEventToVk,
 } from './meshcentral-keys';
+import { TileDrawQueue, type TileDrawer } from './meshcentral-tile-draw-queue';
 
 export interface DisplayInfo {
   id: number;
@@ -42,32 +43,6 @@ const WATCH_COMMANDS: ReadonlySet<number> = new Set([0x0008, 0x0006]);
 
 /** The agent's combined "all displays" view in cmd 11 / cmd 12. */
 const ALL_DISPLAYS = 0xffff;
-
-/**
- * How long a scheduled draw waits for an animation frame before a timer drains the queue instead.
- * A visible page draws on the frame (~16 ms) and cancels the timer; a hidden one gets no frames and
- * drains on this timer (which the browser may stretch to a second or more while hidden).
- */
-const DRAW_TIMER_FALLBACK_MS = 100;
-
-/** Releases a tile that is drawn or dropped: closes its ImageBitmap and revokes its object URL. */
-function releaseTile(tile: { bitmap: ImageBitmap | HTMLImageElement; url?: string }) {
-  // Only ImageBitmap has `close`; an HTMLImageElement is collected normally.
-  if (tile.bitmap instanceof ImageBitmap) {
-    try {
-      tile.bitmap.close();
-    } catch {
-      // Releasing a bitmap is a hint to the GC; a browser that refuses it just collects later.
-    }
-  }
-  if (tile.url) {
-    try {
-      URL.revokeObjectURL(tile.url);
-    } catch {
-      // Same for the object URL: failing to revoke leaks one blob until the tab closes, which is not worth interrupting the draw loop for.
-    }
-  }
-}
 
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -104,11 +79,7 @@ export class MeshDesktop implements DesktopInputHandlers {
   private tileQueue: Array<{ x: number; y: number; bytes: Uint8Array }> = [];
   private activeDecodes = 0;
   private readonly maxConcurrentDecodes = 3;
-  private drawQueue: Array<{ x: number; y: number; bitmap: ImageBitmap | HTMLImageElement; url?: string }> = [];
-  private drawScheduled = false;
-  /** The pending draw's animation frame and fallback timer: whichever fires first cancels the other. */
-  private drawFrame = 0;
-  private drawTimer: ReturnType<typeof setTimeout> | undefined;
+  private readonly drawQueue = new TileDrawQueue(() => this.tileDrawer());
 
   private displayList: DisplayInfo[] = [];
   /** The display the agent streams, as far as this side knows; null until the agent says. */
@@ -202,7 +173,7 @@ export class MeshDesktop implements DesktopInputHandlers {
     return new Promise(resolve => {
       const startedAt = Date.now();
       const check = () => {
-        const idle = this.tileQueue.length === 0 && this.activeDecodes === 0 && this.drawQueue.length === 0;
+        const idle = this.tileQueue.length === 0 && this.activeDecodes === 0 && this.drawQueue.size === 0;
         if (idle || this.stopped || Date.now() - startedAt >= timeoutMs) {
           resolve();
           return;
@@ -480,7 +451,7 @@ export class MeshDesktop implements DesktopInputHandlers {
     this.suppressedKeys.clear();
     this.stopped = true;
     this.tileQueue = [];
-    this.releaseDrawQueue();
+    this.drawQueue.clear();
     this.activeDecodes = 0;
     this.accum = null;
     this.accumOffset = 0;
@@ -994,7 +965,6 @@ export class MeshDesktop implements DesktopInputHandlers {
         bitmap = await createImageBitmap(blob);
         if (this.stopped || !bitmap) return;
         this.drawQueue.push({ x: task.x, y: task.y, bitmap });
-        this.scheduleDraw();
       } catch {
         const url = URL.createObjectURL(blob);
         const img = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -1008,63 +978,23 @@ export class MeshDesktop implements DesktopInputHandlers {
           return;
         }
         this.drawQueue.push({ x: task.x, y: task.y, bitmap: img, url });
-        this.scheduleDraw();
       }
     } catch {
       // ignore
     }
   }
 
-  /**
-   * Schedules one drain of the draw queue: on the next animation frame, or on a timer, whichever
-   * comes first, and the other is cancelled. A hidden page (the desktop window hidden or in the
-   * tray, a background tab) gets no animation frames at all, so with rAF alone every tile the agent
-   * keeps sending stayed decoded in memory until the window was shown again: tens of MB a minute
-   * with a busy remote screen. The stream keeps running while hidden, since the session recording
-   * needs what happens on the device then; only the drain moves to the timer.
-   */
-  private scheduleDraw() {
-    if (this.drawScheduled) return;
-    this.drawScheduled = true;
-    const drain = () => {
-      cancelAnimationFrame(this.drawFrame);
-      clearTimeout(this.drawTimer);
-      this.drawScheduled = false;
-      this.drainDrawQueue();
-    };
-    this.drawFrame = requestAnimationFrame(drain);
-    this.drawTimer = setTimeout(drain, DRAW_TIMER_FALLBACK_MS);
-  }
-
-  private drainDrawQueue() {
+  /** Draws a tile on the canvas; null once the session is stopped or has no canvas, so queued tiles are dropped. */
+  private tileDrawer(): TileDrawer | null {
     const ctx = this.ctx;
-    if (this.stopped || !ctx) {
-      this.releaseDrawQueue();
-      return;
-    }
-    // `ctx` is read once above: the field is nullable and cleared on teardown,
-    // and re-reading it per frame is what made the assertion look necessary.
-    for (;;) {
-      const it = this.drawQueue.shift();
-      if (!it) break;
-      try {
-        ctx.drawImage(it.bitmap, it.x, it.y);
-        if (!this.firstFrameDrawn) {
-          this.firstFrameDrawn = true;
-          this.onFirstFrameCallback?.();
-        }
-      } catch {
-        // A frame that fails to draw (a bitmap the GPU rejected, a canvas detached mid-teardown) is one lost frame in a video stream — the next one repaints over it.
+    if (this.stopped || !ctx) return null;
+    return tile => {
+      ctx.drawImage(tile.bitmap, tile.x, tile.y);
+      if (!this.firstFrameDrawn) {
+        this.firstFrameDrawn = true;
+        this.onFirstFrameCallback?.();
       }
-      releaseTile(it);
-    }
-  }
-
-  /** Drops every queued tile without drawing it, releasing each one's bitmap and object URL. */
-  private releaseDrawQueue() {
-    const queued = this.drawQueue;
-    this.drawQueue = [];
-    for (const it of queued) releaseTile(it);
+    };
   }
 
   private parseDisplayList(frame: Uint8Array) {
