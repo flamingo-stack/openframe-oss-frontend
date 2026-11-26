@@ -31,7 +31,14 @@ const ALL_UNREAD: UnreadCountsByCategory = Object.fromEntries(
 const FLAG_COMBOS: NavigationFlags[] = [false, true].flatMap(insights =>
   [false, true].flatMap(softwareManagement =>
     [false, true].flatMap(tenantManagement =>
-      [false, true].map(tenantManagementV2 => ({ insights, softwareManagement, tenantManagement, tenantManagementV2 })),
+      // Checks sits on top of Incidents, so its flag rides with `insights`; its own gate has a test below.
+      [false, true].map(tenantManagementV2 => ({
+        insights,
+        insightCheckSettings: insights,
+        softwareManagement,
+        tenantManagement,
+        tenantManagementV2,
+      })),
     ),
   ),
 );
@@ -89,6 +96,7 @@ describe('flat navigation (classic shell)', () => {
     setAppMode('saas-tenant');
     const allOn: NavigationFlags = {
       insights: true,
+      insightCheckSettings: true,
       softwareManagement: true,
       tenantManagement: true,
       tenantManagementV2: true,
@@ -146,6 +154,7 @@ describe('flat navigation (classic shell)', () => {
     setAppMode('saas-shared');
     const allOn: NavigationFlags = {
       insights: true,
+      insightCheckSettings: true,
       softwareManagement: true,
       tenantManagement: true,
       tenantManagementV2: true,
@@ -156,12 +165,14 @@ describe('flat navigation (classic shell)', () => {
 
 const ALL_ON: NavigationFlags = {
   insights: true,
+  insightCheckSettings: true,
   softwareManagement: true,
   tenantManagement: true,
   tenantManagementV2: true,
 };
 const ALL_OFF: NavigationFlags = {
   insights: false,
+  insightCheckSettings: false,
   softwareManagement: false,
   tenantManagement: false,
   tenantManagementV2: false,
@@ -221,7 +232,7 @@ describe('grouped navigation (Mingo-first shell)', () => {
 
         expect(has(grouped, 'tickets'), context).toBe(saas);
         expect(has(grouped, 'incidents'), context).toBe(saas && flags.insights);
-        expect(has(grouped, 'checks'), context).toBe(saas && flags.insights);
+        expect(has(grouped, 'checks'), context).toBe(saas && flags.insights && flags.insightCheckSettings);
         expect(has(grouped, 'software'), context).toBe(flags.softwareManagement);
         expect(has(grouped, 'integrations'), context).toBe(flags.tenantManagement);
         expect(has(grouped, 'users'), context).toBe(flags.tenantManagement && flags.tenantManagementV2);
@@ -424,6 +435,7 @@ describe('sectioned navigation (Manhattan v2 shell)', () => {
     setAppMode('saas-tenant');
     const off = getSectionedNavigationItems({
       insights: false,
+      insightCheckSettings: false,
       softwareManagement: false,
       tenantManagement: false,
       tenantManagementV2: false,

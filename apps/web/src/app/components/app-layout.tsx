@@ -312,6 +312,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // Anything whose wrong value would redirect or change which surface renders needs
   // `useFeatureFlagGate` instead (see the drawer's URL sync).
   const insightsEnabled = useFeatureFlag('insights');
+  const insightCheckSettingsEnabled = useFeatureFlag('insight-check-settings');
   const softwareManagementEnabled = useFeatureFlag('software-management');
   const tenantManagementEnabled = useFeatureFlag('tenant-management');
   const tenantManagementV2Enabled = useFeatureFlag('tenant-management-v2');
@@ -422,11 +423,18 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   const navigationFlags = useMemo<NavigationFlags>(
     () => ({
       insights: insightsEnabled,
+      insightCheckSettings: insightCheckSettingsEnabled,
       softwareManagement: softwareManagementEnabled,
       tenantManagement: tenantManagementEnabled,
       tenantManagementV2: tenantManagementV2Enabled,
     }),
-    [insightsEnabled, softwareManagementEnabled, tenantManagementEnabled, tenantManagementV2Enabled],
+    [
+      insightsEnabled,
+      insightCheckSettingsEnabled,
+      softwareManagementEnabled,
+      tenantManagementEnabled,
+      tenantManagementV2Enabled,
+    ],
   );
 
   const grouped = mingoShell;

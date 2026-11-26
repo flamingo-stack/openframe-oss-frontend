@@ -75,6 +75,8 @@ export interface OnboardingNavState {
  */
 export interface NavigationFlags {
   insights: boolean;
+  /** `insight-check-settings`: Monitoring → Checks. */
+  insightCheckSettings: boolean;
   softwareManagement: boolean;
   tenantManagement: boolean;
   tenantManagementV2: boolean;
@@ -196,7 +198,7 @@ const NAV_MODULES = {
     icon: ListCheckIcon,
     path: routes.monitoring.checks,
     prefixes: ['/monitoring/checks', '/monitoring/check'],
-    gates: ['saas-tenant', 'insights'],
+    gates: ['saas-tenant', 'insights', 'insightCheckSettings'],
   },
   // The Software module — behind `software-management`, like its routes. Its tabs
   // (Software Actions, Vulnerabilities) and their detail pages are pages under
@@ -538,6 +540,7 @@ const SECTIONED_LAYOUT: { groups: readonly NavGroup[]; secondary: readonly NavMo
 /** Every flag on: the placeholder's guess while the flags are unanswered (each gates in the "on shows it" direction). */
 const ALL_FLAGS_ON: NavigationFlags = {
   insights: true,
+  insightCheckSettings: true,
   softwareManagement: true,
   tenantManagement: true,
   tenantManagementV2: true,
