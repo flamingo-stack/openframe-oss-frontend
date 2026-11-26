@@ -8,6 +8,7 @@ import {
   A11Y_BACKLOG,
   BLACK_CANVAS,
   FILES_WITH_OVERSIZED_FUNCTIONS,
+  LEGACY_GRAPHQL_FOLDER,
   LEGACY_RAW_GRAPHQL,
   OVERSIZED_COMPONENTS,
   OVERSIZED_FILES,
@@ -514,6 +515,16 @@ export default defineConfig([
     routes: ROUTE_STRING_READERS,
     rawGraphql: LEGACY_RAW_GRAPHQL,
   }),
+
+  {
+    // No new module in src/graphql/: operations live with their readers, and the folder only shrinks (CLAUDE.md,
+    // GraphQL with react-relay). Not autofixable, so a warning, which `--max-warnings 0` still blocks.
+    name: 'openframe-frontend/no-graphql-folder',
+    files: ['src/graphql/**/*.{ts,tsx}'],
+    ignores: [...NOT_APP_SOURCE, ...LEGACY_GRAPHQL_FOLDER],
+    plugins: { openframe: openframeRules },
+    rules: { 'openframe/no-graphql-folder': 'warn' },
+  },
 
   {
     // A component takes at most 10 props and a component or hook runs at most 3 effects of its own (hub rules SIZE-001
