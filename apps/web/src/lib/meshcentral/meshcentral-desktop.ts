@@ -50,6 +50,25 @@ const ALL_DISPLAYS = 0xffff;
  */
 const DRAW_TIMER_FALLBACK_MS = 100;
 
+/** Releases a tile that is drawn or dropped: closes its ImageBitmap and revokes its object URL. */
+function releaseTile(tile: { bitmap: ImageBitmap | HTMLImageElement; url?: string }) {
+  // Only ImageBitmap has `close`; an HTMLImageElement is collected normally.
+  if (tile.bitmap instanceof ImageBitmap) {
+    try {
+      tile.bitmap.close();
+    } catch {
+      // Releasing a bitmap is a hint to the GC; a browser that refuses it just collects later.
+    }
+  }
+  if (tile.url) {
+    try {
+      URL.revokeObjectURL(tile.url);
+    } catch {
+      // Same for the object URL: failing to revoke leaks one blob until the tab closes, which is not worth interrupting the draw loop for.
+    }
+  }
+}
+
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   return (
@@ -461,7 +480,7 @@ export class MeshDesktop implements DesktopInputHandlers {
     this.suppressedKeys.clear();
     this.stopped = true;
     this.tileQueue = [];
-    this.drawQueue = [];
+    this.releaseDrawQueue();
     this.activeDecodes = 0;
     this.accum = null;
     this.accumOffset = 0;
@@ -1020,10 +1039,7 @@ export class MeshDesktop implements DesktopInputHandlers {
   private drainDrawQueue() {
     const ctx = this.ctx;
     if (this.stopped || !ctx) {
-      for (const it of this.drawQueue) {
-        if (it.url) URL.revokeObjectURL(it.url);
-      }
-      this.drawQueue = [];
+      this.releaseDrawQueue();
       return;
     }
     // `ctx` is read once above: the field is nullable and cleared on teardown,
@@ -1040,22 +1056,15 @@ export class MeshDesktop implements DesktopInputHandlers {
       } catch {
         // A frame that fails to draw (a bitmap the GPU rejected, a canvas detached mid-teardown) is one lost frame in a video stream — the next one repaints over it.
       }
-      // Only ImageBitmap has `close`; an HTMLImageElement is collected normally.
-      if (it.bitmap instanceof ImageBitmap) {
-        try {
-          it.bitmap.close();
-        } catch {
-          // Releasing a bitmap is a hint to the GC; a browser that refuses it just collects later.
-        }
-      }
-      if (it.url) {
-        try {
-          URL.revokeObjectURL(it.url);
-        } catch {
-          // Same for the object URL: failing to revoke leaks one blob until the tab closes, which is not worth interrupting the draw loop for.
-        }
-      }
+      releaseTile(it);
     }
+  }
+
+  /** Drops every queued tile without drawing it, releasing each one's bitmap and object URL. */
+  private releaseDrawQueue() {
+    const queued = this.drawQueue;
+    this.drawQueue = [];
+    for (const it of queued) releaseTile(it);
   }
 
   private parseDisplayList(frame: Uint8Array) {

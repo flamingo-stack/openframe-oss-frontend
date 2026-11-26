@@ -313,4 +313,32 @@ describe('MeshDesktop drawing', () => {
     await desktop.waitForIdle();
     expect(drawn).toEqual([[0, 0]]);
   });
+
+  it('releases the tiles still queued when the session stops', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      let closed = 0;
+      class CountedImageBitmap {
+        close() {
+          closed += 1;
+        }
+      }
+      vi.stubGlobal('ImageBitmap', CountedImageBitmap);
+      vi.stubGlobal('createImageBitmap', async () => new CountedImageBitmap());
+      vi.stubGlobal('requestAnimationFrame', () => 1);
+      vi.stubGlobal('cancelAnimationFrame', () => {});
+      const { desktop, drawn } = drawing();
+      await desktop.onBinaryFrame(tile(0, 0));
+      await desktop.onBinaryFrame(tile(64, 0));
+      // Decoded and queued; the fallback timer has not fired yet.
+      await vi.advanceTimersByTimeAsync(10);
+      desktop.detach();
+      expect(closed).toBe(2);
+      await vi.advanceTimersByTimeAsync(200);
+      expect(drawn).toEqual([]);
+      expect(closed).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
