@@ -71,6 +71,8 @@ export const CREATION_SOURCE = {
   FAE_FORM: 'FAE_FORM',
   FAE_DIALOG: 'FAE_DIALOG',
   ADMIN_DASHBOARD: 'ADMIN_DASHBOARD',
+  /** A forwarded email (email-to-ticket): served only where the backend runs it. */
+  EMAIL: 'EMAIL',
 } as const;
 
 export type CreationSource = (typeof CREATION_SOURCE)[keyof typeof CREATION_SOURCE];

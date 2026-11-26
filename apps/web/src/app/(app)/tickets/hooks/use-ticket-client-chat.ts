@@ -38,6 +38,11 @@ import { ticketChatStore } from '../stores/ticket-chat-store';
 
 /** One page of the client chat's persisted messages, oldest first. */
 const fetchClientChatHistory = createMingoGraphqlHistory(postMingoGraphql, { chatType: CHAT_TYPE.CLIENT });
+/** The same, with emails read as emails (email-to-ticket): their sender and envelope. */
+const fetchClientChatHistoryWithEmail = createMingoGraphqlHistory(postMingoGraphql, {
+  chatType: CHAT_TYPE.CLIENT,
+  email: true,
+});
 
 /** The technician's own direct message comes back as theirs: an ADMIN row that names them, or no one. */
 const ownUserId = () => useAuthStore.getState().user?.id;
@@ -54,6 +59,8 @@ interface UseTicketClientChatOptions {
   modelsByProvider: SupportedModelsByProvider | undefined;
   /** An approval was answered: the ticket's status lock and transitions moved. */
   onApprovalAnswered: () => void;
+  /** Emails draw as emails. Only where the backend runs email-to-ticket (the `email-to-ticket` flag). */
+  email?: boolean;
 }
 
 export function useTicketClientChat({
@@ -63,6 +70,7 @@ export function useTicketClientChat({
   baselineModel,
   modelsByProvider,
   onApprovalAnswered,
+  email = false,
 }: UseTicketClientChatOptions): UnifiedChatState {
   const { toast } = useToast();
   const { getWsUrl, onBeforeReconnect } = useNatsAppConfig();
@@ -96,7 +104,7 @@ export function useTicketClientChat({
   return useChatEngine(
     {
       transport,
-      history: { fetchDialogMessages: fetchClientChatHistory },
+      history: { fetchDialogMessages: email ? fetchClientChatHistoryWithEmail : fetchClientChatHistory },
       store: ticketChatStore,
       side: 'client',
       dialogId,
