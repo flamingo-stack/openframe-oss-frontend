@@ -10,6 +10,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useLazyLoadQuery } from 'react-relay';
 import type { insightCheckOverrideImpactQuery as ImpactQueryType } from '@/__generated__/insightCheckOverrideImpactQuery.graphql';
+import { useRetryKey } from '@/app/components/shared';
 import { LoadingParagraph } from '@/app/components/shared/loading-paragraph';
 import { InsightCheckScopeType } from '@/generated/schema-enums';
 import { insightCheckOverrideImpactQuery } from '@/graphql/insights/insight-check-override-impact-query';
@@ -38,10 +39,12 @@ function OverrideImpactScope(props: { check: string; scope: PickedScope }) {
 }
 
 function OverrideImpactLive({ check, scope }: { check: string; scope: PickedScope }) {
+  // The enclosing boundary's Retry re-issues the count.
+  const retryKey = useRetryKey();
   const { insightCheckOverrideImpact: impact } = useLazyLoadQuery<ImpactQueryType>(
     insightCheckOverrideImpactQuery,
     { check, scopeType: scope.type, scopeId: scope.id },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
   const warning = impactWarning(scope.type, impact.deviceCount, impact.affectedDeviceCount);
   return (

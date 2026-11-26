@@ -19,6 +19,9 @@ export const OVERRIDE_SCOPE_LABELS: Record<OverrideScopeType, string> = {
   DEVICE: 'Device',
 };
 
+/** The picked entity's field in the exception form, by kind: "Tag" under an Applies to of "Device Tag" (the design's). */
+export const OVERRIDE_ENTITY_LABELS: Record<OverrideScopeType, string> = { ...OVERRIDE_SCOPE_LABELS, TAG: 'Tag' };
+
 /** Where an incident's threshold came from, as its details say it ("Tag · kiosk", "Default · all devices"). */
 export function thresholdScopeLabel(scopeType: InsightCheckScopeType | string, scopeName: string | null): string {
   switch (scopeType) {

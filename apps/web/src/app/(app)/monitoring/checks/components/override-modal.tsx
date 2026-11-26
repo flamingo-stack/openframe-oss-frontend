@@ -11,13 +11,14 @@ import {
   SelectValue,
   Switch,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { ContentErrorBoundary } from '@/app/components/shared';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
-import { OVERRIDE_SCOPE_LABELS } from '../utils/check-labels';
+import { OVERRIDE_ENTITY_LABELS, OVERRIDE_SCOPE_LABELS } from '../utils/check-labels';
 import {
   type Check,
   type CheckOverride,
@@ -29,10 +30,7 @@ import {
 } from '../utils/check-transform';
 import { OverrideImpact, type PickedScope } from './override-impact';
 import { ScopeEntityPicker } from './scope-entity-picker';
-import { ThresholdFields, thresholdsByParameter, thresholdsSchema } from './threshold-fields';
-
-/** The entity field's label for each kind. */
-const ENTITY_LABELS: Record<OverrideScopeType, string> = { CUSTOMER: 'Customer', TAG: 'Tag', DEVICE: 'Device' };
+import { invalidThresholdsToast, ThresholdFields, thresholdsByParameter, thresholdsSchema } from './threshold-fields';
 
 type OverrideFormValues = { enabled: boolean; thresholds: string[] };
 
@@ -90,18 +88,22 @@ export function OverrideModal({
       : null;
   const canSave = Boolean(picked) && overrides !== null && !existing;
 
-  const submit = form.handleSubmit(values => {
-    if (!picked || !canSave) return;
-    onSave(
-      { type: picked.type, id: picked.id },
-      {
-        enabled: values.enabled,
-        // Off, the check measures nothing against them: an exception that turns it off stores no thresholds.
-        parameters: values.enabled ? thresholdsByParameter(check.parameters, values.thresholds) : {},
-      },
-      picked.name,
-    );
-  });
+  const { toast } = useToast();
+  const submit = form.handleSubmit(
+    values => {
+      if (!picked || !canSave) return;
+      onSave(
+        { type: picked.type, id: picked.id },
+        {
+          enabled: values.enabled,
+          // Off, the check measures nothing against them: an exception that turns it off stores no thresholds.
+          parameters: values.enabled ? thresholdsByParameter(check.parameters, values.thresholds) : {},
+        },
+        picked.name,
+      );
+    },
+    errors => toast(invalidThresholdsToast(errors)),
+  );
 
   return (
     <SimpleModal
@@ -213,7 +215,7 @@ function AppliesToFields({ kind, picked, editing, existing, onKind, onPick, onEd
 
       {kind && (
         <div className="flex flex-col gap-[var(--spacing-system-xs)]">
-          <Label className="text-ods-text-primary text-h4">{ENTITY_LABELS[kind]}</Label>
+          <Label className="text-ods-text-primary text-h4">{OVERRIDE_ENTITY_LABELS[kind]}</Label>
           {editing ? (
             <p className="text-ods-text-primary text-h6">{picked?.name ?? picked?.id}</p>
           ) : (

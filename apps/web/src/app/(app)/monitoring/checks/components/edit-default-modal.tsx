@@ -2,6 +2,7 @@
 'use no memo';
 
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -9,7 +10,13 @@ import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { NEXT_RUN_NOTE } from '../hooks/use-check-mutations';
 import { formatOverrideThreshold, INSIGHT_CHECK_PLATFORM_LABELS } from '../utils/check-labels';
 import type { Check, CheckOverride } from '../utils/check-transform';
-import { ThresholdFields, thresholdsByParameter, thresholdsSchema, type ThresholdValues } from './threshold-fields';
+import {
+  invalidThresholdsToast,
+  ThresholdFields,
+  thresholdsByParameter,
+  thresholdsSchema,
+  type ThresholdValues,
+} from './threshold-fields';
 
 /** "Exceptions keep their own values: lab (above 60), kiosk (above 25)." Nothing when no exception sets a threshold. */
 function overridesNote(check: Check, overrides: readonly CheckOverride[]): string {
@@ -37,7 +44,11 @@ export function EditDefaultModal({ check, overrides, isSaving, onClose, onSave }
     resolver: zodResolver(z.object({ thresholds: thresholdsSchema(check.parameters) })),
     defaultValues: { thresholds: check.parameters.map(parameter => String(parameter.value)) },
   });
-  const submit = form.handleSubmit(values => onSave(thresholdsByParameter(check.parameters, values.thresholds)));
+  const { toast } = useToast();
+  const submit = form.handleSubmit(
+    values => onSave(thresholdsByParameter(check.parameters, values.thresholds)),
+    errors => toast(invalidThresholdsToast(errors)),
+  );
   const platform = INSIGHT_CHECK_PLATFORM_LABELS[check.platform as keyof typeof INSIGHT_CHECK_PLATFORM_LABELS];
 
   return (

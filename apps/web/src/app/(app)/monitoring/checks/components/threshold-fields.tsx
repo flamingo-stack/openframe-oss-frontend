@@ -29,6 +29,28 @@ export function thresholdsSchema(parameters: readonly CheckParameter[]) {
   });
 }
 
+/**
+ * The toast for a save the thresholds refuse: what the wrong values need (each field says it under itself too), so a
+ * press on Save never does nothing.
+ */
+export function invalidThresholdsToast(errors: { thresholds?: unknown }) {
+  const fields = errors.thresholds && typeof errors.thresholds === 'object' ? Object.values(errors.thresholds) : [];
+  const messages = [
+    ...new Set(
+      fields.flatMap(field =>
+        field && typeof field === 'object' && 'message' in field && typeof field.message === 'string'
+          ? [field.message]
+          : [],
+      ),
+    ),
+  ];
+  return {
+    title: 'Check the thresholds',
+    description: messages.length > 0 ? `${messages.join('. ')}.` : 'A threshold is out of range.',
+    variant: 'destructive' as const,
+  };
+}
+
 /** `Opens an incident above this value. From 5 to 300. Default: 40.` */
 function thresholdHint(parameter: CheckParameter, defaultValue: number, withRange: boolean): string {
   const side = parameter.firesWhen === InsightThresholdDirection.BELOW ? 'below' : 'above';

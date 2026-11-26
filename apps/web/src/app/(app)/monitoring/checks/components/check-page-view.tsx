@@ -22,15 +22,13 @@ import { insightCheckPageQuery } from '@/graphql/insights/insight-check-page-que
 import { routes } from '@/lib/routes';
 import { useCheckMutations } from '../hooks/use-check-mutations';
 import { type Check, type CheckOverride, toCheck, toCheckOverride } from '../utils/check-transform';
+import { CheckDetails } from './check-details';
 import { type CheckDialog, CheckDialogs, toggleCheck } from './check-dialogs';
-import {
-  CheckDetails,
-  DefaultThreshold,
-  DefaultThresholdActions,
-  ExceptionsActions,
-  NoExceptions,
-  Section,
-} from './check-page-sections';
+import { Section } from './check-section';
+import { DefaultThreshold } from './default-threshold';
+import { DefaultThresholdActions } from './default-threshold-actions';
+import { ExceptionsActions } from './exceptions-actions';
+import { NoExceptions } from './no-exceptions';
 import { OverridesTable, type OverrideTableRow } from './overrides-table';
 
 const PRECEDENCE_NOTE =
@@ -60,10 +58,12 @@ function CheckPage({ checkKey }: { checkKey: string }) {
 }
 
 function CheckPageLive({ checkKey }: { checkKey: string }) {
+  // The boundary's Retry re-issues the request: a failed read is cached under its fetch key.
+  const retryKey = useRetryKey();
   const data = useLazyLoadQuery<CheckPageQueryType>(
     insightCheckPageQuery,
     { check: checkKey },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
   return (
     <CheckPageContent check={toCheck(data.insightCheck)} overrides={data.insightCheck.overrides.map(toCheckOverride)} />
