@@ -111,3 +111,31 @@ export function holdsDashboard(
 ): boolean {
   return !locked && onboardingV2 !== 'off' && pending !== 'none' && isLandingRoute(pathname);
 }
+
+/**
+ * What the shell's root draws for the session's state, in the order the checks run: an auth-only surface
+ * (saas-shared) draws the page alone; a session resolved as signed out on a SaaS tenant gets the sign-in overlay (an
+ * OSS tenant is redirected to `/auth` and keeps the shell meanwhile); a session paused mid-way or a first `/me` that
+ * never answered gets the session screen (CU-17tkuw69v8q); anything else the shell. Signed out wins over unavailable
+ * on purpose: a session that has resolved as signed out is answered, not unavailable.
+ */
+export type SessionRoot = 'page-only' | 'signed-out' | 'session-unavailable' | 'shell';
+
+export function sessionRootFor({
+  authOnly,
+  saasTenant,
+  isReady,
+  isAuthenticated,
+  sessionUnavailable,
+}: {
+  authOnly: boolean;
+  saasTenant: boolean;
+  isReady: boolean;
+  isAuthenticated: boolean;
+  sessionUnavailable: boolean;
+}): SessionRoot {
+  if (authOnly) return 'page-only';
+  if (isReady && !isAuthenticated && saasTenant) return 'signed-out';
+  if (sessionUnavailable) return 'session-unavailable';
+  return 'shell';
+}

@@ -38,7 +38,7 @@ export function useFailOpen(loading: boolean, afterMs: number, label?: string): 
   useEffect(() => {
     if (!loading) return undefined;
     const timer = setTimeout(() => {
-      if (label) console.warn(`[fail-open] ${label}: no answer after ${afterMs} ms, going on without it`);
+      if (label) console.warn(`[fail-open] ${label}: no answer after ${afterMs} ms, stopped waiting`);
       setFailedOpen(true);
     }, afterMs);
     return () => clearTimeout(timer);

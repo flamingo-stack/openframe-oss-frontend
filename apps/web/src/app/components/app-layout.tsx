@@ -54,6 +54,7 @@ import {
   holdsDashboard,
   isBareChromeRoute,
   mingoHeaderLoadingCells,
+  sessionRootFor,
 } from './app-shell-chrome';
 import {
   AiBalanceBar,
@@ -116,13 +117,6 @@ import { SuperUserBanner, SuperUserBannerSeed } from './super-user-banner';
 import { TimeTrackerHostProvider } from './time-tracker-host-provider';
 import { UnauthorizedOverlay } from './unauthorized-overlay';
 import { WalkthroughVideo } from './walkthrough-video';
-
-/**
- * How long the chrome may wait for the answers it renders from before giving up and drawing itself anyway
- * (`useFailOpen`): the nav renders from whatever the flags currently read (their env defaults, if nothing answered)
- * and without the onboarding entry, and recovers the moment a real answer lands.
- */
-const CHROME_LOADING_FAIL_OPEN_MS = FAIL_OPEN_AFTER_MS;
 
 /**
  * The `/setup` wizard's shell: the page alone, full screen. Carries the same
@@ -261,7 +255,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   const setupPending = useSetupPending();
   const dashboardHeld = useFailOpen(
     holdsDashboard(pathname, onboardingV2, setupPending, showLockContent),
-    CHROME_LOADING_FAIL_OPEN_MS,
+    FAIL_OPEN_AFTER_MS,
   );
   // Every flag this shell's CHROME depends on, read reactively in one place:
   // the sidebar memo below and the header props both consume these, and a
@@ -365,7 +359,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   const loadsOnboardingProgress = withOnboarding || onboardingV2 === 'on';
   const flagsReady = useFeatureFlagsReady();
   const chromeIncomplete = !flagsReady || (withOnboarding && sessionReady && !isLocked && !onboardingLoaded);
-  const chromeLoading = useFailOpen(chromeIncomplete, CHROME_LOADING_FAIL_OPEN_MS);
+  const chromeLoading = useFailOpen(chromeIncomplete, FAIL_OPEN_AFTER_MS);
 
   const userDone = countCompleted(USER_ONBOARDING_STEPS, userProgress?.completedSteps ?? []);
   const userRemaining = USER_ONBOARDING_STEPS.length - userDone;
@@ -1146,30 +1140,20 @@ function AppLayoutInner({ children, mainClassName }: { children: React.ReactNode
     }
   }, [isReady, isAuthenticated, pathname, router]);
 
-  // Auth-only mode (saas-shared): render children directly
-  if (isAuthOnlyMode()) {
-    return <>{children}</>;
-  }
-
-  // Resolved as signed out on a SaaS tenant: the overlay replaces the app.
-  if (isReady && !isAuthenticated) {
-    if (isSaasTenantMode()) {
-      return <UnauthorizedOverlay />;
-    }
-    // OSS mode: the effect above is redirecting to /auth. Fall through so the
-    // shell stays mounted with the page's own loading state in its content area
-    // rather than swapping the whole chrome for a placeholder on the way out.
-  }
-
-  // Auth could not be re-established and the credential is not known to be
-  // dead (`session-health.ts`): without this the page sat in its skeletons
-  // behind the refresh loop, with no way out but closing the tab. The screen
-  // owns the paced retry and the exit, and replaces the tree so a recovery
-  // remounts every query fresh. After the signed-out check on purpose: a
-  // session that has resolved as signed out is answered, not unavailable.
-  if (sessionUnavailable) {
-    return <SessionUnavailableScreen />;
-  }
+  // The order is `sessionRootFor`'s: an auth-only surface draws the page alone; signed out on a SaaS tenant gets the
+  // overlay (an OSS tenant is being redirected to /auth by the effect above and keeps the shell with the page's own
+  // loading state on the way out); a session that could not be re-established or never answered gets the session
+  // screen, which owns the paced retry and the exit and replaces the tree so a recovery remounts every query fresh.
+  const root = sessionRootFor({
+    authOnly: isAuthOnlyMode(),
+    saasTenant: isSaasTenantMode(),
+    isReady,
+    isAuthenticated,
+    sessionUnavailable,
+  });
+  if (root === 'page-only') return <>{children}</>;
+  if (root === 'signed-out') return <UnauthorizedOverlay />;
+  if (root === 'session-unavailable') return <SessionUnavailableScreen />;
 
   // The guard wraps EVERYTHING, and that placement is the rule, not a detail.
   // Anything mounted beside it instead of under it cannot read the subscription
