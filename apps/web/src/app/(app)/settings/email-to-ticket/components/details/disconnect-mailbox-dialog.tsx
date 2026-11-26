@@ -7,6 +7,7 @@ import { graphql, useFragment, useMutation } from 'react-relay';
 import type { disconnectMailboxDialog_mailbox$key } from '@/__generated__/disconnectMailboxDialog_mailbox.graphql';
 import type { disconnectMailboxDialogMutation as DisconnectMutationType } from '@/__generated__/disconnectMailboxDialogMutation.graphql';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
+import { MailboxReplyState } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
 import { mailboxRequestErrorMessage, mailboxUserErrorMessage } from '../../utils/mailbox-errors';
 import { mailboxProviderPresentation } from '../../utils/mailbox-presentation';
@@ -16,6 +17,7 @@ const disconnectMailboxDialogFragment = graphql`
     id
     supportAddress
     provider
+    replyState
   }
 `;
 
@@ -49,7 +51,7 @@ export function DisconnectMailboxDialog({
   onOpenChange,
   onLeavingChange,
 }: DisconnectMailboxDialogProps) {
-  const { id, supportAddress, provider } = useFragment(disconnectMailboxDialogFragment, mailbox);
+  const { id, supportAddress, provider, replyState } = useFragment(disconnectMailboxDialogFragment, mailbox);
   const { toast } = useToast();
   const router = useRouter();
   const [commit, isDisconnecting] = useMutation<DisconnectMutationType>(disconnectMutation);
@@ -96,9 +98,12 @@ export function DisconnectMailboxDialog({
               keep going to OpenFrame and are deleted on arrival.
             </p>
           </div>
-          <p className="text-ods-text-primary text-h4">
-            OpenFrame also signs out of the mailbox and can no longer send replies as it.
-          </p>
+          {/* Only while signed in to reply as the mailbox: otherwise there is nothing to sign out of. */}
+          {replyState === MailboxReplyState.AS_MAILBOX && (
+            <p className="text-ods-text-primary text-h4">
+              OpenFrame also signs out of the mailbox and can no longer send replies as it.
+            </p>
+          )}
         </>
       }
       confirmLabel="Disconnect"
