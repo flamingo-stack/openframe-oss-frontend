@@ -7,7 +7,16 @@ import { create } from 'zustand';
  * The paged lists a change can reach from anywhere: a row added, removed or moved by a dialog, another page or the
  * list's own row actions.
  */
-export type RefreshableList = 'invitations';
+export type RefreshableList =
+  | 'invitations'
+  | 'scripts'
+  | 'scriptSchedules'
+  | 'knowledgeBase'
+  | 'archivedArticles'
+  | 'assignedItems'
+  | 'insights'
+  | 'directoryUsers'
+  | 'directoryGroups';
 
 interface ListRefreshStore {
   /** Bumped once per change; a paged list adds its own to its query's `fetchKey`. */
