@@ -17,18 +17,21 @@ const incidentCheckLinkCellQuery = graphql`
   }
 `;
 
-/** The check's name, linking to its page; read on its own, so the card does not wait for it. */
-export function IncidentCheckLinkCell({ check }: { check: string }) {
+/**
+ * The check's name, linking to its page; read on its own, so the card does not wait for it. `check` is absent only in a
+ * loading scope (the incident's strip is still read): the cell draws its loading form.
+ */
+export function IncidentCheckLinkCell({ check }: { check?: string }) {
   return (
     <ContentErrorBoundary
-      fallback={() => <InfoCell value={<CheckLink check={check}>Open check</CheckLink>} label="Check" />}
+      fallback={() => <InfoCell value={check && <CheckLink check={check}>Open check</CheckLink>} label="Check" />}
     >
       <CheckLinkIsland check={check} />
     </ContentErrorBoundary>
   );
 }
 
-function CheckLinkIsland({ check }: { check: string }) {
+function CheckLinkIsland({ check }: { check?: string }) {
   return (
     <LoadingSuspense label="Loading check">
       <CheckLinkReader check={check} />
@@ -36,8 +39,8 @@ function CheckLinkIsland({ check }: { check: string }) {
   );
 }
 
-function CheckLinkReader({ check }: { check: string }) {
-  if (useLoadingScope()) return <InfoCell value="" label="Check" skeletonWidth="w-24" />;
+function CheckLinkReader({ check }: { check?: string }) {
+  if (useLoadingScope() || check === undefined) return <InfoCell value="" label="Check" skeletonWidth="w-24" />;
   return <CheckLinkLive check={check} />;
 }
 
