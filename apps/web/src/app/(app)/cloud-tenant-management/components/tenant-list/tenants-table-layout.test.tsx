@@ -13,6 +13,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { RelayEnvironmentProvider } from 'react-relay';
 import { Environment, Network, RecordSource, Store } from 'relay-runtime';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { firstPagePager, firstPageVariables } from '@/app/hooks/cursor-pager.fixtures';
 import {
   answerTableFlag,
   gridHeaderColumns,
@@ -23,13 +24,14 @@ import {
   stubLayoutApis,
 } from '@/app/hooks/use-table-layout.fixtures';
 
+// The auto-refresh is off by default and waits for the subscription's answer: no guard is mounted here.
+vi.mock('@/app/components/subscription-lock/subscription-guard', () => ({ useSubscriptionOpen: () => false }));
+
 // Vitest runs no Relay Babel transform, so the tags resolve to their compiled artifacts, as the transform makes them.
 vi.mock('react-relay', async importOriginal => {
   const artifacts: Record<string, unknown> = {
     tenantsTableQuery: (await import('@/__generated__/tenantsTableQuery.graphql')).default,
-    tenantsTable_query: (await import('@/__generated__/tenantsTable_query.graphql')).default,
     tenantsTableV1Query: (await import('@/__generated__/tenantsTableV1Query.graphql')).default,
-    tenantsTableV1_query: (await import('@/__generated__/tenantsTableV1_query.graphql')).default,
     boundCustomer_customer: (await import('@/__generated__/boundCustomer_customer.graphql')).default,
     customerOption_organization: (await import('@/__generated__/customerOption_organization.graphql')).default,
   };
@@ -57,7 +59,7 @@ const ORGANIZATION = {
   image: null,
 };
 
-const PAGE_INFO = { hasNextPage: false, endCursor: 'c-1' };
+const PAGE_INFO = { hasNextPage: false, hasPreviousPage: false, startCursor: 'c-1', endCursor: 'c-1' };
 
 const MULTI_CUSTOMER = {
   directoryConnections: {
@@ -139,10 +141,21 @@ const multiCustomer = (
     isPending={false}
     onEmptyChange={() => {}}
     stickyHeaderOffset="0px"
+    pager={firstPagePager(20)}
+    pageVariables={firstPageVariables(20)}
   />
 );
 
-const singleCustomer = <TenantsTableV1 search="" isPending={false} onEmptyChange={() => {}} stickyHeaderOffset="0px" />;
+const singleCustomer = (
+  <TenantsTableV1
+    search=""
+    isPending={false}
+    onEmptyChange={() => {}}
+    stickyHeaderOffset="0px"
+    pager={firstPagePager(20)}
+    pageVariables={firstPageVariables(20)}
+  />
+);
 
 beforeEach(() => {
   stubLayoutApis();
@@ -167,7 +180,10 @@ describe.each([
     await render(table);
 
     expect(container.textContent).toContain('Acme Directory');
-    expect(hasGridMarkup(container)).toBe(false);
+    // No grid table: the one row above the card rows holds the range, the pager and the auto-refresh picker.
+    expect(gridRoot(container)).toBeNull();
+    expect(gridHeaderColumns(container)).toEqual([]);
+    expect(container.querySelector('[data-table-meta]')?.textContent).toContain('1–1 of 1 result');
   });
 
   it('flag on: the grid table, filling the page, with its gear', async () => {

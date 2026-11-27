@@ -23,22 +23,23 @@ interface KnowledgeBaseItemDialogsProps {
   kind: ItemDialogKind;
   isOpen: boolean;
   onClose: () => void;
-  /** The listings on screen the row is drawn from — an archived or deleted item leaves them at once, a moved one may. */
-  listingIds: readonly string[];
 }
 
-/** The dialog a row's menu opened, for the listing as a whole — one is open at a time. */
-export function KnowledgeBaseItemDialogs({ item, kind, isOpen, onClose, listingIds }: KnowledgeBaseItemDialogsProps) {
+/**
+ * The dialog a row's menu opened, for the listing as a whole — one is open at a time. A dialog that changes which
+ * rows the listing holds marks it changed, and the page is read again.
+ */
+export function KnowledgeBaseItemDialogs({ item, kind, isOpen, onClose }: KnowledgeBaseItemDialogsProps) {
   const data = useFragment(knowledgeBaseItemDialogsFragment, item);
 
   switch (kind) {
     case 'rename':
       return <RenameFolderModal folder={data} isOpen={isOpen} onClose={onClose} />;
     case 'move':
-      return <MoveToFolderModal item={data} isOpen={isOpen} onClose={onClose} listingIds={listingIds} />;
+      return <MoveToFolderModal item={data} isOpen={isOpen} onClose={onClose} />;
     case 'delete':
-      return <DeleteFolderModal folder={data} isOpen={isOpen} onClose={onClose} listingIds={listingIds} />;
+      return <DeleteFolderModal folder={data} isOpen={isOpen} onClose={onClose} />;
     case 'archive':
-      return <ArchiveArticleModal article={data} isOpen={isOpen} onClose={onClose} listingIds={listingIds} />;
+      return <ArchiveArticleModal article={data} isOpen={isOpen} onClose={onClose} />;
   }
 }

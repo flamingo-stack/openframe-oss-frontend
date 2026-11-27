@@ -22,11 +22,8 @@ import { type ChangeEvent, useMemo, useState } from 'react';
 import { graphql, useMutation } from 'react-relay';
 import type { companyTeamStepInviteMutation } from '@/__generated__/companyTeamStepInviteMutation.graphql';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
+import { markListChanged } from '@/lib/list-refresh';
 import { routes } from '@/lib/routes';
-import {
-  invalidateInvitationsListings,
-  invitationsListingId,
-} from '../../settings/components/employees/invitations-listing';
 import { describeInviteRefusals } from '../../settings/components/employees/invite-refusals';
 import { useStepActionState } from '../use-step-action-state';
 
@@ -87,9 +84,9 @@ export function CompanyTeamStep({
     if (emails.length === 0) return;
     commit({
       variables: { emails },
-      // The employees page, if visited, refetches the invitations it holds.
-      updater: store => invalidateInvitationsListings(store, [invitationsListingId('')]),
       onCompleted: ({ inviteUsers }) => {
+        // The invitations list reads its page again wherever it shows next (a partial failure still sent the rest).
+        markListChanged('invitations');
         const refused = describeInviteRefusals(emails, inviteUsers.userErrors);
         if (refused) {
           toast({ title: 'Invite failed', description: refused, variant: 'destructive' });

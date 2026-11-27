@@ -6,7 +6,7 @@ import type { confirmResendInvitationModal_invitation$key } from '@/__generated_
 import type { confirmResendInvitationModalMutation } from '@/__generated__/confirmResendInvitationModalMutation.graphql';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
-import { invalidateInvitationsListings } from './invitations-listing';
+import { markListChanged } from '@/lib/list-refresh';
 
 const confirmResendInvitationModalFragment = graphql`
   fragment confirmResendInvitationModal_invitation on Invitation {
@@ -16,9 +16,9 @@ const confirmResendInvitationModalFragment = graphql`
 `;
 
 const confirmResendInvitationModalMutationNode = graphql`
-  mutation confirmResendInvitationModalMutation($id: ID!, $connections: [ID!]!) {
+  mutation confirmResendInvitationModalMutation($id: ID!) {
     resendInvitation(input: { id: $id }) {
-      revokedInvitationId @deleteEdge(connections: $connections)
+      revokedInvitationId
     }
   }
 `;
@@ -27,20 +27,13 @@ interface ConfirmResendInvitationModalProps {
   invitation: confirmResendInvitationModal_invitation$key;
   isOpen: boolean;
   onClose: () => void;
-  /** The invitations listings in the store: the old row leaves each, and each is read again for the new one. */
-  listingIds: readonly string[];
 }
 
 /**
- * Replaces an expired invitation with a new one. The old row leaves at once; the
- * block is read again for the new one, which the server sorts.
+ * Replaces an expired invitation with a new one. The invitations list reads its page again: the old row leaves and
+ * the new one lands where the server sorts it.
  */
-export function ConfirmResendInvitationModal({
-  invitation,
-  isOpen,
-  onClose,
-  listingIds,
-}: ConfirmResendInvitationModalProps) {
+export function ConfirmResendInvitationModal({ invitation, isOpen, onClose }: ConfirmResendInvitationModalProps) {
   const { toast } = useToast();
   const { id, email } = useFragment(confirmResendInvitationModalFragment, invitation);
   const [commit, isInFlight] = useMutation<confirmResendInvitationModalMutation>(
@@ -49,9 +42,11 @@ export function ConfirmResendInvitationModal({
 
   const handleConfirm = () => {
     commit({
-      variables: { id, connections: [...listingIds] },
-      updater: store => invalidateInvitationsListings(store, listingIds),
-      onCompleted: onClose,
+      variables: { id },
+      onCompleted: () => {
+        markListChanged('invitations');
+        onClose();
+      },
       onError: error => {
         toast({
           title: 'Error',

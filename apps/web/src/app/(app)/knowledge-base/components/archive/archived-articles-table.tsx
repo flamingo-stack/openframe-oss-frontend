@@ -2,31 +2,33 @@
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
+  type AutoRefreshControlProps,
   type ColumnDef,
   LoadingWhen,
   type Row,
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useMemo } from 'react';
-import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type {
-  archivedArticlesTable_query$data,
-  archivedArticlesTable_query$key,
-} from '@/__generated__/archivedArticlesTable_query.graphql';
-import type { archivedArticlesTablePaginationQuery as ArchivedArticlesTablePaginationQueryType } from '@/__generated__/archivedArticlesTablePaginationQuery.graphql';
-import type { archivedArticlesTableQuery as ArchivedArticlesTableQueryType } from '@/__generated__/archivedArticlesTableQuery.graphql';
-import {
-  type InfiniteScroll,
-  liveColumnMeta,
-  NO_ITEMS,
-  NO_NEXT_PAGE,
-  oneLineEmptyState,
-  useRetryKey,
-} from '@/app/components/shared';
+  CursorPagerFooterProps,
+  CursorPagerVariables,
+  UseCursorPagerReturn,
+} from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useMemo } from 'react';
+import { graphql, useLazyLoadQuery } from 'react-relay';
+import type {
+  archivedArticlesTableQuery$data,
+  archivedArticlesTableQuery as ArchivedArticlesTableQueryType,
+} from '@/__generated__/archivedArticlesTableQuery.graphql';
+import { liveColumnMeta, NO_ITEMS, oneLineEmptyState, useRetryKey } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
 import { useRowDialog } from '@/app/components/shared/use-row-dialog';
+import { forwardPage } from '@/app/hooks/forward-page';
+import { usePagedTable } from '@/app/hooks/use-paged-table';
+import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { useGridTableProps } from '@/app/hooks/use-table-layout';
+import { useListRefreshEpoch } from '@/lib/list-refresh';
 import { routes } from '@/lib/routes';
 import { UnarchiveArticleModal } from '../dialogs/unarchive-article-modal';
 import {
@@ -37,31 +39,18 @@ import {
 } from '../shared/knowledge-base-grid-columns';
 import { KNOWLEDGE_BASE_ITEM_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
 import { KnowledgeBaseItemNameCell } from '../shared/knowledge-base-item-name-cell';
-import { useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
 import { ArchivedArticleActionsCell } from './archived-article-actions-cell';
 import { ArchivedArticleDateCell } from './archived-article-date-cell';
 import { ARCHIVED_COLUMN } from './archived-articles-columns';
 
-/** Every archived article of the knowledge base, whichever folder it was archived from — newest first. */
+/**
+ * Every archived article of the knowledge base, whichever folder it was archived from — newest first. One page per
+ * request, its cursor in the URL (`cursor`; no `@connection`: a cursor from a link must read exactly its page).
+ * `archivedArticles` pages forward only (`first` / `after`).
+ */
 const archivedArticlesTableQuery = graphql`
   query archivedArticlesTableQuery($search: String, $tagIds: [ID], $first: Int!, $after: String) {
-    ...archivedArticlesTable_query @arguments(search: $search, tagIds: $tagIds, first: $first, after: $after)
-  }
-`;
-
-const archivedArticlesTableFragment = graphql`
-  fragment archivedArticlesTable_query on Query
-  @refetchable(queryName: "archivedArticlesTablePaginationQuery")
-  @argumentDefinitions(
-    search: { type: "String" }
-    tagIds: { type: "[ID]" }
-    first: { type: "Int", defaultValue: 20 }
-    after: { type: "String" }
-  ) {
-    archivedArticles(search: $search, tagIds: $tagIds, first: $first, after: $after)
-      @connection(key: "archivedArticlesTable_archivedArticles", filters: ["search", "tagIds"]) {
-      # A restored article leaves this listing at once.
-      __id
+    archivedArticles(search: $search, tagIds: $tagIds, first: $first, after: $after) {
       filteredCount
       edges {
         node {
@@ -73,13 +62,15 @@ const archivedArticlesTableFragment = graphql`
       }
       pageInfo {
         hasNextPage
+        hasPreviousPage
+        startCursor
         endCursor
       }
     }
   }
 `;
 
-type ArchivedRow = archivedArticlesTable_query$data['archivedArticles']['edges'][number]['node'];
+type ArchivedRow = archivedArticlesTableQuery$data['archivedArticles']['edges'][number]['node'];
 
 const getRowId = (row: ArchivedRow) => row.id;
 const rowHref = (row: ArchivedRow) => routes.knowledgeBase.details(row.id);
@@ -126,14 +117,29 @@ interface ArchivedArticlesTableProps {
   /** A refetch is in flight and the rows on screen are the previous result. */
   isPending: boolean;
   stickyHeaderOffset: string;
+  /** The list's position in the URL: footer props, the stale check, the cursor drop. */
+  pager: UseCursorPagerReturn;
+  /** Deferred — the page variables to spread into the query (lag the URL while the next page is read). */
+  pageVariables: CursorPagerVariables;
 }
 
 /**
- * The archive's rows. In a loading scope (the view's Suspense fallback) it draws the table over one page of
- * placeholder rows with their real cells, each in its own loading form; otherwise it runs the query, which suspends,
- * so it lives under the view's `<Suspense>`.
+ * The archive's rows, paged on the server (First · Prev · Next), with their own boundary. In a loading scope (the
+ * boundary's fallback) the reader draws the table over one page of placeholder rows with their real cells, each in its
+ * own loading form; otherwise it runs the query, which suspends under that boundary. A cursor the server refuses drops
+ * to the first page (`StaleCursorBoundary`); any other error goes up unchanged.
  */
 export function ArchivedArticlesTable(props: ArchivedArticlesTableProps) {
+  return (
+    <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
+      <ArchivedArticlesTableLoading {...props} />
+    </StaleCursorBoundary>
+  );
+}
+
+/** The rows' loading boundary, the whole output of its own component (the loading standard), under the
+ * stale-cursor boundary above. */
+function ArchivedArticlesTableLoading(props: ArchivedArticlesTableProps) {
   return (
     <LoadingSuspense label="Loading archived articles">
       <ArchivedArticlesTableReader {...props} />
@@ -150,67 +156,64 @@ function ArchivedArticlesTableReader(props: ArchivedArticlesTableProps) {
   if (scoped || flagLoading) {
     return (
       <LoadingWhen loading>
-        <ArchivedArticlesRows
-          {...props}
-          rows={NO_ITEMS}
-          totalCount={0}
-          listingIds={NO_ITEMS}
-          infiniteScroll={NO_NEXT_PAGE}
-        />
+        <ArchivedArticlesRows {...props} rows={NO_ITEMS} totalCount={0} pager={null} />
       </LoadingWhen>
     );
   }
   return <ArchivedArticlesTableQuery {...props} />;
 }
 
-function ArchivedArticlesTableQuery(props: ArchivedArticlesTableProps) {
-  const { search, tagIds } = props;
+/**
+ * The page the URL names, its footer and the auto-refresh. An archive, an unarchive, a folder deleted with its
+ * articles archived or an archived article saved back changes which articles the page holds, which is the server's
+ * answer: it marks the list changed and the page is read again (`useListRefreshEpoch`), keeping the rows on screen
+ * until it arrives.
+ */
+function ArchivedArticlesTableQuery({ pager, pageVariables, ...props }: ArchivedArticlesTableProps) {
+  const { search, tagIds, isPending } = props;
   const retryKey = useRetryKey();
-  const queryData = useLazyLoadQuery<ArchivedArticlesTableQueryType>(
-    archivedArticlesTableQuery,
-    {
-      search: search || null,
-      tagIds: tagIds.length > 0 ? [...tagIds] : null,
-      first: KNOWLEDGE_BASE_PAGE_SIZE,
-      after: null,
-    },
-    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
-  );
-
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
-    ArchivedArticlesTablePaginationQueryType,
-    archivedArticlesTable_query$key
-  >(archivedArticlesTableFragment, queryData);
-  const archived = data.archivedArticles;
-  const rows = archived.edges.map(edge => edge.node);
-
-  const infiniteScroll = useKnowledgeBaseLoadMore({ loadNext, hasNext, isLoadingNext }, 'Error loading more articles');
+  const changed = useListRefreshEpoch('archivedArticles');
+  const variables: ArchivedArticlesTableQueryType['variables'] = {
+    search: search || null,
+    tagIds: tagIds.length > 0 ? [...tagIds] : null,
+    ...forwardPage(pageVariables, KNOWLEDGE_BASE_PAGE_SIZE),
+  };
+  const queryData = useLazyLoadQuery<ArchivedArticlesTableQueryType>(archivedArticlesTableQuery, variables, {
+    fetchPolicy: 'store-and-network',
+    fetchKey: `${retryKey}:${changed}`,
+  });
+  const refetch = useRefetchPage<ArchivedArticlesTableQueryType>(archivedArticlesTableQuery, variables);
+  const { edges, pageInfo, filteredCount } = queryData.archivedArticles;
+  // A top-level page: its auto-refresh interval has no prefix, as its other params.
+  const paged = usePagedTable({ pager, pageInfo, rowCount: edges.length, refetch, isPending });
 
   return (
     <ArchivedArticlesRows
       {...props}
-      rows={rows}
-      totalCount={archived.filteredCount}
-      listingIds={[archived.__id]}
-      infiniteScroll={infiniteScroll}
+      rows={edges.map(edge => edge.node)}
+      totalCount={filteredCount}
+      pager={paged.pager}
+      refresh={paged.refresh}
     />
   );
 }
 
-interface ArchivedArticlesRowsProps extends ArchivedArticlesTableProps {
+interface ArchivedArticlesRowsProps extends Omit<ArchivedArticlesTableProps, 'pager' | 'pageVariables'> {
   rows: readonly ArchivedRow[];
+  /** The server's total for the search and the tags, not the rows on the page. */
   totalCount: number;
-  /** The connections the unarchive dialog marks stale. */
-  listingIds: readonly string[];
-  infiniteScroll: InfiniteScroll;
+  /** The First · Prev · Next pager (`usePagedTable`); `null` while the page is read. */
+  pager: CursorPagerFooterProps | null;
+  /** The auto-refresh picker above the table (`usePagedTable`). */
+  refresh?: AutoRefreshControlProps;
 }
 
 /** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
 function ArchivedArticlesRows({
   rows,
   totalCount,
-  listingIds,
-  infiniteScroll,
+  pager,
+  refresh,
   search,
   tagIds,
   isPending,
@@ -251,7 +254,8 @@ function ArchivedArticlesRows({
             : oneLineEmptyState('No archived articles.')
         }
         rowHref={rowHref}
-        footer={rows.length > 0 ? infiniteScroll : null}
+        pager={pager}
+        refresh={refresh}
         isPending={isPending}
         stickyHeaderOffset={stickyHeaderOffset}
         layout={tableGrid.layout}
@@ -259,14 +263,7 @@ function ArchivedArticlesRows({
         settings={tableGrid.settings}
       />
 
-      {dialog && (
-        <UnarchiveArticleModal
-          article={dialog.row}
-          isOpen={dialog.isOpen}
-          onClose={closeDialog}
-          listingIds={listingIds}
-        />
-      )}
+      {dialog && <UnarchiveArticleModal article={dialog.row} isOpen={dialog.isOpen} onClose={closeDialog} />}
     </>
   );
 }

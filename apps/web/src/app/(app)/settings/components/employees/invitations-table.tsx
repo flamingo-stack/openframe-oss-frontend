@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  type AutoRefreshControlProps,
   type ColumnDef,
   type DataTableSettings,
   GRID_ACTION_COLUMN_SIZE,
@@ -9,6 +10,7 @@ import {
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import type { CursorPagerFooterProps } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMemo } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type {
@@ -16,7 +18,7 @@ import type {
   invitationsTable_invitation$key,
 } from '@/__generated__/invitationsTable_invitation.graphql';
 import { multiColumnFilter } from '@/app/(app)/software/components/shared/column-filters';
-import { type InfiniteScroll, liveColumnMeta } from '@/app/components/shared';
+import { liveColumnMeta } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { useRowDialog } from '@/app/components/shared/use-row-dialog';
 import type { TableLayout } from '@/app/hooks/use-table-layout';
@@ -120,7 +122,7 @@ function emptyState(search: string, isFiltered: boolean) {
 }
 
 interface InvitationsTableProps {
-  /** The pages fetched so far. */
+  /** The rows of the page on screen. */
   rows: invitationsTable_invitation$key;
   /** The server's total for the current search and funnels, not the rows fetched so far. */
   totalCount: number;
@@ -130,14 +132,15 @@ interface InvitationsTableProps {
   filterOptions: EmployeeFilterOptions;
   selections: EmployeeSelections;
   onSelectionsChange: (next: EmployeeSelections) => void;
-  /** The listings the dialogs' mutations update, the one the rows came from first. */
-  listingIds: readonly string[];
   /** A refetch is in flight: dims the stale rows. */
   isPending: boolean;
   stickyHeaderOffset: string;
-  infiniteScroll: InfiniteScroll;
   /** Card rows, or the grid table where the app's table flag is on. */
   layout: TableLayout;
+  /** The First · Prev · Next pager (`usePagedTable`); `null` while the page is read. */
+  pager: CursorPagerFooterProps | null;
+  /** The auto-refresh picker above the table (`usePagedTable`). */
+  refresh?: AutoRefreshControlProps;
 }
 
 /** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
@@ -149,11 +152,11 @@ export function InvitationsTable({
   filterOptions,
   selections,
   onSelectionsChange,
-  listingIds,
   isPending,
   stickyHeaderOffset,
-  infiniteScroll,
   layout,
+  pager,
+  refresh,
 }: InvitationsTableProps) {
   const loading = useLoadingScope();
   const rows = useFragment(invitationsTableFragment, rowRefs);
@@ -192,17 +195,12 @@ export function InvitationsTable({
         totalCount={totalCount}
         isPending={isPending}
         emptyState={emptyState(search, isFiltered)}
-        footer={rows.length > 0 ? infiniteScroll : null}
+        pager={pager}
+        refresh={refresh}
       />
       {/* Outside the table: revoking the last row still animates the dialog out. */}
       {dialog && (
-        <InvitationDialog
-          invitation={dialog.row}
-          kind={dialog.kind}
-          isOpen={dialog.isOpen}
-          onClose={closeDialog}
-          listingIds={listingIds}
-        />
+        <InvitationDialog invitation={dialog.row} kind={dialog.kind} isOpen={dialog.isOpen} onClose={closeDialog} />
       )}
     </>
   );

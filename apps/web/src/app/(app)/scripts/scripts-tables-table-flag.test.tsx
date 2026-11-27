@@ -2,7 +2,8 @@
  * The Scripts lists (scripts, schedules, a schedule's runs) and the app's table flag. Each page reads
  * `data-table-grid` once and hands the layout to its list; these draw every list in its loading form, which gets the
  * same layout props as the loaded table (one helper builds both), and check what the list's columns state for the
- * grid. The executions list has its own test beside its shell.
+ * grid. The executions list has its own test beside its shell; the loaded lists' paging is in
+ * `scripts-tables-paging.test.tsx`.
  */
 
 import { GRID_ACTION_COLUMN_SIZE, LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -155,6 +156,17 @@ describe('the Scripts lists and the table flag', () => {
       expect(actions.map(column => column.id)).toEqual(['actions', 'open']);
       expect(columns.slice(-2)).toEqual(actions);
       for (const column of actions) expect(column.size).toBe(GRID_ACTION_COLUMN_SIZE);
+    });
+  });
+
+  // The list pages (scripts, schedules and their archives) page with First · Prev · Next: their loading form draws the
+  // pager row too, waiting, so the loaded table does not push the rows down when it lands.
+  describe.each(LISTS.filter(({ list }) => list().type !== ScheduleRunsTab))('$name', ({ list }) => {
+    it('draws the pager in its loading form, waiting for the first page', () => {
+      serve(false);
+      const table = render(list(), { held: true });
+      expect(table.pager).toBeNull();
+      expect(table.footer).toBeUndefined();
     });
   });
 });

@@ -17,20 +17,19 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { memo, useCallback, useMemo } from 'react';
-import { useLazyLoadQuery, useMutation } from 'react-relay';
+import { useLazyLoadQuery } from 'react-relay';
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
-import type { unarchiveScriptMutation as UnarchiveScriptMutationType } from '@/__generated__/unarchiveScriptMutation.graphql';
 import { NO_ITEMS, useRetryKey, ValueText } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { ScriptStatus } from '@/generated/schema-enums';
 import { scriptDetailRelayQuery } from '@/graphql/scripts/script-detail-relay';
-import { unarchiveScriptMutation } from '@/graphql/scripts/unarchive-script-mutation';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { useTrackOpenView } from '../../../mingo/context/use-track-open-view';
 import { initiatorName } from '../../shared/utils/execution-helpers';
 import { platformsToIds, shellToId } from '../../shared/utils/script-mappers';
+import { useScriptArchive } from '../hooks/use-script-archive';
 import { DETAIL_TABS, SCRIPT_DEFAULT_TAB, scriptTabBody } from './script-detail-tabs';
 import { ScriptSummaryCard } from './script-summary-card';
 
@@ -84,7 +83,7 @@ function ScriptHeaderView({ scriptId, script }: ScriptDetailsViewProps & { scrip
   const loading = useLoadingScope() || script === undefined;
   const { toast } = useToast();
 
-  const [commitUnarchive, isUnarchiving] = useMutation<UnarchiveScriptMutationType>(unarchiveScriptMutation);
+  const { setArchived, isUnarchiving } = useScriptArchive();
   const isArchived = !loading && script?.status === ScriptStatus.ARCHIVED;
 
   // Back follows the list the script actually belongs to.
@@ -103,10 +102,8 @@ function ScriptHeaderView({ scriptId, script }: ScriptDetailsViewProps & { scrip
 
   const handleUnarchive = useCallback(() => {
     if (!script) return;
-    commitUnarchive({
-      // Nothing to prune from here — the lists own their connections and refetch
-      // on navigation. The payload's `status` is what updates this page.
-      variables: { id: script.id, connections: [] },
+    // The payload's `status` is what updates this page; the hook marks the scripts lists changed.
+    setArchived(script.id, false, {
       onCompleted: () => {
         toast({
           title: 'Script unarchived',
@@ -122,7 +119,7 @@ function ScriptHeaderView({ scriptId, script }: ScriptDetailsViewProps & { scrip
         });
       },
     });
-  }, [script, commitUnarchive, toast]);
+  }, [script, setArchived, toast]);
 
   const runHref = routes.scripts.run(scriptId);
 

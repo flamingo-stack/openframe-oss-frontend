@@ -3,6 +3,7 @@
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { UsersIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  type AutoRefreshControlProps,
   type ColumnDef,
   type DataTableFilterOption,
   type FilterGroup,
@@ -12,31 +13,25 @@ import {
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import type { CursorPagerFooterProps } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useEffect, useMemo } from 'react';
-import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
-import type {
-  directoryUsersTable_query$data,
-  directoryUsersTable_query$key,
-} from '@/__generated__/directoryUsersTable_query.graphql';
-import type { directoryUsersTablePaginationQuery as DirectoryUsersTablePaginationQueryType } from '@/__generated__/directoryUsersTablePaginationQuery.graphql';
+import { graphql, useLazyLoadQuery } from 'react-relay';
 import type {
   DirectoryUserFilterInput,
+  directoryUsersTableQuery$data,
   directoryUsersTableQuery as DirectoryUsersTableQueryType,
 } from '@/__generated__/directoryUsersTableQuery.graphql';
-import {
-  EmptyState,
-  type InfiniteScroll,
-  liveColumnMeta,
-  NO_ITEMS,
-  NO_NEXT_PAGE,
-  oneLineEmptyState,
-  useRetryKey,
-} from '@/app/components/shared';
+import { EmptyState, liveColumnMeta, NO_ITEMS, oneLineEmptyState, useRetryKey } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { openRowColumn } from '@/app/components/shared/open-row-column';
+import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
 import { useTableGrid } from '@/app/components/shared/table-layout-scope';
+import { forwardPage } from '@/app/hooks/forward-page';
+import { type PagedListPosition, usePagedTable } from '@/app/hooks/use-paged-table';
+import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { DirectoryReadability, TopAdminState } from '@/generated/schema-enums';
 import { toClaimingCustomer } from '@/graphql/directory/customer-claim-fields';
+import { useListRefreshEpoch } from '@/lib/list-refresh';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { multiColumnFilter } from '../../../software/components/shared/column-filters';
@@ -63,7 +58,10 @@ import type { UserSelections } from './users-filter';
 
 /**
  * One row per person (contract §1): without a customer, every user of every connected tenant; with one, the people
- * that customer's rules claim.
+ * that customer's rules claim. One page per request, its cursor in the URL (no `@connection`: a cursor from a link must
+ * read exactly its page). `directoryUsers` pages forward only (`first` / `after`, `PAGED_LISTS.directoryUsers`).
+ *
+ * Stored values only: `details` is a live provider read and belongs to the user page, never to a list.
  */
 const directoryUsersTableQuery = graphql`
   query directoryUsersTableQuery(
@@ -73,24 +71,7 @@ const directoryUsersTableQuery = graphql`
     $first: Int!
     $after: String
   ) {
-    ...directoryUsersTable_query
-      @arguments(organizationId: $organizationId, filter: $filter, search: $search, first: $first, after: $after)
-  }
-`;
-
-// Stored values only: `details` is a live provider read and belongs to the user page, never to a list.
-const directoryUsersTableFragment = graphql`
-  fragment directoryUsersTable_query on Query
-  @refetchable(queryName: "directoryUsersTablePaginationQuery")
-  @argumentDefinitions(
-    organizationId: { type: "ID" }
-    filter: { type: "DirectoryUserFilterInput" }
-    search: { type: "String" }
-    first: { type: "Int", defaultValue: 20 }
-    after: { type: "String" }
-  ) {
-    directoryUsers(organizationId: $organizationId, filter: $filter, search: $search, first: $first, after: $after)
-      @connection(key: "directoryUsersTable_directoryUsers") {
+    directoryUsers(organizationId: $organizationId, filter: $filter, search: $search, first: $first, after: $after) {
       totalCount
       edges {
         node {
@@ -141,13 +122,15 @@ const directoryUsersTableFragment = graphql`
       }
       pageInfo {
         hasNextPage
+        hasPreviousPage
+        startCursor
         endCursor
       }
     }
   }
 `;
 
-type PersonNode = directoryUsersTable_query$data['directoryUsers']['edges'][number]['node'];
+type PersonNode = directoryUsersTableQuery$data['directoryUsers']['edges'][number]['node'];
 
 /**
  * The row as its cells read it. Per-account values come from the account that explains the person's merged value: the
@@ -292,6 +275,7 @@ interface DirectoryUsersTableProps {
   organizationId?: string;
   /** Deferred funnel selection — feeds the queries (lags the live funnels during a refetch). */
   backendFilters: DirectoryUserFilterInput | null;
+  /** Deferred — the URL's search (never the box's: the write that carries a new search drops the cursor). */
   debouncedSearch: string;
   /** Live funnel selection — what the headers draw as ticked, so a tick lands instantly. */
   selections: UserSelections;
@@ -301,15 +285,32 @@ interface DirectoryUsersTableProps {
   /** No user at all (not a search or funnel miss) — the view drops its toolbar. */
   onEmptyChange: (isEmpty: boolean) => void;
   stickyHeaderOffset: string;
-  /** The phone's filter window is open (its button sits in the view's toolbar). */
-  filtersOpen: boolean;
-  onFiltersClose: () => void;
+  /** The phone's filter window: whether it is open (its button sits in the view's toolbar), and how it closes. */
+  filtersWindow: { open: boolean; onClose: () => void };
+  /** The list's position in the URL, under the view's prefix (`users` in a customer's tab, none on `/users`). */
+  position: PagedListPosition;
 }
 
 const UNREAD_FILTER_OPTIONS: UserFilterOptions = { customers: [], statuses: [], licenses: [] };
 
-/** The Users rows, with their own boundary; in its scope the reader draws placeholder rows and does not fetch. */
+/**
+ * The Users rows, with their own boundary; in its scope the reader draws placeholder rows and does not fetch. A cursor
+ * the server refuses drops to the first page (`StaleCursorBoundary`); any other error goes up unchanged.
+ */
 export function DirectoryUsersTable(props: DirectoryUsersTableProps) {
+  return (
+    <StaleCursorBoundary
+      cursor={readCursor(props.position.pageVariables)}
+      onStaleCursor={props.position.pager.dropCursor}
+    >
+      <DirectoryUsersTableLoading {...props} />
+    </StaleCursorBoundary>
+  );
+}
+
+/** The rows' loading boundary, the whole output of its own component (the loading standard), under the
+ * stale-cursor boundary above. */
+function DirectoryUsersTableLoading(props: DirectoryUsersTableProps) {
   return (
     <LoadingSuspense label="Loading users">
       <DirectoryUsersTableReader {...props} />
@@ -319,45 +320,37 @@ export function DirectoryUsersTable(props: DirectoryUsersTableProps) {
 
 function DirectoryUsersTableReader(props: DirectoryUsersTableProps) {
   if (useLoadingScope()) {
-    return (
-      <UsersRows
-        {...props}
-        rows={NO_ITEMS}
-        totalCount={0}
-        filterOptions={UNREAD_FILTER_OPTIONS}
-        infiniteScroll={NO_NEXT_PAGE}
-      />
-    );
+    return <UsersRows {...props} rows={NO_ITEMS} totalCount={0} filterOptions={UNREAD_FILTER_OPTIONS} pager={null} />;
   }
   return <DirectoryUsersTableQuery {...props} />;
 }
 
-function DirectoryUsersTableQuery(props: DirectoryUsersTableProps) {
-  const { organizationId, backendFilters, debouncedSearch, selections } = props;
+/**
+ * The page the URL names, its footer and the auto-refresh. An edit or a suspend (the user's pages) can move a person in
+ * or out of the funnels, which is the server's answer: it marks the list changed and the page is read again
+ * (`useListRefreshEpoch`), keeping the rows on screen until it arrives.
+ */
+function DirectoryUsersTableQuery({ position, ...props }: DirectoryUsersTableProps) {
+  const { pager, pageVariables, paramPrefix } = position;
+  const { organizationId, backendFilters, debouncedSearch, selections, isPending } = props;
   const retryKey = useRetryKey();
-  const queryData = useLazyLoadQuery<DirectoryUsersTableQueryType>(
-    directoryUsersTableQuery,
-    {
-      organizationId: organizationId ?? null,
-      filter: backendFilters,
-      search: debouncedSearch || null,
-      first: USERS_PAGE_SIZE,
-      after: null,
-    },
-    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
-  );
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
-    DirectoryUsersTablePaginationQueryType,
-    directoryUsersTable_query$key
-  >(directoryUsersTableFragment, queryData);
+  const changed = useListRefreshEpoch('directoryUsers');
+  const variables: DirectoryUsersTableQueryType['variables'] = {
+    organizationId: organizationId ?? null,
+    filter: backendFilters,
+    search: debouncedSearch || null,
+    ...forwardPage(pageVariables, USERS_PAGE_SIZE),
+  };
+  const queryData = useLazyLoadQuery<DirectoryUsersTableQueryType>(directoryUsersTableQuery, variables, {
+    fetchPolicy: 'store-and-network',
+    fetchKey: `${retryKey}:${changed}`,
+  });
+  const refetch = useRefetchPage<DirectoryUsersTableQueryType>(directoryUsersTableQuery, variables);
 
-  const { edges, totalCount } = data.directoryUsers;
+  const { edges, totalCount, pageInfo } = queryData.directoryUsers;
   const rows = useMemo(() => edges.map(edge => toUserRow(edge.node)), [edges]);
   const filterOptions = useUserFilters(organizationId, debouncedSearch, backendFilters, selections);
-
-  const fetchNextPage = () => {
-    if (hasNext && !isLoadingNext) loadNext(USERS_PAGE_SIZE);
-  };
+  const paged = usePagedTable({ pager, pageInfo, rowCount: edges.length, prefix: paramPrefix, refetch, isPending });
 
   return (
     <UsersRows
@@ -365,16 +358,21 @@ function DirectoryUsersTableQuery(props: DirectoryUsersTableProps) {
       rows={rows}
       totalCount={totalCount}
       filterOptions={filterOptions}
-      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+      pager={paged.pager}
+      refresh={paged.refresh}
     />
   );
 }
 
-interface UsersRowsProps extends DirectoryUsersTableProps {
+interface UsersRowsProps extends Omit<DirectoryUsersTableProps, 'position'> {
   rows: readonly UserRow[];
+  /** The server's total for the search and the funnels, not the rows on the page. */
   totalCount: number;
   filterOptions: UserFilterOptions;
-  infiniteScroll: InfiniteScroll;
+  /** The First · Prev · Next pager (`usePagedTable`); `null` while the page is read. */
+  pager: CursorPagerFooterProps | null;
+  /** The auto-refresh picker above the table (`usePagedTable`). */
+  refresh?: AutoRefreshControlProps;
 }
 
 /** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
@@ -382,7 +380,8 @@ function UsersRows({
   rows,
   totalCount,
   filterOptions,
-  infiniteScroll,
+  pager,
+  refresh,
   organizationId,
   backendFilters,
   debouncedSearch,
@@ -391,8 +390,7 @@ function UsersRows({
   isPending,
   onEmptyChange,
   stickyHeaderOffset,
-  filtersOpen,
-  onFiltersClose,
+  filtersWindow,
 }: UsersRowsProps) {
   const loading = useLoadingScope();
   const tableGrid = useTableGrid(settingsKey(!!organizationId));
@@ -408,8 +406,11 @@ function UsersRows({
     onColumnFiltersChange,
   });
 
-  // A search or a funnel that finds nothing keeps the table; no user at all gets the page's empty state.
-  const showEmptyState = !loading && !debouncedSearch && !backendFilters && !isPending && rows.length === 0;
+  // A search or a funnel that finds nothing keeps the table; no user at all gets the page's empty state. An empty LATER
+  // page (a cursor about to be dropped) keeps the table and its pager.
+  const isFirstPage = pager?.isFirstPage ?? true;
+  const showEmptyState =
+    !loading && !debouncedSearch && !backendFilters && !isPending && isFirstPage && rows.length === 0;
 
   useEffect(() => {
     onEmptyChange(showEmptyState);
@@ -447,11 +448,12 @@ function UsersRows({
             : 'No users match the selected filters. Try adjusting your filters.',
         )}
         rowHref={rowHref}
-        footer={rows.length > 0 ? infiniteScroll : null}
+        pager={pager}
+        refresh={refresh}
       />
       <FilterModal
-        isOpen={filtersOpen}
-        onClose={onFiltersClose}
+        isOpen={filtersWindow.open}
+        onClose={filtersWindow.onClose}
         filterGroups={filterGroups(filterOptions, !!organizationId)}
         currentFilters={{ ...selections }}
         onFilterChange={filters =>

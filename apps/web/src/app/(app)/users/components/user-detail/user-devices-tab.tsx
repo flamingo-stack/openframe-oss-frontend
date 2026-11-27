@@ -13,6 +13,7 @@ import {
   MonitorIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  type AutoRefreshControlProps,
   Button,
   type ColumnDef,
   DataTable,
@@ -37,6 +38,8 @@ import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { openRowColumn } from '@/app/components/shared/open-row-column';
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { useTableGrid } from '@/app/components/shared/table-layout-scope';
+import { useAutoRefresh } from '@/app/hooks/use-auto-refresh';
+import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { toCustomer } from '@/graphql/directory/customer-claim-fields';
 import { toCustomerOption } from '@/graphql/directory/customer-option';
 import { type LinkMachine, toLinkMachine } from '@/graphql/directory/link-machine-fields';
@@ -517,7 +520,15 @@ function suggestedColumns(onLink: (record: LinkRecord) => void): ColumnDef<Sugge
   ];
 }
 
-function DevicesTable({ rows, onLink }: { rows: readonly DeviceRow[] | null; onLink: (record: LinkRecord) => void }) {
+function DevicesTable({
+  rows,
+  onLink,
+  refresh,
+}: {
+  rows: readonly DeviceRow[] | null;
+  onLink: (record: LinkRecord) => void;
+  refresh?: AutoRefreshControlProps;
+}) {
   const loading = useLoadingScope();
   const tableGrid = useTableGrid('user-devices');
   const placeholderRows = useMemo(
@@ -539,6 +550,7 @@ function DevicesTable({ rows, onLink }: { rows: readonly DeviceRow[] | null; onL
       stickyHeader={false}
       itemName="result"
       emptyState={oneLineEmptyState('No devices.')}
+      refresh={refresh}
     />
   );
 }
@@ -572,7 +584,16 @@ function SuggestedDevices({ rows, onLink }: { rows: readonly SuggestedRow[]; onL
 }
 
 /** The tab (Figma 1014:1660): the devices, then the records that may be one of them. */
-function DevicesSections({ devices, onLinked }: { devices: Devices | null; onLinked: () => void }) {
+/** The tab's sections, from the devices read (`null` while they are), with the table's auto-refresh picker once they are. */
+function DevicesSections({
+  devices,
+  onLinked,
+  refresh,
+}: {
+  devices: Devices | null;
+  onLinked: () => void;
+  refresh?: AutoRefreshControlProps;
+}) {
   const [linking, setLinking] = useState<LinkRecord | null>(null);
   const rows = devices ? toDeviceRows(devices) : null;
   const suggested = devices ? toSuggestedRows(devices) : [];
@@ -584,7 +605,7 @@ function DevicesSections({ devices, onLinked }: { devices: Devices | null; onLin
         {rows?.length === 0 ? (
           <DataTable.Empty {...oneLineEmptyState('No devices are tied to this user.')} />
         ) : (
-          <DevicesTable rows={rows} onLink={setLinking} />
+          <DevicesTable rows={rows} onLink={setLinking} refresh={refresh} />
         )}
       </div>
       {suggested.length > 0 && <SuggestedDevices rows={suggested} onLink={setLinking} />}
@@ -627,12 +648,22 @@ function UserDevicesQuery({ id }: { id: string }) {
   const retryKey = useRetryKey();
   // A link moves a record between the lists (contract §5: the UI refetches after a mutation).
   const [links, setLinks] = useState(0);
-  const { directoryAccount } = useLazyLoadQuery<UserDevicesTabQueryType>(
-    userDevicesTabQuery,
-    { id },
-    { fetchPolicy: 'store-and-network', fetchKey: `${retryKey}:${links}` },
-  );
+  const variables = { id };
+  const { directoryAccount } = useLazyLoadQuery<UserDevicesTabQueryType>(userDevicesTabQuery, variables, {
+    fetchPolicy: 'store-and-network',
+    fetchKey: `${retryKey}:${links}`,
+  });
+  // The devices in one read, so the auto-refresh reads them again silently, under the tab's own key
+  // (`devicesRefresh`) beside the user page's other tabs.
+  const refetch = useRefetchPage<UserDevicesTabQueryType>(userDevicesTabQuery, variables);
+  const { control: refresh } = useAutoRefresh({ prefix: 'devices', refetch });
   // A missing account is the header's to say ("User not found").
   if (!directoryAccount) return null;
-  return <DevicesSections devices={directoryAccount.devices} onLinked={() => setLinks(count => count + 1)} />;
+  return (
+    <DevicesSections
+      devices={directoryAccount.devices}
+      onLinked={() => setLinks(count => count + 1)}
+      refresh={refresh}
+    />
+  );
 }

@@ -4,7 +4,8 @@
  *
  * Card rows (the app's table flag off) are locked as markup: those snapshots were recorded BEFORE the tables learned
  * the grid layout, and that change left them untouched. Update one only for a change that means to alter the card
- * rows.
+ * rows. Paging on the server did: the row above the table holds the page's range and First · Prev · Next, in place of
+ * the header's count and the infinite scroll's footer.
  *
  * The grid (the flag on): the lib's grid table with the gear of its saved column settings, the row menu and the open
  * action as action columns, and one line in every cell. A level's items and the archive are their page's scroll
@@ -30,16 +31,18 @@ import {
   stubTableBrowserApis,
   twoLineCells,
 } from '@/app/components/shared/table-grid-flag.fixtures';
+import { firstPagePager, firstPageProps, firstPageVariables } from '@/app/hooks/cursor-pager.fixtures';
 import { ArchivedArticlesTable } from './archive/archived-articles-table';
 import { AssignedArticlesTable } from './assigned-articles/assigned-articles-table';
 import { KnowledgeBaseItemsTable } from './item-list/knowledge-base-items-table';
+import { KNOWLEDGE_BASE_PAGE_SIZE } from './shared/knowledge-base-item-columns';
 
 // A time of day is printed in the viewer's zone: the snapshots are the same on every machine.
 vi.hoisted(() => {
   process.env.TZ = 'UTC';
 });
 
-const NO_NEXT = { hasNextPage: false, endCursor: null };
+const NO_NEXT = { hasNextPage: false, hasPreviousPage: false, startCursor: null, endCursor: null };
 
 const FOLDER = {
   id: 'kb-1',
@@ -80,8 +83,8 @@ const edges = (...nodes: object[]) => nodes.map(node => ({ node }));
  * own field of it.
  */
 const ANSWER = {
-  knowledgeBaseItems: { __id: 'conn-items', filteredCount: 3, pageInfo: NO_NEXT, edges: edges(FOLDER, ARTICLE, DRAFT) },
-  archivedArticles: { __id: 'conn-archive', filteredCount: 1, pageInfo: NO_NEXT, edges: edges(ARCHIVED) },
+  knowledgeBaseItems: { filteredCount: 3, pageInfo: NO_NEXT, edges: edges(FOLDER, ARTICLE, DRAFT) },
+  archivedArticles: { filteredCount: 1, pageInfo: NO_NEXT, edges: edges(ARCHIVED) },
 };
 
 // A fragment reference IS its data here, and every query answers `ANSWER`: a table reads its rows from that object.
@@ -90,20 +93,17 @@ vi.mock('react-relay', () => ({
   useFragment: (_fragment: unknown, key: unknown) => key,
   readInlineData: (_fragment: unknown, key: unknown) => key,
   useLazyLoadQuery: () => ANSWER,
-  usePaginationFragment: (_fragment: unknown, ref: unknown) => ({
-    data: ref,
-    loadNext: () => {},
-    hasNext: false,
-    isLoadingNext: false,
-  }),
   useMutation: () => [() => {}, false],
   useRelayEnvironment: () => ({}),
-  useSubscribeToInvalidationState: () => {},
   fetchQuery: () => ({ subscribe: () => {} }),
   commitMutation: () => {},
   commitLocalUpdate: () => {},
-  ConnectionHandler: {},
 }));
+// A table's pager and refresh picker come from its page's pager (`usePagedTable`): here, a first page that never moves.
+vi.mock('@/app/hooks/use-paged-table', async () => {
+  const fixtures = await import('@/app/hooks/cursor-pager.fixtures');
+  return { usePagedTable: () => ({ pager: fixtures.FIRST_PAGE_FOOTER, refresh: undefined }) };
+});
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   usePathname: () => '/knowledge-base',
@@ -119,21 +119,35 @@ const OFFSET = 'top-[72px]';
 const ROOT = { parentId: null, search: '', tagIds: [] };
 const CUSTOMER = { targetType: 'ORGANIZATION', targetId: 'T3JnYW5pemF0aW9uOm9yZy0x' } as const;
 
+/** The page props of a top-level list on its first page. */
+const FIRST_PAGE = {
+  pager: firstPagePager(KNOWLEDGE_BASE_PAGE_SIZE),
+  pageVariables: firstPageVariables(KNOWLEDGE_BASE_PAGE_SIZE),
+};
+
 const items = (listing: { parentId: string | null; search: string; tagIds: string[] } = ROOT) => (
-  <KnowledgeBaseItemsTable listing={listing} isPending={false} onEmptyChange={noop} stickyHeaderOffset={OFFSET} />
+  <KnowledgeBaseItemsTable
+    {...FIRST_PAGE}
+    listing={listing}
+    isPending={false}
+    onEmptyChange={noop}
+    stickyHeaderOffset={OFFSET}
+  />
 );
 const assigned = () => (
   <AssignedArticlesTable
+    {...firstPageProps(KNOWLEDGE_BASE_PAGE_SIZE, 'articles')}
     target={CUSTOMER}
     listing={{ search: '', tagIds: [] }}
     isPending={false}
-    refreshKey={0}
     onChanged={noop}
     onEmptyChange={noop}
     stickyHeaderOffset={OFFSET}
   />
 );
-const archive = () => <ArchivedArticlesTable search="" tagIds={[]} isPending={false} stickyHeaderOffset={OFFSET} />;
+const archive = () => (
+  <ArchivedArticlesTable {...FIRST_PAGE} search="" tagIds={[]} isPending={false} stickyHeaderOffset={OFFSET} />
+);
 
 beforeAll(stubTableBrowserApis);
 afterEach(() => {

@@ -7,6 +7,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { ArrowRightUpIcon, Ellipsis01Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  type AutoRefreshControlProps,
   Button,
   type ColumnDef,
   DataTable,
@@ -64,6 +65,8 @@ interface QueriesTableBaseProps {
   maxHeight?: number | string;
   /** Grid layout: the gear's menu of columns, the viewer's layout kept under the host's own `storageKey`. */
   settings?: DataTableSettings;
+  /** The auto-refresh picker in the row above the table (`useAutoRefresh`), once the list is read. */
+  refresh?: AutoRefreshControlProps;
 }
 
 /** A list revealed page by page (`pageSize`, its next page) or shown whole (`skeletonRows`, its typical count). */
@@ -100,6 +103,7 @@ export function QueriesTable({
   layout = 'cards',
   maxHeight,
   settings,
+  refresh,
   pageSize,
   skeletonRows,
   infiniteScroll,
@@ -213,6 +217,7 @@ export function QueriesTable({
         layout={layout}
         maxHeight={maxHeight}
         settings={settings}
+        refresh={refresh}
       />
     </LoadingWhen>
   );

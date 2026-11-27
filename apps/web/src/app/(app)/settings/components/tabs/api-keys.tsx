@@ -15,6 +15,7 @@ import {
   ActionsMenuDropdown,
   type ActionsMenuGroup,
   actionColumn,
+  AutoRefreshControl,
   type ColumnDef,
   DataTable,
   type DataTableSettings,
@@ -30,6 +31,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EmptyState, oneLineEmptyState } from '@/app/components/shared/empty-state';
 import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { useAutoRefresh } from '@/app/hooks/use-auto-refresh';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { EMPTY_VALUE } from '@/lib/empty-value';
@@ -105,6 +107,8 @@ export function ApiKeysTab() {
   const { toast } = useToast();
   const { items, isLoading, error, fetchApiKeys, createApiKey, updateApiKey, regenerateApiKey, setApiKeyEnabled } =
     useApiKeys();
+  // The keys are read whole: a tick reads them again, keeping them on screen (the page's only table: `refresh`).
+  const { control: refresh } = useAutoRefresh({ refetch: fetchApiKeys });
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [createdFullKey, setCreatedFullKey] = useState<string | null>(null);
@@ -355,16 +359,11 @@ export function ApiKeysTab() {
         // The grid table is the page's main content: it fills the height under the title, and the page does not
         // scroll. Card rows read neither the height nor the settings.
         <DataTable table={table} layout={layout} maxHeight="fill" settings={API_KEYS_TABLE_SETTINGS}>
-          {/* The grid's count sits above the table; the card header carries its own (`rightSlot`). */}
-          {layout === 'grid' && (
-            <DataTable.Meta>
-              <DataTable.RowCount itemName="API key" loading={loadingRows} />
-            </DataTable.Meta>
-          )}
-          <DataTable.Header
-            rightSlot={<DataTable.RowCount itemName="API key" loading={loadingRows} />}
-            loading={loadingRows}
-          />
+          {/* The row above the table, in both layouts: the count and the auto-refresh picker. */}
+          <DataTable.Meta actions={<AutoRefreshControl {...refresh} />}>
+            <DataTable.RowCount itemName="API key" loading={loadingRows} />
+          </DataTable.Meta>
+          <DataTable.Header loading={loadingRows} />
           <DataTable.Body
             loading={isLoading || gateLoading}
             loadingCells={loadingRows}

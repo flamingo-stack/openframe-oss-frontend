@@ -1,14 +1,20 @@
 'use client';
 
 import type { TagSearchOption } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { CURSOR_PAGER_KEYS, useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo } from 'react';
 import type { SelectableTag } from '@/app/components/shared';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 
 export interface TagSearchState {
+  /** What the search box shows: the typed value, ahead of the URL while the debounce runs. */
   search: string;
-  debouncedSearch: string;
+  /**
+   * The search the URL holds: what the query reads. Not the box's debounced value, which runs one commit ahead of the
+   * URL: the write that carries a new search drops the pager's cursor in the same navigation, so a search and a cursor
+   * from another narrowing never meet in one request.
+   */
+  urlSearch: string;
   setSearch: (value: string) => void;
   selectedTags: SelectableTag[];
   tagIds: string[];
@@ -40,14 +46,21 @@ function decodeTag(entry: string): SelectableTag | null {
  * input state + debounced write to the URL param), so typing never lags behind a
  * router navigation and is never clobbered mid-fetch. Selected tags are encoded
  * into the `tags` URL param so the whole filter survives refresh / back-forward.
+ *
+ * Every list it narrows is paged with its cursor in the URL: a change to the search or the tags drops the pager's
+ * cursor in the SAME URL write (one history entry on page 2+, so Back returns to the old view). `prefix` puts the
+ * params beside a table that shares its page's query string (a tab: `articlesSearch`, `articlesTags`).
  */
-export function useTagSearchState(): TagSearchState {
-  const { params, setParam, setParams } = useApiParams({
-    search: { type: 'string', default: '' },
-    tags: { type: 'array', default: [] },
-  });
+export function useTagSearchState(prefix?: string): TagSearchState {
+  const { params, setParam, setParams } = useApiParams(
+    {
+      search: { type: 'string', default: '' },
+      tags: { type: 'array', default: [] },
+    },
+    { prefix, resetKeys: CURSOR_PAGER_KEYS, resetHistory: 'push' },
+  );
 
-  const { search, setSearch, debouncedSearch } = useSearchParam(params.search, value => setParam('search', value), 300);
+  const { search, setSearch } = useSearchParam(params.search, value => setParam('search', value), 300);
 
   const selectedTags = useMemo<SelectableTag[]>(
     () =>
@@ -97,7 +110,7 @@ export function useTagSearchState(): TagSearchState {
 
   return {
     search,
-    debouncedSearch,
+    urlSearch: params.search,
     setSearch,
     selectedTags,
     tagIds,

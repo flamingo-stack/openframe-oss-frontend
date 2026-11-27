@@ -9,6 +9,88 @@ exports[`knowledge base tables, card rows (the flag off) > a level’s items 1`]
       class="flex w-full flex-col"
     >
       <div
+        class="flex min-h-[calc(1lh+var(--spacing-system-xxs))] flex-wrap items-center gap-x-[var(--spacing-system-mf)] gap-y-[var(--spacing-system-xsf)] text-h6 pb-[var(--spacing-system-xsf)]"
+        data-table-meta="true"
+      >
+        <div
+          class="order-1 flex min-w-0 flex-1 items-center gap-[var(--spacing-system-mf)]"
+        >
+          <span
+            class="min-w-0 truncate whitespace-nowrap text-ods-text-secondary text-h6"
+          >
+            1–3 of 3 items
+          </span>
+        </div>
+        <div
+          class="order-3 w-full content-md:order-2 content-md:w-auto content-md:shrink-0"
+        >
+          <nav
+            aria-label="Pagination"
+            class="flex min-w-0 items-center gap-[var(--spacing-system-xsf)]"
+            data-table-pagination="true"
+          >
+            <div
+              class="ml-auto flex shrink-0 items-center gap-[var(--spacing-system-xsf)]"
+            >
+              <button
+                aria-label="Go to previous page"
+                class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-ods-card text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:text-ods-text-disabled aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-8 w-8 p-[var(--spacing-system-xxs)] [&_svg]:h-4 [&_svg]:w-4 disabled:bg-ods-bg-base aria-disabled:bg-ods-bg-base"
+                disabled=""
+              >
+                <span
+                  class="contents"
+                >
+                  <span
+                    class="inline-flex items-center"
+                  >
+                    <svg
+                      class=""
+                      fill="none"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      width="24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M14.205 18.795a1.125 1.125 0 1 0 1.59-1.59L10.591 12l5.204-5.205.078-.085a1.125 1.125 0 0 0-1.583-1.583l-.085.078-6 6a1.125 1.125 0 0 0 0 1.59z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </span>
+                </span>
+              </button>
+              <button
+                aria-label="Go to next page"
+                class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-ods-card text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:text-ods-text-disabled aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-8 w-8 p-[var(--spacing-system-xxs)] [&_svg]:h-4 [&_svg]:w-4 disabled:bg-ods-bg-base aria-disabled:bg-ods-bg-base"
+                disabled=""
+              >
+                <span
+                  class="contents"
+                >
+                  <span
+                    class="inline-flex items-center"
+                  >
+                    <svg
+                      class=""
+                      fill="none"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      width="24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M8.205 5.205a1.125 1.125 0 0 1 1.505-.078l.085.078 6 6a1.125 1.125 0 0 1 0 1.59l-6 6a1.125 1.125 0 1 1-1.59-1.59L13.409 12 8.205 6.795l-.078-.085a1.125 1.125 0 0 1 .078-1.505"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </span>
+                </span>
+              </button>
+            </div>
+          </nav>
+        </div>
+      </div>
+      <div
         class="hidden content-md:flex content-md:flex-col sticky z-10 bg-ods-bg top-[72px]"
       >
         <div
@@ -53,17 +135,6 @@ exports[`knowledge base tables, card rows (the flag off) > a level’s items 1`]
             <div
               class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-end text-right"
             />
-          </div>
-          <div
-            class="flex items-center content-max-lg:ml-auto content-max-lg:h-12 content-lg:absolute content-lg:inset-y-0 content-lg:right-[var(--spacing-system-mf)]"
-          >
-            <span
-              class="whitespace-nowrap text-ods-text-secondary text-h6"
-            >
-              3
-               
-              items
-            </span>
           </div>
         </div>
       </div>
@@ -561,10 +632,6 @@ exports[`knowledge base tables, card rows (the flag off) > a level’s items 1`]
           </div>
         </a>
       </div>
-      <div
-        class="sr-only"
-        role="status"
-      />
     </div>
   </div>
 </div>
@@ -584,6 +651,103 @@ exports[`knowledge base tables, card rows (the flag off) > a level’s items, lo
       <div
         class="flex w-full flex-col"
       >
+        <div
+          class="flex min-h-[calc(1lh+var(--spacing-system-xxs))] flex-wrap items-center gap-x-[var(--spacing-system-mf)] gap-y-[var(--spacing-system-xsf)] text-h6 pb-[var(--spacing-system-xsf)]"
+          data-table-meta="true"
+        >
+          <div
+            class="order-1 flex min-w-0 flex-1 items-center gap-[var(--spacing-system-mf)]"
+          >
+            <span
+              aria-hidden="true"
+              class="min-w-0 truncate whitespace-nowrap text-ods-text-secondary text-h6"
+            >
+              <span
+                aria-hidden="true"
+                class="flex-col h-[1lh] inline-block w-16 align-top"
+              >
+                <span
+                  class="flex h-[1lh] items-center"
+                >
+                  <span
+                    aria-hidden="true"
+                    class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                  />
+                </span>
+              </span>
+               
+              items
+            </span>
+          </div>
+          <div
+            class="order-3 w-full content-md:order-2 content-md:w-auto content-md:shrink-0"
+          >
+            <nav
+              aria-label="Pagination"
+              class="flex min-w-0 items-center gap-[var(--spacing-system-xsf)]"
+              data-table-pagination="true"
+            >
+              <div
+                class="ml-auto flex shrink-0 items-center gap-[var(--spacing-system-xsf)]"
+              >
+                <button
+                  aria-label="Go to previous page"
+                  class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-ods-card text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:text-ods-text-disabled aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-8 w-8 p-[var(--spacing-system-xxs)] [&_svg]:h-4 [&_svg]:w-4 disabled:bg-ods-bg-base aria-disabled:bg-ods-bg-base"
+                  disabled=""
+                >
+                  <span
+                    class="contents"
+                  >
+                    <span
+                      class="inline-flex items-center"
+                    >
+                      <svg
+                        class=""
+                        fill="none"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        width="24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M14.205 18.795a1.125 1.125 0 1 0 1.59-1.59L10.591 12l5.204-5.205.078-.085a1.125 1.125 0 0 0-1.583-1.583l-.085.078-6 6a1.125 1.125 0 0 0 0 1.59z"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </span>
+                  </span>
+                </button>
+                <button
+                  aria-label="Go to next page"
+                  class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-ods-card text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:text-ods-text-disabled aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-8 w-8 p-[var(--spacing-system-xxs)] [&_svg]:h-4 [&_svg]:w-4 disabled:bg-ods-bg-base aria-disabled:bg-ods-bg-base"
+                  disabled=""
+                >
+                  <span
+                    class="contents"
+                  >
+                    <span
+                      class="inline-flex items-center"
+                    >
+                      <svg
+                        class=""
+                        fill="none"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        width="24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M8.205 5.205a1.125 1.125 0 0 1 1.505-.078l.085.078 6 6a1.125 1.125 0 0 1 0 1.59l-6 6a1.125 1.125 0 1 1-1.59-1.59L13.409 12 8.205 6.795l-.078-.085a1.125 1.125 0 0 1 .078-1.505"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </nav>
+          </div>
+        </div>
         <div
           class="hidden content-md:flex content-md:flex-col sticky z-10 bg-ods-bg top-[72px]"
         >
@@ -629,30 +793,6 @@ exports[`knowledge base tables, card rows (the flag off) > a level’s items, lo
               <div
                 class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-end text-right"
               />
-            </div>
-            <div
-              class="flex items-center content-max-lg:ml-auto content-max-lg:h-12 content-lg:absolute content-lg:inset-y-0 content-lg:right-[var(--spacing-system-mf)]"
-            >
-              <span
-                aria-hidden="true"
-                class="whitespace-nowrap text-ods-text-secondary text-h6"
-              >
-                <span
-                  aria-hidden="true"
-                  class="flex-col h-[1lh] inline-block w-6 align-top"
-                >
-                  <span
-                    class="flex h-[1lh] items-center"
-                  >
-                    <span
-                      aria-hidden="true"
-                      class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
-                    />
-                  </span>
-                </span>
-                 
-                items
-              </span>
             </div>
           </div>
         </div>
@@ -4497,6 +4637,88 @@ exports[`knowledge base tables, card rows (the flag off) > a search: every row s
       class="flex w-full flex-col"
     >
       <div
+        class="flex min-h-[calc(1lh+var(--spacing-system-xxs))] flex-wrap items-center gap-x-[var(--spacing-system-mf)] gap-y-[var(--spacing-system-xsf)] text-h6 pb-[var(--spacing-system-xsf)]"
+        data-table-meta="true"
+      >
+        <div
+          class="order-1 flex min-w-0 flex-1 items-center gap-[var(--spacing-system-mf)]"
+        >
+          <span
+            class="min-w-0 truncate whitespace-nowrap text-ods-text-secondary text-h6"
+          >
+            1–3 of 3 items
+          </span>
+        </div>
+        <div
+          class="order-3 w-full content-md:order-2 content-md:w-auto content-md:shrink-0"
+        >
+          <nav
+            aria-label="Pagination"
+            class="flex min-w-0 items-center gap-[var(--spacing-system-xsf)]"
+            data-table-pagination="true"
+          >
+            <div
+              class="ml-auto flex shrink-0 items-center gap-[var(--spacing-system-xsf)]"
+            >
+              <button
+                aria-label="Go to previous page"
+                class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-ods-card text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:text-ods-text-disabled aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-8 w-8 p-[var(--spacing-system-xxs)] [&_svg]:h-4 [&_svg]:w-4 disabled:bg-ods-bg-base aria-disabled:bg-ods-bg-base"
+                disabled=""
+              >
+                <span
+                  class="contents"
+                >
+                  <span
+                    class="inline-flex items-center"
+                  >
+                    <svg
+                      class=""
+                      fill="none"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      width="24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M14.205 18.795a1.125 1.125 0 1 0 1.59-1.59L10.591 12l5.204-5.205.078-.085a1.125 1.125 0 0 0-1.583-1.583l-.085.078-6 6a1.125 1.125 0 0 0 0 1.59z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </span>
+                </span>
+              </button>
+              <button
+                aria-label="Go to next page"
+                class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-ods-card text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:text-ods-text-disabled aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-8 w-8 p-[var(--spacing-system-xxs)] [&_svg]:h-4 [&_svg]:w-4 disabled:bg-ods-bg-base aria-disabled:bg-ods-bg-base"
+                disabled=""
+              >
+                <span
+                  class="contents"
+                >
+                  <span
+                    class="inline-flex items-center"
+                  >
+                    <svg
+                      class=""
+                      fill="none"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      width="24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M8.205 5.205a1.125 1.125 0 0 1 1.505-.078l.085.078 6 6a1.125 1.125 0 0 1 0 1.59l-6 6a1.125 1.125 0 1 1-1.59-1.59L13.409 12 8.205 6.795l-.078-.085a1.125 1.125 0 0 1 .078-1.505"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </span>
+                </span>
+              </button>
+            </div>
+          </nav>
+        </div>
+      </div>
+      <div
         class="hidden content-md:flex content-md:flex-col sticky z-10 bg-ods-bg top-[72px]"
       >
         <div
@@ -4541,17 +4763,6 @@ exports[`knowledge base tables, card rows (the flag off) > a search: every row s
             <div
               class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-end text-right"
             />
-          </div>
-          <div
-            class="flex items-center content-max-lg:ml-auto content-max-lg:h-12 content-lg:absolute content-lg:inset-y-0 content-lg:right-[var(--spacing-system-mf)]"
-          >
-            <span
-              class="whitespace-nowrap text-ods-text-secondary text-h6"
-            >
-              3
-               
-              items
-            </span>
           </div>
         </div>
       </div>
@@ -5067,10 +5278,6 @@ exports[`knowledge base tables, card rows (the flag off) > a search: every row s
           </div>
         </a>
       </div>
-      <div
-        class="sr-only"
-        role="status"
-      />
     </div>
   </div>
 </div>
@@ -5084,6 +5291,88 @@ exports[`knowledge base tables, card rows (the flag off) > the Assigned Articles
     <div
       class="flex w-full flex-col"
     >
+      <div
+        class="flex min-h-[calc(1lh+var(--spacing-system-xxs))] flex-wrap items-center gap-x-[var(--spacing-system-mf)] gap-y-[var(--spacing-system-xsf)] text-h6 pb-[var(--spacing-system-xsf)]"
+        data-table-meta="true"
+      >
+        <div
+          class="order-1 flex min-w-0 flex-1 items-center gap-[var(--spacing-system-mf)]"
+        >
+          <span
+            class="min-w-0 truncate whitespace-nowrap text-ods-text-secondary text-h6"
+          >
+            1–3 of 3 articles
+          </span>
+        </div>
+        <div
+          class="order-3 w-full content-md:order-2 content-md:w-auto content-md:shrink-0"
+        >
+          <nav
+            aria-label="Pagination"
+            class="flex min-w-0 items-center gap-[var(--spacing-system-xsf)]"
+            data-table-pagination="true"
+          >
+            <div
+              class="ml-auto flex shrink-0 items-center gap-[var(--spacing-system-xsf)]"
+            >
+              <button
+                aria-label="Go to previous page"
+                class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-ods-card text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:text-ods-text-disabled aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-8 w-8 p-[var(--spacing-system-xxs)] [&_svg]:h-4 [&_svg]:w-4 disabled:bg-ods-bg-base aria-disabled:bg-ods-bg-base"
+                disabled=""
+              >
+                <span
+                  class="contents"
+                >
+                  <span
+                    class="inline-flex items-center"
+                  >
+                    <svg
+                      class=""
+                      fill="none"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      width="24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M14.205 18.795a1.125 1.125 0 1 0 1.59-1.59L10.591 12l5.204-5.205.078-.085a1.125 1.125 0 0 0-1.583-1.583l-.085.078-6 6a1.125 1.125 0 0 0 0 1.59z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </span>
+                </span>
+              </button>
+              <button
+                aria-label="Go to next page"
+                class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-ods-card text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:text-ods-text-disabled aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-8 w-8 p-[var(--spacing-system-xxs)] [&_svg]:h-4 [&_svg]:w-4 disabled:bg-ods-bg-base aria-disabled:bg-ods-bg-base"
+                disabled=""
+              >
+                <span
+                  class="contents"
+                >
+                  <span
+                    class="inline-flex items-center"
+                  >
+                    <svg
+                      class=""
+                      fill="none"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      width="24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M8.205 5.205a1.125 1.125 0 0 1 1.505-.078l.085.078 6 6a1.125 1.125 0 0 1 0 1.59l-6 6a1.125 1.125 0 1 1-1.59-1.59L13.409 12 8.205 6.795l-.078-.085a1.125 1.125 0 0 1 .078-1.505"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </span>
+                </span>
+              </button>
+            </div>
+          </nav>
+        </div>
+      </div>
       <div
         class="hidden content-md:flex content-md:flex-col sticky z-10 bg-ods-bg top-[72px]"
       >
@@ -5129,17 +5418,6 @@ exports[`knowledge base tables, card rows (the flag off) > the Assigned Articles
             <div
               class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-end text-right"
             />
-          </div>
-          <div
-            class="flex items-center content-max-lg:ml-auto content-max-lg:h-12 content-lg:absolute content-lg:inset-y-0 content-lg:right-[var(--spacing-system-mf)]"
-          >
-            <span
-              class="whitespace-nowrap text-ods-text-secondary text-h6"
-            >
-              3
-               
-              articles
-            </span>
           </div>
         </div>
       </div>
@@ -5637,10 +5915,6 @@ exports[`knowledge base tables, card rows (the flag off) > the Assigned Articles
           </div>
         </a>
       </div>
-      <div
-        class="sr-only"
-        role="status"
-      />
     </div>
   </div>
 </div>
@@ -5654,6 +5928,88 @@ exports[`knowledge base tables, card rows (the flag off) > the archive 1`] = `
     <div
       class="flex w-full flex-col"
     >
+      <div
+        class="flex min-h-[calc(1lh+var(--spacing-system-xxs))] flex-wrap items-center gap-x-[var(--spacing-system-mf)] gap-y-[var(--spacing-system-xsf)] text-h6 pb-[var(--spacing-system-xsf)]"
+        data-table-meta="true"
+      >
+        <div
+          class="order-1 flex min-w-0 flex-1 items-center gap-[var(--spacing-system-mf)]"
+        >
+          <span
+            class="min-w-0 truncate whitespace-nowrap text-ods-text-secondary text-h6"
+          >
+            1–1 of 1 article
+          </span>
+        </div>
+        <div
+          class="order-3 w-full content-md:order-2 content-md:w-auto content-md:shrink-0"
+        >
+          <nav
+            aria-label="Pagination"
+            class="flex min-w-0 items-center gap-[var(--spacing-system-xsf)]"
+            data-table-pagination="true"
+          >
+            <div
+              class="ml-auto flex shrink-0 items-center gap-[var(--spacing-system-xsf)]"
+            >
+              <button
+                aria-label="Go to previous page"
+                class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-ods-card text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:text-ods-text-disabled aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-8 w-8 p-[var(--spacing-system-xxs)] [&_svg]:h-4 [&_svg]:w-4 disabled:bg-ods-bg-base aria-disabled:bg-ods-bg-base"
+                disabled=""
+              >
+                <span
+                  class="contents"
+                >
+                  <span
+                    class="inline-flex items-center"
+                  >
+                    <svg
+                      class=""
+                      fill="none"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      width="24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M14.205 18.795a1.125 1.125 0 1 0 1.59-1.59L10.591 12l5.204-5.205.078-.085a1.125 1.125 0 0 0-1.583-1.583l-.085.078-6 6a1.125 1.125 0 0 0 0 1.59z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </span>
+                </span>
+              </button>
+              <button
+                aria-label="Go to next page"
+                class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-ods-card text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:text-ods-text-disabled aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-8 w-8 p-[var(--spacing-system-xxs)] [&_svg]:h-4 [&_svg]:w-4 disabled:bg-ods-bg-base aria-disabled:bg-ods-bg-base"
+                disabled=""
+              >
+                <span
+                  class="contents"
+                >
+                  <span
+                    class="inline-flex items-center"
+                  >
+                    <svg
+                      class=""
+                      fill="none"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      width="24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M8.205 5.205a1.125 1.125 0 0 1 1.505-.078l.085.078 6 6a1.125 1.125 0 0 1 0 1.59l-6 6a1.125 1.125 0 1 1-1.59-1.59L13.409 12 8.205 6.795l-.078-.085a1.125 1.125 0 0 1 .078-1.505"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </span>
+                </span>
+              </button>
+            </div>
+          </nav>
+        </div>
+      </div>
       <div
         class="hidden content-md:flex content-md:flex-col sticky z-10 bg-ods-bg top-[72px]"
       >
@@ -5699,17 +6055,6 @@ exports[`knowledge base tables, card rows (the flag off) > the archive 1`] = `
             <div
               class="flex h-12 w-full select-none items-center gap-[var(--spacing-system-xsf)] rounded-sm transition-colors duration-200 justify-end text-right"
             />
-          </div>
-          <div
-            class="flex items-center content-max-lg:ml-auto content-max-lg:h-12 content-lg:absolute content-lg:inset-y-0 content-lg:right-[var(--spacing-system-mf)]"
-          >
-            <span
-              class="whitespace-nowrap text-ods-text-secondary text-h6"
-            >
-              1
-               
-              article
-            </span>
           </div>
         </div>
       </div>
@@ -5904,10 +6249,6 @@ exports[`knowledge base tables, card rows (the flag off) > the archive 1`] = `
           </div>
         </a>
       </div>
-      <div
-        class="sr-only"
-        role="status"
-      />
     </div>
   </div>
 </div>

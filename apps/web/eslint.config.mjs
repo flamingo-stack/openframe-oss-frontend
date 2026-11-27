@@ -213,6 +213,9 @@ export default defineConfig([
     //    for `machineSelectorToDevice` and hands the rows to the core lib's picker.
     //  - `needs-you-insights-source` (Mingo's home) spreads the Incidents table's row
     //    step for `toIncidentRow`, renders nothing, and reports the mapped rows.
+    //  - `incidents-table` spreads that row step for `toIncidentRow` and the status
+    //    transitions for `toTransitionTable` (both `@inline`, read in
+    //    `incidents/utils/incident-transform.ts`), and reads neither itself.
     //
     // Everywhere else the rule stays on, which is where it earns its place: a
     // component-owned fragment spread far from the component that reads it is how
@@ -224,6 +227,7 @@ export default defineConfig([
       'src/app/(app)/software/components/vulnerability-detail/vulnerability-devices-table.tsx',
       'src/app/(app)/software/components/adopt/adopt-device-picker.tsx',
       'src/app/(app)/mingo/home/needs-you/needs-you-insights-source.tsx',
+      'src/app/(app)/incidents/components/incidents-table.tsx',
     ],
     rules: { 'relay/must-colocate-fragment-spreads': 'off' },
   },

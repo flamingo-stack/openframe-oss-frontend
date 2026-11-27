@@ -15,9 +15,8 @@ import { PAGED_LISTS } from '@/lib/paged-lists';
 import { type EmployeesTab, routes, TAB_IDS } from '@/lib/routes';
 import { AddUsersModal } from '../add-users-modal';
 import { type EmployeeSelections, NO_EMPLOYEE_SELECTIONS } from '../employees/employee-filters';
-import { USERS_PAGE_SIZE } from '../employees/employees-columns';
+import { INVITATIONS_PAGE_SIZE, USERS_PAGE_SIZE } from '../employees/employees-columns';
 import { InvitationsListTable } from '../employees/invitations-list-table';
-import { affectedInvitationsListings, invitationsListingId } from '../employees/invitations-listing';
 import { UsersListTable } from '../employees/users-list-table';
 
 const EMPLOYEES_TAB_VIEWS = {
@@ -40,11 +39,12 @@ function isEmployeesTab(value: string): value is EmployeesTab {
  * narrowed and paged on the server. The search is shared by the tabs; the funnels
  * belong to the open tab and a switch clears them.
  *
- * Users pages with First · Prev · Next, its cursor in the URL (`cursor`, `page`; a
+ * Both tabs page with First · Prev · Next, the cursor in the URL (`cursor`, `page`; a
  * top-level page, so no prefix). Any change to the params here (the tab, the search,
  * a funnel) drops the cursor in the SAME URL write: one history entry on page 2+, so
- * Back returns to the old view. Invitations stays on infinite scroll: it never has a
- * cursor, so the reset and the pager leave it as it was.
+ * Back returns to the old view. One pager over those keys, set for the open tab (its
+ * page size, its list's API): a tab switch drops the cursor, so neither tab ever reads
+ * the other's.
  */
 export function CompanyAndUsersTab() {
   const handleBack = useSafeBack(routes.settings.root());
@@ -59,8 +59,13 @@ export function CompanyAndUsersTab() {
     },
     { resetKeys: CURSOR_PAGER_KEYS, resetHistory: 'push' },
   );
-  const pager = useCursorPager({ pageSize: USERS_PAGE_SIZE, ...PAGED_LISTS.users, resetOn: JSON.stringify(params) });
   const tab: EmployeesTab = isEmployeesTab(params.tab) ? params.tab : 'users';
+  const resetOn = JSON.stringify(params);
+  const pager = useCursorPager(
+    tab === 'users'
+      ? { pageSize: USERS_PAGE_SIZE, ...PAGED_LISTS.users, resetOn }
+      : { pageSize: INVITATIONS_PAGE_SIZE, ...PAGED_LISTS.invitations, resetOn },
+  );
   // Local search keeps typing responsive; the shared hook debounces it to the
   // URL param and guards the back/forward sync-down against clobbering typing.
   const { search: searchInput, setSearch: setSearchInput } = useSearchParam(params.search, value =>
@@ -144,6 +149,8 @@ export function CompanyAndUsersTab() {
               onSelectionsChange={setSelections}
               isPending={isPending}
               stickyHeaderOffset={stickyHeaderOffset}
+              pager={pager}
+              pageVariables={deferredPage}
             />
           )}
         </ContentErrorBoundary>
@@ -153,7 +160,6 @@ export function CompanyAndUsersTab() {
         onClose={() => setIsAddOpen(false)}
         // The new invitations land on their tab, unfiltered, so none hides behind a funnel.
         onInvited={() => setParams({ tab: 'invitations', ...NO_EMPLOYEE_SELECTIONS })}
-        listingIds={affectedInvitationsListings(invitationsListingId(deferredSearch))}
       />
     </PageLayout>
   );

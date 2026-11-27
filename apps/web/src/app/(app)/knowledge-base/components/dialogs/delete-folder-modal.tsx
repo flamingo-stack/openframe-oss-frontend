@@ -5,25 +5,18 @@ import { useState } from 'react';
 import { graphql, useFragment, useMutation } from 'react-relay';
 import type { deleteFolderModal_folder$key } from '@/__generated__/deleteFolderModal_folder.graphql';
 import type { deleteFolderModalMutation as DeleteFolderModalMutationType } from '@/__generated__/deleteFolderModalMutation.graphql';
-import { NO_ITEMS } from '@/app/components/shared';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { FolderChildrenAction } from '@/generated/schema-enums';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
+import { markListChanged } from '@/lib/list-refresh';
 import { FolderPicker } from '../shared/folder-picker';
 import type { FolderTarget } from '../shared/folder-tree';
-import {
-  invalidateArchiveListing,
-  invalidateFolderListing,
-  removeFromFolderListing,
-  removeFromFolderTree,
-  removeFromListings,
-} from '../shared/knowledge-base-listings';
+import { removeFromFolderTree } from '../shared/knowledge-base-listings';
 
 const deleteFolderModalFragment = graphql`
   fragment deleteFolderModal_folder on KnowledgeBaseItem {
     id
     name
-    parentId
   }
 `;
 
@@ -39,19 +32,11 @@ interface DeleteFolderModalProps {
   folder: deleteFolderModal_folder$key;
   isOpen: boolean;
   onClose: () => void;
-  /** The listings on screen that show the folder — a search result as much as its own level. */
-  listingIds?: readonly string[];
   /** After the folder is gone — the folder's own page has to leave. */
   onDeleted?: () => void;
 }
 
-export function DeleteFolderModal({
-  folder,
-  isOpen,
-  onClose,
-  listingIds = NO_ITEMS,
-  onDeleted,
-}: DeleteFolderModalProps) {
+export function DeleteFolderModal({ folder, isOpen, onClose, onDeleted }: DeleteFolderModalProps) {
   const { toast } = useToast();
   const data = useFragment(deleteFolderModalFragment, folder);
   const [commit, isInFlight] = useMutation<DeleteFolderModalMutationType>(deleteFolderModalMutation);
@@ -75,17 +60,12 @@ export function DeleteFolderModal({
           moveTargetFolderId: destination?.id ?? null,
         },
       },
-      updater: store => {
-        removeFromListings(store, listingIds, data.id);
-        removeFromFolderListing(store, data.parentId ?? null, data.id);
-        removeFromFolderTree(store, data.id);
-        if (destination) {
-          invalidateFolderListing(store, destination.id);
-        } else {
-          invalidateArchiveListing(store);
-        }
-      },
+      updater: store => removeFromFolderTree(store, data.id),
       onCompleted: () => {
+        // The folder left its level and its contents went to another folder or to the archive: those lists read their
+        // page again.
+        markListChanged('knowledgeBase');
+        if (!destination) markListChanged('archivedArticles');
         toast({ title: 'Folder deleted', description: data.name, variant: 'success' });
         onDeleted?.();
         onClose();

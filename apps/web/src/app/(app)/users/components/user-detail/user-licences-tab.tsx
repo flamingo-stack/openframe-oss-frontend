@@ -4,6 +4,7 @@ import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/compone
 import { providerMark } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  type AutoRefreshControlProps,
   Button,
   type ColumnDef,
   DataTable,
@@ -27,6 +28,8 @@ import { liveColumnMeta, oneLineEmptyState, useRetryKey } from '@/app/components
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { useTableGrid } from '@/app/components/shared/table-layout-scope';
+import { useAutoRefresh } from '@/app/hooks/use-auto-refresh';
+import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { singleColumnFilter } from '../../../software/components/shared/column-filters';
 import { groupRefName } from '../../utils/user-presentation';
 import { UserTabHeading } from './user-tab-heading';
@@ -207,8 +210,11 @@ const ASSIGNMENT_FILTER_GROUPS = [
 const getRowId = (row: LicenceRow) => row.id;
 const LICENCES_SKELETON_ROWS = 3;
 
-/** The heading and the table, from the rows it is handed (`null` while they are read). */
-function LicencesTable({ rows }: { rows: readonly LicenceRow[] | null }) {
+/**
+ * The heading and the table, from the rows it is handed (`null` while they are read), with the auto-refresh picker once
+ * they are.
+ */
+function LicencesTable({ rows, refresh }: { rows: readonly LicenceRow[] | null; refresh?: AutoRefreshControlProps }) {
   const loading = useLoadingScope();
   const tableGrid = useTableGrid('user-licences');
   const [selected, setSelected] = useState<string[]>([]);
@@ -258,6 +264,7 @@ function LicencesTable({ rows }: { rows: readonly LicenceRow[] | null }) {
         emptyState={oneLineEmptyState(
           selected.length > 0 ? 'No licences match the selected filters.' : 'This user holds no licences.',
         )}
+        refresh={refresh}
       />
       <FilterModal
         isOpen={filtersOpen}
@@ -292,14 +299,21 @@ function UserLicencesReader({ id }: { id: string }) {
 
 function UserLicencesQuery({ id }: { id: string }) {
   const retryKey = useRetryKey();
-  const { directoryAccount } = useLazyLoadQuery<UserLicencesTabQueryType>(
-    userLicencesTabQuery,
-    { id },
-    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
-  );
+  const variables = { id };
+  const { directoryAccount } = useLazyLoadQuery<UserLicencesTabQueryType>(userLicencesTabQuery, variables, {
+    fetchPolicy: 'store-and-network',
+    fetchKey: retryKey,
+  });
+  // The licences in one read, so the auto-refresh reads them again silently, under the tab's own key
+  // (`licencesRefresh`) beside the user page's other tabs.
+  const refetch = useRefetchPage<UserLicencesTabQueryType>(userLicencesTabQuery, variables);
+  const { control: refresh } = useAutoRefresh({ prefix: 'licences', refetch });
   // A missing account is the header's to say ("User not found").
   if (!directoryAccount) return null;
   return (
-    <LicencesTable rows={directoryAccount.licenses.map(licence => toLicenceRow(licence, directoryAccount.source))} />
+    <LicencesTable
+      rows={directoryAccount.licenses.map(licence => toLicenceRow(licence, directoryAccount.source))}
+      refresh={refresh}
+    />
   );
 }

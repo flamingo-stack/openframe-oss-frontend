@@ -11,6 +11,7 @@ import { safeBackOrReplace } from '@/app/hooks/use-safe-back';
 import { useSeedForm } from '@/app/hooks/use-seed-form';
 import { useGuardedSubmit, userErrorsDescription } from '@/lib/form-save';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
+import { markListChanged } from '@/lib/list-refresh';
 import { routes } from '@/lib/routes';
 import { scrollToFirstInvalidField } from '@/lib/scroll-to-first-invalid-field';
 import {
@@ -81,6 +82,9 @@ export function useEditUserForm(loaded: EditUserRecord | null) {
     commit({
       variables: { input },
       onCompleted: ({ updateDirectoryUser: { person, userErrors } }) => {
+        // The write landed, whole or in part: a name or a customer can move the person in or out of the Users list's
+        // search and funnels, so its page (paged on the server) is read again.
+        if (userErrors.length === 0 || person) markListChanged('directoryUsers');
         if (userErrors.length === 0) {
           const name = input.displayName ?? stored.displayName;
           toast({ title: 'User updated', description: `${name} was updated.`, variant: 'success' });

@@ -20,6 +20,7 @@ import {
   type QueryTableRow,
   SectionLoadError,
 } from '@/app/components/shared';
+import { useAutoRefresh } from '@/app/hooks/use-auto-refresh';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
@@ -65,6 +66,9 @@ export function Queries() {
   );
 
   const { queries, isLoading, isOffline, canClaimEmpty, error, refetch, deleteQuery } = useQueries();
+  // The list is read whole: a tick reads it again silently, under the tab's own key (`queriesRefresh`) beside the
+  // Policies tab's.
+  const { control: refresh } = useAutoRefresh({ prefix: 'queries', refetch: () => refetch() });
   const [queryToDelete, setQueryToDelete] = useState<Query | null>(null);
 
   const filteredQueries = useMemo(() => {
@@ -189,6 +193,7 @@ export function Queries() {
               layout={tableLayoutFor(tableGate)}
               maxHeight="fill"
               settings={QUERIES_TABLE_SETTINGS}
+              refresh={refresh}
               infiniteScroll={{
                 hasNextPage: visibleCount < filteredQueries.length,
                 // The next page is revealed from the rows in hand: nothing is fetched.

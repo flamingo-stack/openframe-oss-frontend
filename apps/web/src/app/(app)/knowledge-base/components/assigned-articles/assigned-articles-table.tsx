@@ -4,36 +4,35 @@ import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/compone
 import { BookBookmarkIcon, Link01BreakIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   ActionsMenuDropdown,
+  type AutoRefreshControlProps,
   type ColumnDef,
   type Row,
   useDataTable,
   LoadingWhen,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useEffect, useMemo } from 'react';
-import { ConnectionHandler, graphql, useLazyLoadQuery, useMutation, usePaginationFragment } from 'react-relay';
-import type { SelectorStoreUpdater } from 'relay-runtime';
-import type {
-  assignedArticlesTable_query$data,
-  assignedArticlesTable_query$key,
-} from '@/__generated__/assignedArticlesTable_query.graphql';
-import type { assignedArticlesTablePaginationQuery as AssignedArticlesTablePaginationQueryType } from '@/__generated__/assignedArticlesTablePaginationQuery.graphql';
-import type { assignedArticlesTableQuery as AssignedArticlesTableQueryType } from '@/__generated__/assignedArticlesTableQuery.graphql';
-import type { assignedArticlesTableUnassignMutation as AssignedArticlesTableUnassignMutationType } from '@/__generated__/assignedArticlesTableUnassignMutation.graphql';
 import {
-  EmptyState,
-  type InfiniteScroll,
-  liveColumnMeta,
-  NO_ITEMS,
-  NO_NEXT_PAGE,
-  noop,
-  oneLineEmptyState,
-  useRetryKey,
-} from '@/app/components/shared';
+  type CursorPagerFooterProps,
+  type CursorPagerVariables,
+  type UseCursorPagerReturn,
+  useToast,
+} from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useEffect, useMemo } from 'react';
+import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
+import type {
+  assignedArticlesTableQuery$data,
+  assignedArticlesTableQuery as AssignedArticlesTableQueryType,
+} from '@/__generated__/assignedArticlesTableQuery.graphql';
+import type { assignedArticlesTableUnassignMutation as AssignedArticlesTableUnassignMutationType } from '@/__generated__/assignedArticlesTableUnassignMutation.graphql';
+import { EmptyState, liveColumnMeta, NO_ITEMS, noop, oneLineEmptyState, useRetryKey } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
+import { forwardPage } from '@/app/hooks/forward-page';
+import { usePagedTable } from '@/app/hooks/use-paged-table';
+import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { useGridTableProps } from '@/app/hooks/use-table-layout';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
+import { markListChanged, useListRefreshEpoch } from '@/lib/list-refresh';
 import { routes } from '@/lib/routes';
 import { KnowledgeBaseItemCreatedCell } from '../item-list/knowledge-base-item-created-cell';
 import {
@@ -44,33 +43,18 @@ import {
 } from '../shared/knowledge-base-grid-columns';
 import { KNOWLEDGE_BASE_ITEM_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
 import { KnowledgeBaseItemNameCell } from '../shared/knowledge-base-item-name-cell';
-import { useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
 import { type AssignedArticlesTarget, targetNoun } from './assigned-articles-target';
 
 /**
  * The articles assigned to one customer or device, from every folder: drafts
  * included, archived left out, most recently updated first — all decided by the
- * server once `assignedTo` is set.
+ * server once `assignedTo` is set. One page per request, its cursor in the URL
+ * under the tab's prefix (`articlesCursor`; no `@connection`: a cursor from a link
+ * must read exactly its page). `knowledgeBaseItems` pages forward only.
  */
 const assignedArticlesTableQuery = graphql`
   query assignedArticlesTableQuery($filter: KnowledgeBaseFilterInput, $search: String, $first: Int!, $after: String) {
-    ...assignedArticlesTable_query @arguments(filter: $filter, search: $search, first: $first, after: $after)
-  }
-`;
-
-const assignedArticlesTableFragment = graphql`
-  fragment assignedArticlesTable_query on Query
-  @refetchable(queryName: "assignedArticlesTablePaginationQuery")
-  @argumentDefinitions(
-    filter: { type: "KnowledgeBaseFilterInput" }
-    search: { type: "String" }
-    first: { type: "Int", defaultValue: 20 }
-    after: { type: "String" }
-  ) {
-    knowledgeBaseItems(filter: $filter, search: $search, first: $first, after: $after)
-      @connection(key: "assignedArticlesTable_knowledgeBaseItems", filters: ["filter", "search"]) {
-      # Unassign takes the row out of this connection.
-      __id
+    knowledgeBaseItems(filter: $filter, search: $search, first: $first, after: $after) {
       filteredCount
       edges {
         node {
@@ -82,6 +66,8 @@ const assignedArticlesTableFragment = graphql`
       }
       pageInfo {
         hasNextPage
+        hasPreviousPage
+        startCursor
         endCursor
       }
     }
@@ -94,7 +80,7 @@ const assignedArticlesTableUnassignMutation = graphql`
   }
 `;
 
-type ArticleRow = assignedArticlesTable_query$data['knowledgeBaseItems']['edges'][number]['node'];
+type ArticleRow = assignedArticlesTableQuery$data['knowledgeBaseItems']['edges'][number]['node'];
 
 const getRowId = (row: ArticleRow) => row.id;
 const rowHref = (row: ArticleRow) => routes.knowledgeBase.details(row.id);
@@ -163,21 +149,36 @@ interface AssignedArticlesTableProps {
   listing: AssignedArticlesListing;
   /** A refetch is in flight and the rows on screen are the previous result. */
   isPending: boolean;
-  /** Bumped after an assign or unassign: asks the server again from the top. */
-  refreshKey: number;
-  /** An unassign went through — the tab refreshes what depends on the set. */
+  /** An unassign went through — the tab refreshes what else reads the set (the article page's assignees). */
   onChanged: () => void;
   /** Nothing assigned at all (not a search or tag miss) — the tab drops its toolbar. */
   onEmptyChange: (isEmpty: boolean) => void;
   stickyHeaderOffset: string;
+  /** The list's position in the URL: footer props, the stale check, the cursor drop. */
+  pager: UseCursorPagerReturn;
+  /** Deferred — the page variables to spread into the query (lag the URL while the next page is read). */
+  pageVariables: CursorPagerVariables;
+  /** The tab's URL prefix: its auto-refresh interval sits beside its other params (`articlesRefresh`). */
+  paramPrefix: string;
 }
 
 /**
- * The rows of the Assigned Articles tab. In a loading scope (the tab's Suspense fallback) it draws the table over
- * one page of placeholder rows with their real cells, each in its own loading form; otherwise it runs the query,
- * which suspends, so it lives under the tab's `<Suspense>`.
+ * The rows of the Assigned Articles tab, paged on the server (First · Prev · Next), with their own boundary. In a
+ * loading scope (the boundary's fallback) the reader draws the table over one page of placeholder rows with their real
+ * cells, each in its own loading form; otherwise it runs the query, which suspends under that boundary. A cursor the
+ * server refuses drops to the first page (`StaleCursorBoundary`); any other error goes up unchanged.
  */
 export function AssignedArticlesTable(props: AssignedArticlesTableProps) {
+  return (
+    <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
+      <AssignedArticlesTableLoading {...props} />
+    </StaleCursorBoundary>
+  );
+}
+
+/** The rows' loading boundary, the whole output of its own component (the loading standard), under the
+ * stale-cursor boundary above. */
+function AssignedArticlesTableLoading(props: AssignedArticlesTableProps) {
   return (
     <LoadingSuspense label="Loading articles">
       <AssignedArticlesTableReader {...props} />
@@ -195,23 +196,29 @@ function AssignedArticlesTableReader(props: AssignedArticlesTableProps) {
   if (scoped || flagLoading || target == null) {
     return (
       <LoadingWhen loading>
-        <AssignedArticlesRows
-          {...props}
-          rows={NO_ITEMS}
-          totalCount={0}
-          onUnassign={noop}
-          infiniteScroll={NO_NEXT_PAGE}
-        />
+        <AssignedArticlesRows {...props} rows={NO_ITEMS} totalCount={0} onUnassign={noop} pager={null} />
       </LoadingWhen>
     );
   }
   return <AssignedArticlesTableQuery {...props} target={target} />;
 }
 
-function AssignedArticlesTableQuery(props: AssignedArticlesTableProps & { target: AssignedArticlesTarget }) {
-  const { target, listing, refreshKey, onChanged } = props;
+/**
+ * The page the URL names, its footer and the auto-refresh. An assign (the tab's dialog), an unassign (a row's menu)
+ * or an article saved with other customers or devices changes which articles the page holds, which is the server's
+ * answer: it marks the list changed and the page is read again (`useListRefreshEpoch`), keeping the rows on screen
+ * until it arrives.
+ */
+function AssignedArticlesTableQuery({
+  pager,
+  pageVariables,
+  paramPrefix,
+  ...props
+}: AssignedArticlesTableProps & { target: AssignedArticlesTarget }) {
+  const { target, listing, isPending, onChanged } = props;
   const { toast } = useToast();
   const retryKey = useRetryKey();
+  const changed = useListRefreshEpoch('assignedItems');
 
   const variables: AssignedArticlesTableQueryType['variables'] = {
     filter: {
@@ -219,41 +226,27 @@ function AssignedArticlesTableQuery(props: AssignedArticlesTableProps & { target
       tagIds: listing.tagIds.length > 0 ? [...listing.tagIds] : null,
     },
     search: listing.search || null,
-    first: KNOWLEDGE_BASE_PAGE_SIZE,
-    after: null,
+    ...forwardPage(pageVariables, KNOWLEDGE_BASE_PAGE_SIZE),
   };
   const queryData = useLazyLoadQuery<AssignedArticlesTableQueryType>(assignedArticlesTableQuery, variables, {
     fetchPolicy: 'store-and-network',
-    fetchKey: `${retryKey}:${refreshKey}`,
+    fetchKey: `${retryKey}:${changed}`,
   });
-
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
-    AssignedArticlesTablePaginationQueryType,
-    assignedArticlesTable_query$key
-  >(assignedArticlesTableFragment, queryData);
-  const items = data.knowledgeBaseItems;
-  const rows = items.edges.map(edge => edge.node);
+  const refetch = useRefetchPage<AssignedArticlesTableQueryType>(assignedArticlesTableQuery, variables);
+  const { edges, pageInfo, filteredCount } = queryData.knowledgeBaseItems;
+  // Inside another page's tab: its auto-refresh interval sits under the tab's prefix.
+  const paged = usePagedTable({ pager, pageInfo, rowCount: edges.length, prefix: paramPrefix, refetch, isPending });
 
   const [commitUnassign] = useMutation<AssignedArticlesTableUnassignMutationType>(
     assignedArticlesTableUnassignMutation,
   );
 
   const handleUnassign = (row: ArticleRow) => {
-    const removeRow: SelectorStoreUpdater<AssignedArticlesTableUnassignMutationType['response']> = store => {
-      const connection = store.get(items.__id);
-      if (!connection) return;
-      ConnectionHandler.deleteNode(connection, row.id);
-      const count = connection.getValue('filteredCount');
-      if (typeof count === 'number') connection.setValue(Math.max(0, count - 1), 'filteredCount');
-    };
     commitUnassign({
       variables: { itemId: row.id, targetType: target.targetType, targetId: target.targetId },
-      // The row leaves at once and stays gone (the response is a bare Boolean, so the
-      // optimistic removal is replayed as the real one); `onChanged` then asks the
-      // server for the list and the tags.
-      optimisticUpdater: removeRow,
-      updater: removeRow,
       onCompleted: () => {
+        // The answer is a bare Boolean: what the page holds now is the server's to say, so the list reads it again.
+        markListChanged('assignedItems');
         toast({ title: 'Article unassigned', description: row.name, variant: 'success' });
         onChanged();
       },
@@ -267,24 +260,30 @@ function AssignedArticlesTableQuery(props: AssignedArticlesTableProps & { target
     });
   };
 
-  const infiniteScroll = useKnowledgeBaseLoadMore({ loadNext, hasNext, isLoadingNext }, 'Error loading more articles');
-
   return (
     <AssignedArticlesRows
       {...props}
-      rows={rows}
-      totalCount={items.filteredCount}
+      rows={edges.map(edge => edge.node)}
+      totalCount={filteredCount}
       onUnassign={handleUnassign}
-      infiniteScroll={infiniteScroll}
+      pager={paged.pager}
+      refresh={paged.refresh}
     />
   );
 }
 
-interface AssignedArticlesRowsProps extends AssignedArticlesTableProps {
+interface AssignedArticlesRowsProps extends Omit<
+  AssignedArticlesTableProps,
+  'pager' | 'pageVariables' | 'paramPrefix'
+> {
   rows: readonly ArticleRow[];
+  /** The server's total for the search and the tags, not the rows on the page. */
   totalCount: number;
   onUnassign: (row: ArticleRow) => void;
-  infiniteScroll: InfiniteScroll;
+  /** The First · Prev · Next pager (`usePagedTable`); `null` while the page is read. */
+  pager: CursorPagerFooterProps | null;
+  /** The auto-refresh picker above the table (`usePagedTable`). */
+  refresh?: AutoRefreshControlProps;
 }
 
 /** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
@@ -292,7 +291,8 @@ function AssignedArticlesRows({
   rows,
   totalCount,
   onUnassign,
-  infiniteScroll,
+  pager,
+  refresh,
   target,
   listing,
   isPending,
@@ -318,8 +318,10 @@ function AssignedArticlesRows({
   });
 
   // A search or a tag filter that finds nothing keeps the table (its own "no
-  // match" row); nothing assigned at all gets the tab's empty state instead.
-  const showEmptyState = !loading && !hasFilters && !isPending && rows.length === 0;
+  // match" row); nothing assigned at all gets the tab's empty state instead. An
+  // empty LATER page (a cursor about to be dropped) keeps the table and its pager.
+  const isFirstPage = pager?.isFirstPage ?? true;
+  const showEmptyState = !loading && !hasFilters && !isPending && isFirstPage && rows.length === 0;
 
   useEffect(() => {
     onEmptyChange(showEmptyState);
@@ -349,7 +351,8 @@ function AssignedArticlesRows({
           : 'No articles match the selected tags. Try adjusting your filters.',
       )}
       rowHref={rowHref}
-      footer={rows.length > 0 ? infiniteScroll : null}
+      pager={pager}
+      refresh={refresh}
       isPending={isPending}
       stickyHeaderOffset={stickyHeaderOffset}
       layout={tableGrid.layout}

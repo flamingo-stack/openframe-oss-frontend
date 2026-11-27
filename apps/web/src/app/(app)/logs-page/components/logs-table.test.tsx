@@ -18,7 +18,7 @@ const env = vi.hoisted(() => ({
   queries: 0,
 }));
 
-/** One log, as the table's fragment selects it. */
+/** One log, as the table's query selects it. */
 const NODE = vi.hoisted(() => ({
   id: 'log-1',
   toolEventId: 'evt-1',
@@ -37,13 +37,13 @@ const NODE = vi.hoisted(() => ({
 
 // One answer, one router and one address for the whole run: the hooks that read them compare by identity.
 vi.mock('react-relay', async importOriginal => {
-  const query = { logFilters: null };
-  const page = {
-    data: { logs: { edges: [{ node: NODE }] } },
-    loadNext: () => undefined,
-    hasNext: false,
-    isLoadingNext: false,
-    refetch: () => undefined,
+  // One page: the only one.
+  const query = {
+    logs: {
+      edges: [{ node: NODE }],
+      pageInfo: { hasNextPage: false, hasPreviousPage: false, startCursor: 'c-1', endCursor: 'c-1' },
+    },
+    logFilters: null,
   };
   const environment = {};
   return {
@@ -53,11 +53,12 @@ vi.mock('react-relay', async importOriginal => {
       env.queries += 1;
       return query;
     },
-    usePaginationFragment: () => page,
     useFragment: () => NODE,
     useRelayEnvironment: () => environment,
   };
 });
+// The auto-refresh is off by default and waits for the subscription's answer: no guard is mounted here.
+vi.mock('@/app/components/subscription-lock/subscription-guard', () => ({ useSubscriptionOpen: () => false }));
 vi.mock('next/navigation', () => {
   const router = { push: () => undefined, replace: () => undefined };
   const searchParams = new URLSearchParams();

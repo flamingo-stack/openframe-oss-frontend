@@ -73,7 +73,6 @@ vi.mock('react-relay', async importOriginal => {
     import('@/__generated__/userSummaryFields_user.graphql'),
     import('@/__generated__/employeeFilters_userFilters.graphql'),
     import('@/__generated__/invitationsListTableQuery.graphql'),
-    import('@/__generated__/invitationsListTable_query.graphql'),
     import('@/__generated__/invitationsTable_invitation.graphql'),
     import('@/__generated__/invitationEmailCell_invitation.graphql'),
     import('@/__generated__/invitationRolesCell_invitation.graphql'),
@@ -91,7 +90,6 @@ vi.mock('react-relay', async importOriginal => {
     'userSummaryFields_user',
     'employeeFilters_userFilters',
     'invitationsListTableQuery',
-    'invitationsListTable_query',
     'invitationsTable_invitation',
     'invitationEmailCell_invitation',
     'invitationRolesCell_invitation',
@@ -113,8 +111,9 @@ vi.mock('react-relay', async importOriginal => {
   };
 });
 
+import { markListChanged } from '@/lib/list-refresh';
 import { NO_EMPLOYEE_SELECTIONS } from './employee-filters';
-import { USERS_PAGE_SIZE } from './employees-columns';
+import { INVITATIONS_PAGE_SIZE, USERS_PAGE_SIZE } from './employees-columns';
 import { InvitationsListTable } from './invitations-list-table';
 import { UsersListTable } from './users-list-table';
 
@@ -163,7 +162,7 @@ const INVITATIONS = {
         node: { __typename: 'Invitation', id: 'inv-1', email: 'new.hire@acme.io', status: 'PENDING', roles: ['ADMIN'] },
       },
     ],
-    pageInfo: { endCursor: 'c-1', hasNextPage: false },
+    pageInfo: { startCursor: 'c-1', endCursor: 'c-1', hasNextPage: false, hasPreviousPage: false },
   },
   invitationFilters: { statuses: [{ value: 'PENDING', count: 1 }], roles: [{ value: 'ADMIN', count: 1 }] },
 };
@@ -177,11 +176,15 @@ const settle = async () => {
   });
 };
 
+/** The operations the environment was asked for, in order. */
+let requests: string[] = [];
+
 async function render(element: ReactElement) {
   const environment = new Environment({
-    network: Network.create(async request => ({
-      data: (request.name === 'usersListTableQuery' ? USERS : INVITATIONS) as never,
-    })),
+    network: Network.create(async request => {
+      requests.push(request.name);
+      return { data: (request.name === 'usersListTableQuery' ? USERS : INVITATIONS) as never };
+    }),
     store: new Store(new RecordSource()),
   });
   act(() => root.render(<RelayEnvironmentProvider environment={environment}>{element}</RelayEnvironmentProvider>));
@@ -203,8 +206,16 @@ function PagedUsersListTable(props: Omit<ComponentProps<typeof UsersListTable>, 
   return <UsersListTable {...props} pager={pager} pageVariables={pager.variables} />;
 }
 
+/** The invitations listing under the pager its page owns, on the first page. */
+function PagedInvitationsListTable(
+  props: Omit<ComponentProps<typeof InvitationsListTable>, 'pager' | 'pageVariables'>,
+) {
+  const pager = useCursorPager({ pageSize: INVITATIONS_PAGE_SIZE });
+  return <InvitationsListTable {...props} pager={pager} pageVariables={pager.variables} />;
+}
+
 const users = () => render(<PagedUsersListTable {...LISTING_PROPS} />);
-const invitations = () => render(<InvitationsListTable {...LISTING_PROPS} />);
+const invitations = () => render(<PagedInvitationsListTable {...LISTING_PROPS} />);
 const openButton = () => container.querySelector('button[aria-label="Open in new tab"]');
 /** What the card layout reads of each column. */
 const cardMeta = () => seen.columns.map(({ id, meta }) => [id, meta?.width, meta?.hideAt, meta?.align]);
@@ -215,6 +226,7 @@ const gridActions = () =>
 beforeEach(() => {
   stubLayoutApis();
   seen.columns = [];
+  requests = [];
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -305,7 +317,25 @@ describe('InvitationsListTable', () => {
     await invitations();
 
     expect(container.textContent).toContain('new.hire@acme.io');
-    expect(hasGridMarkup(container)).toBe(false);
+    // No grid table: the one row above the card rows holds the range, the pager and the auto-refresh picker (its
+    // divider is the only grid-named mark, as on the users tab).
+    expect(gridRoot(container)).toBeNull();
+    expect(gridHeaderColumns(container)).toEqual([]);
+    expect(gridMetaRow(container)).toBeNull();
+    expect(container.querySelector('[data-table-meta]')?.textContent).toContain('1–1 of 1');
+  });
+
+  it('reads its page again when the list is marked changed (an invite, a revoke, a resend)', async () => {
+    answerTableFlag('off');
+    await invitations();
+    const reads = () => requests.filter(name => name === 'invitationsListTableQuery').length;
+    const before = reads();
+
+    act(() => markListChanged('invitations'));
+    await settle();
+
+    expect(reads()).toBe(before + 1);
+    expect(container.textContent).toContain('new.hire@acme.io');
   });
 
   it('flag on: the grid table, filling the page, with its gear and the row menu as an action column', async () => {
@@ -325,7 +355,7 @@ describe('InvitationsListTable', () => {
     answerTableFlag('on');
     await render(
       <LoadingScope>
-        <InvitationsListTable {...LISTING_PROPS} />
+        <PagedInvitationsListTable {...LISTING_PROPS} />
       </LoadingScope>,
     );
 

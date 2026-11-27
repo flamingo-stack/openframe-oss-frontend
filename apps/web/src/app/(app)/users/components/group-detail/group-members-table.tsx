@@ -3,6 +3,7 @@
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  type AutoRefreshControlProps,
   Button,
   type ColumnDef,
   FilterModal,
@@ -12,32 +13,35 @@ import {
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { type ReactNode, useMemo, useState } from 'react';
-import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
-import type {
-  groupMembersTable_query$data,
-  groupMembersTable_query$key,
-} from '@/__generated__/groupMembersTable_query.graphql';
-import type { groupMembersTablePaginationQuery as GroupMembersTablePaginationQueryType } from '@/__generated__/groupMembersTablePaginationQuery.graphql';
-import type { groupMembersTableQuery as GroupMembersTableQueryType } from '@/__generated__/groupMembersTableQuery.graphql';
 import {
-  type InfiniteScroll,
-  liveColumnMeta,
-  NO_ITEMS,
-  NO_NEXT_PAGE,
-  oneLineEmptyState,
-  useRetryKey,
-} from '@/app/components/shared';
+  CURSOR_PAGER_KEYS,
+  type CursorPagerFooterProps,
+  type CursorPagerVariables,
+  useApiParams,
+  useCursorPager,
+  type UseCursorPagerReturn,
+} from '@flamingo-stack/openframe-frontend-core/hooks';
+import { type ReactNode, useMemo, useState } from 'react';
+import { graphql, useLazyLoadQuery } from 'react-relay';
+import type {
+  groupMembersTableQuery$data,
+  groupMembersTableQuery as GroupMembersTableQueryType,
+} from '@/__generated__/groupMembersTableQuery.graphql';
+import { liveColumnMeta, NO_ITEMS, oneLineEmptyState, useRetryKey } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { openRowColumn } from '@/app/components/shared/open-row-column';
+import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { useTableGrid } from '@/app/components/shared/table-layout-scope';
+import { forwardPage } from '@/app/hooks/forward-page';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
+import { usePagedTable } from '@/app/hooks/use-paged-table';
+import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { DirectoryMembershipScope } from '@/generated/schema-enums';
 import { toAccountRow } from '@/graphql/directory/account-row-fields';
 import { toCustomer } from '@/graphql/directory/customer-claim-fields';
 import { toCustomerOption } from '@/graphql/directory/customer-option';
+import { PAGED_LISTS } from '@/lib/paged-lists';
 import { pluralize } from '@/lib/pluralize';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
@@ -64,6 +68,18 @@ import {
 
 const MEMBERS_PAGE_SIZE = 20;
 
+/**
+ * The section's URL prefix: the group page's query string carries the page's own `id` and `customerId`, so the
+ * section's scope and pager sit under `members…` (`membersScope`, `membersCursor`, `membersPage`, `membersRefresh`).
+ */
+const PARAM_PREFIX = 'members';
+
+/**
+ * A group's members, one page per request, its cursor in the URL (no `@connection`: a cursor from a link must read
+ * exactly its page). `members` pages forward only (`first` / `after`, `PAGED_LISTS.groupMembers`).
+ *
+ * NESTED is a live read; members resolve on directoryGroup only, so a list of groups cannot set one off per row.
+ */
 const groupMembersTableQuery = graphql`
   query groupMembersTableQuery(
     $id: ID!
@@ -72,26 +88,9 @@ const groupMembersTableQuery = graphql`
     $first: Int!
     $after: String
   ) {
-    ...groupMembersTable_query
-      @arguments(id: $id, organizationId: $organizationId, scope: $scope, first: $first, after: $after)
-  }
-`;
-
-// Through the query, not the group: DirectoryGroup is not a Node, so only a fragment on Query can page it. NESTED is a
-// live read; members resolve on directoryGroup only, so a list of groups cannot set one off per row.
-const groupMembersTableFragment = graphql`
-  fragment groupMembersTable_query on Query
-  @refetchable(queryName: "groupMembersTablePaginationQuery")
-  @argumentDefinitions(
-    id: { type: "ID!" }
-    organizationId: { type: "ID" }
-    scope: { type: "DirectoryMembershipScope" }
-    first: { type: "Int", defaultValue: 20 }
-    after: { type: "String" }
-  ) {
     directoryGroup(id: $id, organizationId: $organizationId) {
       provider
-      members(scope: $scope, first: $first, after: $after) @connection(key: "groupMembersTable_members") {
+      members(scope: $scope, first: $first, after: $after) {
         totalCount
         hiddenMemberCount
         externalMemberCount
@@ -136,6 +135,8 @@ const groupMembersTableFragment = graphql`
         }
         pageInfo {
           hasNextPage
+          hasPreviousPage
+          startCursor
           endCursor
         }
       }
@@ -143,7 +144,7 @@ const groupMembersTableFragment = graphql`
   }
 `;
 
-type MemberNode = NonNullable<groupMembersTable_query$data['directoryGroup']>['members']['edges'][number]['node'];
+type MemberNode = NonNullable<groupMembersTableQuery$data['directoryGroup']>['members']['edges'][number]['node'];
 
 /** `customerId`: the customer the page is scoped to, kept when a subgroup opens. A type this build does not know is left out. */
 function toMemberRow({ member, viaGroup }: MemberNode, customerId: string | undefined): MemberRow | null {
@@ -256,6 +257,19 @@ const COLUMNS: ColumnDef<MemberRow>[] = [
   ),
 ];
 
+/** The whole roster as the server counts it, beside the page's rows. */
+interface MembersRoster {
+  /** The server's total for the scope, not the rows on the page. */
+  totalCount: number;
+  /** Members outside the customer the page is scoped to. */
+  hiddenCount: number;
+  /** Members the directory does not hold (an outside address, a contact): counted over the whole roster, never listed. */
+  external: { count: number; provider: string } | null;
+  liveFailed: boolean;
+}
+
+const UNREAD_ROSTER: MembersRoster = { totalCount: 0, hiddenCount: 0, external: null, liveFailed: false };
+
 const getRowId = (row: MemberRow) => row.id;
 const rowHref = (row: MemberRow) => row.href ?? null;
 
@@ -269,11 +283,19 @@ interface MembersProps {
   onScopeChange: (scope: string) => void;
   isPending: boolean;
   heading: ReactNode;
+  /** The list's position in the URL: footer props, the stale check, the cursor drop. */
+  pager: UseCursorPagerReturn;
+  /** Deferred — the page variables to spread into the query (lag the URL while the next page is read). */
+  pageVariables: CursorPagerVariables;
 }
 
 /**
- * The Members section (Figma 733:99325): the heading and the table. Direct members by default; Nested is a live read.
- * The frame's search and its Member type, Customer and Licences funnels have nothing to ask: `members` takes a scope only.
+ * The Members section (Figma 733:99325): the heading and the table, one page at a time with First · Prev · Next.
+ * Direct members by default; Nested is a live read. The frame's search and its Member type, Customer and Licences
+ * funnels have nothing to ask: `members` takes a scope only.
+ *
+ * The scope and the pager live in the URL under the section's prefix: a scope change drops the cursor in the SAME URL
+ * write (one history entry on page 2+, so Back returns to the old view).
  */
 export function GroupMembersSection({
   id,
@@ -284,12 +306,25 @@ export function GroupMembersSection({
   customerId?: string;
   loading?: boolean;
 }) {
-  const { params, setParam } = useApiParams({
-    scope: { type: 'string', default: DirectoryMembershipScope.DIRECT },
+  const { params, setParam } = useApiParams(
+    { scope: { type: 'string', default: DirectoryMembershipScope.DIRECT } },
+    { prefix: PARAM_PREFIX, resetKeys: CURSOR_PAGER_KEYS, resetHistory: 'push' },
+  );
+  // The safety net for a cursor issued under the other scope. Not the group or the customer: they are the page's.
+  const pager = useCursorPager({
+    prefix: PARAM_PREFIX,
+    pageSize: MEMBERS_PAGE_SIZE,
+    ...PAGED_LISTS.groupMembers,
+    resetOn: JSON.stringify(params),
   });
   const [filtersOpen, setFiltersOpen] = useState(false);
   const liveScope = params.scope === DirectoryMembershipScope.NESTED ? params.scope : DirectoryMembershipScope.DIRECT;
-  const { deferredFilters: scope, isPending } = useDeferredQuery<DirectoryMembershipScope>(liveScope, '');
+  // The scope and the page are deferred together, so `isPending` covers both.
+  const {
+    deferredFilters: scope,
+    deferredPage,
+    isPending,
+  } = useDeferredQuery<DirectoryMembershipScope, CursorPagerVariables>(liveScope, '', pager.variables);
   const onScopeChange = (next: string) => setParam('scope', next);
 
   return (
@@ -302,6 +337,8 @@ export function GroupMembersSection({
         onScopeChange={onScopeChange}
         isPending={isPending}
         loading={loading}
+        pager={pager}
+        pageVariables={deferredPage}
         heading={
           <UserTabHeading
             title="Members"
@@ -336,8 +373,21 @@ export function GroupMembersSection({
   );
 }
 
-/** The heading and the rows, one island: a missing group has no Members section to head. */
-function GroupMembersIsland({ loading = false, ...props }: MembersProps & { loading?: boolean }) {
+/**
+ * The heading and the rows, one island: a missing group has no Members section to head. A cursor the server refuses
+ * drops to the first page (`StaleCursorBoundary`); any other error goes up unchanged.
+ */
+function GroupMembersIsland(props: MembersProps & { loading?: boolean }) {
+  return (
+    <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
+      <GroupMembersIslandLoading {...props} />
+    </StaleCursorBoundary>
+  );
+}
+
+/** The island's loading boundary, the whole output of its own component (the loading standard), under the
+ * stale-cursor boundary above. */
+function GroupMembersIslandLoading({ loading = false, ...props }: MembersProps & { loading?: boolean }) {
   return (
     <LoadingSuspense live label="Loading members" gated={loading}>
       <GroupMembersReader {...props} />
@@ -347,35 +397,28 @@ function GroupMembersIsland({ loading = false, ...props }: MembersProps & { load
 
 function GroupMembersReader(props: MembersProps) {
   if (useLoadingScope()) {
-    return (
-      <MembersRows
-        {...props}
-        rows={NO_ITEMS}
-        totalCount={0}
-        hiddenCount={0}
-        external={null}
-        liveFailed={false}
-        infiniteScroll={NO_NEXT_PAGE}
-      />
-    );
+    return <MembersRows {...props} rows={NO_ITEMS} roster={UNREAD_ROSTER} pager={null} />;
   }
   return <GroupMembersQuery {...props} />;
 }
 
-function GroupMembersQuery(props: MembersProps) {
-  const { id, customerId, scope } = props;
+/** The page the URL names, its footer and the auto-refresh. */
+function GroupMembersQuery({ pager, pageVariables, ...props }: MembersProps) {
+  const { id, customerId, scope, isPending } = props;
   const retryKey = useRetryKey();
-  const queryData = useLazyLoadQuery<GroupMembersTableQueryType>(
-    groupMembersTableQuery,
-    { id, organizationId: customerId ?? null, scope, first: MEMBERS_PAGE_SIZE, after: null },
-    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
-  );
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
-    GroupMembersTablePaginationQueryType,
-    groupMembersTable_query$key
-  >(groupMembersTableFragment, queryData);
+  const variables: GroupMembersTableQueryType['variables'] = {
+    id,
+    organizationId: customerId ?? null,
+    scope,
+    ...forwardPage(pageVariables, MEMBERS_PAGE_SIZE),
+  };
+  const queryData = useLazyLoadQuery<GroupMembersTableQueryType>(groupMembersTableQuery, variables, {
+    fetchPolicy: 'store-and-network',
+    fetchKey: retryKey,
+  });
+  const refetch = useRefetchPage<GroupMembersTableQueryType>(groupMembersTableQuery, variables);
 
-  const group = data.directoryGroup;
+  const group = queryData.directoryGroup;
   const members = group?.members;
   const rows = useMemo(
     () =>
@@ -385,44 +428,50 @@ function GroupMembersQuery(props: MembersProps) {
       }),
     [members, customerId],
   );
+  const paged = usePagedTable({
+    pager,
+    pageInfo: members?.pageInfo,
+    rowCount: members?.edges.length ?? 0,
+    prefix: PARAM_PREFIX,
+    refetch,
+    isPending,
+  });
   // A missing group is the title's to say ("Group not found").
   if (!group || !members) return null;
 
-  const fetchNextPage = () => {
-    if (hasNext && !isLoadingNext) loadNext(MEMBERS_PAGE_SIZE);
-  };
   return (
     <MembersRows
       {...props}
       rows={rows}
-      totalCount={members.totalCount}
-      hiddenCount={members.hiddenMemberCount}
-      external={{ count: members.externalMemberCount, provider: group.provider }}
-      liveFailed={members.liveDataUnavailable}
-      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+      roster={{
+        totalCount: members.totalCount,
+        hiddenCount: members.hiddenMemberCount,
+        external: { count: members.externalMemberCount, provider: group.provider },
+        liveFailed: members.liveDataUnavailable,
+      }}
+      pager={paged.pager}
+      refresh={paged.refresh}
     />
   );
 }
 
 function MembersRows({
   rows,
-  totalCount,
-  hiddenCount,
-  external,
-  liveFailed,
-  infiniteScroll,
+  roster: { totalCount, hiddenCount, external, liveFailed },
+  pager,
+  refresh,
   liveScope,
   onScopeChange,
   isPending,
   heading,
-}: MembersProps & {
+}: Omit<MembersProps, 'pager' | 'pageVariables'> & {
   rows: readonly MemberRow[];
-  totalCount: number;
-  hiddenCount: number;
-  /** Members the directory does not hold (an outside address, a contact): counted over the whole roster, never listed. */
-  external: { count: number; provider: string } | null;
-  liveFailed: boolean;
-  infiniteScroll: InfiniteScroll;
+  /** What the server says about the whole roster, beside the page's rows. */
+  roster: MembersRoster;
+  /** The First · Prev · Next pager (`usePagedTable`); `null` while the page is read. */
+  pager: CursorPagerFooterProps | null;
+  /** The auto-refresh picker above the table (`usePagedTable`). */
+  refresh?: AutoRefreshControlProps;
 }) {
   const loading = useLoadingScope();
   const tableGrid = useTableGrid('group-members');
@@ -465,7 +514,8 @@ function MembersRows({
           isPending={isPending}
           emptyState={oneLineEmptyState(membersEmptyMessage({ liveFailed, hiddenCount, externalCount }))}
           rowHref={rowHref}
-          footer={rows.length > 0 ? infiniteScroll : null}
+          pager={pager}
+          refresh={refresh}
         />
         {external && externalCount > 0 && (
           <p className="flex items-center gap-[var(--spacing-system-xxs)] text-ods-text-secondary text-h6">

@@ -9,6 +9,7 @@ import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { useAssignmentSearch } from '@/components/assignments';
 import { AssignmentItemType, AssignmentTargetType } from '@/generated/schema-enums';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
+import { markListChanged } from '@/lib/list-refresh';
 import type { AssignedArticlesTarget } from './assigned-articles-target';
 
 const assignArticleModalMutation = graphql`
@@ -33,7 +34,7 @@ interface AssignArticleModalProps {
   target: AssignedArticlesTarget;
   isOpen: boolean;
   onClose: () => void;
-  /** At least one article was assigned — the tab asks for its list and tags again. */
+  /** At least one article was assigned — the tab refreshes what else reads the set (the article page's assignees). */
   onAssigned: () => void;
 }
 
@@ -95,7 +96,11 @@ export function AssignArticleModal({ target, isOpen, onClose, onAssigned }: Assi
 
     const failures = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
     const assignedCount = results.length - failures.length;
-    if (assignedCount > 0) onAssigned();
+    if (assignedCount > 0) {
+      // Where the new articles land is the server's order: the Assigned Articles list reads its page again.
+      markListChanged('assignedItems');
+      onAssigned();
+    }
 
     if (failures.length === 0) {
       toast({

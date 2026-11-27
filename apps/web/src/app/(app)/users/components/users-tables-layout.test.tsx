@@ -3,7 +3,9 @@
  *
  * Card rows (no page scope above, and what the app's table flag gives while it is off) are locked as markup: those
  * snapshots were recorded BEFORE the tables learned the grid layout, and that change left them untouched. Update one
- * only for a change that means to alter the card rows.
+ * only for a change that means to alter the card rows. Paging on the server did, for the users, the groups, a user's
+ * groups and a group's members: the row above the table holds the page's range and First · Prev · Next, in place of
+ * the header's count and the infinite scroll's footer.
  *
  * The grid (the flag on, under a page's `TableLayoutScope`): the lib's grid table with the gear of its saved column
  * settings, the row actions as action columns, and one line in every cell.
@@ -25,12 +27,14 @@ import {
   settingsGear,
   twoLineCells,
 } from '@/app/components/shared/table-layout-scope.fixtures';
+import { firstPageProps } from '@/app/hooks/cursor-pager.fixtures';
 import { GroupMembersSection } from './group-detail/group-members-table';
-import { GroupsTable } from './groups-list/groups-table';
+import { GROUPS_PAGE_SIZE, GroupsTable } from './groups-list/groups-table';
 import { UserDevicesTab } from './user-detail/user-devices-tab';
 import { UserGroupsTab } from './user-detail/user-groups-tab';
 import { UserLicencesTab } from './user-detail/user-licences-tab';
 import { DirectoryUsersTable } from './users-list/directory-users-table';
+import { USERS_PAGE_SIZE } from './users-list/users-columns';
 
 const ACME = {
   organizationId: 'org-1',
@@ -39,7 +43,7 @@ const ACME = {
 };
 const GLOBEX = { organizationId: 'org-2', name: 'Globex', image: null };
 const ACME_TENANT = { name: 'Acme tenant', provider: 'MICROSOFT_365' };
-const NO_NEXT = { hasNextPage: false, endCursor: null };
+const NO_NEXT = { hasNextPage: false, hasPreviousPage: false, startCursor: null, endCursor: null };
 
 const LAPTOP = {
   id: 'm-1',
@@ -326,14 +330,16 @@ vi.mock('react-relay', () => ({
   useFragment: (_fragment: unknown, key: unknown) => key,
   readInlineData: (_fragment: unknown, key: unknown) => key,
   useLazyLoadQuery: () => ANSWER,
-  usePaginationFragment: (_fragment: unknown, ref: unknown) => ({
-    data: ref,
-    loadNext: () => {},
-    hasNext: false,
-    isLoadingNext: false,
-  }),
   useMutation: () => [() => {}, false],
+  // The auto-refresh's refetch (`useRefetchPage`): never called here, only built.
+  useRelayEnvironment: () => ({}),
+  fetchQuery: () => ({ toPromise: () => Promise.resolve() }),
 }));
+// A table's pager and refresh picker come from its frame's pager (`usePagedTable`): here, a first page that never moves.
+vi.mock('@/app/hooks/use-paged-table', async () => {
+  const fixtures = await import('@/app/hooks/cursor-pager.fixtures');
+  return { usePagedTable: () => ({ pager: fixtures.FIRST_PAGE_FOOTER, refresh: undefined }) };
+});
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   usePathname: () => '/users',
@@ -377,6 +383,7 @@ const NO_SELECTIONS = { customer: [], status: [], license: [] };
 function usersTable(organizationId?: string) {
   return (
     <DirectoryUsersTable
+      position={firstPageProps(USERS_PAGE_SIZE, organizationId ? 'users' : undefined)}
       organizationId={organizationId}
       backendFilters={null}
       debouncedSearch=""
@@ -385,8 +392,7 @@ function usersTable(organizationId?: string) {
       isPending={false}
       onEmptyChange={noop}
       stickyHeaderOffset="top-[56px]"
-      filtersOpen={false}
-      onFiltersClose={noop}
+      filtersWindow={{ open: false, onClose: noop }}
     />
   );
 }
@@ -395,6 +401,7 @@ function usersTable(organizationId?: string) {
 function groupsTable() {
   return (
     <GroupsTable
+      position={firstPageProps(GROUPS_PAGE_SIZE, 'groups')}
       organizationId="org-1"
       orderBy={null}
       debouncedSearch=""

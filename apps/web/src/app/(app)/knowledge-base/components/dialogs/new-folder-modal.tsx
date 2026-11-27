@@ -7,7 +7,8 @@ import { graphql, useMutation } from 'react-relay';
 import type { newFolderModalMutation as NewFolderModalMutationType } from '@/__generated__/newFolderModalMutation.graphql';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
-import { addToFolderTree, invalidateFolderListing } from '../shared/knowledge-base-listings';
+import { markListChanged } from '@/lib/list-refresh';
+import { addToFolderTree } from '../shared/knowledge-base-listings';
 
 // `name` and `parentId` are what the folder pickers read off the folder tree.
 const newFolderModalMutation = graphql`
@@ -47,11 +48,10 @@ export function NewFolderModal({ isOpen, onClose, parentId }: NewFolderModalProp
     if (!canSubmit) return;
     commit({
       variables: { name: trimmed, parentId },
-      updater: store => {
-        addToFolderTree(store, store.getRootField('createFolder'));
-        invalidateFolderListing(store, parentId);
-      },
+      updater: store => addToFolderTree(store, store.getRootField('createFolder')),
       onCompleted: () => {
+        // Where the folder lands is the server's order, maybe on another page: the listing reads its page again.
+        markListChanged('knowledgeBase');
         toast({ title: 'Folder created', description: trimmed, variant: 'success' });
         onClose();
       },

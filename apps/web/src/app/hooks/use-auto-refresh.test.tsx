@@ -76,6 +76,39 @@ describe('useAutoRefresh', () => {
   });
 
   it.each([
+    ['refetches at once', 7 * 60_000, 0],
+    ['waits the rest of the interval', 2 * 60_000, 3 * 60_000],
+  ])('back on a hidden tab, %s (5m)', async (_, hiddenFor, wait) => {
+    state.refresh = '5m';
+    const refetch = vi.fn(() => Promise.resolve());
+    mount(refetch);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5 * 60_000);
+    });
+    expect(refetch).toHaveBeenCalledTimes(1);
+    // Hidden for a while, then shown again.
+    const show = (visibility: 'hidden' | 'visible') =>
+      act(() => {
+        Object.defineProperty(document, 'visibilityState', { value: visibility, configurable: true });
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+    show('hidden');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(hiddenFor);
+    });
+    expect(refetch).toHaveBeenCalledTimes(1);
+    show('visible');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(Math.max(0, wait - 1));
+    });
+    expect(refetch).toHaveBeenCalledTimes(wait === 0 ? 2 : 1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(refetch).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
     ['off', () => Object.assign(state, { refresh: 'off' })],
     ['a value it cannot read', () => Object.assign(state, { refresh: '5h' })],
     ['a paused session', () => Object.assign(state, { health: 'paused' })],

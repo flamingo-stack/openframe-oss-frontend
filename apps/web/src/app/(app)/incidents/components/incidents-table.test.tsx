@@ -13,7 +13,7 @@ import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 
 const env = vi.hoisted(() => ({ queries: 0 }));
 
-/** One incident, as the table's fragment selects it. */
+/** One incident, as the table's query selects it. */
 const NODE = vi.hoisted(() => ({
   id: 'insight-1',
   title: 'Disk almost full',
@@ -35,6 +35,11 @@ const NODE = vi.hoisted(() => ({
 vi.mock('react-relay', async importOriginal => {
   const facet = (value: string) => [{ value, label: value, count: 1 }];
   const query = {
+    // One page: the only one.
+    insights: {
+      edges: [{ node: NODE }],
+      pageInfo: { hasNextPage: false, hasPreviousPage: false, startCursor: 'c-1', endCursor: 'c-1' },
+    },
     insightFilters: {
       types: facet('DISK_SPACE'),
       severities: facet('HIGH'),
@@ -45,12 +50,6 @@ vi.mock('react-relay', async importOriginal => {
     },
     insightStatusTransitions: [{ from: 'ACKNOWLEDGED', to: ['RESOLVED'] }],
   };
-  const page = {
-    data: { insights: { edges: [{ node: NODE }] } },
-    loadNext: () => undefined,
-    hasNext: false,
-    isLoadingNext: false,
-  };
   const environment = {};
   const commit = () => undefined;
   return {
@@ -60,7 +59,6 @@ vi.mock('react-relay', async importOriginal => {
       env.queries += 1;
       return query;
     },
-    usePaginationFragment: () => page,
     // An `@inline` fragment's data is what the operation selected: the stand-in answers above are it already.
     readInlineData: (_fragment: unknown, ref: unknown) => ref,
     useMutation: () => [commit, false],
@@ -72,6 +70,8 @@ vi.mock('next/navigation', () => {
   const searchParams = new URLSearchParams();
   return { useRouter: () => router, usePathname: () => '/incidents', useSearchParams: () => searchParams };
 });
+// The auto-refresh is off by default and waits for the subscription's answer: no guard is mounted here.
+vi.mock('@/app/components/subscription-lock/subscription-guard', () => ({ useSubscriptionOpen: () => false }));
 // The agents' marks are drawn from their server identities, provided at the app's root: a stand-in here.
 vi.mock('@flamingo-stack/openframe-frontend-core/components', async importOriginal => ({
   ...(await importOriginal<object>()),
@@ -144,6 +144,13 @@ function cellText(markup: string, column: string): string {
     .replace(/<[^>]*$/, '')
     .replace(/<[^>]+>/g, '');
 }
+
+/**
+ * A card table's markup: no grid table, and no grid header or meta row (the one row above the card rows holds the
+ * range, the pager and the auto-refresh picker, whose divider is the only `data-grid-` mark a card table carries).
+ */
+const isCardTable = (markup: string) =>
+  !['data-grid-root', 'data-grid-header', 'data-grid-meta=', 'data-grid-col'].some(mark => markup.includes(mark));
 
 /** How many loading rows the table draws. */
 const loadingRows = (markup: string) => markup.split('data-loading-item').length - 1;
@@ -226,14 +233,16 @@ describe('the incidents table and the table flag', () => {
 
     it('keeps card rows where the flag is off, and where the server serves no value for it', () => {
       flag(false);
-      expect(render(<IncidentsTable tab="current" />)).not.toContain('data-grid-');
+      expect(isCardTable(render(<IncidentsTable tab="current" />))).toBe(true);
       expect(container.textContent).toContain('Disk almost full');
+      // The range over the facets' total, in the row above the card rows.
+      expect(container.querySelector('[data-table-meta]')?.textContent).toContain('1–1 of 1 result');
       for (const name of ['Fix with Mingo', 'Open in new tab']) {
         expect(button(name).className).toContain('bg-ods-card');
       }
 
       act(() => useFeatureFlagsStore.getState().setFlags([{ name: 'insights', enabled: true }]));
-      expect(container.innerHTML).not.toContain('data-grid-');
+      expect(isCardTable(container.innerHTML)).toBe(true);
     });
 
     it('reads nothing and draws card loading rows while the flags are out, then the grid with its rows', () => {
@@ -268,11 +277,11 @@ describe('the incidents table and the table flag', () => {
 
     it('keeps card rows where the flag is off, and a loading scope while the flags are out', () => {
       flag(false);
-      expect(render(<DeviceIncidentsTable machineId="m-1" emptyState={NO_INCIDENTS} />)).not.toContain('data-grid-');
+      expect(isCardTable(render(<DeviceIncidentsTable machineId="m-1" emptyState={NO_INCIDENTS} />))).toBe(true);
       expect(container.textContent).toContain('Disk almost full');
 
       act(() => useFeatureFlagsStore.getState().reset());
-      expect(container.innerHTML).not.toContain('data-grid-');
+      expect(isCardTable(container.innerHTML)).toBe(true);
       expect(loadingRows(container.innerHTML)).toBeGreaterThan(0);
       expect(container.textContent).not.toContain('Disk almost full');
     });

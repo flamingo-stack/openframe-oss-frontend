@@ -1,3 +1,6 @@
+import { graphql, readInlineData } from 'react-relay';
+import type { facetOptions_entry$key } from '@/__generated__/facetOptions_entry.graphql';
+
 /** A filter dropdown option derived from a server facet entry. */
 export interface FacetOption {
   id: string;
@@ -25,6 +28,24 @@ export interface FacetEntry {
   readonly value: string;
   readonly label: string;
   readonly count: number;
+}
+
+/**
+ * One option of a scripts facet (`ScriptFilterOption`: the scripts and schedules lists' `scriptFilters` /
+ * `scriptScheduleFilters`). A list spreads it in its facet selection and reads the entries with `readFacet`, so the
+ * fields are selected beside the functions that read them.
+ */
+const facetOptionsEntryFragment = graphql`
+  fragment facetOptions_entry on ScriptFilterOption @inline {
+    value
+    label
+    count
+  }
+`;
+
+/** A facet selected with `facetOptions_entry`, as `facetToMappedOptions` / `facetToSortedOptions` take it. */
+export function readFacet(refs: ReadonlyArray<facetOptions_entry$key> | null | undefined): FacetEntry[] {
+  return (refs ?? []).map(ref => readInlineData(facetOptionsEntryFragment, ref));
 }
 
 /**

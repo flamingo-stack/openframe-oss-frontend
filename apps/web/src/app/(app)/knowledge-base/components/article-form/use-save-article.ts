@@ -9,11 +9,7 @@ import { isOptimisticTagId } from '@/app/components/shared/tags';
 import { ASSIGNED_ITEMS_QUERY_KEY, assignedTargetIds } from '@/components/assignments';
 import { KnowledgeBaseArticleStatus } from '@/generated/schema-enums';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
-import {
-  invalidateArchiveListing,
-  invalidateFolderListing,
-  moveBetweenFolders,
-} from '../shared/knowledge-base-listings';
+import { markListChanged } from '@/lib/list-refresh';
 import type { StoredArticle } from './article-form-record';
 import type { ArticleFormData } from './article-form.types';
 
@@ -31,8 +27,8 @@ export interface SaveArticleRequest {
   deleteAttachmentIds: string[];
   /**
    * The article as it was loaded: what tells a changed assignment list from an
-   * untouched one, and which listings the save takes the article out of. Null
-   * when creating.
+   * untouched one, and whether the save restores it from the archive. Null when
+   * creating.
    */
   stored: StoredArticle | null;
 }
@@ -135,6 +131,12 @@ export function useSaveArticle() {
       ...assigned,
     };
     const onCompleted = (savedId: string) => {
+      // The knowledge base listing holds the article on some page of its level, by the server's order: it reads its
+      // page again. A status is what restores an archived article (as a draft or published), so it leaves the archive.
+      markListChanged('knowledgeBase');
+      if (stored?.status === KnowledgeBaseArticleStatus.ARCHIVED) markListChanged('archivedArticles');
+      // A changed customer or device list changes those Assigned Articles tabs.
+      if (assigned.assignedOrganizationIds || assigned.assignedDeviceIds) markListChanged('assignedItems');
       // The article's page reads what it is assigned to through react-query.
       void queryClient.invalidateQueries({ queryKey: ASSIGNED_ITEMS_QUERY_KEY });
       onSaved(savedId);
@@ -150,7 +152,6 @@ export function useSaveArticle() {
     if (articleId === null) {
       commitCreate({
         variables: { input: { ...article, parentId: values.folderId } },
-        updater: store => invalidateFolderListing(store, values.folderId),
         onCompleted: ({ createArticle }) => onCompleted(createArticle.id),
         onError,
       });
@@ -170,15 +171,6 @@ export function useSaveArticle() {
           ...(values.folderId ? { parentId: values.folderId } : { moveToRoot: true }),
           deleteAttachmentIds,
         },
-      },
-      updater: store => {
-        if (stored.status === KnowledgeBaseArticleStatus.ARCHIVED) {
-          // A status is what restores an archived article, as a draft or published.
-          invalidateArchiveListing(store);
-          invalidateFolderListing(store, values.folderId);
-        } else {
-          moveBetweenFolders(store, { itemId: articleId, from: stored.values.folderId, to: values.folderId });
-        }
       },
       onCompleted: () => onCompleted(articleId),
       onError,

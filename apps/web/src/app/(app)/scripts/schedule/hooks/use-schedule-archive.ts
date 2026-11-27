@@ -2,14 +2,67 @@
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback } from 'react';
-import { useMutation } from 'react-relay';
-import type { archiveScriptScheduleMutation as ArchiveScheduleMutationType } from '@/__generated__/archiveScriptScheduleMutation.graphql';
-import type { unarchiveScriptScheduleMutation as UnarchiveScheduleMutationType } from '@/__generated__/unarchiveScriptScheduleMutation.graphql';
+import { graphql, useMutation } from 'react-relay';
+import type { RecordSourceSelectorProxy } from 'relay-runtime';
+import type { useScheduleArchiveArchiveMutation as ArchiveScheduleMutationType } from '@/__generated__/useScheduleArchiveArchiveMutation.graphql';
+import type { useScheduleArchiveUnarchiveMutation as UnarchiveScheduleMutationType } from '@/__generated__/useScheduleArchiveUnarchiveMutation.graphql';
 import { ScriptStatus } from '@/generated/schema-enums';
-import { archiveScriptScheduleMutation } from '@/graphql/scripts/archive-script-schedule-mutation';
-import { unarchiveScriptScheduleMutation } from '@/graphql/scripts/unarchive-script-schedule-mutation';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
+import { markListChanged } from '@/lib/list-refresh';
 import type { ScheduleDetailData } from '../types/schedule-detail.types';
+
+// `status` is for the schedule's own page, which stays mounted on the schedule: the payload writes the new status
+// into the record, so its action flips Archive <-> Restore without a refetch. The lists read their page again instead.
+const archiveMutation = graphql`
+  mutation useScheduleArchiveArchiveMutation($id: ID!) {
+    archiveScriptSchedule(id: $id) {
+      id
+      status
+    }
+  }
+`;
+
+const unarchiveMutation = graphql`
+  mutation useScheduleArchiveUnarchiveMutation($id: ID!) {
+    unarchiveScriptSchedule(id: $id) {
+      id
+      status
+    }
+  }
+`;
+
+interface SetArchivedOptions {
+  /** Runs on the store with the answer. */
+  updater?: (store: RecordSourceSelectorProxy) => void;
+  onCompleted?: () => void;
+  onError?: (error: Error) => void;
+}
+
+/**
+ * Archive and unarchive for a schedule, from the schedules table and the schedule's page. Either one moves the
+ * schedule from one paged list to the other, which only the server can answer: on success the schedules lists are
+ * marked changed (`markListChanged`), so the one on screen reads its page again.
+ */
+export function useScheduleArchiveMutations() {
+  const [commitArchive, isArchiving] = useMutation<ArchiveScheduleMutationType>(archiveMutation);
+  const [commitUnarchive, isUnarchiving] = useMutation<UnarchiveScheduleMutationType>(unarchiveMutation);
+
+  /** Archives the schedule (`archive: true`) or puts it back (`false`). */
+  const setArchived = (id: string, archive: boolean, { updater, onCompleted, onError }: SetArchivedOptions = {}) => {
+    const commit = archive ? commitArchive : commitUnarchive;
+    commit({
+      variables: { id },
+      updater,
+      onCompleted: () => {
+        markListChanged('scriptSchedules');
+        onCompleted?.();
+      },
+      onError,
+    });
+  };
+
+  return { setArchived, isArchiving, isUnarchiving };
+}
 
 /**
  * Archive / unarchive for one schedule, with the toast feedback both directions
@@ -23,8 +76,7 @@ import type { ScheduleDetailData } from '../types/schedule-detail.types';
  */
 export function useScheduleArchive(schedule: ScheduleDetailData | null | undefined) {
   const { toast } = useToast();
-  const [commitArchive, isArchiving] = useMutation<ArchiveScheduleMutationType>(archiveScriptScheduleMutation);
-  const [commitUnarchive, isUnarchiving] = useMutation<UnarchiveScheduleMutationType>(unarchiveScriptScheduleMutation);
+  const { setArchived, isArchiving, isUnarchiving } = useScheduleArchiveMutations();
 
   const isArchived = schedule?.status === ScriptStatus.ARCHIVED;
 
@@ -32,12 +84,7 @@ export function useScheduleArchive(schedule: ScheduleDetailData | null | undefin
     (onSettled?: () => void) => {
       if (!schedule) return;
 
-      const commit = isArchived ? commitUnarchive : commitArchive;
-      commit({
-        // No connection to prune from here — the lists own their own connections
-        // and refetch on navigation (`store-and-network`). The payload's `status`
-        // is what updates the page this was called from.
-        variables: { id: schedule.id, connections: [] },
+      setArchived(schedule.id, !isArchived, {
         onCompleted: () => {
           onSettled?.();
           toast(
@@ -64,7 +111,7 @@ export function useScheduleArchive(schedule: ScheduleDetailData | null | undefin
         },
       });
     },
-    [schedule, isArchived, commitArchive, commitUnarchive, toast],
+    [schedule, isArchived, setArchived, toast],
   );
 
   return { isArchived, isArchiving, isPending: isArchiving || isUnarchiving, toggleArchive };
