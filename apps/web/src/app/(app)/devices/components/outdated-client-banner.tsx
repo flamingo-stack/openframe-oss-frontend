@@ -1,6 +1,6 @@
 'use client';
 
-import { CommandBox } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { CommandBox, isArchiveLifecycle } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { AlertTriangleIcon, CheckIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Alert, Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -9,7 +9,6 @@ import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
 import { useInstallCommand } from '../hooks/use-install-command';
 import type { Device } from '../types/device.types';
 import { normalizeDevicePlatform } from '../utils/device-command-utils';
-import { isArchiveLifecycle } from '../utils/tool-connection-status';
 
 /**
  * "OpenFrame client is outdated" on the device page, with the install command that updates it.

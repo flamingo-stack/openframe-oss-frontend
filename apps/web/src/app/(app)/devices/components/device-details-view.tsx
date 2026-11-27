@@ -15,6 +15,7 @@ import {
   DeviceConnectivityIcon,
   DeviceLifecycleTag,
   getDeviceName,
+  useDeviceStatusDisplay,
   WarningBlock,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -29,6 +30,7 @@ import { useDeviceActionsMenu } from '../hooks/use-device-actions-menu';
 import { useDeviceDetails } from '../hooks/use-device-details';
 import { useDirectoryGate } from '../hooks/use-directory-gate';
 import type { Device } from '../types/device.types';
+import { deviceHeaderStatus } from '../utils/device-header-status';
 import { displayOsVersion, getUnsupportedTool, isDeviceStillConnecting } from '../utils/tool-connection-status';
 import { OutdatedClientBanner } from './outdated-client-banner';
 import { RecordingStorageBanner } from './remote-sessions/recording-storage-banner';
@@ -45,9 +47,16 @@ const DETAIL_ICON_SIZE = 'w-[var(--icon-size-icon-size)] h-[var(--icon-size-icon
 
 /**
  * Beside the title: whether the device is online right now (its connectivity icon, last seen on hover) and its
- * lifecycle tag (Figma 3324-6819). While the device is read, both draw their skeletons.
+ * lifecycle tag (Figma 3324-6819), unless `tag` is false: a managed device in the lifecycle display says it in the
+ * subtitle instead (`deviceHeaderStatus`). While the device is read, both draw their skeletons.
  */
-function DeviceStatusAdornment({ device }: { device: Pick<Device, 'status' | 'connectivity' | 'lastSeen'> | null }) {
+function DeviceStatusAdornment({
+  device,
+  tag,
+}: {
+  device: Pick<Device, 'status' | 'connectivity' | 'lastSeen'> | null;
+  tag: boolean;
+}) {
   const loading = useLoadingScope() || !device;
   return (
     <span className="inline-flex shrink-0 items-center gap-[var(--spacing-system-xsf)]">
@@ -55,7 +64,14 @@ function DeviceStatusAdornment({ device }: { device: Pick<Device, 'status' | 'co
       {loading ? (
         <Tag label="" loading className="shrink-0" />
       ) : (
-        <DeviceLifecycleTag status={device.status} connectivity={device.connectivity ?? null} className="shrink-0" />
+        tag && (
+          <DeviceLifecycleTag
+            status={device.status}
+            connectivity={device.connectivity ?? null}
+            className="shrink-0"
+            pendingHint
+          />
+        )
       )}
     </span>
   );
@@ -103,6 +119,7 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
   );
 
   const { deviceDetails, isLoading, error } = useDeviceDetails(deviceId);
+  const statusDisplay = useDeviceStatusDisplay();
 
   const [isScriptsModalOpen, setIsScriptsModalOpen] = useState(false);
   const [, forceUpdate] = useState({});
@@ -212,7 +229,12 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
   // While the device is read the title and the subtitle are empty: the header draws their bars in the scope.
   const title = normalizedDevice ? getDeviceName(normalizedDevice) || 'Unknown Device' : '';
   const lastUpdated = normalizedDevice?.updatedAt || normalizedDevice?.lastSeen;
-  const subtitle = normalizedDevice ? (lastUpdated ? `Updated ${formatRelativeTime(lastUpdated)}` : undefined) : '';
+  const headerStatus = deviceHeaderStatus(
+    normalizedDevice?.status,
+    statusDisplay,
+    lastUpdated ? `Updated ${formatRelativeTime(lastUpdated)}` : undefined,
+  );
+  const subtitle = normalizedDevice ? headerStatus.subtitle : '';
 
   return (
     // The page draws itself while the device is read: every part in the scope draws its own loading state
@@ -230,7 +252,7 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
         menuActions={normalizedDevice ? menuActions : undefined}
         loadingActions={isLoading}
         actionsVariant="menu-primary"
-        titleAdornment={<DeviceStatusAdornment device={normalizedDevice ?? null} />}
+        titleAdornment={<DeviceStatusAdornment device={normalizedDevice ?? null} tag={headerStatus.tag} />}
         className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       >
         {/* An OS below Fleet's minimum: Fleet will never deploy here, so say why instead of "still connecting". The

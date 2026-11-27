@@ -1,3 +1,4 @@
+import { isArchiveLifecycle } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { isManagedStatusSupported } from '@/lib/device-status-support';
 import type { Device, ToolConnection, UnsupportedTool } from '../types/device.types';
 
@@ -51,18 +52,6 @@ export function getToolConnectionDisplayStatus(
 ): ToolConnectionDisplayStatus {
   if (getToolConnectionState(connection) === 'pending') return 'pending';
   return connection?.status?.toLowerCase() === 'online' ? 'online' : 'offline';
-}
-
-/**
- * Statuses that mean the device record is a (future) archive — a missing tool
- * connection there is teardown, not a first-time install, so no "still
- * connecting" messaging applies.
- */
-const NON_CONNECTING_DEVICE_STATUSES = new Set(['ARCHIVED', 'DELETED', 'PENDING_DELETION', 'DECOMMISSIONED']);
-
-/** The record is an archive, or about to become one: nothing on it asks for an agent to be (re)installed. */
-export function isArchiveLifecycle(device: Pick<Device, 'status'>): boolean {
-  return NON_CONNECTING_DEVICE_STATUSES.has(device.status?.toUpperCase() ?? '');
 }
 
 /**
