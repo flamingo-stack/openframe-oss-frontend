@@ -55,7 +55,8 @@ function undoAndAnswer(answer: (config: CommitConfig) => void) {
   return onSettled;
 }
 
-const REFUSAL = 'No pending downgrade to cancel: 1877e27c-0000-0000-0000-000000000000';
+const TENANT_ID = '00000000-0000-0000-0000-000000000001';
+const REFUSAL = `No pending downgrade to cancel: ${TENANT_ID}`;
 
 describe('useCancelPendingDowngrade', () => {
   it('refreshes the page after an undo', () => {
@@ -71,7 +72,7 @@ describe('useCancelPendingDowngrade', () => {
     expect(onSettled).toHaveBeenCalledTimes(1);
     const shown = spies.toast.mock.lastCall?.[0] as { title: string; description: string };
     expect(shown.title).toBe('Undo Failed');
-    expect(shown.description).not.toContain('1877e27c');
+    expect(shown.description).not.toContain(TENANT_ID);
     expect(shown.description).toContain('current plan');
   });
 
@@ -85,7 +86,7 @@ describe('useCancelPendingDowngrade', () => {
     expect(fromNetwork).toHaveBeenCalledTimes(1);
     for (const [shown] of spies.toast.mock.calls as [{ title: string; description: string }][]) {
       expect(shown.title).toBe('Undo Failed');
-      expect(shown.description).not.toContain('1877e27c');
+      expect(shown.description).not.toContain(TENANT_ID);
     }
   });
 });
