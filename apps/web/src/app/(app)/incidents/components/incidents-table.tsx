@@ -28,42 +28,45 @@ import {
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import {
+  CURSOR_PAGER_KEYS,
+  type CursorPagerVariables,
+  useApiParams,
+  useCursorPager,
+  type UseCursorPagerReturn,
+  useToast,
+} from '@flamingo-stack/openframe-frontend-core/hooks';
 import { defineParamSchema, formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useCallback, useLayoutEffect, useMemo, useState } from 'react';
-import {
-  fetchQuery,
-  readInlineData,
-  useLazyLoadQuery,
-  useMutation,
-  usePaginationFragment,
-  useRelayEnvironment,
-} from 'react-relay';
+import { graphql, readInlineData, useLazyLoadQuery, useMutation } from 'react-relay';
 import type { archiveResolvedInsightsMutation as ArchiveResolvedInsightsMutationType } from '@/__generated__/archiveResolvedInsightsMutation.graphql';
-import type { incidentsTableRelay_query$key as IncidentsFragmentKey } from '@/__generated__/incidentsTableRelay_query.graphql';
-import type { incidentsTableRelayPaginationQuery as IncidentsPaginationQueryType } from '@/__generated__/incidentsTableRelayPaginationQuery.graphql';
 import type {
-  incidentsTableRelayQuery as IncidentsTableQueryType,
+  incidentsTableQuery as IncidentsTableQueryType,
   InsightFilter,
-} from '@/__generated__/incidentsTableRelayQuery.graphql';
+} from '@/__generated__/incidentsTableQuery.graphql';
 import type { insightFacets_filters$key as InsightFacetsKey } from '@/__generated__/insightFacets_filters.graphql';
 import { EmptyState, liveColumnMeta, NO_ITEMS, oneLineEmptyState, useRetryKey } from '@/app/components/shared';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { DeviceGridCell } from '@/app/components/shared/device-grid-cell';
 import { LiveTable } from '@/app/components/shared/live-table';
 import { OpenRowButton } from '@/app/components/shared/open-row-button';
+import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
+import { forwardPage } from '@/app/hooks/forward-page';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
+import { usePagedTable } from '@/app/hooks/use-paged-table';
+import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { type TableLayout, tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { InsightSeverity, InsightStatus, InsightType, NotificationEntityType } from '@/generated/schema-enums';
 import { archiveResolvedInsightsMutation } from '@/graphql/insights/archive-resolved-insights-mutation';
-import { incidentsTableRelayFragment, incidentsTableRelayQuery } from '@/graphql/insights/incidents-table-relay';
 import { insightFacetsFragment } from '@/graphql/insights/insight-facets';
 import { knownValues } from '@/lib/exhaustive-map';
 import { formatDateTime } from '@/lib/format-date';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
+import { markListChanged, useListRefreshEpoch } from '@/lib/list-refresh';
 import { openInNewTab } from '@/lib/open-in-new-tab';
+import { PAGED_LISTS } from '@/lib/paged-lists';
 import { pluralize } from '@/lib/pluralize';
 import { type IncidentsTab, routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
@@ -94,6 +97,40 @@ import { SnoozeIncidentModal } from './snooze-incident-modal';
 import { transitionMenuItems } from './transition-menu-items';
 
 const PAGE_SIZE = 20;
+
+/**
+ * One page of incidents per request, its cursor in the URL (no `@connection`: a cursor from a link must read exactly
+ * its page). `insights` pages forward only (`first` / `after`) and carries no count of its own: the range's total is
+ * the facets' `filteredCount`.
+ *
+ * The filter facets (`insightFilters`) ride the SAME operation, so each filter interaction is a single round-trip and
+ * the dropdown options update atomically with the rows; a page move asks for them again with the same filter (the
+ * same answer). Facet semantics: the backend excludes each facet's OWN field when narrowing, so a group's options
+ * never vanish while the user multi-selects within it, and `filteredCount` is the total under the full filter.
+ * `unreadNotificationCount` sits beside the shared row fragment, not in it: only this table draws a row's unread count.
+ */
+const incidentsTableQuery = graphql`
+  query incidentsTableQuery($filter: InsightFilter, $search: String, $first: Int!, $after: String) {
+    insights(filter: $filter, search: $search, first: $first, after: $after) {
+      edges {
+        node {
+          ...insightRowFields_insight
+          unreadNotificationCount
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    insightFilters(filter: $filter, search: $search) {
+      ...insightFacets_filters
+    }
+    ...insightTransitions_query
+  }
+`;
 
 /**
  * TanStack's column-filter state as `useDataTable` hands it back. Declared
@@ -455,12 +492,13 @@ function IncidentOpenCell({ row }: { row: IncidentTableRow }) {
 
 interface IncidentsTableContentProps {
   backendFilters: InsightFilter;
-  debouncedSearch: string;
+  /** Deferred — the URL's search (never the box's: see `IncidentsList`). */
+  search: string;
   tableFilters: Record<string, string[]>;
   /**
-   * True while the deferred query variables lag the live filter/search state
+   * True while the deferred query variables lag the live filter/search/page state
    * (a refetch is in flight and the rows on screen are the previous result) —
-   * guards the empty state so it never flashes on stale data.
+   * guards the empty state so it never flashes on stale data, and holds the pager.
    */
   isPending: boolean;
   onFilterChange: (filters: Record<string, string[]>) => void;
@@ -482,8 +520,6 @@ interface IncidentsTableContentProps {
    * single-status tab (Snoozed, Archived), where every row has the same one.
    */
   statuses: readonly InsightStatus[];
-  /** Bumped by the caller to refetch the list — after a write the store cannot see, like Archive Resolved. */
-  refreshKey: number;
   /** What a list with no incidents at all shows in place of the table. */
   emptyState: ReactNode;
   /** In a loading scope (the page's feature flag unanswered) the list reads nothing: the table draws itself empty. */
@@ -492,6 +528,12 @@ interface IncidentsTableContentProps {
   tableLayout: TableLayout;
   /** Where the table is drawn: its saved grid layout, and whether it fills the page's height. */
   place: IncidentsTablePlace;
+  /** The list's position in the URL: footer props, the stale check, the cursor drop. */
+  pager: UseCursorPagerReturn;
+  /** Deferred — the page variables to spread into the query (lag the URL while the next page is read). */
+  pageVariables: CursorPagerVariables;
+  /** The list's URL prefix (the device tab's `incidents`): its auto-refresh interval sits beside its other params. */
+  paramPrefix?: string;
 }
 
 /**
@@ -518,8 +560,21 @@ const GRID_ACTIONS_TRIGGER = (
   />
 );
 
-/** The incidents table, with its own boundary: in its scope the reader draws its own loading form. */
+/**
+ * The incidents table, with its own boundary: in its scope the reader draws its own loading form. A cursor the server
+ * refuses drops to the first page (`StaleCursorBoundary`); any other error goes up unchanged.
+ */
 function IncidentsTableContent(props: IncidentsTableContentProps) {
+  return (
+    <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
+      <IncidentsTableContentLoading {...props} />
+    </StaleCursorBoundary>
+  );
+}
+
+/** The rows' loading boundary, the whole output of its own component (the loading standard), under the
+ * stale-cursor boundary above. */
+function IncidentsTableContentLoading(props: IncidentsTableContentProps) {
   return (
     <LoadingSuspense bare gated={props.scoped} label="Loading incidents">
       <IncidentsTableContentReader {...props} />
@@ -529,7 +584,8 @@ function IncidentsTableContent(props: IncidentsTableContentProps) {
 
 function IncidentsTableContentReader(props: IncidentsTableContentProps) {
   // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read:
-  // the live table with no rows yet (funnels pending, no row to act on), its body and row count drawing themselves.
+  // the live table with no rows yet (funnels pending, no row to act on), its body and range drawing themselves, the
+  // pager drawn, waiting.
   if (useLoadingScope()) {
     return (
       <LiveTable
@@ -542,15 +598,21 @@ function IncidentsTableContentReader(props: IncidentsTableContentProps) {
         pageSize={PAGE_SIZE}
         stickyHeaderOffset={props.stickyHeaderOffset}
         {...tableLayoutProps(props.tableLayout, props.place)}
+        pager={null}
       />
     );
   }
   return <IncidentsTableContentLive {...props} />;
 }
 
+/**
+ * The page the URL names, its pager and the auto-refresh. A transition, an assignment or Archive Resolved changes which
+ * incidents the page holds and the facets' counts, which is the server's answer: the page is read again (a paged
+ * query has no connection to edit).
+ */
 function IncidentsTableContentLive({
   backendFilters,
-  debouncedSearch,
+  search,
   tableFilters,
   isPending,
   onFilterChange,
@@ -561,43 +623,43 @@ function IncidentsTableContentLive({
   stickyHeaderOffset,
   deviceScoped,
   statuses,
-  refreshKey,
   emptyState,
   tableLayout,
   place,
+  pager,
+  pageVariables,
+  paramPrefix,
 }: IncidentsTableContentProps) {
   const { toast } = useToast();
   const mingoControls = useFixWithMingo();
 
   // One round-trip per interaction: the filter facets (`insightFilters`) ride the
   // list operation — see the query docstring for the facet semantics.
-  const environment = useRelayEnvironment();
   const retryKey = useRetryKey();
-  const fetchKey = `${retryKey}:${refreshKey}`;
-  const queryData = useLazyLoadQuery<IncidentsTableQueryType>(
-    incidentsTableRelayQuery,
-    {
-      filter: backendFilters,
-      search: debouncedSearch || null,
-      first: PAGE_SIZE,
-      after: null,
-    },
-    { fetchPolicy: 'store-and-network', fetchKey },
-  );
-
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
-    IncidentsPaginationQueryType,
-    IncidentsFragmentKey
-  >(incidentsTableRelayFragment, queryData);
+  // Archive Resolved, an assignment, or a transition on the incident's own page marks the list changed: the page is
+  // read again.
+  const changed = useListRefreshEpoch('insights');
+  const variables: IncidentsTableQueryType['variables'] = {
+    filter: backendFilters,
+    search: search || null,
+    ...forwardPage(pageVariables, PAGE_SIZE),
+  };
+  const queryData = useLazyLoadQuery<IncidentsTableQueryType>(incidentsTableQuery, variables, {
+    fetchPolicy: 'store-and-network',
+    fetchKey: `${retryKey}:${changed}`,
+  });
+  const refetch = useRefetchPage<IncidentsTableQueryType>(incidentsTableQuery, variables);
+  const { edges, pageInfo } = queryData.insights;
+  const paged = usePagedTable({ pager, pageInfo, rowCount: edges.length, prefix: paramPrefix, refetch, isPending });
 
   // Manual memos on purpose: TanStack compares `data` by identity, so `rows`
   // must only change when an input does — and `incidents` is its stable input.
   const incidents = useMemo<(IncidentRow & { unreadNotificationCount: number })[]>(
     () =>
-      (data.insights?.edges ?? []).flatMap(edge =>
+      edges.flatMap(edge =>
         edge?.node ? [{ ...toIncidentRow(edge.node), unreadNotificationCount: edge.node.unreadNotificationCount }] : [],
       ),
-    [data.insights?.edges],
+    [edges],
   );
   // Which rows already have a chat: their button reopens it instead of starting one.
   const mingoSessions = useLatestIncidentDialogs(incidents.map(row => row.insightId));
@@ -606,37 +668,6 @@ function IncidentsTableContentLive({
       incidents.map(row => ({ ...row, mingoAction: mingoActionFor(row, mingoSessions[row.insightId], mingoControls) })),
     [incidents, mingoSessions, mingoControls],
   );
-
-  // A failed page must stop the footer: its sentinel stays in view, Relay
-  // clears `isLoadingNext` on the error, and the observer would ask again at
-  // once — hundreds of identical failing requests a second against a backend
-  // that just said no. One toast, then the footer goes quiet. Recorded against
-  // the variables it failed for: this component stays mounted across filter,
-  // search and refetch changes, and a new list gets its own footer. Compared by
-  // identity on purpose — `backendFilters` is memoized upstream and only
-  // changes with the URL params, so a re-render cannot revive the footer.
-  const [failedPage, setFailedPage] = useState<{ filter: InsightFilter; search: string; fetchKey: string } | null>(
-    null,
-  );
-  const pageFailed =
-    failedPage !== null &&
-    failedPage.filter === backendFilters &&
-    failedPage.search === debouncedSearch &&
-    failedPage.fetchKey === fetchKey;
-  const fetchNextPage = () => {
-    if (!hasNext || isLoadingNext || pageFailed) return;
-    loadNext(PAGE_SIZE, {
-      onComplete: error => {
-        if (!error) return;
-        setFailedPage({ filter: backendFilters, search: debouncedSearch, fetchKey });
-        toast({
-          title: 'Error',
-          description: getRelayErrorMessage(error, 'Failed to load more incidents'),
-          variant: 'destructive',
-        });
-      },
-    });
-  };
 
   const facets = readInlineData<InsightFacetsKey>(insightFacetsFragment, queryData.insightFilters);
   const typeOptions = enumFacetOptions(facets.types, INCIDENT_TYPE_LABELS);
@@ -657,25 +688,17 @@ function IncidentsTableContentLive({
 
   // A transition can take a row out of this list (Snooze on Current, Reopen on
   // Archived) and moves the counts it was aggregated into, while its payload
-  // rewrites only the one record. Refetch every loaded row — the first page
-  // alone would collapse a scrolled list — into the same connection and facet
-  // records. Imperative on purpose: a failed refresh toasts, where a failed
-  // render-time refetch would swap the tab for the error card.
-  const loadedCount = data.insights?.edges?.length ?? 0;
+  // rewrites only the one record. Read the page on screen again — the same
+  // cursor, so the reader stays where they are — and its facets with it.
+  // Imperative on purpose: a failed refresh toasts, where a failed render-time
+  // refetch would swap the tab for the error card.
   const refreshAfterTransition = () => {
-    fetchQuery<IncidentsTableQueryType>(
-      environment,
-      incidentsTableRelayQuery,
-      { filter: backendFilters, search: debouncedSearch || null, first: Math.max(PAGE_SIZE, loadedCount), after: null },
-      { fetchPolicy: 'network-only' },
-    ).subscribe({
-      error: (error: Error) => {
-        toast({
-          title: 'Error',
-          description: getRelayErrorMessage(error, 'Failed to refresh incidents'),
-          variant: 'destructive',
-        });
-      },
+    refetch().catch((error: Error) => {
+      toast({
+        title: 'Error',
+        description: getRelayErrorMessage(error, 'Failed to refresh incidents'),
+        variant: 'destructive',
+      });
     });
   };
 
@@ -754,7 +777,9 @@ function IncidentsTableContentLive({
   });
 
   const hasActiveFilters = Object.values(tableFilters).some(values => values.length > 0);
-  const showEmptyState = !debouncedSearch && !hasActiveFilters && !isPending && rows.length === 0 && !hasAnyIncident;
+  // An empty LATER page (a cursor about to be dropped) keeps the table and its pager, so First stays reachable.
+  const showEmptyState =
+    !search && !hasActiveFilters && !isPending && pager.isFirstPage && rows.length === 0 && !hasAnyIncident;
 
   // Before paint, so the caller's toolbar goes in the same frame as the rows.
   useLayoutEffect(() => {
@@ -776,13 +801,14 @@ function IncidentsTableContentLive({
         stickyHeaderOffset={stickyHeaderOffset}
         totalCount={filteredCount}
         emptyState={oneLineEmptyState(
-          debouncedSearch
-            ? `No incidents found matching "${debouncedSearch}". Try adjusting your search.`
+          search
+            ? `No incidents found matching "${search}". Try adjusting your search.`
             : 'No incidents found. Try adjusting your filters.',
         )}
         rowHref={(row: IncidentTableRow) => routes.incidents.details(row.id)}
-        footer={{ hasNextPage: hasNext && !pageFailed, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
         {...tableLayoutProps(tableLayout, place)}
+        pager={paged.pager}
+        refresh={paged.refresh}
       />
 
       <FilterModal
@@ -820,6 +846,7 @@ interface IncidentSelections {
 
 interface IncidentsListProps {
   selections: IncidentSelections;
+  /** The URL's search: what the query reads. */
   search: string;
   onSearchChange: (value: string) => void;
   onSelectionsChange: (selections: IncidentSelections) => void;
@@ -828,11 +855,18 @@ interface IncidentsListProps {
   statuses: readonly InsightStatus[];
   /** The statuses listed while none is chosen; all of `statuses` when omitted. A module constant too. */
   defaultStatuses?: readonly InsightStatus[];
-  refreshKey?: number;
   emptyState: ReactNode;
+  /**
+   * The URL prefix of the list's params, the pager's among them (the device tab's `incidents`); none on the Incidents
+   * page. The caller's filter params carry the same prefix and drop the pager's cursor in the same URL write.
+   */
+  paramPrefix?: string;
 }
 
-/** Toolbar + table over URL state the caller owns — what the page tabs and the device tab share. */
+/**
+ * Toolbar + table over URL state the caller owns — what the page tabs and the device tab share — one page at a time
+ * with First · Prev · Next, the pager beside the caller's params in the URL.
+ */
 function IncidentsList({
   selections,
   search,
@@ -841,16 +875,12 @@ function IncidentsList({
   machineId,
   statuses,
   defaultStatuses = statuses,
-  refreshKey = 0,
   emptyState,
+  paramPrefix,
 }: IncidentsListProps) {
   // Local search input keeps typing responsive; the shared hook debounces it to
   // the URL param and guards the back/forward sync-down against clobbering typing.
-  const {
-    search: searchInput,
-    setSearch: setSearchInput,
-    debouncedSearch,
-  } = useSearchParam(search, onSearchChange, 300);
+  const { search: searchInput, setSearch: setSearchInput } = useSearchParam(search, onSearchChange, 300);
 
   const [isEmpty, setIsEmpty] = useState(false);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
@@ -873,6 +903,13 @@ function IncidentsList({
   // One memo for both: `useDeferredQuery` compares `backendFilters` by identity.
   // The deps are the arrays, not `selections`, which the caller rebuilds every render.
   const { type, organizationId, severity, status, assigneeId } = selections;
+  // The safety net for a cursor issued under other filters: the URL's narrowing, as the caller's params hold it.
+  const pager = useCursorPager({
+    prefix: paramPrefix,
+    pageSize: PAGE_SIZE,
+    ...PAGED_LISTS.insights,
+    resetOn: JSON.stringify({ search, type, organizationId, severity, status, assigneeId }),
+  });
   const { backendFilters, tableFilters } = useMemo(() => {
     const types = knownValues(InsightType, type);
     const severities = knownValues(InsightSeverity, severity);
@@ -892,11 +929,17 @@ function IncidentsList({
     };
   }, [type, organizationId, severity, status, assigneeId, machineId, statuses, defaultStatuses]);
 
-  // Deferred query variables: on a filter/search interaction the table keeps
+  // Deferred query variables, page included: on a filter/search/page interaction the table keeps
   // rendering the current rows while the refetch is in flight, instead of
   // dropping to the Suspense skeleton. The dropdown state (`tableFilters`) stays
-  // live so the checkboxes respond instantly.
-  const { deferredFilters, deferredSearch, isPending } = useDeferredQuery(backendFilters, debouncedSearch);
+  // live so the checkboxes respond instantly. The query reads the search from the
+  // URL, not the box's debounced value: the URL write that carries a new search
+  // drops the cursor in the same navigation, so the two never meet in one request.
+  const { deferredFilters, deferredSearch, deferredPage, isPending } = useDeferredQuery(
+    backendFilters,
+    search,
+    pager.variables,
+  );
 
   const handleFilterChange = (columnFilters: Record<string, string[]>) => {
     onSelectionsChange({
@@ -941,7 +984,7 @@ function IncidentsList({
         <IncidentsTableContent
           scoped={scoped}
           backendFilters={deferredFilters}
-          debouncedSearch={deferredSearch}
+          search={deferredSearch}
           tableFilters={tableFilters}
           isPending={isPending}
           onFilterChange={handleFilterChange}
@@ -952,10 +995,12 @@ function IncidentsList({
           stickyHeaderOffset={stickyHeaderOffset}
           deviceScoped={deviceScoped}
           statuses={statuses}
-          refreshKey={refreshKey}
           emptyState={emptyState}
           tableLayout={tableLayoutFor(tableGate)}
           place={deviceScoped ? 'device' : 'page'}
+          pager={pager}
+          pageVariables={deferredPage}
+          paramPrefix={paramPrefix}
         />
       </LoadingWhen>
     </div>
@@ -982,15 +1027,21 @@ export const NO_INCIDENT_FILTERS = {
   assigneeId: [],
 } satisfies Record<keyof typeof INCIDENT_FILTER_PARAMS, unknown>;
 
-/** One tab of the Incidents page. It owns the query string's filter params, unprefixed. */
+/**
+ * One tab of the Incidents page. It owns the query string's filter params and the pager's (`cursor`, `page`,
+ * `refresh`), unprefixed: a change to the search or a funnel drops the cursor in the SAME URL write (one history entry
+ * on page 2+, so Back returns to the old view).
+ */
 export function IncidentsTable({ tab }: { tab: IncidentsTab }) {
   const { toast } = useToast();
   const view = INCIDENT_TAB_VIEWS[tab];
   const EmptyIcon = view.icon;
-  const { params, setParam, setParams } = useApiParams(INCIDENT_FILTER_PARAMS);
+  const { params, setParam, setParams } = useApiParams(INCIDENT_FILTER_PARAMS, {
+    resetKeys: CURSOR_PAGER_KEYS,
+    resetHistory: 'push',
+  });
 
   const [confirmArchive, setConfirmArchive] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
   const [commitArchiveResolved, isArchiving] = useMutation<ArchiveResolvedInsightsMutationType>(
     archiveResolvedInsightsMutation,
   );
@@ -1000,8 +1051,8 @@ export function IncidentsTable({ tab }: { tab: IncidentsTab }) {
       variables: {},
       onCompleted: ({ archiveResolvedInsights: count }) => {
         setConfirmArchive(false);
-        // The sweep updates no record the store can see — refetch the list and its counts.
-        setRefreshKey(key => key + 1);
+        // The sweep updates no record the store can see: every incidents list reads its page and its counts again.
+        markListChanged('insights');
         toast({
           title: count > 0 ? 'Resolved incidents archived' : 'Nothing to archive',
           description:
@@ -1034,7 +1085,6 @@ export function IncidentsTable({ tab }: { tab: IncidentsTab }) {
         onSearchChange={value => setParam('search', value)}
         onSelectionsChange={setParams}
         statuses={view.statuses}
-        refreshKey={refreshKey}
         emptyState={<EmptyState icon={<EmptyIcon />} title={view.empty.title} description={view.empty.description} />}
       />
       <ConfirmDialog
@@ -1058,43 +1108,53 @@ interface DeviceIncidentsTableProps {
 }
 
 /**
- * One device's incidents, for the device page's Incidents tab. Its URL params
- * carry an `incidents` prefix: they share the query string with the device
- * page's own (`id`, `tab`) and with the other tabs' lists.
+ * The device tab's URL prefix: its params share the query string with the device page's own (`id`, `tab`) and with
+ * the other tabs' lists, so they sit under their own keys (`incidentsSearch`, `incidentsType`, `incidentsSeverity`,
+ * `incidentsStatus`, `incidentsAssignee`, and the pager's `incidentsCursor`, `incidentsPage`, `incidentsRefresh`).
+ */
+const DEVICE_PARAM_PREFIX = 'incidents';
+
+/**
+ * One device's incidents, for the device page's Incidents tab, under the `incidents` prefix. A change to the search or
+ * a funnel drops the cursor in the SAME URL write.
  */
 export function DeviceIncidentsTable({ machineId, emptyState }: DeviceIncidentsTableProps) {
-  const { params, setParam, setParams } = useApiParams({
-    incidentsSearch: { type: 'string', default: '' },
-    incidentsType: { type: 'array', default: [] },
-    incidentsSeverity: { type: 'array', default: [] },
-    incidentsStatus: { type: 'array', default: [] },
-    incidentsAssignee: { type: 'array', default: [] },
-  });
+  const { params, setParam, setParams } = useApiParams(
+    {
+      search: { type: 'string', default: '' },
+      type: { type: 'array', default: [] },
+      severity: { type: 'array', default: [] },
+      status: { type: 'array', default: [] },
+      assignee: { type: 'array', default: [] },
+    },
+    { prefix: DEVICE_PARAM_PREFIX, resetKeys: CURSOR_PAGER_KEYS, resetHistory: 'push' },
+  );
 
   return (
     <IncidentsList
       selections={{
-        type: params.incidentsType,
+        type: params.type,
         // The device tab has no Customer filter; the stable empty list keeps the filter memo quiet.
         organizationId: NO_ITEMS,
-        severity: params.incidentsSeverity,
-        status: params.incidentsStatus,
-        assigneeId: params.incidentsAssignee,
+        severity: params.severity,
+        status: params.status,
+        assigneeId: params.assignee,
       }}
-      search={params.incidentsSearch}
-      onSearchChange={value => setParam('incidentsSearch', value)}
+      search={params.search}
+      onSearchChange={value => setParam('search', value)}
       onSelectionsChange={selections =>
         setParams({
-          incidentsType: selections.type,
-          incidentsSeverity: selections.severity,
-          incidentsStatus: selections.status,
-          incidentsAssignee: selections.assigneeId,
+          type: selections.type,
+          severity: selections.severity,
+          status: selections.status,
+          assignee: selections.assigneeId,
         })
       }
       machineId={machineId}
       statuses={ALL_INCIDENT_STATUSES}
       defaultStatuses={WORKING_SET_STATUSES}
       emptyState={emptyState}
+      paramPrefix={DEVICE_PARAM_PREFIX}
     />
   );
 }

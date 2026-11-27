@@ -8,6 +8,7 @@ import { type PageActionButton, useLoadingScope } from '@flamingo-stack/openfram
 import { memo, type ReactNode } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { InsightStatus } from '@/generated/schema-enums';
+import { markListChanged } from '@/lib/list-refresh';
 import { routes } from '@/lib/routes';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
 import { mingoActionFor, useFixWithMingo } from '../hooks/use-fix-with-mingo';
@@ -35,6 +36,9 @@ interface IncidentDetailsViewProps {
  * carries the head of it and the form keeps the rest editable.
  */
 const TICKET_PREFILL_DESCRIPTION_MAX = 1000;
+
+/** The incidents lists read their page again (they page on the server: there is no connection to edit). */
+const markIncidentsChanged = () => markListChanged('insights');
 
 /**
  * The header island, with its own boundary. The title is static, but the action set is the record's
@@ -110,7 +114,10 @@ function IncidentHeaderLoaded({ incident, transitions }: Required<IncidentHeader
   const mingoSession = useLatestIncidentDialog(incident.insightId);
   // Mingo's "open view": this incident rides on every message sent while the page is up.
   useTrackOpenView({ type: OPENFRAME_RECORD_KIND.INSIGHT, id: incident.insightId, label: incident.title });
-  const { transition, snoozeTarget, cancelSnooze, confirmSnooze, isMutating, isSnoozing } = useIncidentTransitions();
+  // A transition moves the incident between the lists' tabs and their counts: an incidents list mounted elsewhere
+  // reads its page again.
+  const { transition, snoozeTarget, cancelSnooze, confirmSnooze, isMutating, isSnoozing } =
+    useIncidentTransitions(markIncidentsChanged);
 
   // The status button is named after the transition the technician most likely
   // wants — Resolve while the incident is open — and its menu lists every legal

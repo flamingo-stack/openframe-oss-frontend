@@ -13,11 +13,12 @@ import {
   type PageActionButton,
   PageLayout,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { CURSOR_PAGER_KEYS, useApiParams, useCursorPager } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMemo, useState } from 'react';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { PAGED_LISTS } from '@/lib/paged-lists';
 import { routes } from '@/lib/routes';
 import { ConsentAnnouncementBanner } from './consent-announcement-banner';
 import {
@@ -27,7 +28,7 @@ import {
   toTenantFilter,
   toTenantOrderBy,
 } from './tenants-filter';
-import { TenantsTable } from './tenants-table';
+import { TENANTS_PAGE_SIZE, TenantsTable } from './tenants-table';
 import { useTenantFilters } from './use-tenant-filters';
 
 /**
@@ -51,15 +52,29 @@ interface TenantListViewProps {
   loading?: boolean;
 }
 
+/**
+ * The tenants list, one page at a time with First · Prev · Next. A top-level page, so no prefix: the search, the
+ * funnels, the sort and the pager (`cursor`, `page`, `refresh`) sit in the URL as they are, and a change to the
+ * search, a funnel or the sort drops the cursor in the SAME URL write (one history entry on page 2+, so Back returns
+ * to the old view).
+ */
 export function TenantListView({ loading = false }: TenantListViewProps) {
-  const { params, setParam, setParams } = useApiParams({
-    search: { type: 'string', default: '' },
-    tenant: { type: 'array', default: [] },
-    customer: { type: 'array', default: [] },
-    licenses: { type: 'array', default: [] },
-    access: { type: 'array', default: [] },
-    sortBy: { type: 'string', default: '' },
-    sortDirection: { type: 'string', default: '' },
+  const { params, setParam, setParams } = useApiParams(
+    {
+      search: { type: 'string', default: '' },
+      tenant: { type: 'array', default: [] },
+      customer: { type: 'array', default: [] },
+      licenses: { type: 'array', default: [] },
+      access: { type: 'array', default: [] },
+      sortBy: { type: 'string', default: '' },
+      sortDirection: { type: 'string', default: '' },
+    },
+    { resetKeys: CURSOR_PAGER_KEYS, resetHistory: 'push' },
+  );
+  const pager = useCursorPager({
+    pageSize: TENANTS_PAGE_SIZE,
+    ...PAGED_LISTS.directoryConnections,
+    resetOn: JSON.stringify(params),
   });
   // Local search keeps typing responsive; the hook debounces it into the URL param.
   const {
@@ -79,7 +94,13 @@ export function TenantListView({ loading = false }: TenantListViewProps) {
     }),
     [selections, params.sortBy, params.sortDirection],
   );
-  const { deferredFilters, deferredSearch, isPending } = useDeferredQuery(query, debouncedSearch);
+  // Search, funnels, sort and the page are deferred together, so `isPending` covers all of them. The list reads the
+  // search from the URL, the write that drops the cursor, never the box's debounced value, which runs one commit ahead.
+  const { deferredFilters, deferredSearch, deferredPage, isPending } = useDeferredQuery(
+    query,
+    params.search,
+    pager.variables,
+  );
   const { options, pending } = useTenantFilters(debouncedSearch, query.filter, selections, !loading);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [isEmpty, setIsEmpty] = useState(false);
@@ -133,6 +154,8 @@ export function TenantListView({ loading = false }: TenantListViewProps) {
             isPending={isPending}
             onEmptyChange={setIsEmpty}
             stickyHeaderOffset={stickyHeaderOffset}
+            pager={pager}
+            pageVariables={deferredPage}
           />
         </LoadingWhen>
         <FilterModal

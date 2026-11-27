@@ -281,7 +281,6 @@ export const LEGACY_GRAPHQL_FOLDER = [
   'src/graphql/insights/delete-insight-note-mutation.ts',
   'src/graphql/insights/incident-detail-relay.ts',
   'src/graphql/insights/incident-notes-relay.ts',
-  'src/graphql/insights/incidents-table-relay.ts',
   'src/graphql/insights/insight-chat-prompt-relay.ts',
   'src/graphql/insights/insight-facets.ts',
   'src/graphql/insights/insight-fields.ts',

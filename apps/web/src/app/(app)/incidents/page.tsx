@@ -2,7 +2,7 @@
 
 import { TabNavigation } from '@flamingo-stack/openframe-frontend-core';
 import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { CURSOR_PAGER_KEYS, useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { notFound } from 'next/navigation';
 import { ContentErrorBoundary } from '@/app/components/shared';
 import type { IncidentsTab } from '@/lib/routes';
@@ -14,11 +14,15 @@ export default function IncidentsPage() {
   const gate = useIncidentsGate();
   // The filter params are declared here too (owned by IncidentsTable) so a tab
   // switch can clear them — each tab starts unfiltered, and a status chosen on
-  // Current means nothing on Snoozed.
-  const { params, setParams } = useApiParams({
-    tab: { type: 'string', default: 'current' },
-    ...INCIDENT_FILTER_PARAMS,
-  });
+  // Current means nothing on Snoozed. The switch drops the table's cursor in the
+  // same URL write: each tab starts on its first page.
+  const { params, setParams } = useApiParams(
+    {
+      tab: { type: 'string', default: 'current' },
+      ...INCIDENT_FILTER_PARAMS,
+    },
+    { resetKeys: CURSOR_PAGER_KEYS, resetHistory: 'push' },
+  );
   const tab: IncidentsTab = isIncidentsTab(params.tab) ? params.tab : 'current';
   const view = INCIDENT_TAB_VIEWS[tab];
 

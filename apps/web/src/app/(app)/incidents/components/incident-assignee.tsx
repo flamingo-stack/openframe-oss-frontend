@@ -10,6 +10,7 @@ import { InfoCell } from '@/app/components/shared/info-cell';
 import { assignInsightMutation } from '@/graphql/insights/assign-insight-mutation';
 import { unassignInsightMutation } from '@/graphql/insights/unassign-insight-mutation';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
+import { markListChanged } from '@/lib/list-refresh';
 import { useAssigneeOptions } from '../../tickets/hooks/use-assignee-options';
 import type { IncidentRow } from '../utils/incident-transform';
 
@@ -17,7 +18,9 @@ import type { IncidentRow } from '../utils/incident-transform';
  * The "Assigned" cell of the summary card and of the Incidents table: the
  * compact assignee picker (the same one the ticket board uses) beside the
  * current holder's name. Assigning is independent of status — an incident can
- * change hands while snoozed.
+ * change hands while snoozed. An assignment moves the Assigned funnel's counts
+ * and can take the row out of a list narrowed by assignee: it marks the
+ * incidents lists changed, and the one on screen reads its page again.
  *
  * Without the incident (or in a loading scope) it draws itself: the picker's
  * compact avatar trigger, inert, its avatar a skeleton, and the name a bar under the same empty label.
@@ -47,6 +50,7 @@ export function IncidentAssignee({ incident }: { incident?: IncidentRow }) {
         variables: { input: { id: incident.id } },
         onCompleted: () => {
           toast({ title: 'Assignee removed', description: `"${incident.title}" is unassigned.`, variant: 'success' });
+          markListChanged('insights');
         },
         onError,
       });
@@ -61,6 +65,7 @@ export function IncidentAssignee({ incident }: { incident?: IncidentRow }) {
           description: `"${incident.title}" is now with ${name}.`,
           variant: 'success',
         });
+        markListChanged('insights');
       },
       onError,
     });
