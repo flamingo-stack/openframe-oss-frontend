@@ -6,12 +6,18 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { authApiClient, getAuthFailureMessage, getRecaptchaCheckedFailureMessage } from './auth-api-client';
+import { collectRegistrationAttribution } from './registration-attribution';
 
 vi.mock('./force-logout', () => ({ forceLogout: vi.fn(), clearStoredTokens: vi.fn() }));
 const shell = vi.hoisted(() => ({ plugin: null as { revokeSession?: () => Promise<boolean> } | null }));
 vi.mock('./native-shell', () => ({ nativeAuthPlugin: () => shell.plugin, nativeShellVersion: () => null }));
 vi.mock('./recaptcha', () => ({ recaptchaHeaders: async () => ({ 'X-Recaptcha-Token': 'token' }) }));
-vi.mock('./platform', () => ({ isAppShell: () => false, mobilePlatform: () => null, shellKind: () => 'web' }));
+const platform = vi.hoisted(() => ({ appShell: false }));
+vi.mock('./platform', () => ({
+  isAppShell: () => platform.appShell,
+  mobilePlatform: () => null,
+  shellKind: () => 'web',
+}));
 vi.mock('./runtime-config', () => ({
   runtimeEnv: { sharedHostUrl: () => 'https://auth.test', tenantHostUrl: () => '' },
 }));
@@ -47,6 +53,7 @@ function jsonResponse(body: unknown, status = 200) {
 
 beforeEach(() => {
   shell.plugin = null;
+  platform.appShell = false;
   fetchMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
 });
@@ -257,5 +264,66 @@ describe('authApiClient.logoutAsync', () => {
     await expect(authApiClient.logoutAsync('tenant-1')).resolves.toBe(true);
 
     expect(fetchMock.mock.calls[0][0]).toBe('https://auth.test/oauth/logout?tenantId=tenant-1');
+  });
+});
+
+// The desktop app's sign-up finishes in the browser tab it opened, which keeps where it began (`signup-started-in.ts`).
+describe('the app a sign-up began in', () => {
+  const registration = {
+    email: 'kate@acme.com',
+    firstName: 'Kate',
+    lastName: 'Ops',
+    password: 'Secret-123',
+    tenantName: 'Acme',
+    tenantDomain: 'acme',
+  };
+
+  beforeEach(() => {
+    window.sessionStorage.clear();
+    window.sessionStorage.setItem('of_signup_started_in', 'desktop');
+  });
+
+  afterEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it('rides the password body as attribution.startedIn, and is forgotten once the organization exists', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({}));
+
+    await authApiClient.registerOrganization({ ...registration, attribution: collectRegistrationAttribution() });
+
+    const [requestUrl, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(requestUrl).toBe('https://auth.test/sas/oauth/register');
+    const body = JSON.parse(String(init.body)) as { attribution?: { startedIn?: string } };
+    expect(body.attribution?.startedIn).toBe('desktop');
+    expect(window.sessionStorage.getItem('of_signup_started_in')).toBeNull();
+  });
+
+  it('stays for the retry when the registration is refused', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ code: 'DOMAIN_TAKEN', message: 'Taken' }, 409));
+
+    await authApiClient.registerOrganization({ ...registration, attribution: collectRegistrationAttribution() });
+
+    expect(window.sessionStorage.getItem('of_signup_started_in')).toBe('desktop');
+  });
+
+  it('rides the SSO continue URL as a bare startedIn, as the endpoint binds it', () => {
+    const url = new URL(authApiClient.completeSsoRegistrationUrl({ tenantName: 'Acme', tenantDomain: 'acme' }));
+    expect(url.pathname).toBe('/sas/oauth/login/sso/complete');
+    expect(url.searchParams.get('startedIn')).toBe('desktop');
+    expect(url.searchParams.has('attribution.startedIn')).toBe(false);
+  });
+
+  it('is never sent by a sign-up inside a shell, whose request already says which app it is', async () => {
+    platform.appShell = true;
+    fetchMock.mockResolvedValue(jsonResponse({ devTicket: 't' }));
+
+    await authApiClient.completeSsoRegistrationByTicket({ ticket: 'tk', tenantName: 'Acme', tenantDomain: 'acme' });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(String(init.body)) as { attribution?: { startedIn?: string } };
+    expect(body.attribution?.startedIn).toBeUndefined();
+    const url = new URL(authApiClient.completeSsoRegistrationUrl({ tenantName: 'Acme', tenantDomain: 'acme' }));
+    expect(url.searchParams.has('startedIn')).toBe(false);
   });
 });

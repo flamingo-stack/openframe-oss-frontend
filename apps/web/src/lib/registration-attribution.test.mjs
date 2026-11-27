@@ -676,3 +676,60 @@ test('normalizeAttribution keeps the times and drops a nested object that is all
     { firstVisit: { landedAt: T0 } },
   );
 });
+
+// A sign-up the desktop app handed to the browser: the tab keeps where it began (`signup-started-in.ts`).
+function tabStorage(entries = {}) {
+  const tab = { ...entries };
+  window.sessionStorage = {
+    getItem: k => (k in tab ? tab[k] : null),
+    setItem: (k, v) => {
+      tab[k] = String(v);
+    },
+    removeItem: k => {
+      delete tab[k];
+    },
+  };
+}
+
+test('a sign-up the desktop app handed over says so, in the password body and the SSO URL alike', () => {
+  tabStorage({ of_signup_started_in: 'desktop' });
+  const got = A.collectRegistrationAttribution();
+  assert.equal(got.startedIn, 'desktop');
+
+  const params = new URLSearchParams();
+  A.appendAttributionQueryParams(params, got);
+  assert.equal(params.get('startedIn'), 'desktop', 'bare, as the endpoint binds every other field');
+});
+
+test('a tab with no marker sends no startedIn, nor one holding a value no app has', () => {
+  tabStorage();
+  assert.equal(A.collectRegistrationAttribution().startedIn, undefined);
+  tabStorage({ of_signup_started_in: 'web' });
+  assert.equal(A.collectRegistrationAttribution().startedIn, undefined);
+});
+
+test('blocked session storage costs the marker, never the sign-up', () => {
+  Object.defineProperty(window, 'sessionStorage', {
+    configurable: true,
+    get() {
+      throw new Error('SecurityError: storage is blocked');
+    },
+  });
+  const got = A.collectRegistrationAttribution();
+  assert.equal(got.startedIn, undefined);
+  assert.equal(typeof got.eventId, 'string', 'the rest of the attribution still comes back');
+});
+
+test('the download-link form never sends it: it is no sign-up', () => {
+  tabStorage({ of_signup_started_in: 'desktop' });
+  assert.equal(A.collectTouchpoint().startedIn, undefined);
+});
+
+test('the hand-off page load leaves the stored visits as they were', () => {
+  pageLoad({ search: '?utm_source=reddit', referrer: 'https://www.reddit.com/' });
+  const before = A.collectTouchpoint();
+  pageLoad({ search: '?email=kate%40acme.com&started_in=desktop', time: T0 + DAY_MS });
+  const after = A.collectTouchpoint();
+  assert.deepEqual(after.firstVisit, before.firstVisit);
+  assert.deepEqual(after.lastVisit, before.lastVisit);
+});
