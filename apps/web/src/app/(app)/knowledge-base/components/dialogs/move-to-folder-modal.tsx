@@ -9,16 +9,15 @@ import type { moveToFolderModalMutation as MoveToFolderModalMutationType } from 
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { KnowledgeBaseItemType } from '@/generated/schema-enums';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
+import { markListChanged } from '@/lib/list-refresh';
 import { FolderPicker } from '../shared/folder-picker';
 import type { FolderTarget } from '../shared/folder-tree';
-import { moveBetweenFolders } from '../shared/knowledge-base-listings';
 
 const moveToFolderModalFragment = graphql`
   fragment moveToFolderModal_item on KnowledgeBaseItem {
     id
     type
     name
-    parentId
   }
 `;
 
@@ -41,11 +40,9 @@ interface MoveToFolderModalProps {
   item: moveToFolderModal_item$key;
   isOpen: boolean;
   onClose: () => void;
-  /** The listings on screen the item is drawn from, when it is moved from a list. */
-  listingIds?: readonly string[];
 }
 
-export function MoveToFolderModal({ item, isOpen, onClose, listingIds }: MoveToFolderModalProps) {
+export function MoveToFolderModal({ item, isOpen, onClose }: MoveToFolderModalProps) {
   const { toast } = useToast();
   const data = useFragment(moveToFolderModalFragment, item);
   const [commit, isInFlight] = useMutation<MoveToFolderModalMutationType>(moveToFolderModalMutation);
@@ -61,11 +58,12 @@ export function MoveToFolderModal({ item, isOpen, onClose, listingIds }: MoveToF
 
   const handleConfirm = () => {
     if (!target || isInFlight) return;
-    const from = data.parentId ?? null;
     commit({
       variables: { id: data.id, parentId: target.id },
-      updater: store => moveBetweenFolders(store, { itemId: data.id, from, to: target.id, onScreen: listingIds }),
       onCompleted: () => {
+        // The item left one level and joined another, and a search may or may not still reach it: the listing on
+        // screen reads its page again.
+        markListChanged('knowledgeBase');
         toast({ title: 'Moved', description: `${data.name} moved to ${target.name}`, variant: 'success' });
         onClose();
       },

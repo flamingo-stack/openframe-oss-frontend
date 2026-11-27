@@ -2,14 +2,17 @@
 
 import { BoxArchiveIcon, PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { PageActionButton, SplitButtonIconAction } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useCursorPager } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useState } from 'react';
 import { useGenerateWithAiAction } from '@/app/(app)/mingo/hooks/use-generate-with-ai-action';
 import { DIALOG_INTENT } from '@/app/(app)/tickets/constants';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { PAGED_LISTS } from '@/lib/paged-lists';
 import { routes } from '@/lib/routes';
 import { NewFolderModal } from '../dialogs/new-folder-modal';
 import { ROOT_FOLDER } from '../shared/folder-tree';
+import { KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
 import { KnowledgeBaseSearchToolbar } from '../shared/knowledge-base-search-toolbar';
 import { useTagSearchState } from '../shared/use-tag-search-state';
 import { KnowledgeBaseFolderTitle } from './knowledge-base-folder-title';
@@ -67,8 +70,11 @@ interface KnowledgeBaseViewProps {
 
 /**
  * `/knowledge-base` and `/knowledge-base/folders`: one level of the knowledge
- * base. Owns the URL state (search + tags), the sticky toolbar and the New Folder
- * dialog; the rows suspend below it.
+ * base. Owns the URL state (search + tags, and the pager beside them: a top-level
+ * page, so no prefix), the sticky toolbar and the New Folder dialog; the rows
+ * suspend below it. A change to the search or the tags drops the cursor in the
+ * same URL write (`useTagSearchState`); another folder is another URL, with no
+ * cursor (and the folder page remounts the view per folder).
  *
  * Not `PageLayout`: a folder's title is the folder record, so only the island
  * that reads it waits (canon `software-detail-view`).
@@ -78,13 +84,20 @@ export function KnowledgeBaseView({ folderId }: KnowledgeBaseViewProps) {
   const [isNewFolderOpen, setIsNewFolderOpen] = useState(false);
   const [isEmpty, setIsEmpty] = useState(false);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
+  const pager = useCursorPager({
+    pageSize: KNOWLEDGE_BASE_PAGE_SIZE,
+    ...PAGED_LISTS.knowledgeBaseItems,
+    resetOn: JSON.stringify({ folderId, search: filters.urlSearch, tagIds: filters.tagIds }),
+  });
 
-  // Search and tags are deferred together, so `isPending` covers both.
+  // Search, tags and the page are deferred together, so `isPending` covers all three. The query reads the search
+  // from the URL, the write that drops the cursor.
   const {
     deferredFilters: deferredTagIds,
     deferredSearch,
+    deferredPage,
     isPending,
-  } = useDeferredQuery(filters.tagIds, filters.debouncedSearch);
+  } = useDeferredQuery(filters.tagIds, filters.urlSearch, pager.variables);
 
   // An empty level accents Add Article: it is the one thing there is to do.
   const generateWithAi = useGenerateWithAiAction(DIALOG_INTENT.CREATE_KB_ARTICLE);
@@ -96,6 +109,8 @@ export function KnowledgeBaseView({ folderId }: KnowledgeBaseViewProps) {
       isPending={isPending}
       onEmptyChange={setIsEmpty}
       stickyHeaderOffset={stickyHeaderOffset}
+      pager={pager}
+      pageVariables={deferredPage}
     />
   );
 

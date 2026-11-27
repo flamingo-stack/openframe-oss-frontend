@@ -3,40 +3,34 @@
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { BookBookmarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  type AutoRefreshControlProps,
   type ColumnDef,
   LoadingWhen,
   type Row,
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useEffect, useMemo } from 'react';
-import {
-  fetchQuery,
-  graphql,
-  useLazyLoadQuery,
-  usePaginationFragment,
-  useRelayEnvironment,
-  useSubscribeToInvalidationState,
-} from 'react-relay';
 import type {
-  knowledgeBaseItemsTable_query$data,
-  knowledgeBaseItemsTable_query$key,
-} from '@/__generated__/knowledgeBaseItemsTable_query.graphql';
-import type { knowledgeBaseItemsTablePaginationQuery as KnowledgeBaseItemsTablePaginationQueryType } from '@/__generated__/knowledgeBaseItemsTablePaginationQuery.graphql';
-import type { knowledgeBaseItemsTableQuery as KnowledgeBaseItemsTableQueryType } from '@/__generated__/knowledgeBaseItemsTableQuery.graphql';
+  CursorPagerFooterProps,
+  CursorPagerVariables,
+  UseCursorPagerReturn,
+} from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useEffect, useMemo } from 'react';
+import { graphql, useLazyLoadQuery } from 'react-relay';
+import type {
+  knowledgeBaseItemsTableQuery$data,
+  knowledgeBaseItemsTableQuery as KnowledgeBaseItemsTableQueryType,
+} from '@/__generated__/knowledgeBaseItemsTableQuery.graphql';
 import { useMingoCreatedEpoch } from '@/app/(app)/mingo/stores/mingo-created-entities-store';
-import {
-  EmptyState,
-  type InfiniteScroll,
-  liveColumnMeta,
-  NO_ITEMS,
-  NO_NEXT_PAGE,
-  oneLineEmptyState,
-  useRetryKey,
-} from '@/app/components/shared';
+import { EmptyState, liveColumnMeta, NO_ITEMS, oneLineEmptyState, useRetryKey } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
 import { useRowDialog } from '@/app/components/shared/use-row-dialog';
+import { forwardPage } from '@/app/hooks/forward-page';
+import { usePagedTable } from '@/app/hooks/use-paged-table';
+import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { useGridTableProps } from '@/app/hooks/use-table-layout';
+import { useListRefreshEpoch } from '@/lib/list-refresh';
 import { ROOT_FOLDER } from '../shared/folder-tree';
 import {
   KNOWLEDGE_BASE_DATE_GRID,
@@ -52,7 +46,6 @@ import {
   type KnowledgeBaseListing,
   knowledgeBaseListingArgs,
 } from '../shared/knowledge-base-listings';
-import { useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
 import { type ItemDialogKind, KnowledgeBaseItemActionsCell } from './knowledge-base-item-actions-cell';
 import { KnowledgeBaseItemCreatedCell } from './knowledge-base-item-created-cell';
 import { KnowledgeBaseItemDialogs } from './knowledge-base-item-dialogs';
@@ -62,27 +55,13 @@ import { KnowledgeBaseItemDialogs } from './knowledge-base-item-dialogs';
  * folders first, by name, then articles, newest change first. Browsing lists the
  * level itself; a search or a tag filter goes to the server and lists everything
  * under the level, at any depth.
+ *
+ * One page per request, its cursor in the URL (`cursor`; no `@connection`: a cursor from a link must read exactly its
+ * page). `knowledgeBaseItems` pages forward only (`first` / `after`).
  */
 const knowledgeBaseItemsTableQuery = graphql`
   query knowledgeBaseItemsTableQuery($filter: KnowledgeBaseFilterInput, $search: String, $first: Int!, $after: String) {
-    ...knowledgeBaseItemsTable_query @arguments(filter: $filter, search: $search, first: $first, after: $after)
-  }
-`;
-
-const knowledgeBaseItemsTableFragment = graphql`
-  fragment knowledgeBaseItemsTable_query on Query
-  @refetchable(queryName: "knowledgeBaseItemsTablePaginationQuery")
-  @argumentDefinitions(
-    filter: { type: "KnowledgeBaseFilterInput" }
-    search: { type: "String" }
-    first: { type: "Int", defaultValue: 20 }
-    after: { type: "String" }
-  ) {
-    knowledgeBaseItems(filter: $filter, search: $search, first: $first, after: $after)
-      @connection(key: "knowledgeBaseItemsTable_knowledgeBaseItems", filters: ["filter", "search"]) {
-      # The row dialogs take a row out of this listing, and a listing marked
-      # stale is refetched below.
-      __id
+    knowledgeBaseItems(filter: $filter, search: $search, first: $first, after: $after) {
       filteredCount
       edges {
         node {
@@ -102,13 +81,15 @@ const knowledgeBaseItemsTableFragment = graphql`
       }
       pageInfo {
         hasNextPage
+        hasPreviousPage
+        startCursor
         endCursor
       }
     }
   }
 `;
 
-type ItemRow = knowledgeBaseItemsTable_query$data['knowledgeBaseItems']['edges'][number]['node'];
+type ItemRow = knowledgeBaseItemsTableQuery$data['knowledgeBaseItems']['edges'][number]['node'];
 
 const getRowId = (row: ItemRow) => row.id;
 const rowHref = (row: ItemRow) => knowledgeBaseItemHref(row.type, row.id);
@@ -164,14 +145,29 @@ interface KnowledgeBaseItemsTableProps {
   /** Nothing on this level at all (not a search or tag miss) — the view drops its toolbar. */
   onEmptyChange: (isEmpty: boolean) => void;
   stickyHeaderOffset: string;
+  /** The list's position in the URL: footer props, the stale check, the cursor drop. */
+  pager: UseCursorPagerReturn;
+  /** Deferred — the page variables to spread into the query (lag the URL while the next page is read). */
+  pageVariables: CursorPagerVariables;
 }
 
 /**
- * The rows of a knowledge base level. In a loading scope (the view's Suspense fallback) it draws the table over one
- * page of placeholder rows with their real cells, each in its own loading form; otherwise it runs the query, which
- * suspends, so it lives under the view's `<Suspense>`.
+ * The rows of a knowledge base level, paged on the server (First · Prev · Next), with their own boundary. In a loading
+ * scope (the boundary's fallback) the reader draws the table over one page of placeholder rows with their real cells,
+ * each in its own loading form; otherwise it runs the query, which suspends under that boundary. A cursor the server
+ * refuses drops to the first page (`StaleCursorBoundary`); any other error goes up unchanged.
  */
 export function KnowledgeBaseItemsTable(props: KnowledgeBaseItemsTableProps) {
+  return (
+    <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
+      <KnowledgeBaseItemsTableLoading {...props} />
+    </StaleCursorBoundary>
+  );
+}
+
+/** The rows' loading boundary, the whole output of its own component (the loading standard), under the
+ * stale-cursor boundary above. */
+function KnowledgeBaseItemsTableLoading(props: KnowledgeBaseItemsTableProps) {
   return (
     <LoadingSuspense label="Loading articles">
       <KnowledgeBaseItemsTableReader {...props} />
@@ -188,78 +184,65 @@ function KnowledgeBaseItemsTableReader(props: KnowledgeBaseItemsTableProps) {
   if (scoped || flagLoading) {
     return (
       <LoadingWhen loading>
-        <KnowledgeBaseItemsRows
-          {...props}
-          rows={NO_ITEMS}
-          totalCount={0}
-          listingIds={NO_ITEMS}
-          infiniteScroll={NO_NEXT_PAGE}
-        />
+        <KnowledgeBaseItemsRows {...props} rows={NO_ITEMS} totalCount={0} pager={null} />
       </LoadingWhen>
     );
   }
   return <KnowledgeBaseItemsTableQuery {...props} />;
 }
 
-function KnowledgeBaseItemsTableQuery(props: KnowledgeBaseItemsTableProps) {
-  const { listing } = props;
-  const environment = useRelayEnvironment();
+/**
+ * The page the URL names, its footer and the auto-refresh. A row dialog (archive, move, delete), a new folder or a
+ * saved article changes which items the page holds, which is the server's answer: it marks the list changed and the
+ * page is read again (`useListRefreshEpoch`), keeping the rows on screen until it arrives.
+ */
+function KnowledgeBaseItemsTableQuery({ pager, pageVariables, ...props }: KnowledgeBaseItemsTableProps) {
+  const { listing, isPending } = props;
   const retryKey = useRetryKey();
   // Mingo can add a row from the chat; its create refetches the list.
   const mingoCreated = useMingoCreatedEpoch('knowledgeBase');
+  const changed = useListRefreshEpoch('knowledgeBase');
 
   const variables: KnowledgeBaseItemsTableQueryType['variables'] = {
     ...knowledgeBaseListingArgs(listing),
-    first: KNOWLEDGE_BASE_PAGE_SIZE,
-    after: null,
+    ...forwardPage(pageVariables, KNOWLEDGE_BASE_PAGE_SIZE),
   };
   const queryData = useLazyLoadQuery<KnowledgeBaseItemsTableQueryType>(knowledgeBaseItemsTableQuery, variables, {
     fetchPolicy: 'store-and-network',
-    fetchKey: `${retryKey}:${mingoCreated}`,
+    fetchKey: `${retryKey}:${mingoCreated}:${changed}`,
   });
-
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
-    KnowledgeBaseItemsTablePaginationQueryType,
-    knowledgeBaseItemsTable_query$key
-  >(knowledgeBaseItemsTableFragment, queryData);
-  const items = data.knowledgeBaseItems;
-
-  // A mutation marked this listing stale — a folder created on this level, an
-  // item moved into it or within a search result. Asking again from the top is
-  // the only way to learn what the server lists now, and where.
-  useSubscribeToInvalidationState([items.__id], () => {
-    fetchQuery(environment, knowledgeBaseItemsTableQuery, variables, { fetchPolicy: 'network-only' }).subscribe({});
-  });
-
-  const rows = items.edges.map(edge => edge.node);
-
-  const infiniteScroll = useKnowledgeBaseLoadMore({ loadNext, hasNext, isLoadingNext }, 'Error loading more items');
+  const refetch = useRefetchPage<KnowledgeBaseItemsTableQueryType>(knowledgeBaseItemsTableQuery, variables);
+  const { edges, pageInfo, filteredCount } = queryData.knowledgeBaseItems;
+  // A top-level page: its auto-refresh interval has no prefix, as its other params.
+  const paged = usePagedTable({ pager, pageInfo, rowCount: edges.length, refetch, isPending });
 
   return (
     <KnowledgeBaseItemsRows
       {...props}
-      rows={rows}
-      totalCount={items.filteredCount}
-      listingIds={[items.__id]}
-      infiniteScroll={infiniteScroll}
+      rows={edges.map(edge => edge.node)}
+      totalCount={filteredCount}
+      pager={paged.pager}
+      refresh={paged.refresh}
     />
   );
 }
 
-interface KnowledgeBaseItemsRowsProps extends KnowledgeBaseItemsTableProps {
+interface KnowledgeBaseItemsRowsProps extends Omit<KnowledgeBaseItemsTableProps, 'pager' | 'pageVariables'> {
   rows: readonly ItemRow[];
+  /** The server's total for the level and what narrows it, not the rows on the page. */
   totalCount: number;
-  /** The connections a row's dialog marks stale. */
-  listingIds: readonly string[];
-  infiniteScroll: InfiniteScroll;
+  /** The First · Prev · Next pager (`usePagedTable`); `null` while the page is read. */
+  pager: CursorPagerFooterProps | null;
+  /** The auto-refresh picker above the table (`usePagedTable`). */
+  refresh?: AutoRefreshControlProps;
 }
 
 /** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
 function KnowledgeBaseItemsRows({
   rows,
   totalCount,
-  listingIds,
-  infiniteScroll,
+  pager,
+  refresh,
   listing,
   isPending,
   onEmptyChange,
@@ -287,7 +270,10 @@ function KnowledgeBaseItemsRows({
 
   // A search or a tag filter that finds nothing keeps the table (its own "no
   // match" row); a level with nothing on it gets the page's empty state instead.
-  const showEmptyState = !loading && !isSubtree && !isPending && rows.length === 0;
+  // An empty LATER page (a cursor about to be dropped) keeps the table and its
+  // pager, so First stays reachable.
+  const isFirstPage = pager?.isFirstPage ?? true;
+  const showEmptyState = !loading && !isSubtree && !isPending && isFirstPage && rows.length === 0;
 
   useEffect(() => {
     onEmptyChange(showEmptyState);
@@ -314,7 +300,8 @@ function KnowledgeBaseItemsRows({
               : 'No articles match the selected tags. Try adjusting your filters.',
           )}
           rowHref={rowHref}
-          footer={rows.length > 0 ? infiniteScroll : null}
+          pager={pager}
+          refresh={refresh}
           isPending={isPending}
           stickyHeaderOffset={stickyHeaderOffset}
           layout={tableGrid.layout}
@@ -325,13 +312,7 @@ function KnowledgeBaseItemsRows({
 
       {/* Outside both branches: deleting the last row swaps the table for the empty state mid-dialog. */}
       {dialog && (
-        <KnowledgeBaseItemDialogs
-          item={dialog.row}
-          kind={dialog.kind}
-          isOpen={dialog.isOpen}
-          onClose={closeDialog}
-          listingIds={listingIds}
-        />
+        <KnowledgeBaseItemDialogs item={dialog.row} kind={dialog.kind} isOpen={dialog.isOpen} onClose={closeDialog} />
       )}
     </>
   );

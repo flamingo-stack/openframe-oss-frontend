@@ -2,7 +2,9 @@
  * Pins the Assign Article modal: every picked article goes out as its own
  * `assignItem` against the page's target, an already assigned one is answered
  * like any other (the server returns the existing assignment), and a partial
- * failure still refreshes the tab but keeps the modal open with an error.
+ * failure still refreshes the tab but keeps the modal open with an error. The
+ * tab's list is refreshed by marking it changed (`assignedItems`): it reads its
+ * page again.
  */
 
 import { act, type ReactNode } from 'react';
@@ -19,7 +21,10 @@ interface CommitConfig {
 const spies = vi.hoisted(() => ({
   toast: vi.fn<(options: Record<string, unknown>) => void>(),
   commit: vi.fn<(config: CommitConfig) => void>(),
+  markListChanged: vi.fn<(...lists: string[]) => void>(),
 }));
+
+vi.mock('@/lib/list-refresh', () => ({ markListChanged: spies.markListChanged }));
 
 // The real module carries graphql tags, which need the Relay babel plugin vitest does not run.
 vi.mock('react-relay', () => ({ graphql: () => ({}), useMutation: () => [spies.commit, false] }));
@@ -91,6 +96,7 @@ beforeEach(() => {
   root = createRoot(container);
   spies.toast.mockReset();
   spies.commit.mockReset();
+  spies.markListChanged.mockReset();
 });
 
 afterEach(() => {
@@ -128,6 +134,7 @@ describe('AssignArticleModal', () => {
       { itemId: 'article-1', itemType: 'KNOWLEDGE_ARTICLE', targetType: 'DEVICE', targetId: target.targetId },
       { itemId: 'article-2', itemType: 'KNOWLEDGE_ARTICLE', targetType: 'DEVICE', targetId: target.targetId },
     ]);
+    expect(spies.markListChanged.mock.calls).toEqual([['assignedItems']]);
     expect(onAssigned).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(spies.toast).toHaveBeenCalledWith(expect.objectContaining({ variant: 'success' }));
@@ -155,6 +162,7 @@ describe('AssignArticleModal', () => {
     click(container.querySelector('[data-option="article-2"]'));
     await act(async () => assignButton()?.click());
 
+    expect(spies.markListChanged.mock.calls).toEqual([['assignedItems']]);
     expect(onAssigned).toHaveBeenCalledTimes(1);
     expect(onClose).not.toHaveBeenCalled();
     expect(spies.toast).toHaveBeenCalledWith(
@@ -169,6 +177,7 @@ describe('AssignArticleModal', () => {
     click(container.querySelector('[data-option="article-1"]'));
     await act(async () => assignButton()?.click());
 
+    expect(spies.markListChanged).not.toHaveBeenCalled();
     expect(onAssigned).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
     expect(spies.toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Assign failed' }));

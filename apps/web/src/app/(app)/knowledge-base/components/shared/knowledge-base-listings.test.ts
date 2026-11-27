@@ -1,100 +1,24 @@
 /**
- * Pins the one thing the listing store helpers cannot be seen to get wrong: they
- * find a listing by rebuilding its connection id, and an id that drifted from
- * the one Relay gives the table's connection makes every helper a silent no-op.
- * So this runs them against a real store holding a real answer of the table's
- * own query.
+ * Pins what the listing module still decides on the client:
+ * - the `knowledgeBaseItems` arguments of a listing (the level, or its whole subtree under a search or a tag filter);
+ * - the folder tree the pickers read, edited in place after a create or a delete (it is one unpaged list; the paged
+ *   listings read their page again instead). Run against a real store holding a real answer of the picker's query, so
+ *   a field name that drifted from the one the picker reads fails here instead of leaving the tree stale.
  */
 
 import {
   createOperationDescriptor,
-  createReaderSelector,
   Environment,
   Network,
   Observable,
+  readInlineData,
   RecordSource,
-  ROOT_ID,
   Store,
 } from 'relay-runtime';
 import { describe, expect, it } from 'vitest';
-import archivedArticlesTableQuery from '@/__generated__/archivedArticlesTableQuery.graphql';
-import knowledgeBaseItemsTableFragment, {
-  type knowledgeBaseItemsTable_query$data,
-} from '@/__generated__/knowledgeBaseItemsTable_query.graphql';
-import knowledgeBaseItemsTableQuery, {
-  type knowledgeBaseItemsTableQuery as KnowledgeBaseItemsTableQueryType,
-} from '@/__generated__/knowledgeBaseItemsTableQuery.graphql';
-import { KnowledgeBaseItemType } from '@/generated/schema-enums';
-import {
-  invalidateArchiveListing,
-  invalidateFolderListing,
-  type KnowledgeBaseListing,
-  knowledgeBaseListingArgs,
-  moveBetweenFolders,
-  removeFromFolderListing,
-} from './knowledge-base-listings';
-
-const PAGE_INFO = { hasNextPage: false, endCursor: null, hasPreviousPage: false, startCursor: null };
-
-function item(id: string, type: KnowledgeBaseItemType, parentId: string | null) {
-  return {
-    __typename: 'KnowledgeBaseItem',
-    id,
-    type,
-    name: id,
-    parentId,
-    parent: null,
-    status: type === KnowledgeBaseItemType.ARTICLE ? 'PUBLISHED' : null,
-    summary: null,
-    createdAt: '2026-10-01T10:00:00Z',
-  };
-}
-
-/** A store with no server behind it: every answer here is committed by hand. */
-function createEnvironment() {
-  return new Environment({
-    network: Network.create(() => Observable.create(() => {})),
-    store: new Store(new RecordSource()),
-  });
-}
-
-/** The table's own variables for a listing — what `KnowledgeBaseItemsTable` sends. */
-function tableVariables(listing: KnowledgeBaseListing): KnowledgeBaseItemsTableQueryType['variables'] {
-  return { ...knowledgeBaseListingArgs(listing), first: 20, after: null };
-}
-
-/** Puts one answer of the table's query into the store, the way a fetch would. */
-function loadListing(environment: Environment, listing: KnowledgeBaseListing, items: ReturnType<typeof item>[]) {
-  const operation = createOperationDescriptor(knowledgeBaseItemsTableQuery, tableVariables(listing));
-  environment.retain(operation);
-  environment.commitPayload(operation, {
-    knowledgeBaseItems: {
-      filteredCount: items.length,
-      edges: items.map(node => ({ node, cursor: node.id })),
-      pageInfo: PAGE_INFO,
-    },
-  });
-  return operation;
-}
-
-/** The listing as the table reads it, through its pagination fragment. */
-function readListing(environment: Environment, operation: ReturnType<typeof loadListing>) {
-  const { filter, search, first, after } = operation.request.variables;
-  const selector = createReaderSelector(
-    knowledgeBaseItemsTableFragment,
-    ROOT_ID,
-    { filter, search, first, after },
-    operation.request,
-  );
-  return (environment.lookup(selector).data as knowledgeBaseItemsTable_query$data).knowledgeBaseItems;
-}
-
-/** The rows the table would draw for the listing. */
-function listedIds(environment: Environment, operation: ReturnType<typeof loadListing>): string[] {
-  return readListing(environment, operation).edges.map(edge => edge.node.id);
-}
-
-const ROOT: KnowledgeBaseListing = { parentId: null, search: '', tagIds: [] };
+import folderPickerQuery from '@/__generated__/folderPickerQuery.graphql';
+import folderTreeFragment, { type folderTree_folder$key } from '@/__generated__/folderTree_folder.graphql';
+import { addToFolderTree, knowledgeBaseListingArgs, removeFromFolderTree } from './knowledge-base-listings';
 
 describe('knowledgeBaseListingArgs', () => {
   it('asks for the level itself, both types, when nothing narrows it', () => {
@@ -119,104 +43,73 @@ describe('knowledgeBaseListingArgs', () => {
   });
 });
 
-describe('removeFromFolderListing', () => {
-  it("takes the item out of its level's listing", () => {
+/** A store with no server behind it: every answer here is committed by hand. */
+function createEnvironment() {
+  return new Environment({
+    network: Network.create(() => Observable.create(() => {})),
+    store: new Store(new RecordSource()),
+  });
+}
+
+const folder = (id: string, parentId: string | null = null) => ({
+  __typename: 'KnowledgeBaseItem',
+  id,
+  name: id,
+  parentId,
+});
+
+/** Puts one answer of the picker's query into the store, the way a fetch would. */
+function loadTree(environment: Environment, folders: ReturnType<typeof folder>[]) {
+  const operation = createOperationDescriptor(folderPickerQuery, {});
+  environment.retain(operation);
+  environment.commitPayload(operation, { knowledgeBaseFolderTree: folders });
+  return operation;
+}
+
+/** The folders the picker would offer, read the way it reads them. */
+function treeIds(environment: Environment, operation: ReturnType<typeof loadTree>): string[] {
+  const data = environment.lookup(operation.fragment).data as {
+    knowledgeBaseFolderTree: readonly folderTree_folder$key[];
+  };
+  return data.knowledgeBaseFolderTree.map(ref => readInlineData(folderTreeFragment, ref).id);
+}
+
+describe('addToFolderTree', () => {
+  it('adds a created folder to the tree the pickers read, once', () => {
     const environment = createEnvironment();
-    const root = loadListing(environment, ROOT, [
-      item('folder-1', KnowledgeBaseItemType.FOLDER, null),
-      item('article-1', KnowledgeBaseItemType.ARTICLE, null),
-    ]);
+    const tree = loadTree(environment, [folder('guides'), folder('setup', 'guides')]);
 
-    environment.commitUpdate(store => removeFromFolderListing(store, null, 'article-1'));
+    const create = () =>
+      environment.commitUpdate(store => {
+        const created = store.get('vpn') ?? store.create('vpn', 'KnowledgeBaseItem');
+        created.setValue('vpn', 'id');
+        created.setValue('vpn', 'name');
+        created.setValue('guides', 'parentId');
+        addToFolderTree(store, created);
+      });
+    create();
+    create();
 
-    expect(listedIds(environment, root)).toEqual(['folder-1']);
+    expect(treeIds(environment, tree)).toEqual(['guides', 'setup', 'vpn']);
   });
 
-  it('leaves another level, and a search of the same level, alone', () => {
+  it('leaves a tree that is not in the store unread: the picker reads it whole when it opens', () => {
     const environment = createEnvironment();
-    const inFolder = loadListing(environment, { ...ROOT, parentId: 'folder-1' }, [
-      item('article-1', KnowledgeBaseItemType.ARTICLE, 'folder-1'),
-    ]);
-    const search = loadListing(environment, { ...ROOT, search: 'art' }, [
-      item('article-1', KnowledgeBaseItemType.ARTICLE, 'folder-1'),
-    ]);
 
-    environment.commitUpdate(store => removeFromFolderListing(store, null, 'article-1'));
+    environment.commitUpdate(store => addToFolderTree(store, store.create('vpn', 'KnowledgeBaseItem')));
 
-    expect(listedIds(environment, inFolder)).toEqual(['article-1']);
-    expect(listedIds(environment, search)).toEqual(['article-1']);
+    const tree = createOperationDescriptor(folderPickerQuery, {});
+    expect(environment.check(tree).status).toBe('missing');
   });
 });
 
-describe('moveBetweenFolders', () => {
-  it('takes the item out of the level it left and marks the one it joined stale', () => {
+describe('removeFromFolderTree', () => {
+  it('takes a deleted folder out of the tree the pickers read', () => {
     const environment = createEnvironment();
-    const root = loadListing(environment, ROOT, [item('article-1', KnowledgeBaseItemType.ARTICLE, null)]);
-    const inFolder = loadListing(environment, { ...ROOT, parentId: 'folder-1' }, []);
+    const tree = loadTree(environment, [folder('guides'), folder('setup', 'guides')]);
 
-    environment.commitUpdate(store => moveBetweenFolders(store, { itemId: 'article-1', from: null, to: 'folder-1' }));
+    environment.commitUpdate(store => removeFromFolderTree(store, 'setup'));
 
-    expect(listedIds(environment, root)).toEqual([]);
-    expect(environment.check(root).status).toBe('available');
-    expect(environment.check(inFolder).status).toBe('stale');
-  });
-
-  it('marks a search on screen stale instead of deciding whether the item is still under it', () => {
-    const environment = createEnvironment();
-    const search = loadListing(environment, { ...ROOT, parentId: 'folder-1', search: 'art' }, [
-      item('article-1', KnowledgeBaseItemType.ARTICLE, 'folder-2'),
-    ]);
-    // What the table hands the row dialogs: the id of the listing it draws.
-    const onScreen = [readListing(environment, search).__id];
-
-    environment.commitUpdate(store =>
-      moveBetweenFolders(store, { itemId: 'article-1', from: 'folder-2', to: null, onScreen }),
-    );
-
-    expect(listedIds(environment, search)).toEqual(['article-1']);
-    expect(environment.check(search).status).toBe('stale');
-  });
-
-  it('does nothing when the folder is the same', () => {
-    const environment = createEnvironment();
-    const root = loadListing(environment, ROOT, [item('article-1', KnowledgeBaseItemType.ARTICLE, null)]);
-
-    environment.commitUpdate(store => moveBetweenFolders(store, { itemId: 'article-1', from: null, to: null }));
-
-    expect(listedIds(environment, root)).toEqual(['article-1']);
-    expect(environment.check(root).status).toBe('available');
-  });
-});
-
-describe('invalidateFolderListing', () => {
-  it("marks the level's listing stale, so its next read goes to the network", () => {
-    const environment = createEnvironment();
-    const root = loadListing(environment, ROOT, [item('folder-1', KnowledgeBaseItemType.FOLDER, null)]);
-    const inFolder = loadListing(environment, { ...ROOT, parentId: 'folder-1' }, []);
-    expect(environment.check(root).status).toBe('available');
-
-    environment.commitUpdate(store => invalidateFolderListing(store, 'folder-1'));
-
-    expect(environment.check(inFolder).status).toBe('stale');
-    expect(environment.check(root).status).toBe('available');
-  });
-});
-
-describe('invalidateArchiveListing', () => {
-  it('marks the unfiltered archive stale', () => {
-    const environment = createEnvironment();
-    const archive = createOperationDescriptor(archivedArticlesTableQuery, {
-      search: null,
-      tagIds: null,
-      first: 20,
-      after: null,
-    });
-    environment.retain(archive);
-    environment.commitPayload(archive, { archivedArticles: { filteredCount: 0, edges: [], pageInfo: PAGE_INFO } });
-    expect(environment.check(archive).status).toBe('available');
-
-    environment.commitUpdate(store => invalidateArchiveListing(store));
-
-    expect(environment.check(archive).status).toBe('stale');
+    expect(treeIds(environment, tree)).toEqual(['guides']);
   });
 });

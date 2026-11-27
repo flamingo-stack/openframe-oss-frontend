@@ -6,16 +6,11 @@ import { useState } from 'react';
 import { graphql, useFragment, useMutation } from 'react-relay';
 import type { unarchiveArticleModal_article$key } from '@/__generated__/unarchiveArticleModal_article.graphql';
 import type { unarchiveArticleModalMutation as UnarchiveArticleModalMutationType } from '@/__generated__/unarchiveArticleModalMutation.graphql';
-import { NO_ITEMS } from '@/app/components/shared';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
+import { markListChanged } from '@/lib/list-refresh';
 import { FolderPicker } from '../shared/folder-picker';
 import { type FolderTarget, ROOT_FOLDER } from '../shared/folder-tree';
-import {
-  invalidateArchiveListing,
-  invalidateFolderListing,
-  removeFromListings,
-} from '../shared/knowledge-base-listings';
 
 const unarchiveArticleModalFragment = graphql`
   fragment unarchiveArticleModal_article on KnowledgeBaseItem {
@@ -42,11 +37,9 @@ interface UnarchiveArticleModalProps {
   article: unarchiveArticleModal_article$key;
   isOpen: boolean;
   onClose: () => void;
-  /** The archive listings on screen that show the article. */
-  listingIds?: readonly string[];
 }
 
-export function UnarchiveArticleModal({ article, isOpen, onClose, listingIds = NO_ITEMS }: UnarchiveArticleModalProps) {
+export function UnarchiveArticleModal({ article, isOpen, onClose }: UnarchiveArticleModalProps) {
   const { toast } = useToast();
   const data = useFragment(unarchiveArticleModalFragment, article);
   const [commit, isInFlight] = useMutation<UnarchiveArticleModalMutationType>(unarchiveArticleModalMutation);
@@ -64,12 +57,9 @@ export function UnarchiveArticleModal({ article, isOpen, onClose, listingIds = N
     if (!target || isInFlight) return;
     commit({
       variables: { id: data.id, parentId: target.id },
-      updater: store => {
-        removeFromListings(store, listingIds, data.id);
-        invalidateArchiveListing(store);
-        invalidateFolderListing(store, target.id);
-      },
       onCompleted: () => {
+        // The article moved from the archive back into a folder: both lists read their page again.
+        markListChanged('archivedArticles', 'knowledgeBase');
         toast({ title: 'Unarchived', description: `${data.name} restored`, variant: 'success' });
         onClose();
       },

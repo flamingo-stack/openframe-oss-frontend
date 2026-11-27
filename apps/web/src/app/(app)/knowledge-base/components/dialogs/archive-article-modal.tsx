@@ -4,20 +4,14 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { graphql, useFragment, useMutation } from 'react-relay';
 import type { archiveArticleModal_article$key } from '@/__generated__/archiveArticleModal_article.graphql';
 import type { archiveArticleModalMutation as ArchiveArticleModalMutationType } from '@/__generated__/archiveArticleModalMutation.graphql';
-import { NO_ITEMS } from '@/app/components/shared';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
-import {
-  invalidateArchiveListing,
-  removeFromFolderListing,
-  removeFromListings,
-} from '../shared/knowledge-base-listings';
+import { markListChanged } from '@/lib/list-refresh';
 
 const archiveArticleModalFragment = graphql`
   fragment archiveArticleModal_article on KnowledgeBaseItem {
     id
     name
-    parentId
   }
 `;
 
@@ -35,11 +29,9 @@ interface ArchiveArticleModalProps {
   article: archiveArticleModal_article$key;
   isOpen: boolean;
   onClose: () => void;
-  /** The listings on screen that show the article — a search result as much as its own level. */
-  listingIds?: readonly string[];
 }
 
-export function ArchiveArticleModal({ article, isOpen, onClose, listingIds = NO_ITEMS }: ArchiveArticleModalProps) {
+export function ArchiveArticleModal({ article, isOpen, onClose }: ArchiveArticleModalProps) {
   const { toast } = useToast();
   const data = useFragment(archiveArticleModalFragment, article);
   const [commit, isInFlight] = useMutation<ArchiveArticleModalMutationType>(archiveArticleModalMutation);
@@ -47,12 +39,9 @@ export function ArchiveArticleModal({ article, isOpen, onClose, listingIds = NO_
   const handleConfirm = () => {
     commit({
       variables: { id: data.id },
-      updater: store => {
-        removeFromListings(store, listingIds, data.id);
-        removeFromFolderListing(store, data.parentId ?? null, data.id);
-        invalidateArchiveListing(store);
-      },
       onCompleted: () => {
+        // The article moved from the knowledge base to its archive: both lists read their page again.
+        markListChanged('knowledgeBase', 'archivedArticles');
         toast({ title: 'Article archived', description: data.name, variant: 'success' });
         onClose();
       },

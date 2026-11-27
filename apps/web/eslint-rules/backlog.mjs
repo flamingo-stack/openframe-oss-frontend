@@ -26,7 +26,6 @@ export const OVERSIZED_FILES = [
   'src/app/(app)/devices/new/new-device-content.tsx',
   'src/app/(app)/devices/services/session-recordings-api-service.ts',
   'src/app/(app)/incidents/components/incidents-table.tsx',
-  'src/app/(app)/knowledge-base/components/assigned-articles/assigned-articles-table.tsx',
   'src/app/(app)/logs-page/components/logs-table.tsx',
   'src/app/(app)/mingo/context/relay-items.tsx',
   'src/app/(app)/mingo/home/needs-you/needs-you-card.tsx',
