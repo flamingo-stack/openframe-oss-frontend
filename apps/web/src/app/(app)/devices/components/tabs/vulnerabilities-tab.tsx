@@ -3,6 +3,7 @@
 import { BracketSquareCheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { SoftwareListFrame } from '@/app/(app)/software/components/shared/software-list-frame';
+import { VULNERABILITY_LIST_PAGE_SIZE } from '@/app/(app)/software/components/vulnerability-list/vulnerability-list-columns';
 import { ContentErrorBoundary } from '@/app/components/shared';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import type { TableLayout } from '@/app/hooks/use-table-layout';
@@ -105,6 +106,7 @@ function ModuleVulnerabilitiesTab({ device, loading }: VulnerabilitiesTabProps &
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
       <SoftwareListFrame
         paramPrefix="cve"
+        paging={{ pageSize: VULNERABILITY_LIST_PAGE_SIZE, list: 'deviceVulnerabilities' }}
         placeholder={SEARCH_PLACEHOLDER}
         loading={loading}
         // The last matching run predates the current software inventory — e.g. a patched CVE may still show as
@@ -124,6 +126,9 @@ function ModuleVulnerabilitiesTab({ device, loading }: VulnerabilitiesTabProps &
               isPending={list.isPending}
               onEmptyChange={list.onEmptyChange}
               stickyHeaderOffset={list.stickyHeaderOffset}
+              pager={list.pager}
+              pageVariables={list.pageVariables}
+              paramPrefix={list.paramPrefix}
               machineId={device?.machineId ?? ''}
               emptyState={device ? vulnerabilitiesEmptyState(device) : NO_VULNERABILITIES}
             />

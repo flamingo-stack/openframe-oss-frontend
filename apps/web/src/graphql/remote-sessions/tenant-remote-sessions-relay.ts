@@ -23,12 +23,16 @@ export const tenantRemoteSessionsRelayRowFragment = graphql`
  * The tenant's remote sessions on every device (the Devices page's Remote
  * Sessions tab). One `remoteSessions` connection, filtered and sorted on the
  * server: devices, customer, recording state and the session-date range travel
- * in `filter`, the date order in `sort`. A cursor is only valid under the sort
- * it was issued for, so a changed filter or sort starts again without `after` -
- * a new variables set is a new connection record, which does exactly that.
+ * in `filter`, the date order in `sort`. One page per request, its cursor in
+ * the URL (`cursor`): no `@connection`, so a cursor from a link reads exactly
+ * its page. Forward only (`first` / `after`). A cursor is only valid under the
+ * sort it was issued for, so a changed filter or sort drops it from the URL in
+ * the same write (the list's `resetKeys`).
  *
  * The first page starts with the running sessions (at most 100, newest first
- * under every sort, extra to `first`); later pages never hold one.
+ * under every sort, extra to `first`); later pages never hold one, and
+ * `pageInfo` covers the paged rows only. So the footer shows the count and no
+ * "21–40" range: page 1 holds more rows than `first`.
  */
 export const tenantRemoteSessionsRelayQuery = graphql`
   query tenantRemoteSessionsRelayQuery(
@@ -37,21 +41,7 @@ export const tenantRemoteSessionsRelayQuery = graphql`
     $first: Int!
     $after: String
   ) {
-    ...tenantRemoteSessionsRelay_query @arguments(filter: $filter, sort: $sort, first: $first, after: $after)
-  }
-`;
-
-export const tenantRemoteSessionsRelayFragment = graphql`
-  fragment tenantRemoteSessionsRelay_query on Query
-  @refetchable(queryName: "tenantRemoteSessionsRelayPaginationQuery")
-  @argumentDefinitions(
-    filter: { type: "RemoteSessionFilter" }
-    sort: { type: "RemoteSessionSort" }
-    first: { type: "Int", defaultValue: 20 }
-    after: { type: "String" }
-  ) {
-    remoteSessions(filter: $filter, sort: $sort, first: $first, after: $after)
-      @connection(key: "tenantRemoteSessionsRelay_remoteSessions", filters: ["filter", "sort"]) {
+    remoteSessions(filter: $filter, sort: $sort, first: $first, after: $after) {
       totalCount
       edges {
         node {
@@ -60,6 +50,8 @@ export const tenantRemoteSessionsRelayFragment = graphql`
       }
       pageInfo {
         hasNextPage
+        hasPreviousPage
+        startCursor
         endCursor
       }
     }

@@ -412,10 +412,8 @@ export const routes = {
       list: '/scripts/schedules',
       archived: '/scripts/schedules/archived',
       new: '/scripts/schedules/new',
-      // `search` seeds the target tab's search box — used by the Runs table to
-      // drill into the Execution History tab narrowed to one run's executionId.
-      details: (id: string | number, o?: { tab?: ScheduleDetailTab; search?: string }) =>
-        withQuery('/scripts/schedules/details', { id, tab: o?.tab, search: o?.search }),
+      details: (id: string | number, o?: { tab?: ScheduleDetailTab }) =>
+        withQuery('/scripts/schedules/details', { id, tab: o?.tab }),
       /** One fire of a schedule. `id` is the `ScheduleRun` global id, not the schedule's. */
       run: (id: string | number) => withQuery('/scripts/schedules/run', { id }),
       edit: (id: string | number) => withQuery('/scripts/schedules/edit', { id }),
@@ -466,6 +464,10 @@ export const routes = {
     queryNew: '/monitoring/query/new',
     queryEdit: (id: string | number) => withQuery('/monitoring/query/edit', { id }),
     policy: (id: string | number) => withQuery('/monitoring/policy', { id }),
+    /** The built-in health checks: their defaults and exceptions. */
+    checks: '/monitoring/checks',
+    /** A built-in check's page, by its key (`InsightCheck.check`, e.g. `resource-win-disk-low`). */
+    check: (check: string) => withQuery('/monitoring/check', { id: check }),
     policyNew: '/monitoring/policy/new',
     policyEdit: (id: string | number) => withQuery('/monitoring/policy/edit', { id }),
   },

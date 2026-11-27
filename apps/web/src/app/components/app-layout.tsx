@@ -22,6 +22,7 @@ import { LogoutConfirmModal } from '@/app/components/shared/logout-confirm-modal
 import { SidebarUpdateButton } from '@/app/components/sidebar-update-button';
 import { FAIL_OPEN_AFTER_MS, useFailOpen } from '@/app/hooks/use-fail-open';
 import { useFeatureFlag, useFeatureFlagGate, useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
+import { useNavigationFlags } from '@/app/hooks/use-navigation-flags';
 import { BillingNoticeType } from '@/generated/schema-enums';
 import { isBillingHidden, isBillingReadOnly } from '@/lib/billing-visibility';
 import { getFullImageUrl } from '@/lib/image-url';
@@ -36,7 +37,6 @@ import {
   getNavigationItems,
   getSectionedNavigationItems,
   NAVIGATION_LOADING_ROWS,
-  type NavigationFlags,
   sectionedNavigationLoadingRows,
 } from '../../lib/navigation-config';
 import {
@@ -266,10 +266,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // — what `chromeLoading` below covers is how it LOOKS, not whether it mounts.
   // Anything whose wrong value would redirect or change which surface renders needs
   // `useFeatureFlagGate` instead (see the drawer's URL sync).
-  const insightsEnabled = useFeatureFlag('insights');
-  const softwareManagementEnabled = useFeatureFlag('software-management');
-  const tenantManagementEnabled = useFeatureFlag('tenant-management');
-  const tenantManagementV2Enabled = useFeatureFlag('tenant-management-v2');
+  const navigationFlags = useNavigationFlags();
   const billingsEnabled = useFeatureFlag('billings');
   /**
    * What the app-wide billing banners have to say, reported by the hydrator
@@ -373,16 +370,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // tenant Initial Setup is complete — until then the user is kept on Initial Setup.
   // Onboarding v2 has no such entry: its tour lives in Mingo.
   const userOnboardingActive = showOnboardingChrome && initialSetupComplete && userInProgress && onboardingV2 === 'off';
-
-  const navigationFlags = useMemo<NavigationFlags>(
-    () => ({
-      insights: insightsEnabled,
-      softwareManagement: softwareManagementEnabled,
-      tenantManagement: tenantManagementEnabled,
-      tenantManagementV2: tenantManagementV2Enabled,
-    }),
-    [insightsEnabled, softwareManagementEnabled, tenantManagementEnabled, tenantManagementV2Enabled],
-  );
 
   const grouped = mingoShell;
   const navigationItems = useMemo(() => {

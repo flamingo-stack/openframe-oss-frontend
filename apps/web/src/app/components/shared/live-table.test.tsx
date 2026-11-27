@@ -7,6 +7,7 @@
 
 import { act } from 'react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { FIRST_PAGE_FOOTER } from '@/app/hooks/cursor-pager.fixtures';
 import {
   FIXTURE_PAGE_SIZE,
   LoadedLiveTable,
@@ -230,5 +231,59 @@ describe('LiveTable, grid layout', () => {
       const { container } = mount(<LoadedLiveTable layout="grid" footer={null} />);
       expect(sentinel(container)).toBeNull();
     });
+  });
+});
+
+describe('LiveTable pager', () => {
+  const PAGE_3 = {
+    ...FIRST_PAGE_FOOTER,
+    isFirstPage: false,
+    hasNextPage: true,
+    hasPreviousPage: true,
+    page: 3,
+    startCursor: 's3',
+    endCursor: 'e3',
+    rangeStart: 41,
+  };
+  const disabled = (container: HTMLElement) =>
+    ['Go to first page', 'Go to previous page', 'Go to next page'].map(
+      label => container.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)?.disabled,
+    );
+
+  it('pages while the rows on screen are its page, and waits while the next one is read', () => {
+    const { container, rerender } = mount(<LoadedLiveTable pager={PAGE_3} />);
+    expect(disabled(container)).toEqual([false, false, false]);
+
+    // The next page is read: the rows on screen are the last page's, so a second Next would resend its cursor.
+    rerender(<LoadedLiveTable pager={PAGE_3} isPending />);
+    expect(disabled(container)).toEqual([true, true, true]);
+    // The range stays while the buttons wait.
+    expect(container.textContent).toContain('41–42');
+  });
+
+  it('sits in the row above the table, the range in place of the count, on cards and in the grid', () => {
+    for (const layout of ['cards', 'grid'] as const) {
+      const { container } = mount(<LoadedLiveTable layout={layout} pager={PAGE_3} totalCount={60} />);
+      const meta = container.querySelector('[data-table-meta]');
+      expect(meta?.querySelector('nav[aria-label="Pagination"]')).not.toBeNull();
+      expect(meta?.textContent).toContain('41–42 of 60 results');
+      // The count is not drawn a second time in the card header.
+      expect(container.textContent?.split('results')).toHaveLength(2);
+    }
+  });
+
+  it('has no First on page 2: Previous is the way to page 1', () => {
+    const { container } = mount(<LoadedLiveTable pager={{ ...PAGE_3, page: 2, rangeStart: 21 }} />);
+    expect(disabled(container)).toEqual([undefined, false, false]);
+  });
+
+  it('draws the pager waiting while a paged list reads its first page (`pager={null}`)', () => {
+    const { container } = mount(<LoadingLiveTable pager={null} />);
+    expect(disabled(container)).toEqual([undefined, true, true]);
+  });
+
+  it('draws no pager on an empty first page', () => {
+    const { container } = mount(<LoadedLiveTable rows={[]} pager={FIRST_PAGE_FOOTER} />);
+    expect(container.querySelector('nav[aria-label="Pagination"]')).toBeNull();
   });
 });

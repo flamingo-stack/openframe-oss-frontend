@@ -1424,6 +1424,18 @@ type Insight {
   """
   queryResult: [JSON!]
 
+  """
+  The thresholds the latest detection compared the measured value against, each with the scope
+  it came from. Empty for an on/off check; null for insights recorded before thresholds were kept.
+  """
+  thresholds: [InsightThreshold!]
+
+  """
+  The key of the built-in check that opened the insight, as `InsightCheck.check` returns it. Null for
+  insights no built-in check opened, and for older ones whose kind several checks open.
+  """
+  check: String
+
   """When the detector decided, not when the underlying event happened."""
   detectedAt: Instant!
 
@@ -2002,6 +2014,24 @@ type Machine implements Node & AssignableTarget {
 }
 
 type Mutation {
+  """
+  Replaces what one scope stores for one check: an omitted `enabled` or a parameter left out of
+  `parameters` inherits from the less specific scope again. The precedence is
+  DEVICE > CUSTOMER > TAG > GLOBAL > default; across several tags a tag that enables wins and the
+  stricter value of each parameter wins. A new value applies from the next run of the check.
+  Admins and owners only.
+  """
+  updateInsightCheckSetting(input: UpdateInsightCheckSettingInput!): InsightCheck!
+
+  """Removes what one scope stores for one check, so it inherits everything again. Admins and owners only."""
+  resetInsightCheckSetting(input: ResetInsightCheckSettingInput!): InsightCheck!
+
+  """
+  Removes every CUSTOMER, TAG and DEVICE setting of one check in one go, keeping GLOBAL, and returns
+  the check as it runs at GLOBAL. Admins and owners only.
+  """
+  resetInsightCheckOverrides(input: ResetInsightCheckOverridesInput!): InsightCheck!
+
   setTenantRemoteAccessMode(mode: RemoteAccessMode!): TenantRemoteAccessPolicyPayload!
 
   """
@@ -2717,6 +2747,8 @@ type Mutation {
   activateMailbox(input: ActivateMailboxInput!): MailboxPayload!
   updateMailbox(input: UpdateMailboxInput!): MailboxPayload!
   disconnectMailbox(input: MailboxIdInput!): DisconnectMailboxPayload!
+  addEmailBlockListEntry(input: AddEmailBlockListEntryInput!): EmailBlockListEntryPayload!
+  removeEmailBlockListEntry(input: RemoveEmailBlockListEntryInput!): RemoveEmailBlockListEntryPayload!
 }
 
 input MutationDeleteInput {
@@ -3436,6 +3468,23 @@ type Query {
   insightStatusTransitions: [InsightStatusTransition!]!
 
   """
+  How every built-in insight check runs at one scope. GLOBAL is the whole tenant and takes no
+  scopeId; CUSTOMER takes `Organization.organizationId`, TAG a device tag's `Tag.id`, DEVICE
+  `Machine.machineId`. Each value says which scope it was taken from, so a screen can show what is
+  inherited and what is set here. DEVICE resolves through the device's own customer and tags.
+  """
+  insightChecks(scopeType: InsightCheckScopeType!, scopeId: String): [InsightCheck!]!
+
+  """One built-in check as it runs at GLOBAL, by its key."""
+  insightCheck(check: String!): InsightCheck!
+
+  """
+  What an override of one check at a CUSTOMER, TAG or DEVICE scope would meet before it is saved.
+  Counts connected devices on the check's platform.
+  """
+  insightCheckOverrideImpact(check: String!, scopeType: InsightCheckScopeType!, scopeId: String!): InsightCheckOverrideImpact!
+
+  """
   Get the current authenticated tenant.
   Requires authentication.
   """
@@ -3977,6 +4026,7 @@ type Query {
   deviceDirectory(machineId: ID!): DeviceDirectory!
   mailboxes(search: String, filter: MailboxFilterInput, first: Int, after: String, sort: SortInput): MailboxConnection!
   mailbox(id: ID!): Mailbox
+  emailBlockList(mailboxId: ID!, search: String, first: Int, after: String): EmailBlockListEntryConnection!
 }
 
 """
@@ -8012,12 +8062,259 @@ input TurnOnSoftwareAutoUpdateInput {
   settings: PackageUpdateSettingsInput!
 }
 
+"""Where a setting lives, from the least to the most specific. DEFAULT is the built-in value and cannot be written."""
+enum InsightCheckScopeType {
+  DEFAULT
+  GLOBAL
+  CUSTOMER
+  TAG
+  DEVICE
+}
+
+enum InsightCheckPlatform {
+  WINDOWS
+  MACOS
+  ALL
+}
+
+enum InsightCheckParameterUnit {
+  PERCENT
+  DAYS
+  COUNT
+}
+
+"""Which side of a threshold the measured value has to be on for the check to open an insight."""
+enum InsightThresholdDirection {
+  """Opens when the measured value drops below the threshold, e.g. free disk space."""
+  BELOW
+
+  """Opens when the measured value rises above the threshold, e.g. days since restart."""
+  ABOVE
+}
+
+"""A built-in check: one osquery query and the insight kind it opens."""
+type InsightCheck {
+  """
+  Opaque Relay global id of this check as read at the scope asked about, so the answer of a
+  mutation at that scope replaces the cached query result. Not accepted by any query.
+  """
+  id: ID!
+
+  """The check's stable key, e.g. `resource-win-disk-low`."""
+  check: String!
+
+  """
+  The check's display name, e.g. `Disk is almost full`. An insight's own title may also carry the measured value.
+  """
+  title: String!
+
+  """The insight kind this check opens."""
+  kind: InsightKind!
+  platform: InsightCheckPlatform!
+
+  """What the check looks for and why it matters."""
+  description: String!
+
+  """
+  The severity every insight of this check opens with, whatever the measured value.
+  """
+  severity: InsightSeverity!
+
+  """How often the check runs on each device, in seconds."""
+  intervalSeconds: Int!
+  enabled: Boolean!
+
+  """The scope `enabled` was taken from."""
+  enabledScopeType: InsightCheckScopeType!
+
+  """The organization id, `Tag.id` or machine id of that scope; null for DEFAULT and GLOBAL."""
+  enabledScopeId: String
+
+  """
+  What that scope is called: the organization's name, the tag's key or the device's nickname
+  (else hostname). Null for DEFAULT and GLOBAL. Batched per request, no N+1.
+  """
+  enabledScopeName: String
+
+  """True when the scope asked about stores its own setting, so there is something to reset."""
+  customized: Boolean!
+
+  """Empty for an on/off check."""
+  parameters: [InsightCheckParameter!]!
+
+  """The category of the insight kind this check opens."""
+  type: InsightType!
+
+  """How many CUSTOMER, TAG and DEVICE settings this check stores. Batched per request, no N+1."""
+  overrideCount: Int!
+
+  """
+  Every CUSTOMER, TAG and DEVICE setting of this check, whatever scope the check was read at: the
+  most specific first, then the most recently changed. Meant for one check's page; each read
+  counts the devices of the check's platform.
+  """
+  overrides: [InsightCheckOverride!]!
+}
+
+"""What one CUSTOMER, TAG or DEVICE scope stores for one check."""
+type InsightCheckOverride {
+  """Opaque Relay global id, stable for the check and scope across reads."""
+  id: ID!
+  scopeType: InsightCheckScopeType!
+
+  """The organization id, `Tag.id` or machine id of the scope."""
+  scopeId: String!
+
+  """
+  What the scope is called: the organization's name, the tag's key or the device's nickname (else
+  hostname). Null once the scope is gone. Batched per request, no N+1.
+  """
+  scopeName: String
+
+  """As stored at this scope; null inherits from the less specific scope."""
+  enabled: Boolean
+
+  """Only the parameters stored at this scope."""
+  parameters: [InsightCheckOverrideParameter!]!
+
+  """Connected devices on the check's platform the scope covers now."""
+  deviceCount: Int!
+  updatedAt: Instant
+
+  """The user who last changed it; null when unknown or no longer there."""
+  updatedBy: User
+}
+
+type InsightCheckOverrideParameter {
+  parameter: String!
+  value: Int!
+}
+
+"""
+What an override at one scope would meet. For a CUSTOMER or TAG override, `affectedDeviceCount` counts
+devices that also carry a device override or another tag override of the check (a device override wins;
+among tags the strictest value wins). For a DEVICE override it is 1 when the device already gets a
+customer or tag override, which this one replaces.
+"""
+type InsightCheckOverrideImpact {
+  """Connected devices on the check's platform the scope covers now."""
+  deviceCount: Int!
+  affectedDeviceCount: Int!}
+
+type InsightCheckParameter {
+  """The parameter's key within its check, e.g. `freePercent`."""
+  parameter: String!
+
+  """Display name of the measured value, e.g. `Free disk space`."""
+  label: String!
+  unit: InsightCheckParameterUnit!
+
+  """Which side of `value` the measured value has to be on to open an insight."""
+  firesWhen: InsightThresholdDirection!
+  value: Int!
+  defaultValue: Int!
+
+  """Inclusive bounds the mutation accepts."""
+  min: Int!
+  max: Int!
+
+  """The scope `value` was taken from."""
+  scopeType: InsightCheckScopeType!
+
+  """The organization id, `Tag.id` or machine id of that scope; null for DEFAULT and GLOBAL."""
+  scopeId: String
+
+  """
+  What that scope is called: the organization's name, the tag's key or the device's nickname
+  (else hostname). Null for DEFAULT and GLOBAL. Batched per request, no N+1.
+  """
+  scopeName: String
+}
+
+"""
+What one scope stores for one check. An update REPLACES what the scope stored before; it does not
+merge into it: an omitted `enabled` and every parameter left out of `parameters` stop being set at
+this scope and inherit from the less specific scope again. To keep a value, send it again. To clear
+everything the scope stores for the check, use `resetInsightCheckSetting`.
+"""
+input UpdateInsightCheckSettingInput {
+  """The check's key, as `InsightCheck.check` returns it."""
+  check: String!
+  scopeType: InsightCheckScopeType!
+
+  """Required for CUSTOMER (organizationId), TAG (`Tag.id`) and DEVICE (machineId); must be omitted for GLOBAL."""
+  scopeId: String
+
+  """Null inherits from the less specific scope."""
+  enabled: Boolean
+
+  """Only the parameters this scope sets; each one at most once."""
+  parameters: [InsightCheckParameterInput!]
+}
+
+input InsightCheckParameterInput {
+  parameter: String!
+  value: Int!
+}
+
+input ResetInsightCheckOverridesInput {
+  """The check's key, as `InsightCheck.check` returns it."""
+  check: String!
+}
+
+input ResetInsightCheckSettingInput {
+  check: String!
+  scopeType: InsightCheckScopeType!
+
+  """Required for CUSTOMER, TAG and DEVICE; must be omitted for GLOBAL."""
+  scopeId: String
+}
+
+"""A threshold an insight was detected against."""
+type InsightThreshold {
+  """The parameter's key within the check that opened the insight."""
+  parameter: String!
+  value: Int!
+
+  """The scope the value came from: the built-in DEFAULT, or where a customer set it."""
+  scopeType: InsightCheckScopeType!
+
+  """The organization id, `Tag.id` or machine id of that scope; null for DEFAULT and GLOBAL."""
+  scopeId: String
+
+  """
+  What that scope is called now: the organization's name, the tag's key or the device's nickname
+  (else hostname). Null for DEFAULT and GLOBAL, and once the scope is gone. Batched per request.
+  """
+  scopeName: String
+
+  """
+  Display name of the measured value, e.g. `Free disk space`, as of the detection. For insights
+  detected before it was kept it comes from the current catalog; null when the insight's kind no
+  longer names a single check with this parameter.
+  """
+  label: String
+
+  """Unit of `value`; null under the same condition as `label`."""
+  unit: InsightCheckParameterUnit
+
+  """
+  Which side of `value` the measured value was on to open the insight; null under the same condition as `label`.
+  """
+  firesWhen: InsightThresholdDirection
+}
+
 input ActivateMailboxInput {
   mailboxId: ID!
   defaultOrganizationId: ID
   defaultStatusId: ID
   defaultAssigneeId: ID
   blockList: [String!]
+}
+
+input AddEmailBlockListEntryInput {
+  mailboxId: ID!
+  value: String!
 }
 
 input CreateMailboxInput {
@@ -8028,6 +8325,39 @@ input CreateMailboxInput {
 
 type DisconnectMailboxPayload {
   deletedId: ID
+  userErrors: [UserError!]!
+}
+
+type EmailBlockListEntry implements Node {
+  id: ID!
+  entryId: String!
+  mailboxId: String!
+  value: String!
+  kind: EmailBlockListEntryKind!
+  addedBy: User
+  addedAt: Instant!
+  droppedLast30Days: Int!
+  lastDroppedAt: Instant
+}
+
+type EmailBlockListEntryConnection {
+  edges: [EmailBlockListEntryEdge!]!
+  pageInfo: PageInfo!
+  filteredCount: Int!
+}
+
+type EmailBlockListEntryEdge {
+  cursor: String!
+  node: EmailBlockListEntry!
+}
+
+enum EmailBlockListEntryKind {
+  ADDRESS
+  DOMAIN
+}
+
+type EmailBlockListEntryPayload {
+  entry: EmailBlockListEntry
   userErrors: [UserError!]!
 }
 
@@ -8152,6 +8482,15 @@ type MailboxStats {
   ticketsCreated: Int!
   held: Int!
   dropped: Int!
+}
+
+input RemoveEmailBlockListEntryInput {
+  id: ID!
+}
+
+type RemoveEmailBlockListEntryPayload {
+  deletedId: ID
+  userErrors: [UserError!]!
 }
 
 type SendAsSignIn {

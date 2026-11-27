@@ -16,11 +16,15 @@ import {
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
+import {
+  CURSOR_PAGER_KEYS,
+  type CursorPagerVariables,
+  useApiParams,
+  useCursorPager,
+  type UseCursorPagerReturn,
+} from '@flamingo-stack/openframe-frontend-core/hooks';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
-import type { scheduleRunsRelay_query$key as RunsFragmentKey } from '@/__generated__/scheduleRunsRelay_query.graphql';
-import type { scheduleRunsRelayPaginationQuery as RunsPaginationQueryType } from '@/__generated__/scheduleRunsRelayPaginationQuery.graphql';
+import { useLazyLoadQuery } from 'react-relay';
 import type {
   scheduleRunsRelayQuery as RunsQueryType,
   ScheduleRunFilterInput,
@@ -29,15 +33,19 @@ import type {
 import { useRetryKey } from '@/app/components/shared';
 import type { TableDateFilter } from '@/app/components/shared/date-column-header';
 import { LiveTable } from '@/app/components/shared/live-table';
+import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
+import { usePagedTable } from '@/app/hooks/use-paged-table';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
+import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { type TableLayout, tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { ScriptExecutionStatus } from '@/generated/schema-enums';
-import { scheduleRunsRelayFragment, scheduleRunsRelayQuery } from '@/graphql/scripts/schedule-runs-relay';
+import { scheduleRunsRelayQuery } from '@/graphql/scripts/schedule-runs-relay';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
 import { formatDateTime } from '@/lib/format-date';
+import { PAGED_LISTS } from '@/lib/paged-lists';
 import { toInitiator } from '../../shared/components/initiator-identity';
 import { executionStatusLabel } from '../../shared/utils/execution-helpers';
 import { SCRIPTS_TABLE_SETTINGS } from '../../shared/utils/grid-columns';
@@ -68,6 +76,13 @@ const FALLBACK_STATUS_OPTIONS = Object.values(ScriptExecutionStatus).map(value =
  */
 const DISPATCHED_AT_SORT_FIELD = 'dispatchedAt';
 
+/**
+ * The tab's params live under this prefix (`runSearch`, `runStatus`, `runDateFrom`, `runDateTo`, `runSortDir`,
+ * `runCursor`, `runPage`, `runDir`): the Execution History tab on the same page keeps its own under `exec…`, and a
+ * shared key would carry one table's narrowing into the other on a tab switch.
+ */
+const PARAM_PREFIX = 'run';
+
 interface ContentProps {
   scheduleId: string;
   backendFilters: ScheduleRunFilterInput;
@@ -85,6 +100,12 @@ interface ContentProps {
   stickyHeaderOffset: string;
   /** Reports the "no runs yet" placeholder up, so the tab can drop the toolbar over it. */
   onEmptyChange: (empty: boolean) => void;
+  /** The list's position in the URL: footer props, the stale check, the cursor drop. */
+  pager: UseCursorPagerReturn;
+  /** Deferred — the page variables to spread into the query (lag the URL while the next page is read). */
+  pageVariables: CursorPagerVariables;
+  /** The URL prefix of the tab's params (its auto-refresh interval sits beside them). */
+  paramPrefix: string;
   /** The table's layout, from the app's one table flag: read once by the tab and handed to every form of the list. */
   tableLayout: TableLayout;
 }
@@ -111,19 +132,34 @@ function ScheduleRunsContent({
   onMobileFilterClose,
   stickyHeaderOffset,
   onEmptyChange,
+  pager,
+  pageVariables,
+  paramPrefix,
   tableLayout,
 }: ContentProps) {
+  // One page per request, its cursor in the URL (`runCursor`); the list pages back on the server.
   const retryKey = useRetryKey();
-  const queryData = useLazyLoadQuery<RunsQueryType>(
-    scheduleRunsRelayQuery,
-    { scheduleId, filter: backendFilters, search: debouncedSearch || null, sort, first: RUNS_PAGE_SIZE, after: null },
-    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
-  );
+  const variables = {
+    scheduleId,
+    filter: backendFilters,
+    search: debouncedSearch || null,
+    sort,
+    ...pageVariables,
+  };
+  const queryData = useLazyLoadQuery<RunsQueryType>(scheduleRunsRelayQuery, variables, {
+    fetchPolicy: 'store-and-network',
+    fetchKey: retryKey,
+  });
+  const refetch = useRefetchPage<RunsQueryType>(scheduleRunsRelayQuery, variables);
 
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<RunsPaginationQueryType, RunsFragmentKey>(
-    scheduleRunsRelayFragment,
-    queryData,
-  );
+  const paged = usePagedTable({
+    pager,
+    pageInfo: queryData.scheduleRuns?.pageInfo,
+    rowCount: queryData.scheduleRuns?.edges?.length ?? 0,
+    prefix: paramPrefix,
+    refetch,
+    isPending,
+  });
 
   // Server facet, scoped to the same filter/search the rows came back with — so
   // the dropdown offers the states these runs actually reached instead of every
@@ -138,7 +174,7 @@ function ScheduleRunsContent({
   );
 
   const runs: UiRun[] = useMemo(() => {
-    const edges = data.scheduleRuns?.edges ?? [];
+    const edges = queryData.scheduleRuns?.edges ?? [];
     // Defensive null-node guard: skip any dangling edge instead of crashing the
     // tab on a store-evicted record.
     return edges.flatMap(edge => {
@@ -157,11 +193,7 @@ function ScheduleRunsContent({
         },
       ];
     });
-  }, [data.scheduleRuns?.edges]);
-
-  const fetchNextPage = useCallback(() => {
-    if (hasNext && !isLoadingNext) loadNext(RUNS_PAGE_SIZE);
-  }, [hasNext, isLoadingNext, loadNext]);
+  }, [queryData.scheduleRuns?.edges]);
 
   const columns = useScheduleRunColumns(statusOptions, dateFilter, tableLayout);
 
@@ -204,7 +236,9 @@ function ScheduleRunsContent({
   // "nothing matched" rather than "this schedule never fired". The sort
   // direction does NOT count — it reorders, it never excludes.
   const hasActiveFilter = columnFilters.length > 0 || Boolean(dateFilter.range);
-  const showHeader = runs.length > 0 || hasActiveFilter || isPending;
+  // An empty LATER page (a cursor about to be dropped) keeps the table and its footer, so First stays reachable.
+  const laterPage = !pager.isFirstPage;
+  const showHeader = runs.length > 0 || hasActiveFilter || isPending || laterPage;
 
   // Narrowed vs genuinely empty. Only the second is a design state (566:25741);
   // the first is the table's own "no results" placeholder, named for these rows.
@@ -225,7 +259,7 @@ function ScheduleRunsContent({
 
   // Only the un-narrowed empty list hides the toolbar: when narrowing is what
   // emptied it, the search box is the way back out.
-  const isEmptyState = runs.length === 0 && !narrowed && !isPending;
+  const isEmptyState = runs.length === 0 && !narrowed && !isPending && !laterPage;
   useEffect(() => {
     onEmptyChange(isEmptyState);
   }, [isEmptyState, onEmptyChange]);
@@ -239,16 +273,14 @@ function ScheduleRunsContent({
         isPending={isPending}
         table={table}
         pageSize={RUNS_PAGE_SIZE}
+        totalCount={queryData.scheduleRuns?.filteredCount ?? undefined}
         stickyHeaderOffset={stickyHeaderOffset}
         {...gridTableProps(tableLayout)}
         showHeader={showHeader}
         emptyState={emptyState}
         rowHref={runDetailsHref}
-        footer={
-          runs.length > 0
-            ? { hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }
-            : null
-        }
+        pager={paged.pager}
+        refresh={paged.refresh}
       />
 
       <FilterModal
@@ -270,8 +302,21 @@ function ScheduleRunsContent({
   );
 }
 
-/** The runs list, with its own boundary: in its scope the reader draws the table's loading form. */
+/**
+ * The runs list, with its own boundary: in its scope the reader draws the table's loading form. A cursor the server
+ * refuses drops to the first page (`StaleCursorBoundary`); any other error goes up unchanged.
+ */
 function ScheduleRunsTable(props: ContentProps) {
+  return (
+    <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
+      <ScheduleRunsTableLoading {...props} />
+    </StaleCursorBoundary>
+  );
+}
+
+/** The rows' loading boundary, the whole output of its own component (the loading standard), under the
+ * stale-cursor boundary above. */
+function ScheduleRunsTableLoading(props: ContentProps) {
   return (
     <LoadingSuspense label="Loading schedule runs">
       <ScheduleRunsTableReader {...props} />
@@ -307,21 +352,24 @@ export const ScheduleRunsTab = memo(function ScheduleRunsTabImpl({ scheduleId }:
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
   // The new grid table, behind the app's one table flag; card rows while it is off.
   const tableGate = useTableGridGate();
-  // Deliberately NOT `search` / `status`: those belong to the Execution History
-  // tab on this same page (and its `search` is what a Runs row drills into), so
-  // sharing the keys would leak this table's narrowing into that one on a tab
-  // switch.
-  const { params, setParam, setParams } = useApiParams({
-    runSearch: { type: 'string', default: '' },
-    runStatus: { type: 'array', default: [] },
-    // Prefixed for the same reason as the two above: the Execution History tab
-    // on this page owns the unprefixed `dateFrom`/`dateTo`/`sortDir`, and a
-    // shared key would carry this table's date narrowing into that one on a tab
-    // switch. `desc` (newest first) is the backend default and stays out of the
-    // URL.
-    runDateFrom: { type: 'string', default: '' },
-    runDateTo: { type: 'string', default: '' },
-    runSortDir: { type: 'string', default: 'desc' },
+  // Under the `run` prefix (see `PARAM_PREFIX`). A change to the search, the funnel or the calendar drops the pager's
+  // cursor in the SAME URL write (one history entry on page 2+, so Back returns to the old view).
+  const { params, setParam, setParams } = useApiParams(
+    {
+      search: { type: 'string', default: '' },
+      status: { type: 'array', default: [] },
+      // `desc` (newest first) is the backend default and stays out of the URL.
+      dateFrom: { type: 'string', default: '' },
+      dateTo: { type: 'string', default: '' },
+      sortDir: { type: 'string', default: 'desc' },
+    },
+    { prefix: PARAM_PREFIX, resetKeys: CURSOR_PAGER_KEYS, resetHistory: 'push' },
+  );
+  const pager = useCursorPager({
+    prefix: PARAM_PREFIX,
+    pageSize: RUNS_PAGE_SIZE,
+    ...PAGED_LISTS.scheduleRuns,
+    resetOn: JSON.stringify(params),
   });
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   // Set by the content below (the only thing that knows how many rows there are):
@@ -329,18 +377,19 @@ export const ScheduleRunsTab = memo(function ScheduleRunsTabImpl({ scheduleId }:
   // leaves the placeholder alone.
   const [isEmpty, setIsEmpty] = useState(false);
 
-  const {
-    search: searchInput,
-    setSearch: setSearchInput,
-    debouncedSearch,
-  } = useSearchParam(params.runSearch, value => setParam('runSearch', value), 300);
+  // Local search input keeps typing responsive; the shared hook debounces it to the URL param.
+  const { search: searchInput, setSearch: setSearchInput } = useSearchParam(
+    params.search,
+    value => setParam('search', value),
+    300,
+  );
 
   // Applied dispatched-date range, restored from the URL.
   const dateRange: DateRange | undefined = useMemo(
-    () => dateRangeFromParams(params.runDateFrom, params.runDateTo),
-    [params.runDateFrom, params.runDateTo],
+    () => dateRangeFromParams(params.dateFrom, params.dateTo),
+    [params.dateFrom, params.dateTo],
   );
-  const sortDirection: 'asc' | 'desc' = params.runSortDir === 'asc' ? 'asc' : 'desc';
+  const sortDirection: 'asc' | 'desc' = params.sortDir === 'asc' ? 'asc' : 'desc';
 
   // Filter + sort travel together as one deferred object so the query lags in
   // lockstep and `isPending` covers both. The picked days become inclusive UTC
@@ -348,7 +397,7 @@ export const ScheduleRunsTab = memo(function ScheduleRunsTabImpl({ scheduleId }:
   const queryVars = useMemo(() => {
     const bounds = dateRangeToInstantBounds(dateRange);
     const filter: ScheduleRunFilterInput = {
-      ...(params.runStatus.length > 0 && { statuses: params.runStatus as ScheduleRunFilterInput['statuses'] }),
+      ...(params.status.length > 0 && { statuses: params.status as ScheduleRunFilterInput['statuses'] }),
       ...(bounds.from && { dispatchedAtFrom: bounds.from }),
       ...(bounds.to && { dispatchedAtTo: bounds.to }),
     };
@@ -359,11 +408,19 @@ export const ScheduleRunsTab = memo(function ScheduleRunsTabImpl({ scheduleId }:
       direction: sortDirection === 'asc' ? 'ASC' : 'DESC',
     };
     return { filter, sort };
-  }, [params.runStatus, dateRange, sortDirection]);
+  }, [params.status, dateRange, sortDirection]);
 
-  const { deferredFilters: deferredVars, deferredSearch, isPending } = useDeferredQuery(queryVars, debouncedSearch);
+  // The query reads the search from the URL, not the box's debounced value: the URL write that carries a new search
+  // drops the cursor in the same navigation, so the two can never meet in one request. The page is deferred with the
+  // rest, so a page move keeps the current rows on screen (dimmed) while the next ones are read.
+  const {
+    deferredFilters: deferredVars,
+    deferredSearch,
+    deferredPage,
+    isPending,
+  } = useDeferredQuery(queryVars, params.search, pager.variables);
 
-  const tableFilters = useMemo(() => ({ status: params.runStatus }), [params.runStatus]);
+  const tableFilters = useMemo(() => ({ status: params.status }), [params.status]);
 
   // The mobile FilterModal commits the funnels and the date section as two
   // callbacks in the same tick; the shared writer merges them into a single URL
@@ -373,21 +430,21 @@ export const ScheduleRunsTab = memo(function ScheduleRunsTabImpl({ scheduleId }:
 
   const handleFilterChange = useCallback(
     (columnFilters: Record<string, string[]>) => {
-      queueParamsWrite({ runStatus: columnFilters.status || [] });
+      queueParamsWrite({ status: columnFilters.status || [] });
     },
     [queueParamsWrite],
   );
 
-  // Apply (and Reset, which fires with the cleared selection). `runSortDir: ''`
+  // Apply (and Reset, which fires with the cleared selection). `sortDir: ''`
   // — not `'desc'` — for the default direction: `useApiParams` drops a param
   // only when the value is empty, so writing the default would leave a stale
   // `?runSortDir=desc` on a list that is in its default order anyway.
   const handleDateFilterApply = useCallback(
     (result: DateFilterResult) => {
       queueParamsWrite({
-        runSortDir: result.sort === 'desc' ? '' : result.sort,
-        runDateFrom: result.range?.from ? toDayParam(result.range.from) : '',
-        runDateTo: result.range?.to ? toDayParam(result.range.to) : '',
+        sortDir: result.sort === 'desc' ? '' : result.sort,
+        dateFrom: result.range?.from ? toDayParam(result.range.from) : '',
+        dateTo: result.range?.to ? toDayParam(result.range.to) : '',
       });
     },
     [queueParamsWrite],
@@ -442,6 +499,9 @@ export const ScheduleRunsTab = memo(function ScheduleRunsTabImpl({ scheduleId }:
           onMobileFilterClose={() => setMobileFilterOpen(false)}
           stickyHeaderOffset={stickyHeaderOffset}
           onEmptyChange={setIsEmpty}
+          pager={pager}
+          pageVariables={deferredPage}
+          paramPrefix={PARAM_PREFIX}
           tableLayout={tableLayoutFor(tableGate)}
         />
       </LoadingWhen>

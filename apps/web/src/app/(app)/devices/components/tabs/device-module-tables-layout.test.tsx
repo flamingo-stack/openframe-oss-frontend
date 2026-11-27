@@ -14,6 +14,7 @@ import {
   setTableGridFlag,
   settingsGear,
 } from '@/app/components/shared/table-layout-scope.fixtures';
+import { firstPageProps } from '@/app/hooks/cursor-pager.fixtures';
 import { DeviceSoftwareTable } from './device-software-table';
 import { DeviceVulnerabilitiesTable } from './device-vulnerabilities-table';
 
@@ -30,6 +31,7 @@ vi.mock('react-relay', () => ({
   graphql: () => ({}),
   useFragment: (_fragment: unknown, key: unknown) => key,
   useLazyLoadQuery: () => relay.query,
+  useRelayEnvironment: () => ({}),
   usePaginationFragment: (_fragment: unknown, ref: unknown) => ({
     data: ref,
     loadNext: () => {},
@@ -37,6 +39,11 @@ vi.mock('react-relay', () => ({
     isLoadingNext: false,
   }),
 }));
+// A table's footer and refresh picker come from its frame's pager (`usePagedTable`): here, a first page that never moves.
+vi.mock('@/app/hooks/use-paged-table', async () => {
+  const fixtures = await import('@/app/hooks/cursor-pager.fixtures');
+  return { usePagedTable: () => ({ pager: fixtures.FIRST_PAGE_FOOTER, refresh: undefined }) };
+});
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
   usePathname: () => '/devices/details',
@@ -87,6 +94,7 @@ function softwareTab() {
   };
   return (
     <DeviceSoftwareTable
+      {...firstPageProps(100, 'software')}
       machineId="machine-1"
       debouncedSearch=""
       isPending={false}
@@ -103,6 +111,7 @@ function vulnerabilitiesTab() {
   };
   return (
     <DeviceVulnerabilitiesTable
+      {...firstPageProps(100, 'cve')}
       machineId="machine-1"
       debouncedSearch=""
       isPending={false}

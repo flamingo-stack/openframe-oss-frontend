@@ -39,7 +39,7 @@ exports[`work time table, card rows (the flag off) > a customer’s tab: no cust
         />
       </label>
       <button
-        aria-controls="radix-_r_s_"
+        aria-controls="radix-_r_u_"
         aria-expanded="false"
         aria-haspopup="dialog"
         class="flex w-full items-center gap-[var(--spacing-system-xsf)] border px-[var(--spacing-system-sf)] text-left h-11 md:h-12 rounded-[6px] border-ods-border bg-ods-card text-ods-text-primary text-h4 transition-colors duration-200 enabled:hover:border-ods-border-hover enabled:hover:bg-ods-bg-hover enabled:active:border-ods-border-active enabled:active:bg-ods-bg-active data-[state=open]:border-ods-accent aria-expanded:border-ods-accent enabled:data-[state=open]:hover:border-ods-accent enabled:aria-expanded:hover:border-ods-accent aria-selected:border-ods-accent aria-selected:bg-ods-open-yellow-light enabled:aria-selected:hover:border-ods-accent enabled:aria-selected:hover:bg-ods-open-yellow-light-hover enabled:aria-selected:active:border-ods-accent enabled:aria-selected:active:bg-ods-open-yellow-light-action data-[invalid]:border-ods-error enabled:data-[invalid]:hover:border-ods-error enabled:data-[invalid]:active:border-ods-error data-[invalid]:data-[state=open]:border-ods-error data-[invalid]:aria-expanded:border-ods-error enabled:data-[invalid]:data-[state=open]:hover:border-ods-error enabled:data-[invalid]:aria-expanded:hover:border-ods-error disabled:cursor-not-allowed disabled:bg-ods-bg disabled:text-ods-text-disabled [&_svg]:disabled:text-ods-text-disabled outline-none focus-visible:border-ods-accent [&_svg]:shrink-0 content-md:w-[276px]"
@@ -185,6 +185,146 @@ exports[`work time table, card rows (the flag off) > a customer’s tab: no cust
         class="flex w-full flex-col"
       >
         <div
+          class="flex min-h-[calc(1lh+var(--spacing-system-xxs))] flex-wrap items-center gap-x-[var(--spacing-system-mf)] gap-y-[var(--spacing-system-xsf)] text-h6 pb-[var(--spacing-system-xsf)]"
+          data-table-meta="true"
+        >
+          <div
+            class="order-1 flex min-w-0 flex-1 items-center gap-[var(--spacing-system-mf)]"
+          >
+            <span
+              class="min-w-0 truncate whitespace-nowrap text-ods-text-secondary text-h6"
+            >
+              1–2 of 2 results
+            </span>
+          </div>
+          <div
+            class="order-3 w-full content-md:order-2 content-md:w-auto content-md:shrink-0"
+          >
+            <nav
+              aria-label="Pagination"
+              class="flex min-w-0 items-center gap-[var(--spacing-system-xsf)]"
+              data-table-pagination="true"
+            >
+              <div
+                class="ml-auto flex shrink-0 items-center gap-[var(--spacing-system-xsf)]"
+              >
+                <button
+                  aria-label="Go to previous page"
+                  class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-ods-card text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:text-ods-text-disabled aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-8 w-8 p-[var(--spacing-system-xxs)] [&_svg]:h-4 [&_svg]:w-4 disabled:bg-ods-bg-base aria-disabled:bg-ods-bg-base"
+                  disabled=""
+                >
+                  <span
+                    class="contents"
+                  >
+                    <span
+                      class="inline-flex items-center"
+                    >
+                      <svg
+                        class=""
+                        fill="none"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        width="24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M14.205 18.795a1.125 1.125 0 1 0 1.59-1.59L10.591 12l5.204-5.205.078-.085a1.125 1.125 0 0 0-1.583-1.583l-.085.078-6 6a1.125 1.125 0 0 0 0 1.59z"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </span>
+                  </span>
+                </button>
+                <button
+                  aria-label="Go to next page"
+                  class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-ods-card text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:text-ods-text-disabled aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-8 w-8 p-[var(--spacing-system-xxs)] [&_svg]:h-4 [&_svg]:w-4 disabled:bg-ods-bg-base aria-disabled:bg-ods-bg-base"
+                  disabled=""
+                >
+                  <span
+                    class="contents"
+                  >
+                    <span
+                      class="inline-flex items-center"
+                    >
+                      <svg
+                        class=""
+                        fill="none"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        width="24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M8.205 5.205a1.125 1.125 0 0 1 1.505-.078l.085.078 6 6a1.125 1.125 0 0 1 0 1.59l-6 6a1.125 1.125 0 1 1-1.59-1.59L13.409 12 8.205 6.795l-.078-.085a1.125 1.125 0 0 1 .078-1.505"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </nav>
+          </div>
+          <span
+            aria-hidden="true"
+            class="order-3 hidden h-6 w-px bg-ods-border content-md:block"
+            data-grid-meta-divider="true"
+          />
+          <div
+            class="order-2 flex shrink-0 items-center content-md:order-4"
+          >
+            <button
+              aria-expanded="false"
+              aria-haspopup="menu"
+              aria-label="Auto-refresh: Off"
+              class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-ods-card text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:bg-ods-card disabled:text-ods-text-disabled aria-disabled:bg-ods-card aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border p-[var(--spacing-system-xs)] text-h5 md:h-8 [&_svg]:h-4 [&_svg]:w-4 h-8"
+              data-state="closed"
+              id="radix-_r_v_"
+              type="button"
+            >
+              <span
+                class="contents"
+              >
+                <span
+                  class="inline-flex items-center text-ods-text-secondary"
+                >
+                  <svg
+                    class="text-ods-text-secondary"
+                    fill="none"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M7.375 7V5.641c-1.842 1.776-3.25 3.414-3.25 6.36a7.88 7.88 0 0 0 4.966 7.322l.284.107.107.044a1.125 1.125 0 0 1-.747 2.109l-.11-.032-.365-.138a10.13 10.13 0 0 1-6.385-9.412c0-3.73 1.892-6.011 3.813-7.876H4.5a1.125 1.125 0 0 1 0-2.25h4a1.12 1.12 0 0 1 .771.31c.007.008.018.012.025.02q.008.01.016.022A1.12 1.12 0 0 1 9.625 3v4a1.126 1.126 0 0 1-2.25 0m12.5 5a7.88 7.88 0 0 0-4.966-7.32l-.284-.107-.107-.044a1.125 1.125 0 0 1 .747-2.111l.11.034.365.137c3.739 1.487 6.385 5.138 6.385 9.41 0 3.73-1.89 6.011-3.81 7.875H19.5l.116.006a1.126 1.126 0 0 1 0 2.239l-.116.005h-4A1.125 1.125 0 0 1 14.373 21v-4a1.125 1.125 0 0 1 2.25 0v1.36c1.843-1.776 3.251-3.414 3.251-6.36Z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </span>
+                Off
+                <span
+                  class="inline-flex items-center text-ods-text-secondary"
+                >
+                  <svg
+                    class="h-4 w-4 transition-transform duration-fast"
+                    fill="none"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M17.204 8.205a1.125 1.125 0 1 1 1.591 1.59l-6 6c-.439.44-1.151.44-1.59 0l-6-6-.078-.085A1.125 1.125 0 0 1 6.71 8.127l.085.078L12 13.409z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </span>
+              </span>
+            </button>
+          </div>
+        </div>
+        <div
           class="hidden content-md:flex content-md:flex-col"
         >
           <div
@@ -259,17 +399,6 @@ exports[`work time table, card rows (the flag off) > a customer’s tab: no cust
                   class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
                 />
               </div>
-            </div>
-            <div
-              class="flex items-center absolute inset-y-0 right-[var(--spacing-system-mf)]"
-            >
-              <span
-                class="whitespace-nowrap text-ods-text-secondary text-h6"
-              >
-                2
-                 
-                results
-              </span>
             </div>
           </div>
         </div>
@@ -598,10 +727,6 @@ exports[`work time table, card rows (the flag off) > a customer’s tab: no cust
             </div>
           </div>
         </div>
-        <div
-          class="sr-only"
-          role="status"
-        />
       </div>
     </div>
   </div>
@@ -647,7 +772,7 @@ exports[`work time table, card rows (the flag off) > an employee’s page: no em
         />
       </label>
       <button
-        aria-controls="radix-_r_1i_"
+        aria-controls="radix-_r_1m_"
         aria-expanded="false"
         aria-haspopup="dialog"
         class="flex w-full items-center gap-[var(--spacing-system-xsf)] border px-[var(--spacing-system-sf)] text-left h-11 md:h-12 rounded-[6px] border-ods-border bg-ods-card text-ods-text-primary text-h4 transition-colors duration-200 enabled:hover:border-ods-border-hover enabled:hover:bg-ods-bg-hover enabled:active:border-ods-border-active enabled:active:bg-ods-bg-active data-[state=open]:border-ods-accent aria-expanded:border-ods-accent enabled:data-[state=open]:hover:border-ods-accent enabled:aria-expanded:hover:border-ods-accent aria-selected:border-ods-accent aria-selected:bg-ods-open-yellow-light enabled:aria-selected:hover:border-ods-accent enabled:aria-selected:hover:bg-ods-open-yellow-light-hover enabled:aria-selected:active:border-ods-accent enabled:aria-selected:active:bg-ods-open-yellow-light-action data-[invalid]:border-ods-error enabled:data-[invalid]:hover:border-ods-error enabled:data-[invalid]:active:border-ods-error data-[invalid]:data-[state=open]:border-ods-error data-[invalid]:aria-expanded:border-ods-error enabled:data-[invalid]:data-[state=open]:hover:border-ods-error enabled:data-[invalid]:aria-expanded:hover:border-ods-error disabled:cursor-not-allowed disabled:bg-ods-bg disabled:text-ods-text-disabled [&_svg]:disabled:text-ods-text-disabled outline-none focus-visible:border-ods-accent [&_svg]:shrink-0 content-md:w-[276px]"
@@ -793,6 +918,146 @@ exports[`work time table, card rows (the flag off) > an employee’s page: no em
         class="flex w-full flex-col"
       >
         <div
+          class="flex min-h-[calc(1lh+var(--spacing-system-xxs))] flex-wrap items-center gap-x-[var(--spacing-system-mf)] gap-y-[var(--spacing-system-xsf)] text-h6 pb-[var(--spacing-system-xsf)]"
+          data-table-meta="true"
+        >
+          <div
+            class="order-1 flex min-w-0 flex-1 items-center gap-[var(--spacing-system-mf)]"
+          >
+            <span
+              class="min-w-0 truncate whitespace-nowrap text-ods-text-secondary text-h6"
+            >
+              1–2 of 2 results
+            </span>
+          </div>
+          <div
+            class="order-3 w-full content-md:order-2 content-md:w-auto content-md:shrink-0"
+          >
+            <nav
+              aria-label="Pagination"
+              class="flex min-w-0 items-center gap-[var(--spacing-system-xsf)]"
+              data-table-pagination="true"
+            >
+              <div
+                class="ml-auto flex shrink-0 items-center gap-[var(--spacing-system-xsf)]"
+              >
+                <button
+                  aria-label="Go to previous page"
+                  class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-ods-card text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:text-ods-text-disabled aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-8 w-8 p-[var(--spacing-system-xxs)] [&_svg]:h-4 [&_svg]:w-4 disabled:bg-ods-bg-base aria-disabled:bg-ods-bg-base"
+                  disabled=""
+                >
+                  <span
+                    class="contents"
+                  >
+                    <span
+                      class="inline-flex items-center"
+                    >
+                      <svg
+                        class=""
+                        fill="none"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        width="24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M14.205 18.795a1.125 1.125 0 1 0 1.59-1.59L10.591 12l5.204-5.205.078-.085a1.125 1.125 0 0 0-1.583-1.583l-.085.078-6 6a1.125 1.125 0 0 0 0 1.59z"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </span>
+                  </span>
+                </button>
+                <button
+                  aria-label="Go to next page"
+                  class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-ods-card text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:text-ods-text-disabled aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-8 w-8 p-[var(--spacing-system-xxs)] [&_svg]:h-4 [&_svg]:w-4 disabled:bg-ods-bg-base aria-disabled:bg-ods-bg-base"
+                  disabled=""
+                >
+                  <span
+                    class="contents"
+                  >
+                    <span
+                      class="inline-flex items-center"
+                    >
+                      <svg
+                        class=""
+                        fill="none"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        width="24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M8.205 5.205a1.125 1.125 0 0 1 1.505-.078l.085.078 6 6a1.125 1.125 0 0 1 0 1.59l-6 6a1.125 1.125 0 1 1-1.59-1.59L13.409 12 8.205 6.795l-.078-.085a1.125 1.125 0 0 1 .078-1.505"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </nav>
+          </div>
+          <span
+            aria-hidden="true"
+            class="order-3 hidden h-6 w-px bg-ods-border content-md:block"
+            data-grid-meta-divider="true"
+          />
+          <div
+            class="order-2 flex shrink-0 items-center content-md:order-4"
+          >
+            <button
+              aria-expanded="false"
+              aria-haspopup="menu"
+              aria-label="Auto-refresh: Off"
+              class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-ods-card text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:bg-ods-card disabled:text-ods-text-disabled aria-disabled:bg-ods-card aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border p-[var(--spacing-system-xs)] text-h5 md:h-8 [&_svg]:h-4 [&_svg]:w-4 h-8"
+              data-state="closed"
+              id="radix-_r_1n_"
+              type="button"
+            >
+              <span
+                class="contents"
+              >
+                <span
+                  class="inline-flex items-center text-ods-text-secondary"
+                >
+                  <svg
+                    class="text-ods-text-secondary"
+                    fill="none"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M7.375 7V5.641c-1.842 1.776-3.25 3.414-3.25 6.36a7.88 7.88 0 0 0 4.966 7.322l.284.107.107.044a1.125 1.125 0 0 1-.747 2.109l-.11-.032-.365-.138a10.13 10.13 0 0 1-6.385-9.412c0-3.73 1.892-6.011 3.813-7.876H4.5a1.125 1.125 0 0 1 0-2.25h4a1.12 1.12 0 0 1 .771.31c.007.008.018.012.025.02q.008.01.016.022A1.12 1.12 0 0 1 9.625 3v4a1.126 1.126 0 0 1-2.25 0m12.5 5a7.88 7.88 0 0 0-4.966-7.32l-.284-.107-.107-.044a1.125 1.125 0 0 1 .747-2.111l.11.034.365.137c3.739 1.487 6.385 5.138 6.385 9.41 0 3.73-1.89 6.011-3.81 7.875H19.5l.116.006a1.126 1.126 0 0 1 0 2.239l-.116.005h-4A1.125 1.125 0 0 1 14.373 21v-4a1.125 1.125 0 0 1 2.25 0v1.36c1.843-1.776 3.251-3.414 3.251-6.36Z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </span>
+                Off
+                <span
+                  class="inline-flex items-center text-ods-text-secondary"
+                >
+                  <svg
+                    class="h-4 w-4 transition-transform duration-fast"
+                    fill="none"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M17.204 8.205a1.125 1.125 0 1 1 1.591 1.59l-6 6c-.439.44-1.151.44-1.59 0l-6-6-.078-.085A1.125 1.125 0 0 1 6.71 8.127l.085.078L12 13.409z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </span>
+              </span>
+            </button>
+          </div>
+        </div>
+        <div
           class="hidden content-md:flex content-md:flex-col"
         >
           <div
@@ -867,17 +1132,6 @@ exports[`work time table, card rows (the flag off) > an employee’s page: no em
                   class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
                 />
               </div>
-            </div>
-            <div
-              class="flex items-center absolute inset-y-0 right-[var(--spacing-system-mf)]"
-            >
-              <span
-                class="whitespace-nowrap text-ods-text-secondary text-h6"
-              >
-                2
-                 
-                results
-              </span>
             </div>
           </div>
         </div>
@@ -1163,10 +1417,6 @@ exports[`work time table, card rows (the flag off) > an employee’s page: no em
             </div>
           </div>
         </div>
-        <div
-          class="sr-only"
-          role="status"
-        />
       </div>
     </div>
   </div>
@@ -1218,7 +1468,7 @@ exports[`work time table, card rows (the flag off) > loading 1`] = `
           />
         </label>
         <button
-          aria-controls="radix-_r_22_"
+          aria-controls="radix-_r_28_"
           aria-expanded="false"
           aria-haspopup="dialog"
           class="flex w-full items-center gap-[var(--spacing-system-xsf)] border px-[var(--spacing-system-sf)] text-left h-11 md:h-12 rounded-[6px] border-ods-border bg-ods-card text-ods-text-primary text-h4 transition-colors duration-200 enabled:hover:border-ods-border-hover enabled:hover:bg-ods-bg-hover enabled:active:border-ods-border-active enabled:active:bg-ods-bg-active data-[state=open]:border-ods-accent aria-expanded:border-ods-accent enabled:data-[state=open]:hover:border-ods-accent enabled:aria-expanded:hover:border-ods-accent aria-selected:border-ods-accent aria-selected:bg-ods-open-yellow-light enabled:aria-selected:hover:border-ods-accent enabled:aria-selected:hover:bg-ods-open-yellow-light-hover enabled:aria-selected:active:border-ods-accent enabled:aria-selected:active:bg-ods-open-yellow-light-action data-[invalid]:border-ods-error enabled:data-[invalid]:hover:border-ods-error enabled:data-[invalid]:active:border-ods-error data-[invalid]:data-[state=open]:border-ods-error data-[invalid]:aria-expanded:border-ods-error enabled:data-[invalid]:data-[state=open]:hover:border-ods-error enabled:data-[invalid]:aria-expanded:hover:border-ods-error disabled:cursor-not-allowed disabled:bg-ods-bg disabled:text-ods-text-disabled [&_svg]:disabled:text-ods-text-disabled outline-none focus-visible:border-ods-accent [&_svg]:shrink-0 content-md:w-[276px]"
@@ -1427,6 +1677,103 @@ exports[`work time table, card rows (the flag off) > loading 1`] = `
           class="flex w-full flex-col"
         >
           <div
+            class="flex min-h-[calc(1lh+var(--spacing-system-xxs))] flex-wrap items-center gap-x-[var(--spacing-system-mf)] gap-y-[var(--spacing-system-xsf)] text-h6 pb-[var(--spacing-system-xsf)]"
+            data-table-meta="true"
+          >
+            <div
+              class="order-1 flex min-w-0 flex-1 items-center gap-[var(--spacing-system-mf)]"
+            >
+              <span
+                aria-hidden="true"
+                class="min-w-0 truncate whitespace-nowrap text-ods-text-secondary text-h6"
+              >
+                <span
+                  aria-hidden="true"
+                  class="flex-col h-[1lh] inline-block w-16 align-top"
+                >
+                  <span
+                    class="flex h-[1lh] items-center"
+                  >
+                    <span
+                      aria-hidden="true"
+                      class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
+                    />
+                  </span>
+                </span>
+                 
+                results
+              </span>
+            </div>
+            <div
+              class="order-3 w-full content-md:order-2 content-md:w-auto content-md:shrink-0"
+            >
+              <nav
+                aria-label="Pagination"
+                class="flex min-w-0 items-center gap-[var(--spacing-system-xsf)]"
+                data-table-pagination="true"
+              >
+                <div
+                  class="ml-auto flex shrink-0 items-center gap-[var(--spacing-system-xsf)]"
+                >
+                  <button
+                    aria-label="Go to previous page"
+                    class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-ods-card text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:text-ods-text-disabled aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-8 w-8 p-[var(--spacing-system-xxs)] [&_svg]:h-4 [&_svg]:w-4 disabled:bg-ods-bg-base aria-disabled:bg-ods-bg-base"
+                    disabled=""
+                  >
+                    <span
+                      class="contents"
+                    >
+                      <span
+                        class="inline-flex items-center"
+                      >
+                        <svg
+                          class=""
+                          fill="none"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          width="24"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M14.205 18.795a1.125 1.125 0 1 0 1.59-1.59L10.591 12l5.204-5.205.078-.085a1.125 1.125 0 0 0-1.583-1.583l-.085.078-6 6a1.125 1.125 0 0 0 0 1.59z"
+                            fill="currentColor"
+                          />
+                        </svg>
+                      </span>
+                    </span>
+                  </button>
+                  <button
+                    aria-label="Go to next page"
+                    class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-ods-card text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:text-ods-text-disabled aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-8 w-8 p-[var(--spacing-system-xxs)] [&_svg]:h-4 [&_svg]:w-4 disabled:bg-ods-bg-base aria-disabled:bg-ods-bg-base"
+                    disabled=""
+                  >
+                    <span
+                      class="contents"
+                    >
+                      <span
+                        class="inline-flex items-center"
+                      >
+                        <svg
+                          class=""
+                          fill="none"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          width="24"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M8.205 5.205a1.125 1.125 0 0 1 1.505-.078l.085.078 6 6a1.125 1.125 0 0 1 0 1.59l-6 6a1.125 1.125 0 1 1-1.59-1.59L13.409 12 8.205 6.795l-.078-.085a1.125 1.125 0 0 1 .078-1.505"
+                            fill="currentColor"
+                          />
+                        </svg>
+                      </span>
+                    </span>
+                  </button>
+                </div>
+              </nav>
+            </div>
+          </div>
+          <div
             class="hidden content-md:flex content-md:flex-col"
           >
             <div
@@ -1502,30 +1849,6 @@ exports[`work time table, card rows (the flag off) > loading 1`] = `
                     class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
                   />
                 </div>
-              </div>
-              <div
-                class="flex items-center absolute inset-y-0 right-[var(--spacing-system-mf)]"
-              >
-                <span
-                  aria-hidden="true"
-                  class="whitespace-nowrap text-ods-text-secondary text-h6"
-                >
-                  <span
-                    aria-hidden="true"
-                    class="flex-col h-[1lh] inline-block w-6 align-top"
-                  >
-                    <span
-                      class="flex h-[1lh] items-center"
-                    >
-                      <span
-                        aria-hidden="true"
-                        class="ods-skeleton animate-pulse motion-reduce:animate-none bg-ods-skeleton [&_.ods-skeleton]:animate-none block h-[0.7lh] rounded w-full"
-                      />
-                    </span>
-                  </span>
-                   
-                  results
-                </span>
               </div>
             </div>
           </div>
@@ -6155,10 +6478,6 @@ exports[`work time table, card rows (the flag off) > loading 1`] = `
               </div>
             </div>
           </div>
-          <div
-            class="sr-only"
-            role="status"
-          />
         </div>
       </div>
     </div>
@@ -6351,6 +6670,146 @@ exports[`work time table, card rows (the flag off) > the Worktime page: employee
         class="flex w-full flex-col"
       >
         <div
+          class="flex min-h-[calc(1lh+var(--spacing-system-xxs))] flex-wrap items-center gap-x-[var(--spacing-system-mf)] gap-y-[var(--spacing-system-xsf)] text-h6 pb-[var(--spacing-system-xsf)]"
+          data-table-meta="true"
+        >
+          <div
+            class="order-1 flex min-w-0 flex-1 items-center gap-[var(--spacing-system-mf)]"
+          >
+            <span
+              class="min-w-0 truncate whitespace-nowrap text-ods-text-secondary text-h6"
+            >
+              1–2 of 2 results
+            </span>
+          </div>
+          <div
+            class="order-3 w-full content-md:order-2 content-md:w-auto content-md:shrink-0"
+          >
+            <nav
+              aria-label="Pagination"
+              class="flex min-w-0 items-center gap-[var(--spacing-system-xsf)]"
+              data-table-pagination="true"
+            >
+              <div
+                class="ml-auto flex shrink-0 items-center gap-[var(--spacing-system-xsf)]"
+              >
+                <button
+                  aria-label="Go to previous page"
+                  class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-ods-card text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:text-ods-text-disabled aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-8 w-8 p-[var(--spacing-system-xxs)] [&_svg]:h-4 [&_svg]:w-4 disabled:bg-ods-bg-base aria-disabled:bg-ods-bg-base"
+                  disabled=""
+                >
+                  <span
+                    class="contents"
+                  >
+                    <span
+                      class="inline-flex items-center"
+                    >
+                      <svg
+                        class=""
+                        fill="none"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        width="24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M14.205 18.795a1.125 1.125 0 1 0 1.59-1.59L10.591 12l5.204-5.205.078-.085a1.125 1.125 0 0 0-1.583-1.583l-.085.078-6 6a1.125 1.125 0 0 0 0 1.59z"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </span>
+                  </span>
+                </button>
+                <button
+                  aria-label="Go to next page"
+                  class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-ods-card text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:text-ods-text-disabled aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border h-8 w-8 p-[var(--spacing-system-xxs)] [&_svg]:h-4 [&_svg]:w-4 disabled:bg-ods-bg-base aria-disabled:bg-ods-bg-base"
+                  disabled=""
+                >
+                  <span
+                    class="contents"
+                  >
+                    <span
+                      class="inline-flex items-center"
+                    >
+                      <svg
+                        class=""
+                        fill="none"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        width="24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M8.205 5.205a1.125 1.125 0 0 1 1.505-.078l.085.078 6 6a1.125 1.125 0 0 1 0 1.59l-6 6a1.125 1.125 0 1 1-1.59-1.59L13.409 12 8.205 6.795l-.078-.085a1.125 1.125 0 0 1 .078-1.505"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </nav>
+          </div>
+          <span
+            aria-hidden="true"
+            class="order-3 hidden h-6 w-px bg-ods-border content-md:block"
+            data-grid-meta-divider="true"
+          />
+          <div
+            class="order-2 flex shrink-0 items-center content-md:order-4"
+          >
+            <button
+              aria-expanded="false"
+              aria-haspopup="menu"
+              aria-label="Auto-refresh: Off"
+              class="relative inline-flex items-center justify-center gap-[var(--spacing-system-xsf)] whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-ods-card text-ods-text-primary hover:bg-ods-bg-hover active:bg-ods-bg-active disabled:bg-ods-card disabled:text-ods-text-disabled aria-disabled:bg-ods-card aria-disabled:text-ods-text-disabled data-[tone=accent]:hover:bg-ods-accent border border-ods-border hover:border-ods-border-hover active:border-ods-border-active disabled:border-ods-border aria-disabled:border-ods-border p-[var(--spacing-system-xs)] text-h5 md:h-8 [&_svg]:h-4 [&_svg]:w-4 h-8"
+              data-state="closed"
+              id="radix-_r_1_"
+              type="button"
+            >
+              <span
+                class="contents"
+              >
+                <span
+                  class="inline-flex items-center text-ods-text-secondary"
+                >
+                  <svg
+                    class="text-ods-text-secondary"
+                    fill="none"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M7.375 7V5.641c-1.842 1.776-3.25 3.414-3.25 6.36a7.88 7.88 0 0 0 4.966 7.322l.284.107.107.044a1.125 1.125 0 0 1-.747 2.109l-.11-.032-.365-.138a10.13 10.13 0 0 1-6.385-9.412c0-3.73 1.892-6.011 3.813-7.876H4.5a1.125 1.125 0 0 1 0-2.25h4a1.12 1.12 0 0 1 .771.31c.007.008.018.012.025.02q.008.01.016.022A1.12 1.12 0 0 1 9.625 3v4a1.126 1.126 0 0 1-2.25 0m12.5 5a7.88 7.88 0 0 0-4.966-7.32l-.284-.107-.107-.044a1.125 1.125 0 0 1 .747-2.111l.11.034.365.137c3.739 1.487 6.385 5.138 6.385 9.41 0 3.73-1.89 6.011-3.81 7.875H19.5l.116.006a1.126 1.126 0 0 1 0 2.239l-.116.005h-4A1.125 1.125 0 0 1 14.373 21v-4a1.125 1.125 0 0 1 2.25 0v1.36c1.843-1.776 3.251-3.414 3.251-6.36Z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </span>
+                Off
+                <span
+                  class="inline-flex items-center text-ods-text-secondary"
+                >
+                  <svg
+                    class="h-4 w-4 transition-transform duration-fast"
+                    fill="none"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M17.204 8.205a1.125 1.125 0 1 1 1.591 1.59l-6 6c-.439.44-1.151.44-1.59 0l-6-6-.078-.085A1.125 1.125 0 0 1 6.71 8.127l.085.078L12 13.409z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </span>
+              </span>
+            </button>
+          </div>
+        </div>
+        <div
           class="hidden content-md:flex content-md:flex-col"
         >
           <div
@@ -6458,17 +6917,6 @@ exports[`work time table, card rows (the flag off) > the Worktime page: employee
                   class="min-w-0 text-balance uppercase text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary"
                 />
               </div>
-            </div>
-            <div
-              class="flex items-center absolute inset-y-0 right-[var(--spacing-system-mf)]"
-            >
-              <span
-                class="whitespace-nowrap text-ods-text-secondary text-h6"
-              >
-                2
-                 
-                results
-              </span>
             </div>
           </div>
         </div>
@@ -6842,10 +7290,6 @@ exports[`work time table, card rows (the flag off) > the Worktime page: employee
             </div>
           </div>
         </div>
-        <div
-          class="sr-only"
-          role="status"
-        />
       </div>
     </div>
   </div>

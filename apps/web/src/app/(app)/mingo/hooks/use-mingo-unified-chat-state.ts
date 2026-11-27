@@ -83,6 +83,7 @@ import { mingoThreadStore } from '../stores/mingo-thread-store';
 import { useMingoUsageStore } from '../stores/mingo-usage-store';
 import { isRefusedQuery } from '../utils/refused-query';
 import { retryingRead } from '../utils/retrying-read';
+import { mingoSendFailureText } from '../utils/send-failure-text';
 import { buildUsagePanel } from './mingo-usage-panel-data';
 import { useMingoDialogAutoRead } from './use-mingo-dialog-read';
 import { useMingoDialogRowStatus } from './use-mingo-dialog-row-status';
@@ -423,6 +424,8 @@ export function useMingoUnifiedChatState({ onScreen }: { onScreen: boolean }): M
     avatarUrlOf,
     copyDialogLink,
     refresh,
+    // A send the server refused reads as plain words in the thread, never the raw validation path.
+    sendFailureText: mingoSendFailureText,
     // An approval the server refused (no AI budget left, already answered elsewhere): the card goes back to pending, and
     // the user is told why instead of facing the same buttons again.
     onActionError: (action, error) =>

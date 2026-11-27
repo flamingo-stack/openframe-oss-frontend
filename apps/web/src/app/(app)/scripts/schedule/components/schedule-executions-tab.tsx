@@ -1,22 +1,18 @@
 'use client';
 
 import { ClipboardListIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { memo, useCallback, useMemo } from 'react';
-import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
-import type { scheduleExecutionsRelay_query$key as ScheduleExecutionsFragmentKey } from '@/__generated__/scheduleExecutionsRelay_query.graphql';
-import type { scheduleExecutionsRelayPaginationQuery as ScheduleExecutionsPaginationQueryType } from '@/__generated__/scheduleExecutionsRelayPaginationQuery.graphql';
-import type { scheduleExecutionsRelayQuery as ScheduleExecutionsQueryType } from '@/__generated__/scheduleExecutionsRelayQuery.graphql';
+import { memo, useMemo } from 'react';
+import { useLazyLoadQuery } from 'react-relay';
+import type { scheduleExecutionsRelayPagedQuery as ScheduleExecutionsQueryType } from '@/__generated__/scheduleExecutionsRelayPagedQuery.graphql';
 import { useRetryKey } from '@/app/components/shared';
+import { usePagedTable } from '@/app/hooks/use-paged-table';
+import { useRefetchPage } from '@/app/hooks/use-refetch-page';
+import { scheduleExecutionsRelayPagedQuery } from '@/graphql/scripts/schedule-executions-relay';
 import {
-  scheduleExecutionsRelayFragment,
-  scheduleExecutionsRelayQuery,
-} from '@/graphql/scripts/schedule-executions-relay';
-import {
-  EXECUTIONS_PAGE_SIZE,
+  type ExecutionsPaging,
   ExecutionsTable,
   ExecutionsTabShell,
-  type ExecutionsTabState,
-  narrowExecutions,
+  type PagedExecutionsTabState,
   toUiExecution,
   type UiExecution,
   useExecutionFacetOptions,
@@ -30,44 +26,56 @@ const EMPTY_STATE = {
   description: 'Script execution logs will be displayed here',
 };
 
+/**
+ * The tab's params live under the `exec` prefix (`execSearch`, `execStatus`, `execMachineId`, `execInitiatorId`,
+ * `execDateFrom`, `execDateTo`, `execSortDir`, `execCursor`, `execPage`, `execDir`): the schedule page's tabs share
+ * its URL (Schedule Runs keeps `run…`). The list pages back on the server.
+ */
+const PAGING: ExecutionsPaging = { prefix: 'exec', list: 'scheduleExecutions' };
+
 interface ScheduleExecutionsTabProps {
   scheduleId: string;
 }
 
-function ScheduleExecutionsContent({ scheduleId, state }: { scheduleId: string; state: ExecutionsTabState }) {
-  const { backendFilters, sort, querySearch, narrowSearch, ...tableState } = state;
+function ScheduleExecutionsContent({ scheduleId, state }: { scheduleId: string; state: PagedExecutionsTabState }) {
+  const { backendFilters, sort, querySearch, pager, pageVariables, paramPrefix, ...tableState } = state;
 
-  // One round-trip per interaction: the facets (`scheduleExecutionFilters`)
-  // ride the list operation — see the query docstring for the facet semantics.
+  // One page per request, its cursor in the URL; the facets (`scheduleExecutionFilters`) ride the same operation —
+  // see the query docstring for the facet semantics.
   const retryKey = useRetryKey();
-  const queryData = useLazyLoadQuery<ScheduleExecutionsQueryType>(
-    scheduleExecutionsRelayQuery,
-    { scheduleId, filter: backendFilters, search: querySearch || null, sort, first: EXECUTIONS_PAGE_SIZE, after: null },
-    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
+  const variables = {
+    scheduleId,
+    filter: backendFilters,
+    search: querySearch || null,
+    sort,
+    ...pageVariables,
+  };
+  const data = useLazyLoadQuery<ScheduleExecutionsQueryType>(scheduleExecutionsRelayPagedQuery, variables, {
+    fetchPolicy: 'store-and-network',
+    fetchKey: retryKey,
+  });
+  const refetch = useRefetchPage<ScheduleExecutionsQueryType>(scheduleExecutionsRelayPagedQuery, variables);
+
+  const facetOptions = useExecutionFacetOptions(data.scheduleExecutionFilters);
+
+  const edges = data.scheduleExecutions?.edges;
+  // Defensive null-node guard: skip any dangling edge instead of crashing the
+  // tab on a store-evicted record.
+  // `scriptName` rides beside the shared row fragment on this list only — a
+  // schedule runs several scripts, so the rows say which one they were.
+  const executions: UiExecution[] = useMemo(
+    () => (edges ?? []).flatMap(edge => (edge?.node ? [toUiExecution(edge.node, edge.node.scriptName)] : [])),
+    [edges],
   );
 
-  const facetOptions = useExecutionFacetOptions(queryData.scheduleExecutionFilters);
-
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
-    ScheduleExecutionsPaginationQueryType,
-    ScheduleExecutionsFragmentKey
-  >(scheduleExecutionsRelayFragment, queryData);
-
-  const executions: UiExecution[] = useMemo(() => {
-    const edges = data.scheduleExecutions?.edges ?? [];
-    // Defensive null-node guard: skip any dangling edge instead of crashing the
-    // tab on a store-evicted record.
-    // `scriptName` rides beside the shared row fragment on this list only — a
-    // schedule runs several scripts, so the rows say which one they were.
-    const rows = edges.flatMap(edge => (edge?.node ? [toUiExecution(edge.node, edge.node.scriptName)] : []));
-    // A no-op here — this list's search reaches the server, so `narrowSearch` is
-    // always empty. Kept so every caller of the shell honours the same contract.
-    return narrowExecutions(rows, narrowSearch);
-  }, [data.scheduleExecutions?.edges, narrowSearch]);
-
-  const fetchNextPage = useCallback(() => {
-    if (hasNext && !isLoadingNext) loadNext(EXECUTIONS_PAGE_SIZE);
-  }, [hasNext, isLoadingNext, loadNext]);
+  const paged = usePagedTable({
+    pager,
+    pageInfo: data.scheduleExecutions?.pageInfo,
+    rowCount: edges?.length ?? 0,
+    prefix: paramPrefix,
+    refetch,
+    isPending: tableState.isPending,
+  });
 
   return (
     <ExecutionsTable
@@ -75,9 +83,9 @@ function ScheduleExecutionsContent({ scheduleId, state }: { scheduleId: string; 
       facetOptions={facetOptions}
       search={querySearch}
       emptyState={EMPTY_STATE}
-      hasNext={hasNext}
-      isLoadingNext={isLoadingNext}
-      onLoadMore={fetchNextPage}
+      totalCount={data.scheduleExecutions?.filteredCount ?? undefined}
+      pager={paged.pager}
+      refresh={paged.refresh}
       {...tableState}
     />
   );
@@ -85,8 +93,9 @@ function ScheduleExecutionsContent({ scheduleId, state }: { scheduleId: string; 
 
 /**
  * Execution History for a schedule — the flat per-device history across all of
- * its runs (`scheduleExecutions(scheduleId:)`). Same rows, columns and filters
- * as the per-script tab; the Runs tab is the aggregate view above it.
+ * its runs (`scheduleExecutions(scheduleId:)`), one page at a time with
+ * First · Prev · Next. Same rows, columns and filters as the per-script tab;
+ * the Runs tab is the aggregate view above it.
  *
  * The boundary lives inside `ExecutionsTabShell`, BELOW the toolbar, so a filter
  * change reloads the rows and leaves the search box where it was.
@@ -97,7 +106,7 @@ export const ScheduleExecutionsTab = memo(function ScheduleExecutionsTabImpl({
   scheduleId,
 }: ScheduleExecutionsTabProps) {
   return (
-    <ExecutionsTabShell tableSettings={SCRIPTS_TABLE_SETTINGS.scheduleExecutions}>
+    <ExecutionsTabShell paging={PAGING} tableSettings={SCRIPTS_TABLE_SETTINGS.scheduleExecutions}>
       {state => <ScheduleExecutionsContent scheduleId={scheduleId} state={state} />}
     </ExecutionsTabShell>
   );

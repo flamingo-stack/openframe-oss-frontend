@@ -66,6 +66,12 @@ describe('resolvePageContext', () => {
     ]);
   });
 
+  it('sends no list from the Checks page, which is settings', () => {
+    expect(resolvePageContext('/monitoring/checks/', null)).toEqual({
+      currentPage: { kind: 'OTHER', title: 'Checks' },
+    });
+  });
+
   it('tells the two Monitoring tabs apart', () => {
     expect(resolvePageContext('/monitoring/', null)).toMatchObject({
       currentPage: { kind: 'LIST', title: 'Policies' },

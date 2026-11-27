@@ -98,6 +98,12 @@ const NAMED_PAGES: Record<string, MessagePageRef> = {
 /** URL params that order or lay out a list rather than narrow it. */
 const NOT_A_FILTER = new Set(['id', 'tab', 'viewMode', 'page', 'pageSize', 'cursor', 'limit', 'mingoDialog']);
 const isSort = (key: string) => /sort/i.test(key);
+/**
+ * A paged table's own keys under a tab prefix (`swCursor`, `swPage`, `swDir`, `swRefresh`): its position in the list
+ * and its auto-refresh interval, never a filter.
+ */
+const isPagerKey = (key: string) =>
+  /^[a-z][a-zA-Z0-9]*(Cursor|Page|Dir|Refresh)$/.test(key) || key === 'dir' || key === 'refresh';
 
 /**
  * A URL filter value as the list's query means it. The Devices list's Status funnel carries OUTDATED in `statuses`,
@@ -131,7 +137,7 @@ function listOf(page: ListPage, query: URLSearchParams): MessageListRef {
   let search: string | undefined;
   for (const [key, raw] of query) {
     const value = raw.trim();
-    if (!value || NOT_A_FILTER.has(key) || isSort(key)) continue;
+    if (!value || NOT_A_FILTER.has(key) || isSort(key) || isPagerKey(key)) continue;
     if (isSearch(key)) {
       search = clip(value, PAGE_CONTEXT_LIMITS.search);
       continue;
@@ -172,6 +178,9 @@ export function resolvePageContext(href: string, openView: ContextRefWithLabel |
 
   const named = NAMED_PAGES[pathname];
   if (named) return { currentPage: named };
+
+  // Monitoring → Checks is the built-in checks' settings: no list module of the agent's names it.
+  if (pathname === routes.monitoring.checks) return { currentPage: pageRef('OTHER', navModuleLabel('checks')) };
 
   if (pathname === '/monitoring') {
     const queries = query.get('tab') === 'queries';

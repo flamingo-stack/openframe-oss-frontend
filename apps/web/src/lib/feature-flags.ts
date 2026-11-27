@@ -45,6 +45,7 @@ export const FEATURE_FLAG_NAMES = [
   'remote-session-watch',
   // The Incidents module (`/incidents`) over saas-api's `insights` API.
   'insights',
+  'insight-check-settings',
   // Cloud Tenant Management (`/cloud-tenant-management/*`, the sidebar's
   // "Integrations" item): connects Microsoft 365 / Google Workspace directories
   // over the directory API. Registered on dev and qa; absent elsewhere, which

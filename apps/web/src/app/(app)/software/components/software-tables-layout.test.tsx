@@ -12,7 +12,6 @@
 import { act } from 'react';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount, SentinelObserver, unmountAll } from '@/app/components/shared/live-table.fixtures';
-import { NO_NEXT_PAGE } from '@/app/components/shared/no-next-page';
 import {
   fixedViewport,
   gridBodyText,
@@ -23,6 +22,7 @@ import {
   settingsGear,
   twoLineCells,
 } from '@/app/components/shared/table-layout-scope.fixtures';
+import { FIRST_PAGE_FOOTER, firstPageProps } from '@/app/hooks/cursor-pager.fixtures';
 import { SoftwareLogsRows } from './action-detail/software-logs-table';
 import { SoftwareActionsTable } from './action-list/software-actions-table';
 import { SoftwareDevicesTable } from './software-detail/devices-tab/software-devices-table';
@@ -47,6 +47,7 @@ vi.mock('react-relay', () => ({
   graphql: () => ({}),
   useFragment: (_fragment: unknown, key: unknown) => key,
   useLazyLoadQuery: () => relay.query,
+  useRelayEnvironment: () => ({}),
   usePaginationFragment: (_fragment: unknown, ref: unknown) => ({
     data: ref,
     loadNext: () => {},
@@ -65,6 +66,11 @@ vi.mock('@/app/hooks/use-collapse-phase', async importOriginal => ({
 vi.mock('./action-list/use-software-action-filters', () => ({
   useSoftwareActionFilters: () => ({ actions: [], engines: [], statuses: [] }),
 }));
+// A table's pager and refresh picker come from its frame (`usePagedTable`): here, a first page that never moves.
+vi.mock('@/app/hooks/use-paged-table', async () => {
+  const fixtures = await import('@/app/hooks/cursor-pager.fixtures');
+  return { usePagedTable: () => ({ pager: fixtures.FIRST_PAGE_FOOTER, refresh: undefined }) };
+});
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
   usePathname: () => '/software',
@@ -144,7 +150,7 @@ function softwareTable(surface: 'fleet' | 'device') {
       emptyState={null}
       onEmptyChange={noop}
       stickyHeaderOffset="top-[56px]"
-      infiniteScroll={NO_NEXT_PAGE}
+      pager={FIRST_PAGE_FOOTER}
     />
   );
 }
@@ -247,6 +253,7 @@ function softwareDevicesTable() {
   relay.query = { softwareDevices: connection(SOFTWARE_DEVICES) };
   return (
     <SoftwareDevicesTable
+      {...firstPageProps(100, 'device')}
       softwareId="sw-1"
       backendFilters={null}
       debouncedSearch=""
@@ -271,6 +278,7 @@ function softwareVulnerabilitiesTable() {
   relay.query = { softwareVulnerabilities: connection(SOFTWARE_VULNERABILITIES) };
   return (
     <SoftwareVulnerabilitiesTable
+      {...firstPageProps(100, 'cve')}
       softwareId="sw-1"
       debouncedSearch=""
       sort={null}
@@ -301,7 +309,7 @@ function vulnerabilityTable() {
       emptyState={null}
       onEmptyChange={noop}
       stickyHeaderOffset="top-[56px]"
-      infiniteScroll={NO_NEXT_PAGE}
+      pager={FIRST_PAGE_FOOTER}
     />
   );
 }
@@ -338,6 +346,7 @@ function vulnerabilityDevicesTable() {
   relay.query = { vulnerabilityDevices: connection(VULNERABILITY_DEVICES) };
   return (
     <VulnerabilityDevicesTable
+      {...firstPageProps(100, 'device')}
       cveId="CVE-2026-1001"
       debouncedSearch=""
       isPending={false}
@@ -378,6 +387,7 @@ function softwareActionsTable() {
   relay.query = { softwareActions: connection(SOFTWARE_ACTIONS) };
   return (
     <SoftwareActionsTable
+      {...firstPageProps(20)}
       backendFilters={null}
       debouncedSearch=""
       selections={{ action: [], engine: [], status: [] }}

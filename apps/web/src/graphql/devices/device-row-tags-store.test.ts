@@ -41,7 +41,7 @@ function normalize(machines: ReturnType<typeof machine>[]): RecordSource {
       assignedDevices: {
         filteredCount: machines.length,
         edges: machines.map((node, i) => ({ node, cursor: String(i) })),
-        pageInfo: { hasNextPage: false, endCursor: null },
+        pageInfo: { hasNextPage: false, hasPreviousPage: false, startCursor: null, endCursor: null },
       },
     },
   });

@@ -1,5 +1,11 @@
 import { graphql } from 'react-relay';
 
+/**
+ * The work time table's page and the stats above it (`WorkTimeTable`). One page of entries per request, its cursor in
+ * the URL (`cursor`, or under the host's prefix): no `@connection`, so a cursor from a link reads exactly its page.
+ * `employeeTimeEntries` pages forward only (`first` / `after`). The stats ride along: a page move asks for them again
+ * with the same filter (the same answer).
+ */
 export const employeeWorkTimeRelayQuery = graphql`
   query employeeWorkTimeRelayQuery($filter: TimeEntryFilterInput, $search: String, $first: Int!, $after: String) {
     employeeTimeStats(filter: $filter) {
@@ -9,24 +15,9 @@ export const employeeWorkTimeRelayQuery = graphql`
       periodEntryCount
       averagePerDaySeconds
     }
-    ...employeeWorkTimeRelay_query @arguments(filter: $filter, search: $search, first: $first, after: $after)
-  }
-`;
-
-export const employeeWorkTimeRelayFragment = graphql`
-  fragment employeeWorkTimeRelay_query on Query
-  @refetchable(queryName: "employeeWorkTimeRelayPaginationQuery")
-  @argumentDefinitions(
-    filter: { type: "TimeEntryFilterInput" }
-    search: { type: "String" }
-    first: { type: "Int", defaultValue: 20 }
-    after: { type: "String" }
-  ) {
-    employeeTimeEntries(filter: $filter, search: $search, first: $first, after: $after)
-      @connection(key: "EmployeeWorkTime_employeeTimeEntries", filters: ["filter", "search"]) {
+    employeeTimeEntries(filter: $filter, search: $search, first: $first, after: $after) {
       filteredCount
       edges {
-        cursor
         node {
           ...timeEntryFields_timeEntry @relay(mask: false)
           user {
@@ -57,8 +48,10 @@ export const employeeWorkTimeRelayFragment = graphql`
         }
       }
       pageInfo {
-        endCursor
         hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
       }
     }
   }

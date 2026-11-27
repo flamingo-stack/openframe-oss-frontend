@@ -2,11 +2,14 @@
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
-import type { usersListTable_query$key } from '@/__generated__/usersListTable_query.graphql';
-import type { usersListTablePaginationQuery } from '@/__generated__/usersListTablePaginationQuery.graphql';
+import type { CursorPagerVariables, UseCursorPagerReturn } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { usersListTableQuery } from '@/__generated__/usersListTableQuery.graphql';
-import { NO_ITEMS, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
+import { NO_ITEMS, useRetryKey } from '@/app/components/shared';
+import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
+import { forwardPage } from '@/app/hooks/forward-page';
+import { usePagedTable } from '@/app/hooks/use-paged-table';
+import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { type TableLayout, tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import {
   type EmployeeSelections,
@@ -17,32 +20,29 @@ import {
 import { USERS_PAGE_SIZE } from './employees-columns';
 import { UsersTable } from './users-table';
 
+/**
+ * One page of the tenant's users per request, its cursor in the URL (`cursor`; no `@connection`: a cursor from a link
+ * must read exactly its page). `users` pages forward only (`first` / `after`). The funnels' counts ride along: a page
+ * move asks for them again with the same scope (the same answer).
+ */
 const usersListTableQueryNode = graphql`
-  query usersListTableQuery($filter: UserFilterInput, $search: String, $first: Int!) {
-    ...usersListTable_query @arguments(filter: $filter, search: $search, first: $first)
-    # Beside the fragment, not in it: the next page does not count the funnels again.
-    userFilters(filter: $filter, search: $search) {
-      ...employeeFilters_userFilters
-    }
-  }
-`;
-
-const usersListTableFragment = graphql`
-  fragment usersListTable_query on Query
-  @refetchable(queryName: "usersListTablePaginationQuery")
-  @argumentDefinitions(
-    filter: { type: "UserFilterInput" }
-    search: { type: "String" }
-    first: { type: "Int", defaultValue: 50 }
-    after: { type: "String" }
-  ) {
-    users(filter: $filter, search: $search, first: $first, after: $after) @connection(key: "usersListTable_users") {
+  query usersListTableQuery($filter: UserFilterInput, $search: String, $first: Int!, $after: String) {
+    users(filter: $filter, search: $search, first: $first, after: $after) {
       filteredCount
       edges {
         node {
           ...usersTable_user
         }
       }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    userFilters(filter: $filter, search: $search) {
+      ...employeeFilters_userFilters
     }
   }
 `;
@@ -57,17 +57,32 @@ interface UsersListTableProps {
   /** A deferred search or funnel lags its control: the rows on screen are the previous result. */
   isPending: boolean;
   stickyHeaderOffset: string;
+  /** The list's position in the URL: footer props, the stale check, the cursor drop. */
+  pager: UseCursorPagerReturn;
+  /** Deferred — the page variables to spread into the query (lag the URL while the next page is read). */
+  pageVariables: CursorPagerVariables;
 }
 
 /**
- * The tenant's `users` connection, searched, narrowed and paged on the server, with its own boundary. In a loading
- * scope (the boundary's fallback) the reader draws the table over one page of placeholder rows with their real cells;
- * otherwise it runs the query, which suspends under that boundary.
+ * The tenant's `users` connection, searched, narrowed and paged on the server (First · Prev · Next), with its own
+ * boundary. In a loading scope (the boundary's fallback) the reader draws the table over one page of placeholder rows
+ * with their real cells; otherwise it runs the query, which suspends under that boundary. A cursor the server refuses
+ * drops to the first page (`StaleCursorBoundary`); any other error goes up unchanged.
  *
  * The table's layout is the app's one table flag: the grid where it is on, card rows where it is off. Until the flag
  * is answered the list is a loading scope, so one table is never drawn and then replaced by the other.
  */
 export function UsersListTable(props: UsersListTableProps) {
+  return (
+    <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
+      <UsersListTableLoading {...props} />
+    </StaleCursorBoundary>
+  );
+}
+
+/** The rows' loading boundary, the whole output of its own component (the loading standard), under the
+ * stale-cursor boundary above. */
+function UsersListTableLoading(props: UsersListTableProps) {
   return (
     <LoadingSuspense label="Loading users">
       <UsersListGate {...props} />
@@ -104,7 +119,7 @@ function UsersListReader(props: UsersListReaderProps) {
         onSelectionsChange={props.onSelectionsChange}
         isPending={false}
         stickyHeaderOffset={props.stickyHeaderOffset}
-        infiniteScroll={NO_NEXT_PAGE}
+        pager={null}
         layout={props.layout}
       />
     );
@@ -112,7 +127,7 @@ function UsersListReader(props: UsersListReaderProps) {
   return <UsersListQuery {...props} />;
 }
 
-/** The first page and the infinite scroll. */
+/** The page the URL names, its footer and the auto-refresh. */
 function UsersListQuery({
   search,
   backendSelections,
@@ -121,23 +136,25 @@ function UsersListQuery({
   isPending,
   stickyHeaderOffset,
   layout,
+  pager,
+  pageVariables,
 }: UsersListReaderProps) {
   const retryKey = useRetryKey();
   const filter = toUserFilter(backendSelections);
-  const queryData = useLazyLoadQuery<usersListTableQuery>(
-    usersListTableQueryNode,
-    { filter, search: search || null, first: USERS_PAGE_SIZE },
-    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
-  );
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
-    usersListTablePaginationQuery,
-    usersListTable_query$key
-  >(usersListTableFragment, queryData);
+  const variables = { filter, search: search || null, ...forwardPage(pageVariables, USERS_PAGE_SIZE) };
+  const queryData = useLazyLoadQuery<usersListTableQuery>(usersListTableQueryNode, variables, {
+    fetchPolicy: 'store-and-network',
+    fetchKey: retryKey,
+  });
+  const refetch = useRefetchPage<usersListTableQuery>(usersListTableQueryNode, variables);
+  const { edges, pageInfo, filteredCount } = queryData.users;
+  // A top-level page: its auto-refresh interval has no prefix, as its other params.
+  const paged = usePagedTable({ pager, pageInfo, rowCount: edges.length, refetch, isPending });
 
   return (
     <UsersTable
-      rows={data.users.edges.map(edge => edge.node)}
-      totalCount={data.users.filteredCount}
+      rows={edges.map(edge => edge.node)}
+      totalCount={filteredCount}
       search={search}
       isFiltered={filter !== null}
       filterOptions={userFilterOptions(queryData.userFilters, selections)}
@@ -146,13 +163,8 @@ function UsersListQuery({
       isPending={isPending}
       stickyHeaderOffset={stickyHeaderOffset}
       layout={layout}
-      infiniteScroll={{
-        hasNextPage: hasNext,
-        isFetchingNextPage: isLoadingNext,
-        onLoadMore: () => {
-          if (hasNext && !isLoadingNext) loadNext(USERS_PAGE_SIZE);
-        },
-      }}
+      pager={paged.pager}
+      refresh={paged.refresh}
     />
   );
 }
