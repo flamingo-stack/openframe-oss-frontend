@@ -47,21 +47,24 @@ import {
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import {
+  CURSOR_PAGER_KEYS,
+  type CursorPagerVariables,
+  useApiParams,
+  useCursorPager,
+  type UseCursorPagerReturn,
+  useToast,
+} from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchQuery, useLazyLoadQuery, useMutation, usePaginationFragment, useRelayEnvironment } from 'react-relay';
+import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 import type { RecordSourceSelectorProxy } from 'relay-runtime';
-import type { archiveScriptScheduleMutation as ArchiveScheduleMutationType } from '@/__generated__/archiveScriptScheduleMutation.graphql';
 import type { scriptScheduleFiltersRefreshRelayQuery as ScheduleFiltersRefreshQueryType } from '@/__generated__/scriptScheduleFiltersRefreshRelayQuery.graphql';
-import type { scriptSchedulesTableRelay_query$key as SchedulesFragmentKey } from '@/__generated__/scriptSchedulesTableRelay_query.graphql';
-import type { scriptSchedulesTableRelayPaginationQuery as SchedulesPaginationQueryType } from '@/__generated__/scriptSchedulesTableRelayPaginationQuery.graphql';
 import type {
-  scriptSchedulesTableRelayQuery as SchedulesTableQueryType,
+  scriptSchedulesTableQuery as SchedulesTableQueryType,
   ScriptScheduleFilterInput,
   SortInput,
-} from '@/__generated__/scriptSchedulesTableRelayQuery.graphql';
-import type { unarchiveScriptScheduleMutation as UnarchiveScheduleMutationType } from '@/__generated__/unarchiveScriptScheduleMutation.graphql';
+} from '@/__generated__/scriptSchedulesTableQuery.graphql';
 import { useGenerateWithAiAction } from '@/app/(app)/mingo/hooks/use-generate-with-ai-action';
 import { useMingoCreatedEpoch } from '@/app/(app)/mingo/stores/mingo-created-entities-store';
 import { DIALOG_INTENT } from '@/app/(app)/tickets/constants';
@@ -74,33 +77,95 @@ import {
 } from '@/app/components/shared';
 import { dateColumnHeader } from '@/app/components/shared/date-column-header';
 import { LiveTable } from '@/app/components/shared/live-table';
+import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
 import { ValueText } from '@/app/components/shared/value-text';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
+import { usePagedTable } from '@/app/hooks/use-paged-table';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
+import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { type TableLayout, tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { ScriptStatus } from '@/generated/schema-enums';
-import { archiveScriptScheduleMutation } from '@/graphql/scripts/archive-script-schedule-mutation';
 import { scriptScheduleFiltersRefreshRelayQuery } from '@/graphql/scripts/script-schedule-filters-refresh-relay';
-import {
-  scriptSchedulesTableRelayFragment,
-  scriptSchedulesTableRelayQuery,
-} from '@/graphql/scripts/script-schedules-table-relay';
-import { unarchiveScriptScheduleMutation } from '@/graphql/scripts/unarchive-script-schedule-mutation';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
+import { useListRefreshEpoch } from '@/lib/list-refresh';
+import { PAGED_LISTS } from '@/lib/paged-lists';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import { type FacetOption, facetFilter, facetToMappedOptions } from '../../shared/utils/facet-options';
+import { type FacetOption, facetFilter, facetToMappedOptions, readFacet } from '../../shared/utils/facet-options';
 import { SCRIPTS_TABLE_SETTINGS, scriptsLiveColumnMeta, scriptsLiveColumnSize } from '../../shared/utils/grid-columns';
 import { platformsToEnums, platformsToIds } from '../../shared/utils/script-mappers';
+import { useScheduleArchiveMutations } from '../hooks/use-schedule-archive';
 import { DEVICE_LOCAL_TIME_NOTE, formatScheduleStartAt, repeatToLabel } from '../utils/schedule-timing';
 import { ArchiveScheduleModal } from './archive-schedule-modal';
 import { RestoreScheduleModal } from './restore-schedule-modal';
 
 const PAGE_SIZE = 20;
+
+/**
+ * One page of schedules per request, its cursor in the URL (`cursor`; no `@connection`: a cursor from a link must read
+ * exactly its page). The list pages back on the server (`last` / `before` return the page before the cursor), so the
+ * query takes all four page arguments; the pager sets the pair it uses and leaves the other null.
+ *
+ * `scriptScheduleFilters` (the filter facets) rides the same operation, so each filter interaction is a single
+ * round-trip and the dropdown options update with the rows; a page move asks for them again with the same scope (the
+ * same answer). Only the platforms facet is read (the table has no author column); `authors` stays unselected until a
+ * column needs it.
+ */
+const scriptSchedulesTableQuery = graphql`
+  query scriptSchedulesTableQuery(
+    $filter: ScriptScheduleFilterInput
+    $search: String
+    $sort: SortInput
+    $first: Int
+    $after: String
+    $last: Int
+    $before: String
+  ) {
+    scriptSchedules(
+      filter: $filter
+      search: $search
+      sort: $sort
+      first: $first
+      after: $after
+      last: $last
+      before: $before
+    ) {
+      filteredCount
+      edges {
+        node {
+          id
+          name
+          description
+          supportedPlatforms
+          deviceCount
+          trigger
+          # Which clock startAt is in — SERVER (an absolute instant) or
+          # DEVICE_LOCAL (a wall clock re-based per device). The Date & Time
+          # column reads it to decide whether to convert through the viewer's
+          # offset.
+          timeReference
+          startAt
+          repeat
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    scriptScheduleFilters(filter: $filter) {
+      platforms {
+        ...facetOptions_entry
+      }
+    }
+  }
+`;
 
 /**
  * The only values allowed to reach `SortInput.field` — everything else in the
@@ -303,9 +368,9 @@ interface SchedulesTableContentProps {
   sortState: DataTableSortState | null;
   onSortChange: (columnId: string) => void;
   /**
-   * True while the deferred query variables lag the live filter/search state
+   * True while the deferred query variables lag the live filter/search/page state
    * (a refetch is in flight and the rows on screen are the previous result) —
-   * guards the empty state so it never flashes on stale data.
+   * guards the empty state so it never flashes on stale data, and holds the pager.
    */
   isPending: boolean;
   onFilterChange: (filters: Record<string, string[]>) => void;
@@ -318,6 +383,10 @@ interface SchedulesTableContentProps {
   archived: boolean;
   /** The table's layout, from the app's one table flag: read once by the page and handed to every form of the list. */
   tableLayout: TableLayout;
+  /** The list's position in the URL: footer props, the stale check, the cursor drop. */
+  pager: UseCursorPagerReturn;
+  /** Deferred — the page variables to spread into the query (lag the URL while the next page is read). */
+  pageVariables: CursorPagerVariables;
 }
 
 function SchedulesTableContent({
@@ -336,76 +405,55 @@ function SchedulesTableContent({
   stickyHeaderOffset,
   archived,
   tableLayout,
+  pager,
+  pageVariables,
 }: SchedulesTableContentProps) {
   const { toast } = useToast();
   const environment = useRelayEnvironment();
 
-  const [commitArchive, isArchiving] = useMutation<ArchiveScheduleMutationType>(archiveScriptScheduleMutation);
-  const [commitUnarchive, isUnarchiving] = useMutation<UnarchiveScheduleMutationType>(unarchiveScriptScheduleMutation);
+  const { setArchived, isArchiving, isUnarchiving } = useScheduleArchiveMutations();
 
   // Schedule whose archive/restore is awaiting confirmation in the modal (null = closed).
   const [confirmTarget, setConfirmTarget] = useState<UiScheduleEntry | null>(null);
 
-  // One round-trip per interaction: the filter facets (`scriptScheduleFilters`)
-  // ride the list operation — see the query docstring.
+  // One page per request, its cursor in the URL; the list pages back on the server. The filter facets
+  // (`scriptScheduleFilters`) ride the same operation — see the query docstring.
   const retryKey = useRetryKey();
   // Mingo can add a row from the chat; its create refetches the list.
   const mingoCreated = useMingoCreatedEpoch('scriptSchedule');
-  const queryData = useLazyLoadQuery<SchedulesTableQueryType>(
-    scriptSchedulesTableRelayQuery,
-    {
-      filter: backendFilters,
-      search: debouncedSearch || null,
-      sort,
-      first: PAGE_SIZE,
-      after: null,
-    },
-    { fetchPolicy: 'store-and-network', fetchKey: `${retryKey}:${mingoCreated}` },
+  // An archive or unarchive (here or on the schedule's page) marks the list changed: the page is read again.
+  const changed = useListRefreshEpoch('scriptSchedules');
+  const variables = { filter: backendFilters, search: debouncedSearch || null, sort, ...pageVariables };
+  const queryData = useLazyLoadQuery<SchedulesTableQueryType>(scriptSchedulesTableQuery, variables, {
+    fetchPolicy: 'store-and-network',
+    fetchKey: `${retryKey}:${mingoCreated}:${changed}`,
+  });
+  const refetch = useRefetchPage<SchedulesTableQueryType>(scriptSchedulesTableQuery, variables);
+  const { edges, pageInfo, filteredCount } = queryData.scriptSchedules;
+  // A top-level page: its auto-refresh interval has no prefix, as its other params.
+  const paged = usePagedTable({ pager, pageInfo, rowCount: edges.length, refetch, isPending });
+
+  const transformedSchedules: UiScheduleEntry[] = useMemo(
+    () =>
+      edges.map(({ node }) => ({
+        id: node.id,
+        name: node.name,
+        description: node.description ?? '',
+        supportedPlatforms: platformsToIds(node.supportedPlatforms),
+        deviceCount: node.deviceCount,
+        trigger: node.trigger,
+        startAt: node.startAt ?? null,
+        timeReference: node.timeReference,
+        repeat: node.repeat ?? null,
+      })),
+    [edges],
   );
-
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
-    SchedulesPaginationQueryType,
-    SchedulesFragmentKey
-  >(scriptSchedulesTableRelayFragment, queryData);
-
-  // This list's connection record id — handed to archive/unarchive's `@deleteEdge`
-  // so the mutated schedule's edge is removed from THIS list only.
-  const connectionId = data.scriptSchedules?.__id;
-
-  const transformedSchedules: UiScheduleEntry[] = useMemo(() => {
-    const edges = data.scriptSchedules?.edges ?? [];
-    // Defensive null-edge/node guard — mirrors scripts-table; `@deleteEdge`
-    // keeps the record, so dangling edges aren't expected, but skipping them
-    // keeps the map crash-proof.
-    return edges.flatMap(edge => {
-      const node = edge?.node;
-      if (!node) return [];
-      return [
-        {
-          id: node.id,
-          name: node.name,
-          description: node.description ?? '',
-          supportedPlatforms: platformsToIds(node.supportedPlatforms),
-          deviceCount: node.deviceCount,
-          trigger: node.trigger,
-          startAt: node.startAt ?? null,
-          timeReference: node.timeReference,
-          repeat: node.repeat ?? null,
-        },
-      ];
-    });
-  }, [data.scriptSchedules?.edges]);
-
-  const fetchNextPage = useCallback(() => {
-    if (hasNext && !isLoadingNext) {
-      loadNext(PAGE_SIZE);
-    }
-  }, [hasNext, isLoadingNext, loadNext]);
 
   // Server-driven platform facet, mapped from the backend enum to the UI id the
   // column filter + `backendFilters` use (windows / darwin / linux).
   const platformOptions = useMemo(
-    () => facetToMappedOptions(queryData.scriptScheduleFilters?.platforms, value => platformsToIds([value])[0]),
+    () =>
+      facetToMappedOptions(readFacet(queryData.scriptScheduleFilters?.platforms), value => platformsToIds([value])[0]),
     [queryData.scriptScheduleFilters?.platforms],
   );
 
@@ -479,8 +527,7 @@ function SchedulesTableContent({
 
   // Archiving/unarchiving changes the list's MEMBERSHIP, so the platform facet
   // may still offer values whose last schedule just left this scope. Re-fetch it
-  // imperatively into the store (`fetchQuery(...).subscribe({})`); the list
-  // itself is NOT refetched — `@deleteEdge` already updated it locally.
+  // imperatively into the store (`fetchQuery(...).subscribe({})`).
   const refreshFilterMeta = useCallback(() => {
     fetchQuery<ScheduleFiltersRefreshQueryType>(
       environment,
@@ -490,18 +537,16 @@ function SchedulesTableContent({
     ).subscribe({});
   }, [environment, backendFilters]);
 
-  // Runs the archive/unarchive mutation for the schedule the confirm modal
-  // targets. The `updater` invalidates the record so every OTHER cached
-  // connection still holding its edge is marked stale and refetches on next
-  // read — mirrors the scripts table's archive flow.
+  // Runs the archive/unarchive for the schedule the confirm modal targets. On
+  // success the hook marks the list changed, so this page is read again from the
+  // server. The `updater` invalidates the record, so every other cache still
+  // holding it is marked stale and refetches on its next read — mirrors the
+  // scripts table's archive flow.
   const handleConfirmArchive = useCallback(() => {
     if (!confirmTarget) return;
     const { id, name } = confirmTarget;
-    const connections = connectionId ? [connectionId] : [];
     const updater = (store: RecordSourceSelectorProxy) => store.get(id)?.invalidateRecord();
-    const commit = archived ? commitUnarchive : commitArchive;
-    commit({
-      variables: { id, connections },
+    setArchived(id, !archived, {
       updater,
       onCompleted: () => {
         toast(
@@ -529,7 +574,7 @@ function SchedulesTableContent({
         setConfirmTarget(null);
       },
     });
-  }, [confirmTarget, connectionId, archived, commitArchive, commitUnarchive, toast, refreshFilterMeta]);
+  }, [confirmTarget, archived, setArchived, toast, refreshFilterMeta]);
 
   const columns = useMemo<ColumnDef<UiScheduleEntry>[]>(
     () =>
@@ -579,7 +624,9 @@ function SchedulesTableContent({
   // instead of "no schedules yet" — and the placeholder, which replaces the
   // whole table, would take the calendar down with it and strand the user.
   const hasActiveFilters = Object.values(tableFilters).some(values => values.length > 0) || Boolean(dateFilter.range);
-  const showEmptyState = !debouncedSearch && !hasActiveFilters && !isPending && transformedSchedules.length === 0;
+  // An empty LATER page (a cursor about to be dropped) keeps the table and its pager, so First stays reachable.
+  const showEmptyState =
+    !debouncedSearch && !hasActiveFilters && !isPending && pager.isFirstPage && transformedSchedules.length === 0;
 
   useEffect(() => {
     onEmptyChange(showEmptyState);
@@ -619,6 +666,7 @@ function SchedulesTableContent({
         isPending={isPending}
         table={table}
         pageSize={PAGE_SIZE}
+        totalCount={filteredCount}
         stickyHeaderOffset={stickyHeaderOffset}
         {...gridTableProps(tableLayout)}
         sort={sortState}
@@ -629,7 +677,8 @@ function SchedulesTableContent({
             : 'No schedules found. Try adjusting your filters or add a new schedule.',
         )}
         rowHref={scheduleRowHref}
-        footer={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+        pager={paged.pager}
+        refresh={paged.refresh}
       />
 
       <FilterModal
@@ -684,8 +733,21 @@ function gridTableProps(tableLayout: TableLayout) {
   return { layout: tableLayout, maxHeight: 'fill', settings: SCRIPTS_TABLE_SETTINGS.schedules } as const;
 }
 
-/** The schedules list, with its own boundary: in its scope the reader draws the table's loading form. */
+/**
+ * The schedules list, with its own boundary: in its scope the reader draws the table's loading form. A cursor the
+ * server refuses drops to the first page (`StaleCursorBoundary`); any other error goes up unchanged.
+ */
 function SchedulesTable(props: SchedulesTableContentProps) {
+  return (
+    <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
+      <SchedulesTableLoading {...props} />
+    </StaleCursorBoundary>
+  );
+}
+
+/** The rows' loading boundary, the whole output of its own component (the loading standard), under the
+ * stale-cursor boundary above. */
+function SchedulesTableLoading(props: SchedulesTableContentProps) {
   return (
     <LoadingSuspense label="Loading schedules">
       <SchedulesTableReader {...props} />
@@ -694,7 +756,8 @@ function SchedulesTable(props: SchedulesTableContentProps) {
 }
 
 function SchedulesTableReader(props: SchedulesTableContentProps) {
-  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no
+  // read; the pager is drawn, waiting.
   if (useLoadingScope())
     return (
       <LiveTable
@@ -702,6 +765,7 @@ function SchedulesTableReader(props: SchedulesTableContentProps) {
         pageSize={PAGE_SIZE}
         stickyHeaderOffset={props.stickyHeaderOffset}
         {...gridTableProps(props.tableLayout)}
+        pager={null}
       />
     );
   return <SchedulesTableContent {...props} />;
@@ -720,27 +784,37 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
   const router = useRouter();
   const handleBack = useSafeBack(routes.scripts.schedules.list);
 
-  const { params, setParam, setParams } = useApiParams({
-    search: { type: 'string', default: '' },
-    supportedPlatforms: { type: 'array', default: [] },
-    // Server-side sort: backend sort field ('repeat' from the REPEAT header,
-    // 'startAt' from the DATE & TIME calendar) + direction. Empty sortBy =
-    // backend default order (newest-first by _id).
-    sortBy: { type: 'string', default: '' },
-    sortDir: { type: 'string', default: 'desc' },
-    // First-run date range (local `yyyy-MM-dd`, inclusive) — the DATE & TIME
-    // calendar. Sent as `startAtFrom` / `startAtTo`.
-    dateFrom: { type: 'string', default: '' },
-    dateTo: { type: 'string', default: '' },
+  // A top-level page, so no prefix. A change to the search, the funnel, the sort or the calendar drops the pager's
+  // cursor in the SAME URL write (one history entry on page 2+, so Back returns to the old view).
+  const { params, setParam, setParams } = useApiParams(
+    {
+      search: { type: 'string', default: '' },
+      supportedPlatforms: { type: 'array', default: [] },
+      // Server-side sort: backend sort field ('repeat' from the REPEAT header,
+      // 'startAt' from the DATE & TIME calendar) + direction. Empty sortBy =
+      // backend default order (newest-first by _id).
+      sortBy: { type: 'string', default: '' },
+      sortDir: { type: 'string', default: 'desc' },
+      // First-run date range (local `yyyy-MM-dd`, inclusive) — the DATE & TIME
+      // calendar. Sent as `startAtFrom` / `startAtTo`.
+      dateFrom: { type: 'string', default: '' },
+      dateTo: { type: 'string', default: '' },
+    },
+    { resetKeys: CURSOR_PAGER_KEYS, resetHistory: 'push' },
+  );
+  const pager = useCursorPager({
+    pageSize: PAGE_SIZE,
+    ...PAGED_LISTS.scriptSchedules,
+    resetOn: JSON.stringify(params),
   });
 
   // Local search input keeps typing responsive; the shared hook debounces it to
   // the URL param and guards the back/forward sync-down against clobbering typing.
-  const {
-    search: searchInput,
-    setSearch: setSearchInput,
-    debouncedSearch,
-  } = useSearchParam(params.search, value => setParam('search', value), 300);
+  const { search: searchInput, setSearch: setSearchInput } = useSearchParam(
+    params.search,
+    value => setParam('search', value),
+    300,
+  );
 
   const [isEmpty, setIsEmpty] = useState(false);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
@@ -833,9 +907,18 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
 
   // Filter + sort travel together as one deferred object so the query lags in
   // lockstep and `isPending` covers both; the LIVE params keep driving the
-  // controls (checkboxes, header indicator) so they respond instantly.
+  // controls (checkboxes, header indicator) so they respond instantly. The query
+  // reads the search from the URL, not the box's debounced value: the URL write
+  // that carries a new search drops the cursor in the same navigation, so the two
+  // never meet in one request. The page is deferred with the rest, so a page move
+  // keeps the current rows on screen (dimmed) while the next ones are read.
   const queryVars = useMemo(() => ({ filter: backendFilters, sort: sortInput }), [backendFilters, sortInput]);
-  const { deferredFilters: deferredVars, deferredSearch, isPending } = useDeferredQuery(queryVars, debouncedSearch);
+  const {
+    deferredFilters: deferredVars,
+    deferredSearch,
+    deferredPage,
+    isPending,
+  } = useDeferredQuery(queryVars, params.search, pager.variables);
 
   const tableFilters = useMemo(() => ({ supportedPlatforms: params.supportedPlatforms }), [params.supportedPlatforms]);
 
@@ -960,6 +1043,8 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
             stickyHeaderOffset={stickyHeaderOffset}
             archived={archived}
             tableLayout={tableLayoutFor(tableGate)}
+            pager={pager}
+            pageVariables={deferredPage}
           />
         </LoadingWhen>
       </div>

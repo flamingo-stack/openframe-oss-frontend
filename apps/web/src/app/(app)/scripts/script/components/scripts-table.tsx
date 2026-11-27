@@ -41,22 +41,26 @@ import {
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import {
+  CURSOR_PAGER_KEYS,
+  type CursorPagerVariables,
+  useApiParams,
+  useCursorPager,
+  type UseCursorPagerReturn,
+  useToast,
+} from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchQuery, useLazyLoadQuery, useMutation, usePaginationFragment, useRelayEnvironment } from 'react-relay';
+import { fetchQuery, graphql, readInlineData, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 import type { RecordSourceSelectorProxy } from 'relay-runtime';
-import type { archiveScriptMutation as ArchiveScriptMutationType } from '@/__generated__/archiveScriptMutation.graphql';
 import type { scriptFiltersRefreshRelayQuery as ScriptFiltersRefreshQueryType } from '@/__generated__/scriptFiltersRefreshRelayQuery.graphql';
-import type { scriptsTableRelay_query$key as ScriptsFragmentKey } from '@/__generated__/scriptsTableRelay_query.graphql';
-import type { scriptsTableRelayPaginationQuery as ScriptsPaginationQueryType } from '@/__generated__/scriptsTableRelayPaginationQuery.graphql';
 import type {
   ScriptFilterInput,
-  scriptsTableRelayQuery as ScriptsTableQueryType,
-} from '@/__generated__/scriptsTableRelayQuery.graphql';
+  scriptsTableQuery as ScriptsTableQueryType,
+} from '@/__generated__/scriptsTableQuery.graphql';
 import type { scriptTagsRelayFilterQuery as ScriptTagsFilterQueryType } from '@/__generated__/scriptTagsRelayFilterQuery.graphql';
-import type { unarchiveScriptMutation as UnarchiveScriptMutationType } from '@/__generated__/unarchiveScriptMutation.graphql';
+import type { userSummaryFields_user$key } from '@/__generated__/userSummaryFields_user.graphql';
 import { useGenerateWithAiAction } from '@/app/(app)/mingo/hooks/use-generate-with-ai-action';
 import { useMingoCreatedEpoch } from '@/app/(app)/mingo/stores/mingo-created-entities-store';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
@@ -64,21 +68,24 @@ import { DIALOG_INTENT } from '@/app/(app)/tickets/constants';
 import { EmptyState, onboardingGuideButton, oneLineEmptyState, useRetryKey } from '@/app/components/shared';
 import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { LiveTable } from '@/app/components/shared/live-table';
+import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
 import { ValueText } from '@/app/components/shared/value-text';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
+import { usePagedTable } from '@/app/hooks/use-paged-table';
+import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { type TableLayout, tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { ScriptStatus } from '@/generated/schema-enums';
-import { archiveScriptMutation } from '@/graphql/scripts/archive-script-mutation';
 import { scriptFiltersRefreshRelayQuery } from '@/graphql/scripts/script-filters-refresh-relay';
 import { scriptTagsRelayFilterQuery } from '@/graphql/scripts/script-tags-relay';
-import { scriptsTableRelayFragment, scriptsTableRelayQuery } from '@/graphql/scripts/scripts-table-relay';
-import { unarchiveScriptMutation } from '@/graphql/scripts/unarchive-script-mutation';
+import { userSummaryFieldsFragment } from '@/graphql/users/user-summary-fields';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { getFullImageUrl } from '@/lib/image-url';
+import { useListRefreshEpoch } from '@/lib/list-refresh';
 import { openInNewTab } from '@/lib/open-in-new-tab';
+import { PAGED_LISTS } from '@/lib/paged-lists';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
@@ -88,14 +95,73 @@ import {
   facetFilter,
   facetToMappedOptions,
   facetToSortedOptions,
+  readFacet,
 } from '../../shared/utils/facet-options';
 import { SCRIPTS_TABLE_SETTINGS, scriptsLiveColumnMeta, scriptsLiveColumnSize } from '../../shared/utils/grid-columns';
 import { platformsToEnums, platformsToIds, shellToEnum, shellToId } from '../../shared/utils/script-mappers';
+import { useScriptArchive } from '../hooks/use-script-archive';
 import { ArchiveScriptModal } from './archive-script-modal';
 import { RestoreScriptModal } from './restore-script-modal';
 import { ScriptsTagFilter } from './scripts-tag-filter';
 
 const PAGE_SIZE = 20;
+
+/**
+ * One page of scripts per request, its cursor in the URL (`cursor`; no `@connection`: a cursor from a link must read
+ * exactly its page). The list pages back on the server (`last` / `before` return the page before the cursor), so the
+ * query takes all four page arguments; the pager sets the pair it uses and leaves the other null.
+ *
+ * `scriptFilters` (the filter facets) rides the same operation, so each filter interaction is a single round-trip and
+ * the dropdown options update with the rows; a page move asks for them again with the same scope (the same answer).
+ * The backend excludes each facet's own group when narrowing, so a group's options never vanish while the user
+ * multi-selects within it. Option `value`s match the `ScriptFilterInput` fields (shells/platforms = enum, authors =
+ * user id).
+ */
+const scriptsTableQuery = graphql`
+  query scriptsTableQuery(
+    $filter: ScriptFilterInput
+    $search: String
+    $first: Int
+    $after: String
+    $last: Int
+    $before: String
+  ) {
+    scripts(filter: $filter, search: $search, first: $first, after: $after, last: $last, before: $before) {
+      filteredCount
+      edges {
+        node {
+          id
+          name
+          description
+          shell
+          supportedPlatforms
+          defaultTimeoutSeconds
+          author {
+            id
+            ...userSummaryFields_user
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    scriptFilters(filter: $filter) {
+      shells {
+        ...facetOptions_entry
+      }
+      platforms {
+        ...facetOptions_entry
+      }
+      authors {
+        ...facetOptions_entry
+      }
+    }
+  }
+`;
 
 /**
  * TanStack's column-filter state as `useDataTable` hands it back. Declared
@@ -322,9 +388,9 @@ interface ScriptsTableContentProps {
   /** Whether any tag filter is active (kept out of `tableFilters` so it doesn't become a phantom column filter). */
   hasTagFilter: boolean;
   /**
-   * True while the deferred query variables lag the live filter/search state
+   * True while the deferred query variables lag the live filter/search/page state
    * (a refetch is in flight and the rows on screen are the previous result) —
-   * guards the empty state so it never flashes on stale data.
+   * guards the empty state so it never flashes on stale data, and holds the pager.
    */
   isPending: boolean;
   onFilterChange: (filters: Record<string, string[]>) => void;
@@ -335,6 +401,10 @@ interface ScriptsTableContentProps {
   archived: boolean;
   /** The table's layout, from the app's one table flag: read once by the page and handed to every form of the list. */
   tableLayout: TableLayout;
+  /** The list's position in the URL: footer props, the stale check, the cursor drop. */
+  pager: UseCursorPagerReturn;
+  /** Deferred — the page variables to spread into the query (lag the URL while the next page is read). */
+  pageVariables: CursorPagerVariables;
 }
 
 function ScriptsTableContent({
@@ -350,52 +420,42 @@ function ScriptsTableContent({
   stickyHeaderOffset,
   archived,
   tableLayout,
+  pager,
+  pageVariables,
 }: ScriptsTableContentProps) {
   const { toast } = useToast();
   const environment = useRelayEnvironment();
 
-  const [commitArchive, isArchiving] = useMutation<ArchiveScriptMutationType>(archiveScriptMutation);
-  const [commitUnarchive, isUnarchiving] = useMutation<UnarchiveScriptMutationType>(unarchiveScriptMutation);
+  const { setArchived, isArchiving, isUnarchiving } = useScriptArchive();
 
   // Script whose archive/restore is awaiting confirmation in the modal (null = closed).
   const [confirmTarget, setConfirmTarget] = useState<UiScriptEntry | null>(null);
 
-  // One round-trip per interaction: the filter facets (`scriptFilters`) ride the
-  // list operation — see the query docstring for the facet semantics.
+  // One page per request, its cursor in the URL; the list pages back on the server. The filter facets
+  // (`scriptFilters`) ride the same operation — see the query docstring.
   const retryKey = useRetryKey();
   // Mingo can add a row from the chat; its create refetches the list.
   const mingoCreated = useMingoCreatedEpoch('script');
-  const queryData = useLazyLoadQuery<ScriptsTableQueryType>(
-    scriptsTableRelayQuery,
-    {
-      filter: backendFilters,
-      search: debouncedSearch || null,
-      first: PAGE_SIZE,
-      after: null,
-    },
-    { fetchPolicy: 'store-and-network', fetchKey: `${retryKey}:${mingoCreated}` },
-  );
+  // An archive or unarchive (here or on the script's page) marks the list changed: the page is read again.
+  const changed = useListRefreshEpoch('scripts');
+  const variables = { filter: backendFilters, search: debouncedSearch || null, ...pageVariables };
+  const queryData = useLazyLoadQuery<ScriptsTableQueryType>(scriptsTableQuery, variables, {
+    fetchPolicy: 'store-and-network',
+    fetchKey: `${retryKey}:${mingoCreated}:${changed}`,
+  });
+  const refetch = useRefetchPage<ScriptsTableQueryType>(scriptsTableQuery, variables);
+  const { edges, pageInfo, filteredCount } = queryData.scripts;
+  // A top-level page: its auto-refresh interval has no prefix, as its other params.
+  const paged = usePagedTable({ pager, pageInfo, rowCount: edges.length, refetch, isPending });
 
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
-    ScriptsPaginationQueryType,
-    ScriptsFragmentKey
-  >(scriptsTableRelayFragment, queryData);
-
-  // This list's connection record id — handed to archive/unarchive's `@deleteEdge`
-  // so the mutated script's edge is removed from THIS list (the record itself is
-  // kept in the store, so the chat / detail page can still fetch it by id).
-  const connectionId = data.scripts?.__id;
-
-  const transformedScripts: UiScriptEntry[] = useMemo(() => {
-    const edges = data.scripts?.edges ?? [];
-    // Defensive null-edge/node guard. Archive/unarchive use `@deleteEdge` (removes
-    // the edge from this connection but keeps the record), so a null `node` isn't
-    // expected here — but skipping any dangling edge keeps the map crash-proof.
-    return edges.flatMap(edge => {
-      const node = edge?.node;
-      if (!node) return [];
-      return [
-        {
+  const transformedScripts: UiScriptEntry[] = useMemo(
+    () =>
+      edges.map(({ node }) => {
+        // The shared user selection; its first and last name feed the initials, which `toUserSummary` joins.
+        const author = node.author
+          ? readInlineData<userSummaryFields_user$key>(userSummaryFieldsFragment, node.author)
+          : null;
+        return {
           id: node.id,
           name: node.name,
           description: node.description ?? '',
@@ -403,38 +463,32 @@ function ScriptsTableContent({
           supportedPlatforms: platformsToIds(node.supportedPlatforms),
           timeout: node.defaultTimeoutSeconds ?? 300,
           authorId: node.author?.id ?? '',
-          authorName: initiatorName(node.author),
-          authorInitials: initiatorInitials(node.author),
-          authorImage: getFullImageUrl(node.author?.image?.imageUrl, node.author?.image?.hash),
-          authorDeleted: isDeletedUserStatus(node.author?.status),
-          hasAuthor: Boolean(node.author),
-        },
-      ];
-    });
-  }, [data.scripts?.edges]);
-
-  const fetchNextPage = useCallback(() => {
-    if (hasNext && !isLoadingNext) {
-      loadNext(PAGE_SIZE);
-    }
-  }, [hasNext, isLoadingNext, loadNext]);
+          authorName: initiatorName(author),
+          authorInitials: initiatorInitials(author),
+          authorImage: getFullImageUrl(author?.image?.imageUrl, author?.image?.hash),
+          authorDeleted: isDeletedUserStatus(author?.status),
+          hasAuthor: author !== null,
+        };
+      }),
+    [edges],
+  );
 
   // Filter options — all server-driven (the complete set for this scope), so
   // values a paginated list couldn't enumerate still appear. Shell/platform
   // option `value`s are mapped from the backend enum to the UI id the table's
   // column filter + `backendFilters` already use; author `value` is the user id.
   const shellOptions = useMemo(
-    () => facetToMappedOptions(queryData.scriptFilters?.shells, shellToId),
+    () => facetToMappedOptions(readFacet(queryData.scriptFilters?.shells), shellToId),
     [queryData.scriptFilters?.shells],
   );
 
   const platformOptions = useMemo(
-    () => facetToMappedOptions(queryData.scriptFilters?.platforms, value => platformsToIds([value])[0]),
+    () => facetToMappedOptions(readFacet(queryData.scriptFilters?.platforms), value => platformsToIds([value])[0]),
     [queryData.scriptFilters?.platforms],
   );
 
   const authorOptions = useMemo(
-    () => facetToSortedOptions(queryData.scriptFilters?.authors),
+    () => facetToSortedOptions(readFacet(queryData.scriptFilters?.authors)),
     [queryData.scriptFilters?.authors],
   );
 
@@ -509,18 +563,11 @@ function ScriptsTableContent({
     [archived, isArchiving, isUnarchiving],
   );
 
-  // Runs the archive/unarchive mutation for the script the confirm modal targets.
-  // `@deleteEdge` removes the row's edge from THIS list's connection (record kept
-  // in store); the `updater` invalidates the record so EVERY OTHER cached
-  // connection still holding its edge (other filter/search variants, the Mingo
-  // picker) is marked stale and refetches on next read — independent of fetch
-  // policy (works even under `store-or-network`). The current connection no longer
   // Archiving/unarchiving changes the list's MEMBERSHIP, so the derived filter
   // metadata goes stale: the shell/platform/author facets and the tag-filter
   // chips may still offer values whose last script just left this scope.
   // Re-fetch both imperatively into the store (`fetchQuery(...).subscribe({})` —
-  // every mounted subscriber re-renders); the list itself is NOT refetched, the
-  // `@deleteEdge` already updated it locally. `backendFilters` is the exact
+  // every mounted subscriber re-renders). `backendFilters` is the exact
   // variables value of the mounted list query, so the facet payload lands in the
   // same store records its dropdowns read from.
   const refreshFilterMeta = useCallback(() => {
@@ -538,16 +585,18 @@ function ScriptsTableContent({
     ).subscribe({});
   }, [environment, backendFilters, archived]);
 
-  // references the node (edge already removed), so it isn't refetched. Modal closes
+  // Runs the archive/unarchive for the script the confirm modal targets. On success
+  // the hook marks the list changed, so this page is read again from the server.
+  // The `updater` invalidates the record, so every other cache still holding it
+  // (other filter/search variants, the Mingo and Run Script pickers, which keep
+  // their own connection) is marked stale and refetches on its next read —
+  // independent of fetch policy (works even under `store-or-network`). Modal closes
   // once the mutation settles (parent owns `open`, so pending state stays visible).
   const handleConfirmArchive = useCallback(() => {
     if (!confirmTarget) return;
     const { id, name } = confirmTarget;
-    const connections = connectionId ? [connectionId] : [];
     const updater = (store: RecordSourceSelectorProxy) => store.get(id)?.invalidateRecord();
-    const commit = archived ? commitUnarchive : commitArchive;
-    commit({
-      variables: { id, connections },
+    setArchived(id, !archived, {
       updater,
       onCompleted: () => {
         toast(
@@ -571,7 +620,7 @@ function ScriptsTableContent({
         setConfirmTarget(null);
       },
     });
-  }, [confirmTarget, connectionId, archived, commitArchive, commitUnarchive, toast, refreshFilterMeta]);
+  }, [confirmTarget, archived, setArchived, toast, refreshFilterMeta]);
 
   const columns = useMemo<ColumnDef<UiScriptEntry>[]>(
     () =>
@@ -624,7 +673,9 @@ function ScriptsTableContent({
   const scriptRowHref = useCallback((script: UiScriptEntry) => routes.scripts.details(script.id), []);
 
   const hasActiveFilters = hasTagFilter || Object.values(tableFilters).some(values => values.length > 0);
-  const showEmptyState = !debouncedSearch && !hasActiveFilters && !isPending && transformedScripts.length === 0;
+  // An empty LATER page (a cursor about to be dropped) keeps the table and its pager, so First stays reachable.
+  const showEmptyState =
+    !debouncedSearch && !hasActiveFilters && !isPending && pager.isFirstPage && transformedScripts.length === 0;
 
   useEffect(() => {
     onEmptyChange(showEmptyState);
@@ -668,6 +719,7 @@ function ScriptsTableContent({
         isPending={isPending}
         table={table}
         pageSize={PAGE_SIZE}
+        totalCount={filteredCount}
         stickyHeaderOffset={stickyHeaderOffset}
         {...gridTableProps(tableLayout)}
         emptyState={oneLineEmptyState(
@@ -676,7 +728,8 @@ function ScriptsTableContent({
             : 'No scripts found. Try adjusting your filters or add a new script.',
         )}
         rowHref={scriptRowHref}
-        footer={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+        pager={paged.pager}
+        refresh={paged.refresh}
       />
 
       <FilterModal
@@ -722,8 +775,21 @@ function gridTableProps(tableLayout: TableLayout) {
   return { layout: tableLayout, maxHeight: 'fill', settings: SCRIPTS_TABLE_SETTINGS.scripts } as const;
 }
 
-/** The scripts list, with its own boundary: in its scope the reader draws the table's loading form. */
+/**
+ * The scripts list, with its own boundary: in its scope the reader draws the table's loading form. A cursor the server
+ * refuses drops to the first page (`StaleCursorBoundary`); any other error goes up unchanged.
+ */
 function ScriptsTableList(props: ScriptsTableContentProps) {
+  return (
+    <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
+      <ScriptsTableListLoading {...props} />
+    </StaleCursorBoundary>
+  );
+}
+
+/** The rows' loading boundary, the whole output of its own component (the loading standard), under the
+ * stale-cursor boundary above. */
+function ScriptsTableListLoading(props: ScriptsTableContentProps) {
   return (
     <LoadingSuspense label="Loading scripts">
       <ScriptsTableListReader {...props} />
@@ -732,7 +798,8 @@ function ScriptsTableList(props: ScriptsTableContentProps) {
 }
 
 function ScriptsTableListReader(props: ScriptsTableContentProps) {
-  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no
+  // read; the pager is drawn, waiting.
   if (useLoadingScope())
     return (
       <LiveTable
@@ -740,6 +807,7 @@ function ScriptsTableListReader(props: ScriptsTableContentProps) {
         pageSize={PAGE_SIZE}
         stickyHeaderOffset={props.stickyHeaderOffset}
         {...gridTableProps(props.tableLayout)}
+        pager={null}
       />
     );
   return <ScriptsTableContent {...props} />;
@@ -758,21 +826,27 @@ export function ScriptsTable({ archived = false }: ScriptsTableProps = {}) {
   const router = useRouter();
   const handleBack = useSafeBack(routes.scripts.list);
 
-  const { params, setParam, setParams } = useApiParams({
-    search: { type: 'string', default: '' },
-    shellType: { type: 'array', default: [] },
-    supportedPlatforms: { type: 'array', default: [] },
-    authorId: { type: 'array', default: [] },
-    tagIds: { type: 'array', default: [] },
-  });
+  // A top-level page, so no prefix. A change to the search, a funnel or the tags drops the pager's cursor in the SAME
+  // URL write (one history entry on page 2+, so Back returns to the old view).
+  const { params, setParam, setParams } = useApiParams(
+    {
+      search: { type: 'string', default: '' },
+      shellType: { type: 'array', default: [] },
+      supportedPlatforms: { type: 'array', default: [] },
+      authorId: { type: 'array', default: [] },
+      tagIds: { type: 'array', default: [] },
+    },
+    { resetKeys: CURSOR_PAGER_KEYS, resetHistory: 'push' },
+  );
+  const pager = useCursorPager({ pageSize: PAGE_SIZE, ...PAGED_LISTS.scripts, resetOn: JSON.stringify(params) });
 
   // Local search input keeps typing responsive; the shared hook debounces it to
   // the URL param and guards the back/forward sync-down against clobbering typing.
-  const {
-    search: searchInput,
-    setSearch: setSearchInput,
-    debouncedSearch,
-  } = useSearchParam(params.search, value => setParam('search', value), 300);
+  const { search: searchInput, setSearch: setSearchInput } = useSearchParam(
+    params.search,
+    value => setParam('search', value),
+    300,
+  );
 
   const [isEmpty, setIsEmpty] = useState(false);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
@@ -794,11 +868,17 @@ export function ScriptsTable({ archived = false }: ScriptsTableProps = {}) {
     };
   }, [archived, params.shellType, params.supportedPlatforms, params.authorId, params.tagIds]);
 
-  // Deferred query variables: on a filter/search interaction the table keeps
-  // rendering the current rows while the refetch is in flight, instead of
+  // Deferred query variables: on a filter/search/page interaction the table keeps
+  // rendering the current rows (dimmed) while the refetch is in flight, instead of
   // dropping to the Suspense skeleton. The dropdown state (`tableFilters`) stays
-  // live so the checkboxes respond instantly.
-  const { deferredFilters, deferredSearch, isPending } = useDeferredQuery(backendFilters, debouncedSearch);
+  // live so the checkboxes respond instantly. The query reads the search from the
+  // URL, not the box's debounced value: the URL write that carries a new search
+  // drops the cursor in the same navigation, so the two never meet in one request.
+  const { deferredFilters, deferredSearch, deferredPage, isPending } = useDeferredQuery(
+    backendFilters,
+    params.search,
+    pager.variables,
+  );
 
   const tableFilters = useMemo(
     () => ({
@@ -906,6 +986,8 @@ export function ScriptsTable({ archived = false }: ScriptsTableProps = {}) {
             stickyHeaderOffset={stickyHeaderOffset}
             archived={archived}
             tableLayout={tableLayoutFor(tableGate)}
+            pager={pager}
+            pageVariables={deferredPage}
           />
         </LoadingWhen>
       </div>
