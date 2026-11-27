@@ -7,11 +7,7 @@ import {
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import type {
-  CursorPagerFooterProps,
-  CursorPagerVariables,
-  UseCursorPagerReturn,
-} from '@flamingo-stack/openframe-frontend-core/hooks';
+import type { CursorPagerFooterProps } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type {
@@ -23,7 +19,7 @@ import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-
 import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
 import { useTableGrid } from '@/app/components/shared/table-layout-scope';
 import { forwardPage } from '@/app/hooks/forward-page';
-import { usePagedTable } from '@/app/hooks/use-paged-table';
+import { type PagedListPosition, usePagedTable } from '@/app/hooks/use-paged-table';
 import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { DirectoryGroupSortField, SortDirection } from '@/generated/schema-enums';
 import { useListRefreshEpoch } from '@/lib/list-refresh';
@@ -75,12 +71,8 @@ interface GroupsTableProps {
   /** No group at all (not a search miss): the view drops its title and toolbar. */
   onEmptyChange: (isEmpty: boolean) => void;
   stickyHeaderOffset: string;
-  /** The list's position in the URL: footer props, the stale check, the cursor drop. */
-  pager: UseCursorPagerReturn;
-  /** Deferred — the page variables to spread into the query (lag the URL while the next page is read). */
-  pageVariables: CursorPagerVariables;
-  /** The view's URL prefix: the auto-refresh interval sits beside its other params (`groupsRefresh`). */
-  paramPrefix: string;
+  /** The list's position in the URL, under the view's prefix (`groups`: the auto-refresh interval is `groupsRefresh`). */
+  position: PagedListPosition;
 }
 
 /**
@@ -89,7 +81,10 @@ interface GroupsTableProps {
  */
 export function GroupsTable(props: GroupsTableProps) {
   return (
-    <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
+    <StaleCursorBoundary
+      cursor={readCursor(props.position.pageVariables)}
+      onStaleCursor={props.position.pager.dropCursor}
+    >
       <GroupsTableLoading {...props} />
     </StaleCursorBoundary>
   );
@@ -116,7 +111,8 @@ function GroupsTableReader(props: GroupsTableProps) {
  * The page the URL names, its footer and the auto-refresh. A change marked on `directoryGroups` reads the page again
  * (`useListRefreshEpoch`), keeping the rows on screen until it arrives.
  */
-function GroupsTableQuery({ pager, pageVariables, paramPrefix, ...props }: GroupsTableProps) {
+function GroupsTableQuery({ position, ...props }: GroupsTableProps) {
+  const { pager, pageVariables, paramPrefix } = position;
   const { organizationId, orderBy, debouncedSearch, isPending } = props;
   const retryKey = useRetryKey();
   const changed = useListRefreshEpoch('directoryGroups');
@@ -140,7 +136,7 @@ function GroupsTableQuery({ pager, pageVariables, paramPrefix, ...props }: Group
 
 const COLUMNS = groupColumns({ groupHeader: 'Groups', sortable: true });
 
-interface GroupsRowsProps extends Omit<GroupsTableProps, 'pager' | 'pageVariables' | 'paramPrefix'> {
+interface GroupsRowsProps extends Omit<GroupsTableProps, 'position'> {
   rows: readonly GroupRow[];
   /** The server's total for the search, not the rows on the page. */
   totalCount: number;

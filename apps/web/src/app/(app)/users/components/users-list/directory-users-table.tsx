@@ -13,11 +13,7 @@ import {
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import type {
-  CursorPagerFooterProps,
-  CursorPagerVariables,
-  UseCursorPagerReturn,
-} from '@flamingo-stack/openframe-frontend-core/hooks';
+import type { CursorPagerFooterProps } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type {
@@ -31,7 +27,7 @@ import { openRowColumn } from '@/app/components/shared/open-row-column';
 import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
 import { useTableGrid } from '@/app/components/shared/table-layout-scope';
 import { forwardPage } from '@/app/hooks/forward-page';
-import { usePagedTable } from '@/app/hooks/use-paged-table';
+import { type PagedListPosition, usePagedTable } from '@/app/hooks/use-paged-table';
 import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { DirectoryReadability, TopAdminState } from '@/generated/schema-enums';
 import { toClaimingCustomer } from '@/graphql/directory/customer-claim-fields';
@@ -289,15 +285,10 @@ interface DirectoryUsersTableProps {
   /** No user at all (not a search or funnel miss) — the view drops its toolbar. */
   onEmptyChange: (isEmpty: boolean) => void;
   stickyHeaderOffset: string;
-  /** The phone's filter window is open (its button sits in the view's toolbar). */
-  filtersOpen: boolean;
-  onFiltersClose: () => void;
-  /** The list's position in the URL: footer props, the stale check, the cursor drop. */
-  pager: UseCursorPagerReturn;
-  /** Deferred — the page variables to spread into the query (lag the URL while the next page is read). */
-  pageVariables: CursorPagerVariables;
-  /** The view's URL prefix (`users` in a customer's tab): the auto-refresh interval sits beside its other params. */
-  paramPrefix: string | undefined;
+  /** The phone's filter window: whether it is open (its button sits in the view's toolbar), and how it closes. */
+  filtersWindow: { open: boolean; onClose: () => void };
+  /** The list's position in the URL, under the view's prefix (`users` in a customer's tab, none on `/users`). */
+  position: PagedListPosition;
 }
 
 const UNREAD_FILTER_OPTIONS: UserFilterOptions = { customers: [], statuses: [], licenses: [] };
@@ -308,7 +299,10 @@ const UNREAD_FILTER_OPTIONS: UserFilterOptions = { customers: [], statuses: [], 
  */
 export function DirectoryUsersTable(props: DirectoryUsersTableProps) {
   return (
-    <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
+    <StaleCursorBoundary
+      cursor={readCursor(props.position.pageVariables)}
+      onStaleCursor={props.position.pager.dropCursor}
+    >
       <DirectoryUsersTableLoading {...props} />
     </StaleCursorBoundary>
   );
@@ -336,7 +330,8 @@ function DirectoryUsersTableReader(props: DirectoryUsersTableProps) {
  * or out of the funnels, which is the server's answer: it marks the list changed and the page is read again
  * (`useListRefreshEpoch`), keeping the rows on screen until it arrives.
  */
-function DirectoryUsersTableQuery({ pager, pageVariables, paramPrefix, ...props }: DirectoryUsersTableProps) {
+function DirectoryUsersTableQuery({ position, ...props }: DirectoryUsersTableProps) {
+  const { pager, pageVariables, paramPrefix } = position;
   const { organizationId, backendFilters, debouncedSearch, selections, isPending } = props;
   const retryKey = useRetryKey();
   const changed = useListRefreshEpoch('directoryUsers');
@@ -369,7 +364,7 @@ function DirectoryUsersTableQuery({ pager, pageVariables, paramPrefix, ...props 
   );
 }
 
-interface UsersRowsProps extends Omit<DirectoryUsersTableProps, 'pager' | 'pageVariables' | 'paramPrefix'> {
+interface UsersRowsProps extends Omit<DirectoryUsersTableProps, 'position'> {
   rows: readonly UserRow[];
   /** The server's total for the search and the funnels, not the rows on the page. */
   totalCount: number;
@@ -395,8 +390,7 @@ function UsersRows({
   isPending,
   onEmptyChange,
   stickyHeaderOffset,
-  filtersOpen,
-  onFiltersClose,
+  filtersWindow,
 }: UsersRowsProps) {
   const loading = useLoadingScope();
   const tableGrid = useTableGrid(settingsKey(!!organizationId));
@@ -458,8 +452,8 @@ function UsersRows({
         refresh={refresh}
       />
       <FilterModal
-        isOpen={filtersOpen}
-        onClose={onFiltersClose}
+        isOpen={filtersWindow.open}
+        onClose={filtersWindow.onClose}
         filterGroups={filterGroups(filterOptions, !!organizationId)}
         currentFilters={{ ...selections }}
         onFilterChange={filters =>

@@ -383,7 +383,7 @@ const NO_SELECTIONS = { customer: [], status: [], license: [] };
 function usersTable(organizationId?: string) {
   return (
     <DirectoryUsersTable
-      {...firstPageProps(USERS_PAGE_SIZE, organizationId ? 'users' : undefined)}
+      position={firstPageProps(USERS_PAGE_SIZE, organizationId ? 'users' : undefined)}
       organizationId={organizationId}
       backendFilters={null}
       debouncedSearch=""
@@ -392,8 +392,7 @@ function usersTable(organizationId?: string) {
       isPending={false}
       onEmptyChange={noop}
       stickyHeaderOffset="top-[56px]"
-      filtersOpen={false}
-      onFiltersClose={noop}
+      filtersWindow={{ open: false, onClose: noop }}
     />
   );
 }
@@ -402,7 +401,7 @@ function usersTable(organizationId?: string) {
 function groupsTable() {
   return (
     <GroupsTable
-      {...firstPageProps(GROUPS_PAGE_SIZE, 'groups')}
+      position={firstPageProps(GROUPS_PAGE_SIZE, 'groups')}
       organizationId="org-1"
       orderBy={null}
       debouncedSearch=""

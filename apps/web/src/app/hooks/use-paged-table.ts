@@ -3,10 +3,24 @@
 import type {
   CursorPageInfo,
   CursorPagerFooterProps,
+  CursorPagerVariables,
   UseCursorPagerReturn,
 } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useEffect } from 'react';
 import { useAutoRefresh, type UseAutoRefreshReturn } from './use-auto-refresh';
+
+/** Where a paged list stands: what the view that owns its URL hands the table that reads the page, as one prop. */
+export interface PagedListPosition {
+  /** The URL's pager (`useCursorPager`): the footer props, the stale check and the cursor drop. */
+  pager: UseCursorPagerReturn;
+  /**
+   * The deferred page variables the query spreads (`useDeferredQuery`'s `deferredPage`): they lag the URL while the
+   * next page is read, so the page on screen stays.
+   */
+  pageVariables: CursorPagerVariables;
+  /** The URL prefix the list's params carry, its auto-refresh interval among them; none where the view owns the URL. */
+  paramPrefix?: string;
+}
 
 interface UsePagedTableOptions {
   pager: UseCursorPagerReturn;

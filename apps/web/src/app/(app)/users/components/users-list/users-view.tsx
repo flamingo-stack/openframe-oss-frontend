@@ -124,11 +124,8 @@ export function UsersView({ organizationId, embedded = false, loading = false }:
             isPending={isPending}
             onEmptyChange={setIsEmpty}
             stickyHeaderOffset={stickyHeaderOffset}
-            filtersOpen={filtersOpen}
-            onFiltersClose={() => setFiltersOpen(false)}
-            pager={pager}
-            pageVariables={deferredPage}
-            paramPrefix={paramPrefix}
+            filtersWindow={{ open: filtersOpen, onClose: () => setFiltersOpen(false) }}
+            position={{ pager, pageVariables: deferredPage, paramPrefix }}
           />
         </LoadingWhen>
       </div>

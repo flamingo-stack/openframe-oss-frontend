@@ -80,9 +80,7 @@ export function GroupsView({ organizationId }: { organizationId: string }) {
           isPending={isPending}
           onEmptyChange={setIsEmpty}
           stickyHeaderOffset={stickyHeaderOffset}
-          pager={pager}
-          pageVariables={deferredPage}
-          paramPrefix={PARAM_PREFIX}
+          position={{ pager, pageVariables: deferredPage, paramPrefix: PARAM_PREFIX }}
         />
       </div>
     </PageLayout>
