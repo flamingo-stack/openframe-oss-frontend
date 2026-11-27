@@ -12,7 +12,6 @@ const FROM_EMAIL: TicketEmail = {
 };
 
 const REQUESTER = {
-  accountId: 'u1',
   name: 'Jane Doe',
   email: 'jane@customer.test',
   matchedAddress: 'jane@customer.test',

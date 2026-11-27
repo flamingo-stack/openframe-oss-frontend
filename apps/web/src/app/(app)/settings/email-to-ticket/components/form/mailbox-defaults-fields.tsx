@@ -15,7 +15,7 @@ import { useAssigneeOptions } from '@/app/(app)/tickets/hooks/use-assignee-optio
 import { type AvatarOption, useOrganizationOptions } from '@/app/(app)/tickets/hooks/use-ticket-options';
 import { useTicketStatusesQuery } from '@/app/(app)/tickets/statuses/hooks/use-ticket-statuses-query';
 import { TICKET_STATUS_KIND } from '@/app/(app)/tickets/utils/ticket-statistics';
-import { type MailboxDefaultsFormData, type StoredDefaultOptions, statusPickerId } from './mailbox-defaults';
+import { type MailboxSettingsFormData, type StoredDefaultOptions, statusPickerId } from './mailbox-defaults';
 
 /** A list page holds one page of options: the stored value is pinned in so it keeps its label. */
 function withOption<T extends { value: string }>(options: T[], pinned: T | null): T[] {
@@ -24,8 +24,8 @@ function withOption<T extends { value: string }>(options: T[], pinned: T | null)
 }
 
 interface MailboxDefaultsFieldsProps {
-  control: Control<MailboxDefaultsFormData>;
-  setValue: UseFormSetValue<MailboxDefaultsFormData>;
+  control: Control<MailboxSettingsFormData>;
+  setValue: UseFormSetValue<MailboxSettingsFormData>;
   disabled?: boolean;
   /** A saved mailbox's customer and status, pinned into the pickers so they keep their labels. */
   stored?: StoredDefaultOptions;

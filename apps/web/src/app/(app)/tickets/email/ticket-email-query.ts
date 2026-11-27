@@ -13,7 +13,6 @@ export const GET_TICKET_EMAIL_QUERY = `
         cc
       }
       requester {
-        accountId
         name
         email
         matchedAddress
@@ -39,8 +38,6 @@ export interface TicketEmail {
   emailOrigin: { mailboxAddress: string; senderAddress: string; cc: string[] } | null;
   /** The directory user the sender was matched to; null when there is none. */
   requester: {
-    /** The raw directory account id: what the Users page opens. */
-    accountId: string;
     name: string | null;
     email: string | null;
     /** The address the person is answered at. */

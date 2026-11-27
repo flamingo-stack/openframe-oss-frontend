@@ -2747,6 +2747,8 @@ type Mutation {
   activateMailbox(input: ActivateMailboxInput!): MailboxPayload!
   updateMailbox(input: UpdateMailboxInput!): MailboxPayload!
   disconnectMailbox(input: MailboxIdInput!): DisconnectMailboxPayload!
+  addEmailBlockListEntry(input: AddEmailBlockListEntryInput!): EmailBlockListEntryPayload!
+  removeEmailBlockListEntry(input: RemoveEmailBlockListEntryInput!): RemoveEmailBlockListEntryPayload!
 }
 
 input MutationDeleteInput {
@@ -4024,6 +4026,7 @@ type Query {
   deviceDirectory(machineId: ID!): DeviceDirectory!
   mailboxes(search: String, filter: MailboxFilterInput, first: Int, after: String, sort: SortInput): MailboxConnection!
   mailbox(id: ID!): Mailbox
+  emailBlockList(mailboxId: ID!, search: String, first: Int, after: String): EmailBlockListEntryConnection!
 }
 
 """
@@ -8309,6 +8312,11 @@ input ActivateMailboxInput {
   blockList: [String!]
 }
 
+input AddEmailBlockListEntryInput {
+  mailboxId: ID!
+  value: String!
+}
+
 input CreateMailboxInput {
   provider: MailboxProvider!
   supportAddress: String!
@@ -8317,6 +8325,39 @@ input CreateMailboxInput {
 
 type DisconnectMailboxPayload {
   deletedId: ID
+  userErrors: [UserError!]!
+}
+
+type EmailBlockListEntry implements Node {
+  id: ID!
+  entryId: String!
+  mailboxId: String!
+  value: String!
+  kind: EmailBlockListEntryKind!
+  addedBy: User
+  addedAt: Instant!
+  droppedLast30Days: Int!
+  lastDroppedAt: Instant
+}
+
+type EmailBlockListEntryConnection {
+  edges: [EmailBlockListEntryEdge!]!
+  pageInfo: PageInfo!
+  filteredCount: Int!
+}
+
+type EmailBlockListEntryEdge {
+  cursor: String!
+  node: EmailBlockListEntry!
+}
+
+enum EmailBlockListEntryKind {
+  ADDRESS
+  DOMAIN
+}
+
+type EmailBlockListEntryPayload {
+  entry: EmailBlockListEntry
   userErrors: [UserError!]!
 }
 
@@ -8441,6 +8482,15 @@ type MailboxStats {
   ticketsCreated: Int!
   held: Int!
   dropped: Int!
+}
+
+input RemoveEmailBlockListEntryInput {
+  id: ID!
+}
+
+type RemoveEmailBlockListEntryPayload {
+  deletedId: ID
+  userErrors: [UserError!]!
 }
 
 type SendAsSignIn {

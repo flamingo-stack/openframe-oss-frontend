@@ -9,24 +9,30 @@ import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
 import { useIsDesktopShell } from '@/app/hooks/use-is-desktop-shell';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
 import { mailboxProviderPresentation } from '../../utils/mailbox-presentation';
+import { ForwardingTest } from '../forwarding/forwarding-test';
 
 const forwardingCardFragment = graphql`
   fragment forwardingCard_mailbox on Mailbox {
     supportAddress
     provider
     inboundAddress
+    ...forwardingTest_mailbox
   }
 `;
 
 /**
- * SET UP FORWARDING (Figma 4527-132336): the address this mailbox forwards to, made for it alone, and the provider's
- * steps to set the forwarding up, and the provider's own help page on it.
- *
- * Not drawn yet, waiting on the backend: Send Test Email and its result (`runForwardingTest` answers NOT_IMPLEMENTED
- * until CU-17tkuw66n94).
+ * SET UP FORWARDING (Figma 4527-132336): the address this mailbox forwards to, made for it alone, the provider's steps
+ * to set the forwarding up and its own help page on it, and the test that proves the forwarding works.
  */
-export function ForwardingCard({ mailbox }: { mailbox: forwardingCard_mailbox$key }) {
-  const { supportAddress, provider, inboundAddress } = useFragment(forwardingCardFragment, mailbox);
+export function ForwardingCard({
+  mailbox,
+  disabled = false,
+}: {
+  mailbox: forwardingCard_mailbox$key;
+  disabled?: boolean;
+}) {
+  const data = useFragment(forwardingCardFragment, mailbox);
+  const { supportAddress, provider, inboundAddress } = data;
   const { copy } = useCopyToClipboard({ successDescription: 'Forwarding address copied' });
   const { forwardingSteps, guideUrl } = mailboxProviderPresentation(provider);
   const sameWindow = useSameWindowLinks();
@@ -63,6 +69,7 @@ export function ForwardingCard({ mailbox }: { mailbox: forwardingCard_mailbox$ke
             Detailed Instruction
           </Button>
         )}
+        <ForwardingTest mailbox={data} disabled={disabled} />
       </div>
     </section>
   );

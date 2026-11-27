@@ -11,6 +11,7 @@ export const mailboxErrorsUserErrorFragment = graphql`
   fragment mailboxErrors_userError on UserError @inline {
     code
     message
+    field
   }
 `;
 
@@ -21,6 +22,10 @@ const MAILBOX_ERROR_COPY: Record<string, string> = {
   MAILBOX_NOT_PENDING: 'This mailbox is already saved.',
   MAILBOX_PENDING: 'Save this mailbox first.',
   EMAIL_FORWARDING_TEST_NOT_PASSED: 'Forwarding has not passed a test yet: the mailbox can be saved once it does.',
+  EMAIL_FORWARDING_TEST_IN_PROGRESS: 'A test email is already on its way. Wait for its result.',
+  EMAIL_BLOCK_LIST_INVALID_VALUE: 'This is not an address or a domain that can be blocked.',
+  EMAIL_BLOCK_LIST_DUPLICATE: 'This sender is already in the Block list.',
+  EMAIL_BLOCK_LIST_ENTRY_NOT_FOUND: 'This sender is no longer in the Block list.',
   ORGANIZATION_NOT_FOUND: 'The default customer no longer exists. Pick another one.',
   TICKET_STATUS_NOT_FOUND: 'The default status no longer exists. Pick another one.',
   USER_NOT_FOUND: 'The default assignee no longer exists. Pick another one.',
@@ -30,6 +35,11 @@ const MAILBOX_ERROR_COPY: Record<string, string> = {
 export function mailboxUserErrorMessage(ref: mailboxErrors_userError$key): string {
   const { code, message } = readInlineData(mailboxErrorsUserErrorFragment, ref);
   return MAILBOX_ERROR_COPY[code] ?? (message || 'Try again in a moment.');
+}
+
+/** The input field a refusal points at (`blockList.3`), when it names one. */
+export function mailboxUserErrorField(ref: mailboxErrors_userError$key): string | null {
+  return readInlineData(mailboxErrorsUserErrorFragment, ref).field ?? null;
 }
 
 /** The sentence for a mutation that failed as a whole (a top-level GraphQL error, a network failure). */
