@@ -1,6 +1,7 @@
 import { readCookie } from './cookies';
 import { isAppShell } from './platform';
 import { captureReferralFromUrl, REFERRAL_URL_PARAM, readReferralCode, sanitizeReferralCode } from './referral-cookie';
+import { readSignupStartedIn, type SignupStartedIn } from './signup-started-in';
 import {
   CLICK_PLATFORMS,
   type ClickPlatform,
@@ -58,6 +59,11 @@ import {
  *   `__hsfp`); neither verifies the fingerprint, so a forwarded handoff link would attribute
  *   its registrant to the sender's visitor — accepted, as it already is for first visits.
  *
+ * - **The app the sign-up began in** (`startedIn`) exists in a browser tab the desktop app opened: its sign-up
+ *   finishes on the shared host's page, whose request would read as a web sign-up. The hand-off link carries it and
+ *   the tab keeps it (`signup-started-in.ts`). Registrations send it, the download-link form does not, and inside a
+ *   shell it is never sent: there the request itself says which app it is.
+ *
  * - **The partner referral** (`?ref=`) is different still. It is clicked on the marketing site
  *   (`openframe.ai`) and redeemed on the signup app (`auth.openframe.ai`) — localStorage is
  *   origin-scoped, so it cannot make that hop. It gets its own 90-day cookie on the shared
@@ -87,6 +93,8 @@ export interface Touchpoint {
   heardFrom?: string;
   /** The text typed beside the `other` answer. */
   heardFromOther?: string;
+  /** The app a sign-up began in when it finishes in the browser (`signup-started-in.ts`); registrations only. */
+  startedIn?: SignupStartedIn;
   /** The first arrival (see `visit-attribution.ts`). */
   firstVisit?: TouchpointVisit;
   /** The latest arrival. */
@@ -396,7 +404,9 @@ export function collectRegistrationAttribution(): Touchpoint | undefined {
   const eventId = generateEventId();
   publishEventIdToDataLayer(eventId);
 
-  return normalizeAttribution({ ...readTouchpoint(), eventId });
+  // A shell's own requests already say which app they come from (see the header).
+  const startedIn = isAppShell() ? undefined : readSignupStartedIn();
+  return normalizeAttribution({ ...readTouchpoint(), eventId, startedIn });
 }
 
 /**
