@@ -4,17 +4,23 @@ import { graphql } from 'react-relay';
  * Execution-history list for a single script (v2 — native OpenFrame GraphQL API
  * via Relay). Mirrors the cursor-paginated `scriptExecutions(scriptId, ...)`
  * connection. Status / Device / "Executed by" filters plus the free-text
- * `search` are all pushed to the server; the pagination fragment drives infinite
- * scroll.
+ * `search` are all pushed to the server.
+ *
+ * One page per request, its cursor in the URL (`execCursor`): no `@connection`,
+ * so a cursor from a link reads exactly its page. The list pages back on the
+ * server (`last` / `before` return the page before the cursor), so the query
+ * takes all four page arguments; the pager sets the pair it uses and leaves the
+ * other null.
  *
  * `scriptExecutionFilters` (the filter facets) rides the SAME operation, so each
  * filter/search interaction is a single round-trip and the dropdown options
- * update atomically with the rows. It sits on the outer query — not in the
- * `@refetchable` fragment — so `loadNext` pagination does not refetch it. Facet
- * semantics: the backend excludes each facet's OWN group when narrowing, so a
- * group's options never vanish while the user multi-selects within it. Option
- * `value`s match the `ScriptExecutionFilterInput` fields (statuses = enum,
- * initiators = user global id, machines = machineId).
+ * update atomically with the rows. A page move asks for them again with the
+ * same `filter` / `search` (the same answer); a facets query of its own would
+ * save that if it ever shows up as slow. Facet semantics: the backend excludes
+ * each facet's OWN group when narrowing, so a group's options never vanish
+ * while the user multi-selects within it. Option `value`s match the
+ * `ScriptExecutionFilterInput` fields (statuses = enum, initiators = user
+ * global id, machines = machineId).
  *
  * `sort` is the dispatched-date order behind the Execution column's calendar
  * (`{ field: "dispatchedAt", direction }`); its range lands in the same `filter`
@@ -28,30 +34,21 @@ export const scriptExecutionsRelayQuery = graphql`
     $filter: ScriptExecutionFilterInput
     $search: String
     $sort: SortInput
-    $first: Int!
+    $first: Int
     $after: String
+    $last: Int
+    $before: String
   ) {
-    ...scriptExecutionsRelay_query
-      @arguments(scriptId: $scriptId, filter: $filter, search: $search, sort: $sort, first: $first, after: $after)
-    scriptExecutionFilters(scriptId: $scriptId, filter: $filter, search: $search) {
-      ...executionFacets_filters
-    }
-  }
-`;
-
-export const scriptExecutionsRelayFragment = graphql`
-  fragment scriptExecutionsRelay_query on Query
-  @refetchable(queryName: "scriptExecutionsRelayPaginationQuery")
-  @argumentDefinitions(
-    scriptId: { type: "ID!" }
-    filter: { type: "ScriptExecutionFilterInput" }
-    search: { type: "String" }
-    sort: { type: "SortInput" }
-    first: { type: "Int", defaultValue: 20 }
-    after: { type: "String" }
-  ) {
-    scriptExecutions(scriptId: $scriptId, filter: $filter, search: $search, sort: $sort, first: $first, after: $after)
-      @connection(key: "scriptExecutionsRelay_scriptExecutions") {
+    scriptExecutions(
+      scriptId: $scriptId
+      filter: $filter
+      search: $search
+      sort: $sort
+      first: $first
+      after: $after
+      last: $last
+      before: $before
+    ) {
       filteredCount
       edges {
         node {
@@ -62,8 +59,13 @@ export const scriptExecutionsRelayFragment = graphql`
       }
       pageInfo {
         hasNextPage
+        hasPreviousPage
+        startCursor
         endCursor
       }
+    }
+    scriptExecutionFilters(scriptId: $scriptId, filter: $filter, search: $search) {
+      ...executionFacets_filters
     }
   }
 `;

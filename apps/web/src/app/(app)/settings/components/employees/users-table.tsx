@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  type AutoRefreshControlProps,
   type ColumnDef,
   type DataTableSettings,
   GRID_ACTION_COLUMN_SIZE,
@@ -9,12 +10,13 @@ import {
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import type { CursorPagerFooterProps } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMemo } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type { usersTable_user$data, usersTable_user$key } from '@/__generated__/usersTable_user.graphql';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
 import { multiColumnFilter } from '@/app/(app)/software/components/shared/column-filters';
-import { type InfiniteScroll, liveColumnMeta } from '@/app/components/shared';
+import { liveColumnMeta } from '@/app/components/shared';
 import { oneLineEmptyState } from '@/app/components/shared/empty-state';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { OpenRowButton } from '@/app/components/shared/open-row-button';
@@ -28,9 +30,8 @@ import { EmployeeUserCell, EmployeeUserGridCell } from './employee-user-cell';
 import { EMPLOYEES_COLUMNS, USERS_PAGE_SIZE } from './employees-columns';
 
 /**
- * The users table — one row per `User`. Plural: the listing hands over a page of
- * nodes at a time and owns the query and the paging; this module owns what a row
- * looks like.
+ * The users table — one row per `User`. Plural: the listing hands over one page of
+ * nodes and owns the query and the paging; this module owns what a row looks like.
  */
 const usersTableFragment = graphql`
   fragment usersTable_user on User @relay(plural: true) {
@@ -121,7 +122,7 @@ function emptyState(search: string, isFiltered: boolean) {
 }
 
 interface UsersTableProps {
-  /** The pages fetched so far. */
+  /** The page on screen. */
   rows: usersTable_user$key;
   /** The server's total for the current search and funnels, not the rows fetched so far. */
   totalCount: number;
@@ -134,7 +135,10 @@ interface UsersTableProps {
   /** A refetch is in flight: dims the stale rows. */
   isPending: boolean;
   stickyHeaderOffset: string;
-  infiniteScroll: InfiniteScroll;
+  /** The First · Prev · Next footer (`usePagedTable`); `null` while the page is read. */
+  pager: CursorPagerFooterProps | null;
+  /** The auto-refresh picker above the table (`usePagedTable`). */
+  refresh?: AutoRefreshControlProps;
   /** Card rows, or the grid table where the app's table flag is on. */
   layout: TableLayout;
 }
@@ -150,7 +154,8 @@ export function UsersTable({
   onSelectionsChange,
   isPending,
   stickyHeaderOffset,
-  infiniteScroll,
+  pager,
+  refresh,
   layout,
 }: UsersTableProps) {
   const loading = useLoadingScope();
@@ -186,7 +191,8 @@ export function UsersTable({
       isPending={isPending}
       emptyState={emptyState(search, isFiltered)}
       rowHref={detailHref}
-      footer={rows.length > 0 ? infiniteScroll : null}
+      pager={pager}
+      refresh={refresh}
     />
   );
 }

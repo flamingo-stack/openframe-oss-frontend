@@ -7,6 +7,7 @@ import {
   SearchIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  type AutoRefreshControlProps,
   Button,
   type ColumnDef,
   type DataTableSettings,
@@ -17,26 +18,33 @@ import {
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
+import {
+  CURSOR_PAGER_KEYS,
+  type CursorPagerFooterProps,
+  type CursorPagerVariables,
+  useApiParams,
+  useCursorPager,
+  type UseCursorPagerReturn,
+} from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
-import { startTransition, useCallback, useMemo, useState } from 'react';
-import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
-import type { tenantRemoteSessionsRelay_query$key as TenantSessionsKey } from '@/__generated__/tenantRemoteSessionsRelay_query.graphql';
-import type { tenantRemoteSessionsRelayPaginationQuery as TenantSessionsPaginationQuery } from '@/__generated__/tenantRemoteSessionsRelayPaginationQuery.graphql';
+import { useCallback, useMemo, useState } from 'react';
+import { useLazyLoadQuery } from 'react-relay';
 import type { tenantRemoteSessionsRelayQuery as TenantSessionsQuery } from '@/__generated__/tenantRemoteSessionsRelayQuery.graphql';
 import { multiColumnFilter } from '@/app/(app)/software/components/shared/column-filters';
-import { type InfiniteScroll, NO_ITEMS, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
+import { NO_ITEMS, noop, useRetryKey } from '@/app/components/shared';
 import type { TableDateFilter } from '@/app/components/shared/date-column-header';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
+import { forwardPage } from '@/app/hooks/forward-page';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useNow } from '@/app/hooks/use-now';
+import { usePagedTable } from '@/app/hooks/use-paged-table';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
+import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import type { TableLayout } from '@/app/hooks/use-table-layout';
-import {
-  tenantRemoteSessionsRelayFragment,
-  tenantRemoteSessionsRelayQuery,
-} from '@/graphql/remote-sessions/tenant-remote-sessions-relay';
+import { tenantRemoteSessionsRelayQuery } from '@/graphql/remote-sessions/tenant-remote-sessions-relay';
 import { dateRangeFromParams, toDayParam } from '@/lib/date-filter-params';
+import { PAGED_LISTS } from '@/lib/paged-lists';
 import { useLiveRows } from '../../hooks/use-remote-session-watch-gate';
 import { useDeleteRemoteSession } from '../../hooks/use-session-recordings';
 import { useTenantSessionFilterOptions } from '../../hooks/use-tenant-session-filter-options';
@@ -55,6 +63,7 @@ import {
   toTenantSessionRow,
 } from './tenant-session-columns';
 
+/** Rows per page past the running sessions (page 1 carries those on top of it). */
 const PAGE_SIZE = 20;
 
 type FilterKey = 'device' | 'customer' | 'expires';
@@ -75,7 +84,13 @@ const NO_SESSIONS: NoDataProps = {
 interface TenantSessionsTableProps {
   rows: TenantSessionRow[];
   totalCount: number;
-  infiniteScroll: InfiniteScroll;
+  /**
+   * The First · Prev · Next footer (`usePagedTable`), with no range: page 1 holds the running sessions on top of a
+   * page, so "1–20" would be wrong. `null` while the page is read.
+   */
+  pager: CursorPagerFooterProps | null;
+  /** The auto-refresh picker above the table (`usePagedTable`). */
+  refresh?: AutoRefreshControlProps;
   isPending: boolean;
   tableFilters: Record<FilterKey, string[]>;
   onFilterChange: (filters: Record<string, string[]>) => void;
@@ -117,7 +132,8 @@ function MobileFiltersButton({ onClick }: { onClick?: () => void }) {
 function TenantSessionsTable({
   rows,
   totalCount,
-  infiniteScroll,
+  pager,
+  refresh,
   isPending,
   tableFilters,
   onFilterChange,
@@ -191,7 +207,9 @@ function TenantSessionsTable({
   const hasDateRange = dateFilter.range !== undefined;
   const hasColumnFilters = columnFilters.length > 0;
   const isNarrowed = hasDateRange || hasColumnFilters;
-  const showHeader = loading || rows.length > 0 || isNarrowed || isPending;
+  // An empty LATER page (a cursor about to be dropped) keeps the table and its footer, so First stays reachable.
+  const laterPage = pager ? !pager.isFirstPage : false;
+  const showHeader = loading || rows.length > 0 || isNarrowed || isPending || laterPage;
   const emptyState: NoDataProps = isNarrowed
     ? {
         icon: <SearchIcon />,
@@ -216,7 +234,8 @@ function TenantSessionsTable({
         emptyState={emptyState}
         rowHref={row => sessionHref(row, liveRows)}
         rowClassName={row => liveSessionRowClass(row, liveRows)}
-        footer={rows.length > 0 ? infiniteScroll : null}
+        pager={pager}
+        refresh={refresh}
         loadingCells={loading}
         // The grid table is the page's scroll area: it fills the height under the page title, and the page does not
         // scroll. The card rows take neither option.
@@ -270,15 +289,34 @@ function TenantSessionsTable({
 // Relay content - with its own Suspense boundary
 // ----------------------------------------------------------------
 
-interface TenantSessionsContentProps extends Omit<TenantSessionsTableProps, 'rows' | 'totalCount' | 'infiniteScroll'> {
+interface TenantSessionsContentProps extends Omit<
+  TenantSessionsTableProps,
+  'rows' | 'totalCount' | 'pager' | 'refresh' | 'onDeleted'
+> {
+  /** Deferred — the filter and the sort (lag the URL while the next page is read). */
   variables: ReturnType<typeof tenantSessionsVariables>;
-  refreshKey: number;
-  /** Reads the first page again, back from wherever the list was paged to. */
-  onRefresh: () => void;
+  /** The list's position in the URL: footer props, the stale check, the cursor drop. */
+  pager: UseCursorPagerReturn;
+  /** Deferred — the page variables to spread into the query (lag the URL while the next page is read). */
+  pageVariables: CursorPagerVariables;
 }
 
-/** The sessions table, with its own boundary: in its scope the reader draws its own loading form. */
+/**
+ * The sessions table under the stale-cursor boundary: a cursor the server refuses (`INVALID_CURSOR`: issued under
+ * another sort, or before a release that changed the cursors) drops to the first page; any other error goes up
+ * unchanged.
+ */
 function TenantSessionsContent(props: TenantSessionsContentProps) {
+  return (
+    <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
+      <TenantSessionsContentLoading {...props} />
+    </StaleCursorBoundary>
+  );
+}
+
+/** Its own boundary, the whole output of its own component (the loading standard): in its scope the reader draws its
+ * own loading form. */
+function TenantSessionsContentLoading(props: TenantSessionsContentProps) {
   return (
     <LoadingSuspense label="Loading remote sessions">
       <TenantSessionsContentReader {...props} />
@@ -286,19 +324,20 @@ function TenantSessionsContent(props: TenantSessionsContentProps) {
   );
 }
 
-/** The first page. In a loading scope (its boundary's fallback, the gate) it runs no query: the table draws itself. */
+/** The page the URL names. In a loading scope (its boundary's fallback, the gate) it runs no query: the table draws
+ * itself. */
 function TenantSessionsContentReader(props: TenantSessionsContentProps) {
   if (useLoadingScope()) {
     return (
       <TenantSessionsTable
         rows={NO_ITEMS}
         totalCount={0}
-        infiniteScroll={NO_NEXT_PAGE}
+        pager={null}
         isPending={false}
         tableFilters={props.tableFilters}
         onFilterChange={props.onFilterChange}
         dateFilter={props.dateFilter}
-        onDeleted={props.onDeleted}
+        onDeleted={noop}
         tableLayout={props.tableLayout}
       />
     );
@@ -306,41 +345,50 @@ function TenantSessionsContentReader(props: TenantSessionsContentProps) {
   return <TenantSessionsContentQuery {...props} />;
 }
 
-function TenantSessionsContentQuery({ variables, refreshKey, onRefresh, ...tableProps }: TenantSessionsContentProps) {
+function TenantSessionsContentQuery({ variables, pager, pageVariables, ...tableProps }: TenantSessionsContentProps) {
   const retryKey = useRetryKey();
-  const queryData = useLazyLoadQuery<TenantSessionsQuery>(
-    tenantRemoteSessionsRelayQuery,
-    { ...variables, first: PAGE_SIZE, after: null },
-    // A delete refetches the list: the row goes on the server's word.
-    { fetchPolicy: 'store-and-network', fetchKey: `${retryKey}:${refreshKey}` },
-  );
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
-    TenantSessionsPaginationQuery,
-    TenantSessionsKey
-  >(tenantRemoteSessionsRelayFragment, queryData);
+  // One page per request, its cursor in the URL (`cursor`); forward only.
+  const queryVariables = { ...variables, ...forwardPage(pageVariables, PAGE_SIZE) };
+  const queryData = useLazyLoadQuery<TenantSessionsQuery>(tenantRemoteSessionsRelayQuery, queryVariables, {
+    fetchPolicy: 'store-and-network',
+    fetchKey: retryKey,
+  });
+  // A delete, or a running row that ended, reads the page on screen again: the row goes on the server's word. A failed
+  // refetch keeps the page as it was; the next one, or the auto-refresh, corrects it.
+  const refetch = useRefetchPage<TenantSessionsQuery>(tenantRemoteSessionsRelayQuery, queryVariables);
+  const refetchPage = () => {
+    refetch().catch(noop);
+  };
 
-  const pageRows = useMemo(
-    () => data.remoteSessions.edges.flatMap(edge => (edge?.node ? [toTenantSessionRow(edge.node)] : [])),
-    [data.remoteSessions.edges],
-  );
-
-  // The running sessions polled and merged in, one row per session.
-  const { rows, totalCount, onLoadMoreComplete } = useTenantSessionRows({
-    pageRows,
-    totalCount: data.remoteSessions.totalCount,
-    filter: variables.filter,
-    onRefresh,
+  const { edges, pageInfo } = queryData.remoteSessions;
+  const pageRows = useMemo(() => edges.flatMap(edge => (edge?.node ? [toTenantSessionRow(edge.node)] : [])), [edges]);
+  const paged = usePagedTable({
+    pager,
+    pageInfo,
+    rowCount: edges.length,
+    refetch,
+    isPending: tableProps.isPending,
   });
 
-  const loadMore = useCallback(() => {
-    if (hasNext && !isLoadingNext) loadNext(PAGE_SIZE, { onComplete: onLoadMoreComplete });
-  }, [hasNext, isLoadingNext, loadNext, onLoadMoreComplete]);
+  // The running sessions polled and merged into the first page, one row per session. "First page" is the page these
+  // rows were READ for (the deferred cursor), not the URL's: while the next page is read the rows on screen are still
+  // page 1's, and their running sessions keep being polled and merged until page 2 arrives.
+  const { rows, totalCount } = useTenantSessionRows({
+    pageRows,
+    totalCount: queryData.remoteSessions.totalCount,
+    filter: variables.filter,
+    firstPage: readCursor(pageVariables) === null,
+    onRefresh: refetchPage,
+  });
 
   return (
     <TenantSessionsTable
       rows={rows}
       totalCount={totalCount}
-      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: loadMore }}
+      // The count and no range: page 1 holds up to 100 running sessions on top of `first`, so "1–20" would be wrong.
+      pager={{ ...paged.pager, rangeStart: undefined }}
+      refresh={paged.refresh}
+      onDeleted={refetchPage}
       {...tableProps}
     />
   );
@@ -352,28 +400,34 @@ function TenantSessionsContentQuery({ variables, refreshKey, onRefresh, ...table
 
 /**
  * The tenant's remote sessions on every device: the device tab's table with
- * DEVICE and CUSTOMER columns, filtered, sorted and paged on the server. The
- * funnels and the SESSION calendar live in the URL, so a filtered view is a
- * shareable link.
+ * DEVICE and CUSTOMER columns, filtered, sorted and paged on the server (First ·
+ * Prev · Next). The funnels, the SESSION calendar and the page's cursor live in
+ * the URL (a top-level page: no prefix), so a filtered view is a shareable link.
+ * A change to a funnel or the calendar drops the cursor in the SAME URL write:
+ * one history entry on page 2+, so Back returns to the old view.
  *
  * `tableLayout="grid"` draws the lib's grid table (48px one-line rows, the session column pinned, Delete and Open as
  * action columns, the gear menu) as the page's scroll area. Default `cards`.
  */
 export function TenantSessionsShell({ tableLayout = 'cards' }: { tableLayout?: TableLayout }) {
-  const { params, setParams } = useApiParams({
-    device: { type: 'array', default: [] },
-    customer: { type: 'array', default: [] },
-    expires: { type: 'array', default: [] },
-    // Session-date range (local `yyyy-MM-dd`, inclusive) + its sort direction.
-    // `desc` (newest first) is the default and stays out of the URL.
-    dateFrom: { type: 'string', default: '' },
-    dateTo: { type: 'string', default: '' },
-    sortDir: { type: 'string', default: 'desc' },
+  const { params, setParams } = useApiParams(
+    {
+      device: { type: 'array', default: [] },
+      customer: { type: 'array', default: [] },
+      expires: { type: 'array', default: [] },
+      // Session-date range (local `yyyy-MM-dd`, inclusive) + its sort direction.
+      // `desc` (newest first) is the default and stays out of the URL.
+      dateFrom: { type: 'string', default: '' },
+      dateTo: { type: 'string', default: '' },
+      sortDir: { type: 'string', default: 'desc' },
+    },
+    { resetKeys: CURSOR_PAGER_KEYS, resetHistory: 'push' },
+  );
+  const pager = useCursorPager({
+    pageSize: PAGE_SIZE,
+    ...PAGED_LISTS.remoteSessions,
+    resetOn: JSON.stringify(params),
   });
-  const [refreshKey, setRefreshKey] = useState(0);
-  // A delete marks the session stale in the store, so its refetch suspends; as a transition it keeps the rows on screen
-  // meanwhile instead of dropping the table to its skeleton. Stable, as the content's effect depends on it.
-  const refresh = useCallback(() => startTransition(() => setRefreshKey(key => key + 1)), []);
 
   const dateRange: DateRange | undefined = useMemo(
     () => dateRangeFromParams(params.dateFrom, params.dateTo),
@@ -393,9 +447,13 @@ export function TenantSessionsShell({ tableLayout = 'cards' }: { tableLayout?: T
     };
     return tenantSessionsVariables(urlState, dateRange);
   }, [params.device, params.customer, params.expires, params.dateFrom, params.dateTo, params.sortDir, dateRange]);
-  // The query lags the controls while a refetch runs, so the rows on screen stay
-  // (dimmed) instead of dropping to the skeleton.
-  const { deferredFilters: deferredVariables, isPending } = useDeferredQuery(variables, '');
+  // The query lags the controls while a refetch runs, page included, so the rows
+  // on screen stay (dimmed) instead of dropping to the skeleton.
+  const {
+    deferredFilters: deferredVariables,
+    deferredPage,
+    isPending,
+  } = useDeferredQuery(variables, '', pager.variables);
 
   const tableFilters = useMemo(
     () => ({ device: params.device, customer: params.customer, expires: params.expires }),
@@ -439,13 +497,12 @@ export function TenantSessionsShell({ tableLayout = 'cards' }: { tableLayout?: T
     <div className="flex flex-col gap-[var(--spacing-system-m)]">
       <TenantSessionsContent
         variables={deferredVariables}
-        refreshKey={refreshKey}
+        pager={pager}
+        pageVariables={deferredPage}
         isPending={isPending}
         tableFilters={tableFilters}
         onFilterChange={handleFilterChange}
         dateFilter={dateFilter}
-        onDeleted={refresh}
-        onRefresh={refresh}
         tableLayout={tableLayout}
       />
     </div>

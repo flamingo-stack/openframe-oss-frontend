@@ -25,6 +25,7 @@ import {
 import {
   ActionsMenuDropdown,
   type ActionsMenuGroup,
+  type AutoRefreshControlProps,
   Button,
   type ColumnDef,
   type DataTableSettings,
@@ -38,7 +39,15 @@ import {
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import {
+  CURSOR_PAGER_KEYS,
+  type CursorPagerFooterProps,
+  type CursorPagerVariables,
+  useApiParams,
+  useCursorPager,
+  type UseCursorPagerReturn,
+  useToast,
+} from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { readInlineData } from 'relay-runtime';
 import type { executionFacets_filters$key as ExecutionFacetsKey } from '@/__generated__/executionFacets_filters.graphql';
@@ -47,6 +56,7 @@ import type { ScriptExecutionFilterInput, SortInput } from '@/__generated__/scri
 import { ValueText } from '@/app/components/shared';
 import { dateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
 import { LiveTable } from '@/app/components/shared/live-table';
+import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
 import { useSearchParam } from '@/app/hooks/use-search-param';
@@ -57,6 +67,7 @@ import { executionFieldsFragment } from '@/graphql/scripts/execution-fields';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
 import { formatDateTime } from '@/lib/format-date';
 import { openInNewTab } from '@/lib/open-in-new-tab';
+import { PAGED_LISTS, type PagedListId } from '@/lib/paged-lists';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { executionOutput, executionStatusLabel } from '../utils/execution-helpers';
@@ -73,8 +84,11 @@ import { type Initiator, InitiatorAvatar, InitiatorName, toInitiator } from './i
  * except the Relay operation and its key argument lives here: the row shape,
  * the columns, the URL filter/search state and the sticky toolbar.
  *
- * Each tab keeps only its own `useLazyLoadQuery` + `usePaginationFragment`
- * wiring and feeds the result in through {@link ExecutionsTable}.
+ * Each list keeps only its own query wiring and feeds the result in through
+ * {@link ExecutionsTable}. The two tabs page with First · Prev · Next, the
+ * cursor in the URL under the tab's prefix (`paging` on the shell); the
+ * Schedule Run Details page and the software action logs narrow on the client
+ * (`clientSearch`) and stay on infinite scroll.
  */
 
 export const EXECUTIONS_PAGE_SIZE = 20;
@@ -209,7 +223,7 @@ export function useExecutionFacetOptions(ref: ExecutionFacetsKey | null | undefi
 // Table
 // ----------------------------------------------------------------
 
-export interface ExecutionsTableProps {
+interface ExecutionsTableBaseProps {
   executions: UiExecution[];
   facetOptions: ExecutionFacetOptions;
   tableFilters: Record<string, string[]>;
@@ -220,16 +234,8 @@ export interface ExecutionsTableProps {
    * keeps the header mounted and dims the stale rows.
    */
   isPending: boolean;
-  hasNext: boolean;
-  isLoadingNext: boolean;
-  onLoadMore: () => void;
-  /**
-   * Rows fetched so far, for a caller that narrows `executions` on the client
-   * (see `narrowExecutions`). A page can then arrive in full and add no visible
-   * row; without this the infinite footer reads that as a stalled fetch and
-   * stops pulling the remaining pages in.
-   */
-  loadedCount?: number;
+  /** The server's total for the current narrowing (a paged list's header count and footer range). */
+  totalCount?: number;
   /** The search term the rows on screen were fetched with (for the empty copy). */
   search: string;
   /** Dispatched-date sort + range, hosted by the Execution column's header. */
@@ -252,6 +258,35 @@ export interface ExecutionsTableProps {
   /** The grid table's settings (the viewer's saved column layout) — arrives with the shell's state. */
   tableSettings?: DataTableSettings;
 }
+
+/** How the table goes past its first page: a paged tab's footer, or the infinite scroll of a list narrowed on the client. */
+type ExecutionsTablePaging =
+  | {
+      /** The First · Prev · Next footer (`usePagedTable`). */
+      pager: CursorPagerFooterProps;
+      /** The auto-refresh picker above the table (`usePagedTable`). */
+      refresh: AutoRefreshControlProps;
+      hasNext?: never;
+      isLoadingNext?: never;
+      onLoadMore?: never;
+      loadedCount?: never;
+    }
+  | {
+      pager?: never;
+      refresh?: never;
+      hasNext: boolean;
+      isLoadingNext: boolean;
+      onLoadMore: () => void;
+      /**
+       * Rows fetched so far, for a caller that narrows `executions` on the client
+       * (see `narrowExecutions`). A page can then arrive in full and add no visible
+       * row; without this the infinite footer reads that as a stalled fetch and
+       * stops pulling the remaining pages in.
+       */
+      loadedCount?: number;
+    };
+
+export type ExecutionsTableProps = ExecutionsTableBaseProps & ExecutionsTablePaging;
 
 /** A placeholder row's initiator (the table's loading form): nobody, so its avatar and name draw their loading form. */
 const NO_INITIATOR = toInitiator(null);
@@ -447,8 +482,11 @@ export function ExecutionsTable({
   tableFilters,
   onFilterChange,
   isPending,
-  hasNext,
-  isLoadingNext,
+  totalCount,
+  pager,
+  refresh,
+  hasNext = false,
+  isLoadingNext = false,
   onLoadMore,
   loadedCount,
   search,
@@ -548,16 +586,18 @@ export function ExecutionsTable({
   // result reads as "nothing matched" instead of "this script never ran". The
   // sort direction deliberately does NOT count: it reorders, it never excludes.
   const hasActiveFilter = columnFilters.length > 0 || Boolean(dateFilter.range);
-  const showHeader = executions.length > 0 || hasActiveFilter || isPending;
+  // An empty LATER page (a cursor about to be dropped) keeps the table and its footer, so First stays reachable.
+  const laterPage = pager ? !pager.isFirstPage : false;
+  const showHeader = executions.length > 0 || hasActiveFilter || isPending || laterPage;
 
   // `emptyState` claims nothing ever ran — only true without an active
   // search/filter; otherwise it's the narrowing that produced the empty result,
   // and the table's own "no results" placeholder is what says so.
   //
-  // `hasNext` wins over both: an empty list with pages still to come is a list
-  // being narrowed CLIENT-side (the server can't have returned zero rows and a
-  // next page), and "nothing matched" would be a claim we can't make yet — the
-  // footer below is still pulling the pages that might.
+  // `hasNext` (infinite scroll only) wins over both: an empty list with pages
+  // still to come is a list being narrowed CLIENT-side (the server can't have
+  // returned zero rows and a next page), and "nothing matched" would be a claim
+  // we can't make yet — the footer below is still pulling the pages that might.
   const resolvedEmptyState: NoDataProps = hasNext
     ? { icon: <SearchIcon />, title: 'Looking through the remaining executions…' }
     : search || hasActiveFilter
@@ -572,7 +612,7 @@ export function ExecutionsTable({
 
   // Only the un-narrowed empty list hides the toolbar: when narrowing is what
   // emptied it, the search box is the way back out.
-  const isEmptyState = executions.length === 0 && !search && !hasActiveFilter && !hasNext && !isPending;
+  const isEmptyState = executions.length === 0 && !search && !hasActiveFilter && !hasNext && !isPending && !laterPage;
   useEffect(() => {
     onEmptyChange?.(isEmptyState);
   }, [isEmptyState, onEmptyChange]);
@@ -586,6 +626,7 @@ export function ExecutionsTable({
         isPending={isPending}
         table={table}
         pageSize={EXECUTIONS_PAGE_SIZE}
+        totalCount={totalCount}
         stickyHeaderOffset={stickyHeaderOffset}
         // The list is one section of a script's, a schedule's or a run's page: the page scrolls, so the grid table
         // takes no height of its own.
@@ -594,11 +635,13 @@ export function ExecutionsTable({
         showHeader={showHeader}
         emptyState={resolvedEmptyState}
         rowHref={executionHref}
-        // Kept mounted on an EMPTY list too, as long as more pages exist — that only happens under client-side
-        // narrowing, and there the sentinel is what walks the rest of the pages so the term ends up searching the
-        // whole list instead of just the first page.
+        pager={pager}
+        refresh={refresh}
+        // Infinite scroll only. Kept mounted on an EMPTY list too, as long as more pages exist — that only happens
+        // under client-side narrowing, and there the sentinel is what walks the rest of the pages so the term ends up
+        // searching the whole list instead of just the first page.
         footer={
-          executions.length > 0 || hasNext
+          onLoadMore && (executions.length > 0 || hasNext)
             ? { hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore, loadedCount }
             : null
         }
@@ -675,13 +718,56 @@ export interface ExecutionsTabState {
   tableSettings?: DataTableSettings;
 }
 
-interface ExecutionsTabBodyProps {
-  state: ExecutionsTabState;
-  children: (state: ExecutionsTabState) => ReactNode;
+/**
+ * A paged tab's state: the shell's, plus its position in the URL. No `narrowSearch`: a paged list's search always
+ * reaches the server (narrowing one page on the client would hide rows the footer counts).
+ */
+export interface PagedExecutionsTabState extends Omit<ExecutionsTabState, 'narrowSearch'> {
+  /** The list's position in the URL: footer props, the stale check, the cursor drop. */
+  pager: UseCursorPagerReturn;
+  /** Deferred — the page variables to spread into the query (lag the URL while the next page is read). */
+  pageVariables: CursorPagerVariables;
+  /** The URL prefix of the tab's params (its auto-refresh interval sits beside them). */
+  paramPrefix: string;
 }
 
-/** The tab's rows under its toolbar, with their own boundary: in its scope the reader draws the table's loading form. */
-function ExecutionsTabBody(props: ExecutionsTabBodyProps) {
+/** A paged tab: where its params live in the URL and what its API can do for the pager. */
+export interface ExecutionsPaging {
+  /**
+   * The tab's URL prefix (`execSearch`, `execStatus`, …, `execCursor`): a details page's tabs share its URL, so the
+   * list keeps its params under a name of its own.
+   */
+  prefix: string;
+  /** What the list's API can do for the pager (`PAGED_LISTS`). */
+  list: Extract<PagedListId, 'scriptExecutions' | 'scheduleExecutions'>;
+}
+
+/** The part of the shell's state that is the same with or without paging, and is not deferred. */
+type ExecutionsTabControls = Omit<
+  ExecutionsTabState,
+  'backendFilters' | 'sort' | 'querySearch' | 'narrowSearch' | 'isPending'
+>;
+
+/** The query variables the shell keeps live (reference-stable per value: `useDeferredQuery` compares identities). */
+interface ExecutionsQueryVars {
+  filter: ScriptExecutionFilterInput;
+  sort: SortInput;
+}
+
+interface ExecutionsTabBodyProps<
+  S extends Pick<ExecutionsTabState, 'stickyHeaderOffset' | 'tableLayout' | 'tableSettings'>,
+> {
+  state: S;
+  children: (state: S) => ReactNode;
+}
+
+/**
+ * The tab's rows under its toolbar, with their own boundary: in its scope the reader draws the table's loading form.
+ * The whole output of its own component (the loading standard); a paged tab draws it under its stale-cursor boundary.
+ */
+function ExecutionsTabBody<S extends Pick<ExecutionsTabState, 'stickyHeaderOffset' | 'tableLayout' | 'tableSettings'>>(
+  props: ExecutionsTabBodyProps<S>,
+) {
   return (
     <LoadingSuspense label="Loading executions">
       <ExecutionsTabBodyReader {...props} />
@@ -689,7 +775,9 @@ function ExecutionsTabBody(props: ExecutionsTabBodyProps) {
   );
 }
 
-function ExecutionsTabBodyReader({ state, children }: ExecutionsTabBodyProps) {
+function ExecutionsTabBodyReader<
+  S extends Pick<ExecutionsTabState, 'stickyHeaderOffset' | 'tableLayout' | 'tableSettings'>,
+>({ state, children }: ExecutionsTabBodyProps<S>) {
   // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
   if (useLoadingScope()) {
     return (
@@ -705,19 +793,96 @@ function ExecutionsTabBodyReader({ state, children }: ExecutionsTabBodyProps) {
   return children(state);
 }
 
-/**
- * URL-backed filter/search state + the sticky search toolbar + the Suspense
- * boundary around the Relay content. Every executions list renders this — the
- * per-script tab, the per-schedule tab and the Schedule Run Details page — and
- * supplies only the query wiring through `children`.
- */
-export function ExecutionsTabShell({
-  children,
+interface ExecutionsTabRowsProps {
+  queryVars: ExecutionsQueryVars;
+  /** The search the query reads (live; deferred here). */
+  search: string;
+  controls: ExecutionsTabControls;
+}
+
+/** The rows of a list with no pager (infinite scroll): the query variables deferred, the boundary below. */
+function ExecutionsTabRows({
+  queryVars,
+  search,
+  controls,
   clientSearch,
-  searchPlaceholder = 'Search for Executions',
-  tableSettings,
-}: {
-  children: (state: ExecutionsTabState) => ReactNode;
+  children,
+}: ExecutionsTabRowsProps & { clientSearch: boolean; children: (state: ExecutionsTabState) => ReactNode }) {
+  // Deferred query variables: on a filter/search interaction the table keeps
+  // rendering the current rows while the refetch is in flight, instead of
+  // dropping to the Suspense skeleton. The dropdown state (`tableFilters`) stays
+  // live so the checkboxes respond instantly.
+  const { deferredFilters: deferredVars, deferredSearch, isPending } = useDeferredQuery(queryVars, search);
+  return (
+    <ExecutionsTabBody
+      state={{
+        ...controls,
+        backendFilters: deferredVars.filter,
+        sort: deferredVars.sort,
+        // A caller whose `search` is spoken for gets the typed term as
+        // client-side narrowing instead. Everywhere else it is the query's own
+        // term and nothing is narrowed twice.
+        querySearch: clientSearch ? '' : deferredSearch,
+        narrowSearch: clientSearch ? deferredSearch : '',
+        isPending,
+      }}
+    >
+      {children}
+    </ExecutionsTabBody>
+  );
+}
+
+/**
+ * The rows of a paged tab: the pager beside the shell's URL params (same prefix; `resetOn` is their content), the
+ * query variables and the page deferred together, the stale-cursor boundary around the rows' own boundary.
+ */
+function PagedExecutionsTabRows({
+  queryVars,
+  search,
+  controls,
+  paging,
+  resetOn,
+  children,
+}: ExecutionsTabRowsProps & {
+  paging: ExecutionsPaging;
+  /** Content key of the shell's params: a cursor issued under other filters is not sent, and is dropped. */
+  resetOn: string;
+  children: (state: PagedExecutionsTabState) => ReactNode;
+}) {
+  const pager = useCursorPager({
+    prefix: paging.prefix,
+    pageSize: EXECUTIONS_PAGE_SIZE,
+    ...PAGED_LISTS[paging.list],
+    resetOn,
+  });
+  // Deferred, page included: a filter, search or page move keeps the current rows on screen (dimmed) while the next
+  // ones are read, instead of dropping to the Suspense skeleton.
+  const {
+    deferredFilters: deferredVars,
+    deferredSearch,
+    deferredPage,
+    isPending,
+  } = useDeferredQuery(queryVars, search, pager.variables);
+  const state: PagedExecutionsTabState = {
+    ...controls,
+    backendFilters: deferredVars.filter,
+    sort: deferredVars.sort,
+    querySearch: deferredSearch,
+    isPending,
+    pager,
+    pageVariables: deferredPage,
+    paramPrefix: paging.prefix,
+  };
+  return (
+    <StaleCursorBoundary cursor={readCursor(deferredPage)} onStaleCursor={pager.dropCursor}>
+      <ExecutionsTabBody state={state}>{children}</ExecutionsTabBody>
+    </StaleCursorBoundary>
+  );
+}
+
+type ExecutionsTabShellProps = {
+  /** The search box's placeholder — the lists name their rows differently. */
+  searchPlaceholder?: string;
   /**
    * The grid table's settings: the storage key the viewer's column layout is kept under. Each list names its own
    * (`SCRIPTS_TABLE_SETTINGS`); lists that draw the same columns share one.
@@ -726,39 +891,68 @@ export function ExecutionsTabShell({
    * is on. A list that names none stays on card rows whatever the flag says.
    */
   tableSettings?: DataTableSettings;
-  /** The search box's placeholder — the lists name their rows differently. */
-  searchPlaceholder?: string;
-  /**
-   * Says the query's `search` argument is already spoken for, so the typed term
-   * comes back as `narrowSearch` instead of `querySearch`.
-   *
-   * The Schedule Run Details page: it shows the executions of ONE fire, and the
-   * only handle the API offers for that is `search` on the run's `executionId`
-   * (`ScriptExecutionFilterInput` has no execution-id field, and `ScheduleRun`
-   * has no executions connection of its own). Sending the user's term would
-   * replace that scope and silently widen the page to the whole schedule.
-   *
-   * A flag rather than the scope VALUE on purpose: the value is server data on
-   * that page, and demanding it here would keep the toolbar — which needs no
-   * data at all — waiting behind the same query as the rows. The column funnels
-   * are unaffected either way; they travel in `filter`, so they compose with
-   * whatever scope the caller applies.
-   */
-  clientSearch?: boolean;
-}) {
+} & (
+  | {
+      /**
+       * The two Execution History tabs: one page at a time with First · Prev · Next, the params and the cursor in the
+       * URL under the tab's prefix. A change to the search, a funnel or the calendar drops the cursor in the same URL
+       * write (one history entry on page 2+, so Back returns to the old view).
+       */
+      paging: ExecutionsPaging;
+      clientSearch?: never;
+      children: (state: PagedExecutionsTabState) => ReactNode;
+    }
+  | {
+      paging?: never;
+      /**
+       * Says the query's `search` argument is already spoken for, so the typed term
+       * comes back as `narrowSearch` instead of `querySearch`.
+       *
+       * The Schedule Run Details page: it shows the executions of ONE fire, and the
+       * only handle the API offers for that is `search` on the run's `executionId`
+       * (`ScriptExecutionFilterInput` has no execution-id field, and `ScheduleRun`
+       * has no executions connection of its own). Sending the user's term would
+       * replace that scope and silently widen the page to the whole schedule.
+       *
+       * A flag rather than the scope VALUE on purpose: the value is server data on
+       * that page, and demanding it here would keep the toolbar — which needs no
+       * data at all — waiting behind the same query as the rows. The column funnels
+       * are unaffected either way; they travel in `filter`, so they compose with
+       * whatever scope the caller applies.
+       */
+      clientSearch?: boolean;
+      children: (state: ExecutionsTabState) => ReactNode;
+    }
+);
+
+/**
+ * URL-backed filter/search state + the sticky search toolbar + the Suspense
+ * boundary around the Relay content. Every executions list renders this — the
+ * per-script tab and the per-schedule tab (`paging`), the Schedule Run Details
+ * page and the software action logs (`clientSearch`) — and supplies only the
+ * query wiring through `children`.
+ */
+export function ExecutionsTabShell(props: ExecutionsTabShellProps) {
+  const { searchPlaceholder = 'Search for Executions', tableSettings } = props;
+  const prefix = props.paging?.prefix;
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
-  const { params, setParam, setParams } = useApiParams({
-    search: { type: 'string', default: '' },
-    status: { type: 'array', default: [] },
-    machineId: { type: 'array', default: [] },
-    initiatorId: { type: 'array', default: [] },
-    // Dispatched-date range (local `yyyy-MM-dd`, inclusive) + its sort direction
-    // — the Execution column's calendar. `desc` (newest first) is the backend's
-    // own default order and stays out of the URL.
-    dateFrom: { type: 'string', default: '' },
-    dateTo: { type: 'string', default: '' },
-    sortDir: { type: 'string', default: 'desc' },
-  });
+  // A paged tab keeps these under its prefix (`execSearch`, …), and a change to any of them drops the pager's cursor
+  // in the SAME URL write. The lists with no pager keep the plain names.
+  const { params, setParam, setParams } = useApiParams(
+    {
+      search: { type: 'string', default: '' },
+      status: { type: 'array', default: [] },
+      machineId: { type: 'array', default: [] },
+      initiatorId: { type: 'array', default: [] },
+      // Dispatched-date range (local `yyyy-MM-dd`, inclusive) + its sort direction
+      // — the Execution column's calendar. `desc` (newest first) is the backend's
+      // own default order and stays out of the URL.
+      dateFrom: { type: 'string', default: '' },
+      dateTo: { type: 'string', default: '' },
+      sortDir: { type: 'string', default: 'desc' },
+    },
+    prefix === undefined ? {} : { prefix, resetKeys: CURSOR_PAGER_KEYS, resetHistory: 'push' },
+  );
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   // The new grid table, behind the app's one table flag; card rows while it is off, and for a list that has not
   // named its storage key (it has not moved to the grid).
@@ -788,7 +982,7 @@ export function ExecutionsTabShell({
   // lockstep and `isPending` covers both — the same shape the schedules table
   // uses. The picked days become inclusive UTC instants (`00:00` → `23:59:59`
   // local), so a day picked in the calendar is the whole day on the server.
-  const queryVars = useMemo(() => {
+  const queryVars: ExecutionsQueryVars = useMemo(() => {
     const bounds = dateRangeToInstantBounds(dateRange);
     const filter: ScriptExecutionFilterInput = {
       ...(params.status.length > 0 && { statuses: params.status as ScriptExecutionFilterInput['statuses'] }),
@@ -806,12 +1000,6 @@ export function ExecutionsTabShell({
     };
     return { filter, sort };
   }, [params.status, params.machineId, params.initiatorId, dateRange, sortDirection]);
-
-  // Deferred query variables: on a filter/search interaction the table keeps
-  // rendering the current rows while the refetch is in flight, instead of
-  // dropping to the Suspense skeleton. The dropdown state (`tableFilters`) stays
-  // live so the checkboxes respond instantly.
-  const { deferredFilters: deferredVars, deferredSearch, isPending } = useDeferredQuery(queryVars, debouncedSearch);
 
   const tableFilters = useMemo(
     () => ({ status: params.status, machineId: params.machineId, initiatorId: params.initiatorId }),
@@ -855,6 +1043,18 @@ export function ExecutionsTabShell({
     [sortDirection, dateRange, handleDateFilterApply],
   );
 
+  const controls: ExecutionsTabControls = {
+    tableFilters,
+    onFilterChange: handleFilterChange,
+    dateFilter,
+    mobileFilterOpen,
+    onMobileFilterClose: () => setMobileFilterOpen(false),
+    stickyHeaderOffset,
+    onEmptyChange: setIsEmpty,
+    tableLayout,
+    tableSettings,
+  };
+
   return (
     // No top offset to cancel: every caller renders this flush against what
     // sits above it, so the toolbar's own `pt-l` below IS the separating gap.
@@ -890,29 +1090,28 @@ export function ExecutionsTabShell({
       )}
       {/* Until the flag answers the list is its loading form: a guess would draw one table and replace it. */}
       <LoadingWhen loading={followsTableFlag && tableGate === 'loading'}>
-        <ExecutionsTabBody
-          state={{
-            backendFilters: deferredVars.filter,
-            sort: deferredVars.sort,
-            // A caller whose `search` is spoken for gets the typed term as
-            // client-side narrowing instead. Everywhere else it is the query's own
-            // term and nothing is narrowed twice.
-            querySearch: clientSearch ? '' : deferredSearch,
-            narrowSearch: clientSearch ? deferredSearch : '',
-            isPending,
-            tableFilters,
-            onFilterChange: handleFilterChange,
-            dateFilter,
-            mobileFilterOpen,
-            onMobileFilterClose: () => setMobileFilterOpen(false),
-            stickyHeaderOffset,
-            onEmptyChange: setIsEmpty,
-            tableLayout,
-            tableSettings,
-          }}
-        >
-          {children}
-        </ExecutionsTabBody>
+        {props.paging ? (
+          <PagedExecutionsTabRows
+            queryVars={queryVars}
+            // The URL's search, not the box's debounced value: the URL write that carries a new search drops the cursor
+            // in the same navigation, so the two can never meet in one request (the box runs one commit ahead).
+            search={params.search}
+            controls={controls}
+            paging={props.paging}
+            resetOn={JSON.stringify(params)}
+          >
+            {props.children}
+          </PagedExecutionsTabRows>
+        ) : (
+          <ExecutionsTabRows
+            queryVars={queryVars}
+            search={debouncedSearch}
+            controls={controls}
+            clientSearch={props.clientSearch ?? false}
+          >
+            {props.children}
+          </ExecutionsTabRows>
+        )}
       </LoadingWhen>
     </div>
   );

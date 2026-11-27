@@ -8,10 +8,14 @@
  * - flag on draws the grid in BOTH of a listing's branches (its loading form and the read rows), so a refetch never
  *   swaps one layout for the other
  * - the row actions are the grid's action columns, and the card layout's column `meta` is what it was
+ *
+ * The users listing pages with First · Prev · Next: it is mounted under a real `useCursorPager` on the first page (the
+ * URL is empty here).
  */
 
 import { LoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { act, type ReactElement } from 'react';
+import { useCursorPager } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { act, type ComponentProps, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { RelayEnvironmentProvider } from 'react-relay';
 import { Environment, Network, RecordSource, Store } from 'relay-runtime';
@@ -19,6 +23,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   answerTableFlag,
   gridHeaderColumns,
+  gridMetaRow,
   gridRoot,
   gridSettingsGear,
   gridViewport,
@@ -34,6 +39,16 @@ interface SeenColumn {
 
 /** The columns each table handed `useDataTable`, by the first column's cell kind: what the layouts read of them. */
 const seen = vi.hoisted(() => ({ columns: [] as SeenColumn[] }));
+/** The URL the pager and the auto-refresh read: an empty one, so the listing reads its first page. */
+const router = vi.hoisted(() => ({ push: () => {}, replace: () => {} }));
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => router,
+  usePathname: () => '/settings',
+  useSearchParams: () => new URLSearchParams(),
+}));
+// The auto-refresh is off by default and waits for the subscription's answer: no guard is mounted here.
+vi.mock('@/app/components/subscription-lock/subscription-guard', () => ({ useSubscriptionOpen: () => false }));
 
 vi.mock('@flamingo-stack/openframe-frontend-core/components/ui', async importOriginal => {
   const actual = await importOriginal<{ useDataTable: (options: { columns: SeenColumn[] }) => unknown }>();
@@ -51,7 +66,6 @@ vi.mock('react-relay', async importOriginal => {
   const load = async (modules: Promise<{ default: unknown }>[]) => (await Promise.all(modules)).map(m => m.default);
   const loaded = await load([
     import('@/__generated__/usersListTableQuery.graphql'),
-    import('@/__generated__/usersListTable_query.graphql'),
     import('@/__generated__/usersTable_user.graphql'),
     import('@/__generated__/employeeUserCell_user.graphql'),
     import('@/__generated__/employeeRolesCell_user.graphql'),
@@ -70,7 +84,6 @@ vi.mock('react-relay', async importOriginal => {
   ]);
   const names = [
     'usersListTableQuery',
-    'usersListTable_query',
     'usersTable_user',
     'employeeUserCell_user',
     'employeeRolesCell_user',
@@ -101,6 +114,7 @@ vi.mock('react-relay', async importOriginal => {
 });
 
 import { NO_EMPLOYEE_SELECTIONS } from './employee-filters';
+import { USERS_PAGE_SIZE } from './employees-columns';
 import { InvitationsListTable } from './invitations-list-table';
 import { UsersListTable } from './users-list-table';
 
@@ -135,7 +149,7 @@ const USERS = {
         },
       },
     ],
-    pageInfo: { endCursor: 'c-2', hasNextPage: false },
+    pageInfo: { startCursor: 'c-1', endCursor: 'c-2', hasNextPage: false, hasPreviousPage: false },
   },
   userFilters: { statuses: [{ value: 'ACTIVE', count: 2 }], roles: [{ value: 'ADMIN', count: 1 }] },
 };
@@ -183,7 +197,13 @@ const LISTING_PROPS = {
   stickyHeaderOffset: '0px',
 };
 
-const users = () => render(<UsersListTable {...LISTING_PROPS} />);
+/** The users listing under the pager its page owns, on the first page. */
+function PagedUsersListTable(props: Omit<ComponentProps<typeof UsersListTable>, 'pager' | 'pageVariables'>) {
+  const pager = useCursorPager({ pageSize: USERS_PAGE_SIZE });
+  return <UsersListTable {...props} pager={pager} pageVariables={pager.variables} />;
+}
+
+const users = () => render(<PagedUsersListTable {...LISTING_PROPS} />);
 const invitations = () => render(<InvitationsListTable {...LISTING_PROPS} />);
 const openButton = () => container.querySelector('button[aria-label="Open in new tab"]');
 /** What the card layout reads of each column. */
@@ -213,9 +233,20 @@ describe('UsersListTable', () => {
     await users();
 
     expect(container.textContent).toContain('Maya Chen');
-    expect(hasGridMarkup(container)).toBe(false);
+    // No grid table: the one row above the card rows holds the range, the pager and the auto-refresh picker.
+    expect(gridRoot(container)).toBeNull();
+    expect(gridHeaderColumns(container)).toEqual([]);
+    expect(gridMetaRow(container)).toBeNull();
+    expect(container.querySelector('[data-table-meta]')?.textContent).toContain('1–2 of 2 results');
     expect(openButton()?.className).toContain('bg-ods-card');
     expect(openButton()?.className).not.toContain('border-0');
+  });
+
+  it('pages with Previous · Next: the range of the first page in the row above the table', async () => {
+    answerTableFlag('off');
+    await users();
+
+    expect(container.textContent).toContain('1–2 of 2 results');
   });
 
   it('flag on: the grid table, filling the page, with its gear and the open action column', async () => {
@@ -237,7 +268,7 @@ describe('UsersListTable', () => {
     answerTableFlag('on');
     await render(
       <LoadingScope>
-        <UsersListTable {...LISTING_PROPS} />
+        <PagedUsersListTable {...LISTING_PROPS} />
       </LoadingScope>,
     );
 

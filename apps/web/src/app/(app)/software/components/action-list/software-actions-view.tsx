@@ -3,15 +3,17 @@
 import { SOFTWARE_ACTION_COPY } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { PlusCircleIcon, Refresh02HrIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { LoadingWhen, type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { CURSOR_PAGER_KEYS, useApiParams, useCursorPager } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMemo, useState } from 'react';
 import type { SoftwareActionFilterInput } from '@/__generated__/softwareActionsTableQuery.graphql';
 import { SearchToolbar } from '@/app/components/shared/search-toolbar';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { PAGED_LISTS } from '@/lib/paged-lists';
 import { routes } from '@/lib/routes';
 import { SOFTWARE_SECTIONS } from '../shared/software-sections';
+import { SOFTWARE_ACTIONS_PAGE_SIZE } from './software-actions-columns';
 import { type SoftwareActionSelections, SoftwareActionsTable } from './software-actions-table';
 
 const PAGE_ACTIONS: PageActionButton[] = [
@@ -50,22 +52,33 @@ function toFilter(selections: SoftwareActionSelections): SoftwareActionFilterInp
 /**
  * `/software/actions` (design 409:47368): every install and update run across
  * the fleet, the scheduled ones included — one row per package per run. Owns
- * the URL state (search + the three funnels) and the sticky toolbar; the rows
- * suspend below it.
+ * the URL state (search + the three funnels + the page's cursor) and the sticky
+ * toolbar; the rows suspend below it.
  */
 export function SoftwareActionsView({ loading = false }: { loading?: boolean }) {
-  const { params, setParam, setParams } = useApiParams({
-    search: { type: 'string', default: '' },
-    action: { type: 'array', default: [] },
-    engine: { type: 'array', default: [] },
-    status: { type: 'array', default: [] },
+  // A change to the search or a funnel drops the pager's cursor in the SAME URL write (one history entry on page 2+,
+  // so Back returns to the old view).
+  const { params, setParam, setParams } = useApiParams(
+    {
+      search: { type: 'string', default: '' },
+      action: { type: 'array', default: [] },
+      engine: { type: 'array', default: [] },
+      status: { type: 'array', default: [] },
+    },
+    { resetKeys: CURSOR_PAGER_KEYS, resetHistory: 'push' },
+  );
+  const pager = useCursorPager({
+    pageSize: SOFTWARE_ACTIONS_PAGE_SIZE,
+    ...PAGED_LISTS.softwareActions,
+    resetOn: JSON.stringify(params),
   });
 
-  const {
-    search: searchInput,
-    setSearch: setSearchInput,
-    debouncedSearch,
-  } = useSearchParam(params.search, value => setParam('search', value), 300);
+  // Local search input keeps typing responsive; the shared hook debounces it to the URL param.
+  const { search: searchInput, setSearch: setSearchInput } = useSearchParam(
+    params.search,
+    value => setParam('search', value),
+    300,
+  );
 
   const [isEmpty, setIsEmpty] = useState(false);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
@@ -78,9 +91,15 @@ export function SoftwareActionsView({ loading = false }: { loading?: boolean }) 
   );
   const filter = useMemo(() => toFilter(selections), [selections]);
 
-  // The funnels and the search are deferred together, so `isPending` covers
-  // both. No sort: the list keeps the backend's own order, newest first.
-  const { deferredFilters, deferredSearch, isPending } = useDeferredQuery(filter, debouncedSearch);
+  // The funnels, the search and the page are deferred together, so `isPending` covers all three. No sort: the list
+  // keeps the backend's own order, newest first. The query reads the search from the URL, not the box's debounced
+  // value: the URL write that carries a new search drops the cursor in the same navigation, so the two can never meet
+  // in one request (the box's value runs ahead of the URL by one commit).
+  const { deferredFilters, deferredSearch, deferredPage, isPending } = useDeferredQuery(
+    filter,
+    params.search,
+    pager.variables,
+  );
 
   const rows = (
     <SoftwareActionsTable
@@ -91,6 +110,8 @@ export function SoftwareActionsView({ loading = false }: { loading?: boolean }) 
       isPending={isPending}
       onEmptyChange={setIsEmpty}
       stickyHeaderOffset={stickyHeaderOffset}
+      pager={pager}
+      pageVariables={deferredPage}
     />
   );
 

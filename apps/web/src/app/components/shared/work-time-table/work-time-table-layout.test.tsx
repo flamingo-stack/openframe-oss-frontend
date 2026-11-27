@@ -4,12 +4,14 @@
  *
  * Card rows (the app's table flag off) are locked as markup: those snapshots were recorded BEFORE the table learned
  * the grid layout, and that change left them untouched. Update one only for a change that means to alter the card
- * rows.
+ * rows. The pager did: it sits in the row above the table, the page's range on its left (in place of the count) and
+ * the auto-refresh picker after it; no footer under the rows.
  *
  * The grid (the flag on): the lib's grid table at its natural height (the stat cards and the filters sit above it),
  * with the gear of its saved column settings, delete and edit as two action columns and one line in every cell.
  *
- * The table is mounted through its own reader: the query answers from `ANSWER` below.
+ * The table is mounted through its own reader: the query answers from `ANSWER` below, as the first page of the
+ * pager in the row above the table (the URL is empty here).
  */
 
 import { LoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -50,7 +52,7 @@ const ANSWER = {
   },
   employeeTimeEntries: {
     filteredCount: 2,
-    pageInfo: { hasNextPage: false, endCursor: null },
+    pageInfo: { hasNextPage: false, hasPreviousPage: false, startCursor: null, endCursor: null },
     edges: [
       {
         node: {
@@ -101,16 +103,11 @@ const ANSWER = {
   },
 };
 
-// A fragment reference IS its data here, and the query answers `ANSWER`.
+// The query answers `ANSWER`; nothing refetches here (the auto-refresh is off).
 vi.mock('react-relay', () => ({
   graphql: () => ({}),
   useLazyLoadQuery: () => ANSWER,
-  usePaginationFragment: (_fragment: unknown, ref: unknown) => ({
-    data: ref,
-    loadNext: () => {},
-    hasNext: false,
-    isLoadingNext: false,
-  }),
+  useRelayEnvironment: () => ({}),
   useMutation: () => [() => {}, false],
   fetchQuery: () => ({ subscribe: () => {} }),
   commitMutation: () => {},
@@ -145,7 +142,9 @@ describe('work time table, card rows (the flag off)', () => {
   it('the Worktime page: employee and customer', () => {
     setTableGridFlag('off');
     const { container } = mount(worktimePage());
-    expect(container.innerHTML).not.toContain('data-grid-');
+    // No grid table: the one row above the card rows is the auto-refresh picker's, with the count beside it.
+    expect(gridRoot(container)).toBeNull();
+    expect(gridColumns(container)).toEqual([]);
     expect(container).toMatchSnapshot();
   });
 

@@ -3,14 +3,15 @@
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { Parcel02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
-import type { softwareListTable_adoptQuery$key } from '@/__generated__/softwareListTable_adoptQuery.graphql';
-import type { softwareListTable_query$key } from '@/__generated__/softwareListTable_query.graphql';
-import type { softwareListTableAdoptPaginationQuery as SoftwareListTableAdoptPaginationQueryType } from '@/__generated__/softwareListTableAdoptPaginationQuery.graphql';
+import type { CursorPageInfo } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { softwareListTableAdoptQuery as SoftwareListTableAdoptQueryType } from '@/__generated__/softwareListTableAdoptQuery.graphql';
-import type { softwareListTablePaginationQuery as SoftwareListTablePaginationQueryType } from '@/__generated__/softwareListTablePaginationQuery.graphql';
 import type { softwareListTableQuery as SoftwareListTableQueryType } from '@/__generated__/softwareListTableQuery.graphql';
 import { EmptyState, useRetryKey } from '@/app/components/shared';
+import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
+import { forwardPage } from '@/app/hooks/forward-page';
+import { usePagedTable } from '@/app/hooks/use-paged-table';
+import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { useSoftwareAdoptGate } from '../adopt/use-software-adopt-gate';
 import type { SoftwareListFrameRenderProps } from '../shared/software-list-frame';
 import { type SoftwareAdoptionRefs, SoftwareAdoptionRefsContext } from './software-adoption-cell';
@@ -21,26 +22,13 @@ import { useSoftwareListFilters } from './use-software-list-filters';
 
 /**
  * The fleet-wide `softwares` connection — one row per software title,
- * aggregated across devices. Search is pushed to the server; the pagination fragment drives infinite scroll. The rows themselves
- * are the shared `SoftwareTable`, the one a device's own inventory draws too.
+ * aggregated across devices. Search is pushed to the server; one page at a time, its cursor in the URL (no
+ * `@connection`: a cursor from a link must read exactly its page). The rows themselves are the shared
+ * `SoftwareTable`, the one a device's own inventory draws too.
  */
 const softwareListTableQuery = graphql`
   query softwareListTableQuery($filter: SoftwareFilterInput, $search: String, $first: Int!, $after: String) {
-    ...softwareListTable_query @arguments(filter: $filter, search: $search, first: $first, after: $after)
-  }
-`;
-
-const softwareListTableFragment = graphql`
-  fragment softwareListTable_query on Query
-  @refetchable(queryName: "softwareListTablePaginationQuery")
-  @argumentDefinitions(
-    filter: { type: "SoftwareFilterInput" }
-    search: { type: "String" }
-    first: { type: "Int", defaultValue: 20 }
-    after: { type: "String" }
-  ) {
-    softwares(filter: $filter, search: $search, first: $first, after: $after)
-      @connection(key: "softwareListTable_softwares") {
+    softwares(filter: $filter, search: $search, first: $first, after: $after) {
       filteredCount
       edges {
         node {
@@ -49,6 +37,8 @@ const softwareListTableFragment = graphql`
       }
       pageInfo {
         hasNextPage
+        hasPreviousPage
+        startCursor
         endCursor
       }
     }
@@ -56,26 +46,13 @@ const softwareListTableFragment = graphql`
 `;
 
 /**
- * The same list with Adopt on: each row also reads its Adoption count. A separate operation, not an `@include` on the
- * shared one: a backend without Adopt rejects any document that names `adoptionCount`, even a skipped one.
+ * The same page with Adopt on: each row also reads its Adoption count. A separate operation, not an `@include` on the
+ * shared one: a backend without Adopt rejects any document that names `adoptionCount`, even a skipped one. Paged the
+ * same way (no `@connection`).
  */
 const softwareListTableAdoptQuery = graphql`
   query softwareListTableAdoptQuery($filter: SoftwareFilterInput, $search: String, $first: Int!, $after: String) {
-    ...softwareListTable_adoptQuery @arguments(filter: $filter, search: $search, first: $first, after: $after)
-  }
-`;
-
-const softwareListTableAdoptFragment = graphql`
-  fragment softwareListTable_adoptQuery on Query
-  @refetchable(queryName: "softwareListTableAdoptPaginationQuery")
-  @argumentDefinitions(
-    filter: { type: "SoftwareFilterInput" }
-    search: { type: "String" }
-    first: { type: "Int", defaultValue: 20 }
-    after: { type: "String" }
-  ) {
-    softwares(filter: $filter, search: $search, first: $first, after: $after)
-      @connection(key: "softwareListTableAdopt_softwares") {
+    softwares(filter: $filter, search: $search, first: $first, after: $after) {
       filteredCount
       edges {
         node {
@@ -86,6 +63,8 @@ const softwareListTableAdoptFragment = graphql`
       }
       pageInfo {
         hasNextPage
+        hasPreviousPage
+        startCursor
         endCursor
       }
     }
@@ -94,7 +73,14 @@ const softwareListTableAdoptFragment = graphql`
 
 interface SoftwareListTableProps extends Pick<
   SoftwareListFrameRenderProps,
-  'deferredSelections' | 'selections' | 'onSelectionsChange' | 'filtersOpen' | 'onFiltersClose'
+  | 'deferredSelections'
+  | 'selections'
+  | 'onSelectionsChange'
+  | 'filtersOpen'
+  | 'onFiltersClose'
+  | 'pager'
+  | 'pageVariables'
+  | 'paramPrefix'
 > {
   debouncedSearch: string;
   /**
@@ -116,6 +102,16 @@ interface SoftwareListTableProps extends Pick<
  */
 export function SoftwareListTable(props: SoftwareListTableProps) {
   return (
+    <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
+      <SoftwareListTableLoading {...props} />
+    </StaleCursorBoundary>
+  );
+}
+
+/** The rows' loading boundary, the whole output of its own component (the loading standard), under the
+ * stale-cursor boundary above. */
+function SoftwareListTableLoading(props: SoftwareListTableProps) {
+  return (
     <LoadingSuspense label="Loading software">
       <SoftwareListTableReader {...props} />
     </LoadingSuspense>
@@ -136,80 +132,63 @@ function SoftwareListTableQuery(props: SoftwareListTableProps) {
   );
 }
 
-const listVariables = ({ deferredSelections, debouncedSearch }: SoftwareListTableProps) => ({
-  filter: toSoftwareFilter(deferredSelections),
-  search: debouncedSearch || null,
-  first: SOFTWARE_LIST_PAGE_SIZE,
-  after: null,
-});
+/** Both operations' variables: the URL's funnels and search, and its page. */
+function listVariables({ deferredSelections, debouncedSearch, pageVariables }: SoftwareListTableProps) {
+  return {
+    filter: toSoftwareFilter(deferredSelections),
+    search: debouncedSearch || null,
+    ...forwardPage(pageVariables, SOFTWARE_LIST_PAGE_SIZE),
+  };
+}
 
 function SoftwareListPlainQuery(props: SoftwareListTableProps) {
   const retryKey = useRetryKey();
-  const queryData = useLazyLoadQuery<SoftwareListTableQueryType>(softwareListTableQuery, listVariables(props), {
+  const variables = listVariables(props);
+  const data = useLazyLoadQuery<SoftwareListTableQueryType>(softwareListTableQuery, variables, {
     fetchPolicy: 'store-or-network',
     fetchKey: retryKey,
   });
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
-    SoftwareListTablePaginationQueryType,
-    softwareListTable_query$key
-  >(softwareListTableFragment, queryData);
-
+  const refetch = useRefetchPage<SoftwareListTableQueryType>(softwareListTableQuery, variables);
   return (
-    <SoftwareListTableRows
+    <SoftwareListPage
       {...props}
       rows={data.softwares.edges.map(edge => edge.node)}
       totalCount={data.softwares.filteredCount}
-      infiniteScroll={{
-        hasNextPage: hasNext,
-        isFetchingNextPage: isLoadingNext,
-        onLoadMore: () => {
-          if (hasNext && !isLoadingNext) loadNext(SOFTWARE_LIST_PAGE_SIZE);
-        },
-      }}
+      pageInfo={data.softwares.pageInfo}
+      refetch={refetch}
     />
   );
 }
 
 function SoftwareListAdoptQuery(props: SoftwareListTableProps) {
   const retryKey = useRetryKey();
-  const queryData = useLazyLoadQuery<SoftwareListTableAdoptQueryType>(
-    softwareListTableAdoptQuery,
-    listVariables(props),
-    {
-      fetchPolicy: 'store-or-network',
-      fetchKey: retryKey,
-    },
-  );
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
-    SoftwareListTableAdoptPaginationQueryType,
-    softwareListTable_adoptQuery$key
-  >(softwareListTableAdoptFragment, queryData);
-
+  const variables = listVariables(props);
+  const data = useLazyLoadQuery<SoftwareListTableAdoptQueryType>(softwareListTableAdoptQuery, variables, {
+    fetchPolicy: 'store-or-network',
+    fetchKey: retryKey,
+  });
+  const refetch = useRefetchPage<SoftwareListTableAdoptQueryType>(softwareListTableAdoptQuery, variables);
   const rows = data.softwares.edges.map(edge => edge.node);
   const adoption: SoftwareAdoptionRefs = new Map(rows.map(row => [row.id, row]));
   return (
     <SoftwareAdoptionRefsContext value={adoption}>
-      <SoftwareListTableRows
+      <SoftwareListPage
         {...props}
         rows={rows}
         totalCount={data.softwares.filteredCount}
-        infiniteScroll={{
-          hasNextPage: hasNext,
-          isFetchingNextPage: isLoadingNext,
-          onLoadMore: () => {
-            if (hasNext && !isLoadingNext) loadNext(SOFTWARE_LIST_PAGE_SIZE);
-          },
-        }}
+        pageInfo={data.softwares.pageInfo}
+        refetch={refetch}
       />
     </SoftwareAdoptionRefsContext>
   );
 }
 
-/** The fleet table over one variant's rows: the page, its total and its next page. */
-function SoftwareListTableRows({
+/** The fleet table over one page as either operation read it: the pager and the auto-refresh picker from its `pageInfo`. */
+function SoftwareListPage({
   rows,
   totalCount,
-  infiniteScroll,
+  pageInfo,
+  refetch,
   selections,
   onSelectionsChange,
   debouncedSearch,
@@ -220,7 +199,21 @@ function SoftwareListTableRows({
   emptyDescription,
   filtersOpen,
   onFiltersClose,
-}: SoftwareListTableProps & Pick<SoftwareTableProps, 'rows' | 'totalCount' | 'infiniteScroll'>) {
+  pager,
+  paramPrefix,
+}: SoftwareListTableProps &
+  Pick<SoftwareTableProps, 'rows' | 'totalCount'> & {
+    pageInfo: CursorPageInfo | null | undefined;
+    refetch: () => Promise<unknown>;
+  }) {
+  const paged = usePagedTable({
+    pager,
+    pageInfo,
+    rowCount: rows?.length ?? 0,
+    prefix: paramPrefix,
+    refetch,
+    isPending,
+  });
   // The funnels' options: what occurs across the tenant's titles, from the server.
   const filterOptions = useSoftwareListFilters();
 
@@ -239,7 +232,8 @@ function SoftwareListTableRows({
       filterOptions={filterOptions}
       filtersOpen={filtersOpen}
       onFiltersClose={onFiltersClose}
-      infiniteScroll={infiniteScroll}
+      pager={paged.pager}
+      refresh={paged.refresh}
     />
   );
 }

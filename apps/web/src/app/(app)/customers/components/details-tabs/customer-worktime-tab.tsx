@@ -45,10 +45,14 @@ export function CustomerWorktimeTab({ organization }: CustomerWorktimeTabProps) 
           </Button>
         }
       />
-      {/* Scoped by the customer's global id: until it is here the table draws its loading state and reads nothing. */}
+      {/* Scoped by the customer's global id: until it is here the table draws its loading state and reads nothing.
+          Its params live under `wt` (`wtSearch`, `wtFrom`, `wtTo`, `wtEmployeeIds`, `wtCursor`, …): the Devices and
+          Logs tabs on this page read the plain `search` and `organizationIds`, and a shared key would carry one tab's
+          narrowing into another. */}
       <LoadingWhen loading={!organization}>
         <WorkTimeTable
           organizationGlobalId={organization?.id}
+          paramPrefix="wt"
           showEmployee
           addWorkTimeOpen={addOpen}
           onAddWorkTimeOpenChange={setAddOpen}

@@ -2,7 +2,13 @@
 
 import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, type DataTableSortState, LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
+import {
+  CURSOR_PAGER_KEYS,
+  type CursorPagerVariables,
+  useApiParams,
+  useCursorPager,
+  type UseCursorPagerReturn,
+} from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useMemo, useState } from 'react';
 import { NO_ITEMS } from '@/app/components/shared';
@@ -10,6 +16,7 @@ import { SearchToolbar } from '@/app/components/shared/search-toolbar';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { PAGED_LISTS, type PagedListId } from '@/lib/paged-lists';
 import { FLEET_SEARCH_DEBOUNCE_MS } from './fleet-list-paging';
 import { type ServerSortInput, useServerSort } from './use-server-sort';
 
@@ -39,6 +46,12 @@ export interface SoftwareListFrameRenderProps {
   /** The narrow content area's filter window is open (`filterModal`): the list draws it, with the options it read. */
   filtersOpen: boolean;
   onFiltersClose: () => void;
+  /** The list's position in the URL: footer props, the stale check, the cursor drop. */
+  pager: UseCursorPagerReturn;
+  /** Deferred — the page variables to spread into the query (lag the URL while the next page is read). */
+  pageVariables: CursorPagerVariables;
+  /** The URL prefix of this list's params (its auto-refresh interval sits beside them). */
+  paramPrefix: string;
 }
 
 interface SoftwareListFrameProps {
@@ -49,6 +62,11 @@ interface SoftwareListFrameProps {
    * lists never fight over one param.
    */
   paramPrefix?: string;
+  /**
+   * The pager: rows per page, and which list it pages (`PAGED_LISTS`: what the list's API can do for the pager, server
+   * Prev and a reliable `hasPreviousPage`).
+   */
+  paging: { pageSize: number; list: PagedListId };
   placeholder: string;
   /** Column ids the surface's connection sorts by — the toggles drawn. Omit for a list with no sort. */
   sortableIds?: readonly string[];
@@ -68,10 +86,6 @@ interface SoftwareListFrameProps {
   banner?: ReactNode;
   className?: string;
   children: (list: SoftwareListFrameRenderProps) => ReactNode;
-}
-
-function paramName(prefix: string, name: string): string {
-  return prefix ? `${prefix}${name[0].toUpperCase()}${name.slice(1)}` : name;
 }
 
 /**
@@ -103,6 +117,7 @@ function readArray(params: Readonly<Record<string, unknown>>, key: string): stri
  */
 export function SoftwareListFrame({
   paramPrefix = '',
+  paging,
   placeholder,
   sortableIds = NO_ITEMS,
   filterKeys = NO_ITEMS,
@@ -113,24 +128,35 @@ export function SoftwareListFrame({
   children,
 }: SoftwareListFrameProps) {
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const searchKey = paramName(paramPrefix, 'search');
-  const sortByKey = paramName(paramPrefix, 'sortBy');
-  const sortDirKey = paramName(paramPrefix, 'sortDir');
+  const searchKey = 'search';
+  const sortByKey = 'sortBy';
+  const sortDirKey = 'sortDir';
 
-  const { params, setParam, setParams } = useApiParams({
-    [searchKey]: { type: 'string', default: '' },
-    [sortByKey]: { type: 'string', default: '' },
-    [sortDirKey]: { type: 'string', default: 'desc' },
-    ...Object.fromEntries(filterKeys.map(key => [paramName(paramPrefix, key), { type: 'array', default: [] }])),
+  // The list's own params under its prefix (`cveSearch`, `cveSortBy`, …). A change to any of them drops the pager's
+  // cursor in the SAME URL write (one history entry on page 2+, so Back returns to the old view).
+  const { params, setParam, setParams } = useApiParams(
+    {
+      [searchKey]: { type: 'string', default: '' },
+      [sortByKey]: { type: 'string', default: '' },
+      [sortDirKey]: { type: 'string', default: 'desc' },
+      ...Object.fromEntries(filterKeys.map(key => [key, { type: 'array', default: [] }])),
+    },
+    { prefix: paramPrefix, resetKeys: CURSOR_PAGER_KEYS, resetHistory: 'push' },
+  );
+  const pager = useCursorPager({
+    prefix: paramPrefix,
+    pageSize: paging.pageSize,
+    ...PAGED_LISTS[paging.list],
+    resetOn: JSON.stringify(params),
   });
 
   // Local search input keeps typing responsive; the shared hook debounces it to
   // the URL param and guards the back/forward sync-down against clobbering typing.
-  const {
-    search: searchInput,
-    setSearch: setSearchInput,
-    debouncedSearch,
-  } = useSearchParam(readString(params, searchKey), value => setParam(searchKey, value), FLEET_SEARCH_DEBOUNCE_MS);
+  const { search: searchInput, setSearch: setSearchInput } = useSearchParam(
+    readString(params, searchKey),
+    value => setParam(searchKey, value),
+    FLEET_SEARCH_DEBOUNCE_MS,
+  );
 
   const [isEmpty, setIsEmpty] = useState(false);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
@@ -145,27 +171,26 @@ export function SoftwareListFrame({
   // Memoized for identity, not for speed: `useDeferredQuery` tells a pending
   // refetch by comparing references, and `params` is stable per value.
   const selections = useMemo<ListSelections>(
-    () => Object.fromEntries(filterKeys.map(key => [key, readArray(params, paramName(paramPrefix, key))])),
-    [filterKeys, paramPrefix, params],
+    () => Object.fromEntries(filterKeys.map(key => [key, readArray(params, key)])),
+    [filterKeys, params],
   );
   // Every funnel is written back at once, so the URL never holds a stale one —
   // but from the CURRENT selection, not from empty: a caller that names one
   // funnel must not wipe the others.
   const onSelectionsChange = (next: Partial<Record<string, string[]>>) =>
-    setParams(
-      Object.fromEntries(
-        filterKeys.map(key => [paramName(paramPrefix, key), next[key] ?? [...(selections[key] ?? [])]]),
-      ),
-    );
+    setParams(Object.fromEntries(filterKeys.map(key => [key, next[key] ?? [...(selections[key] ?? [])]])));
 
   // Sort and the funnels travel as one deferred object so the query lags in
-  // lockstep with the search and `isPending` covers all three.
+  // lockstep with the search and `isPending` covers all three. The query reads the search from the URL, not the
+  // box's debounced value: the URL write that carries a new search drops the cursor in the same navigation, so the two
+  // can never meet in one request (the box's value runs ahead of the URL by one commit).
   const narrowing = useMemo(() => ({ sort, selections }), [sort, selections]);
   const {
     deferredFilters: deferredNarrowing,
     deferredSearch,
+    deferredPage,
     isPending,
-  } = useDeferredQuery(narrowing, debouncedSearch);
+  } = useDeferredQuery(narrowing, readString(params, searchKey), pager.variables);
 
   const list: SoftwareListFrameRenderProps = {
     debouncedSearch: deferredSearch,
@@ -180,6 +205,9 @@ export function SoftwareListFrame({
     stickyHeaderOffset,
     filtersOpen,
     onFiltersClose: () => setFiltersOpen(false),
+    pager,
+    pageVariables: deferredPage,
+    paramPrefix,
   };
 
   return (
@@ -212,6 +240,7 @@ export function SoftwareListFrame({
 
       {/* The rows before they answer, the same for a query in flight (the list's own boundary) and for the flag's own
           window: the list itself, in a loading scope, where it draws its own loading state and does not fetch. */}
+      {/* The list wraps its query in a StaleCursorBoundary itself, inside whatever ContentErrorBoundary it has. */}
       <LoadingWhen loading={loading}>{children(list)}</LoadingWhen>
     </div>
   );

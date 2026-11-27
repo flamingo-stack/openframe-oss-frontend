@@ -14,20 +14,26 @@ type ListProps = ComponentProps<typeof DevicesList>;
 
 const env = vi.hoisted(() => ({ list: null as Record<string, unknown> | null, reads: 0 }));
 
-// The tab's reads: one schedule with no device assigned. The table's layout does not depend on the rows.
+// The tab's reads: one schedule with no device assigned, one page of it. The table's layout does not depend on the rows.
 vi.mock('react-relay', async importOriginal => ({
   ...(await importOriginal<Record<string, unknown> & { default?: Record<string, unknown> }>()),
   graphql: () => ({}),
   useLazyLoadQuery: () => {
     env.reads += 1;
-    return { scriptSchedule: { selectionMode: 'DEVICES', deviceCriteria: null } };
+    return {
+      scriptSchedule: {
+        selectionMode: 'DEVICES',
+        deviceCriteria: null,
+        assignedDevices: {
+          edges: [],
+          filteredCount: 0,
+          pageInfo: { hasNextPage: false, hasPreviousPage: false, startCursor: null, endCursor: null },
+        },
+      },
+    };
   },
-  usePaginationFragment: () => ({
-    data: { assignedDevices: { edges: [], filteredCount: 0 } },
-    loadNext: () => {},
-    hasNext: false,
-    isLoadingNext: false,
-  }),
+  // The page's refetch (auto-refresh) reads the environment; nothing here runs it.
+  useRelayEnvironment: () => ({}),
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/components/features', async importOriginal => ({
   ...(await importOriginal<object>()),

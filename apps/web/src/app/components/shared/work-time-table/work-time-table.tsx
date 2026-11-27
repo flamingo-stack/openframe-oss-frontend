@@ -12,6 +12,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   actionColumn,
+  type AutoRefreshControlProps,
   Button,
   type ColumnDef,
   type ColumnFiltersState,
@@ -31,13 +32,18 @@ import {
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import {
+  CURSOR_PAGER_KEYS,
+  type CursorPagerFooterProps,
+  useApiParams,
+  useCursorPager,
+  type UseCursorPagerReturn,
+  useToast,
+} from '@flamingo-stack/openframe-frontend-core/hooks';
 import { format, isValid, parseISO } from 'date-fns';
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
-import { useLazyLoadQuery, useMutation, usePaginationFragment } from 'react-relay';
+import { useLazyLoadQuery, useMutation } from 'react-relay';
 import type { deleteTimeEntryMutation as DeleteTimeEntryMutationType } from '@/__generated__/deleteTimeEntryMutation.graphql';
-import type { employeeWorkTimeRelay_query$key } from '@/__generated__/employeeWorkTimeRelay_query.graphql';
-import type { employeeWorkTimeRelayPaginationQuery } from '@/__generated__/employeeWorkTimeRelayPaginationQuery.graphql';
 import type { employeeWorkTimeRelayQuery as EmployeeWorkTimeRelayQueryType } from '@/__generated__/employeeWorkTimeRelayQuery.graphql';
 import { customerContactEmail } from '@/app/(app)/customers/utils/customer-contact-email';
 import { ASSIGNEE_FILTER_PAGE_SIZE, useAssigneeOptions } from '@/app/(app)/tickets/hooks/use-assignee-options';
@@ -46,13 +52,15 @@ import { type ManualEntryEditTarget, ManualEntryModal } from '@/app/components/m
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { DeletedUserAvatar, isDeletedUserStatus, isSelfDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { EmptyState, oneLineEmptyState } from '@/app/components/shared/empty-state';
+import { StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
+import { forwardPage } from '@/app/hooks/forward-page';
+import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
+import { usePagedTable } from '@/app/hooks/use-paged-table';
+import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useGridTableProps, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { deleteTimeEntryMutation } from '@/graphql/time-tracker/delete-time-entry-mutation';
-import {
-  employeeWorkTimeRelayFragment,
-  employeeWorkTimeRelayQuery,
-} from '@/graphql/time-tracker/employee-work-time-relay';
+import { employeeWorkTimeRelayQuery } from '@/graphql/time-tracker/employee-work-time-relay';
 import {
   formatDurationLabel,
   makeDeleteTimeEntryUpdater,
@@ -63,10 +71,12 @@ import {
 import { formatDate } from '@/lib/format-date';
 import type { Instant } from '@/lib/graphql-scalars';
 import { getFullImageUrl } from '@/lib/image-url';
+import { PAGED_LISTS } from '@/lib/paged-lists';
 import { decodeGlobalId, ensureGlobalIdForType } from '@/lib/relay-id';
 import { LiveTable, loadingPlaceholderRows } from '../live-table';
-import { type InfiniteScroll, NO_ITEMS, NO_NEXT_PAGE, noop } from '../no-next-page';
+import { NO_ITEMS, noop } from '../no-next-page';
 
+/** Entries per page. */
 const PAGE_SIZE = 20;
 
 /** The stat figures the query answers, as numbers (the query's Long fields read as strings or numbers). */
@@ -489,8 +499,16 @@ function mapUserName(
 interface WorkTimeTableDataProps {
   showEmployee: boolean;
   showCustomer: boolean;
+  /** Deferred — the page the URL names, with its filter and search. */
   vars: QueryVars;
-  fetchKey: number;
+  /** Refetch the page on screen silently (`useRefetchPage` over `vars`): the auto-refresh tick. */
+  refetch: () => Promise<unknown>;
+  /** A deferred value lags the URL: the rows on screen are the previous result. */
+  isPending: boolean;
+  /** The table's position in the URL: footer props, the stale check, the cursor drop. */
+  pager: UseCursorPagerReturn;
+  /** The host's URL prefix (the auto-refresh interval sits beside the table's other params). */
+  paramPrefix: string | undefined;
   onEdit: (row: WorkTimeRow) => void;
   onDelete: (row: WorkTimeRow) => void;
   employeeFilterOptions: DataTableFilterOption[];
@@ -501,8 +519,21 @@ interface WorkTimeTableDataProps {
   richEmptyState: boolean;
 }
 
-/** The entries and the stats, with their own boundary: in its scope the reader draws the table pending. */
+/**
+ * The entries and the stats, under the stale-cursor boundary: a cursor the server refuses drops to the first page;
+ * any other error goes up unchanged.
+ */
 function WorkTimeTableData(props: WorkTimeTableDataProps) {
+  return (
+    <StaleCursorBoundary cursor={props.vars.after} onStaleCursor={props.pager.dropCursor}>
+      <WorkTimeTableDataLoading {...props} />
+    </StaleCursorBoundary>
+  );
+}
+
+/** Their own boundary, the whole output of its own component (the loading standard): in its scope the reader draws
+ * the table pending. */
+function WorkTimeTableDataLoading(props: WorkTimeTableDataProps) {
   return (
     <LoadingSuspense label="Loading work time">
       <WorkTimeTableDataReader {...props} />
@@ -517,20 +548,28 @@ function WorkTimeTableDataReader(props: WorkTimeTableDataProps) {
   return <WorkTimeTableDataLive {...props} />;
 }
 
-/** The query container: reads the entries and the stats, and renders {@link WorkTimeTableView} with them. */
-function WorkTimeTableDataLive({ vars, fetchKey, ...viewProps }: WorkTimeTableDataProps) {
+/**
+ * The query container: reads the page the URL names and the stats, and renders {@link WorkTimeTableView} with them,
+ * its footer and its auto-refresh.
+ */
+function WorkTimeTableDataLive({ vars, refetch, pager, paramPrefix, ...viewProps }: WorkTimeTableDataProps) {
   const queryData = useLazyLoadQuery<EmployeeWorkTimeRelayQueryType>(employeeWorkTimeRelayQuery, vars, {
     fetchPolicy: 'store-and-network',
-    fetchKey,
   });
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
-    employeeWorkTimeRelayPaginationQuery,
-    employeeWorkTimeRelay_query$key
-  >(employeeWorkTimeRelayFragment, queryData);
+  const entries = queryData.employeeTimeEntries;
+  const paged = usePagedTable({
+    pager,
+    pageInfo: entries.pageInfo,
+    // What the server answered: an edge whose entry was just deleted still counts until the refetch answers.
+    rowCount: entries.edges.length,
+    prefix: paramPrefix,
+    refetch,
+    isPending: viewProps.isPending,
+  });
 
   const rows = useMemo<WorkTimeRow[]>(
     () =>
-      data.employeeTimeEntries.edges
+      entries.edges
         .filter(edge => edge.node != null)
         .map(edge => {
           const org = edge.node.organization;
@@ -554,7 +593,7 @@ function WorkTimeTableDataLive({ vars, fetchKey, ...viewProps }: WorkTimeTableDa
             organizationImageUrl: getFullImageUrl(org?.image?.imageUrl, org?.image?.hash),
           };
         }),
-    [data.employeeTimeEntries.edges],
+    [entries.edges],
   );
 
   return (
@@ -562,12 +601,9 @@ function WorkTimeTableDataLive({ vars, fetchKey, ...viewProps }: WorkTimeTableDa
       {...viewProps}
       stats={queryData.employeeTimeStats}
       rows={rows}
-      totalCount={data.employeeTimeEntries.filteredCount}
-      infiniteScroll={{
-        hasNextPage: hasNext,
-        isFetchingNextPage: isLoadingNext,
-        onLoadMore: () => loadNext(PAGE_SIZE),
-      }}
+      totalCount={entries.filteredCount}
+      pager={paged.pager}
+      refresh={paged.refresh}
     />
   );
 }
@@ -582,7 +618,9 @@ function WorkTimeTableView({
   stats,
   rows,
   totalCount,
-  infiniteScroll,
+  isPending,
+  pager,
+  refresh,
   onEdit,
   onDelete,
   employeeFilterOptions,
@@ -590,12 +628,15 @@ function WorkTimeTableView({
   columnFilters,
   onColumnFiltersChange,
   richEmptyState,
-}: Omit<WorkTimeTableDataProps, 'vars' | 'fetchKey'> & {
+}: Omit<WorkTimeTableDataProps, 'vars' | 'refetch' | 'pager' | 'paramPrefix'> & {
   /** The stats; null while they are read. */
   stats: WorkTimeStats | null;
   rows: WorkTimeRow[];
   totalCount?: number;
-  infiniteScroll: InfiniteScroll;
+  /** The First · Prev · Next footer (`usePagedTable`); `null` while the page is read. */
+  pager: CursorPagerFooterProps | null;
+  /** The auto-refresh picker above the table (`usePagedTable`). */
+  refresh?: AutoRefreshControlProps;
 }) {
   const loading = useLoadingScope();
   // The new grid table, behind the app's one table flag; card rows while it is off. The stat cards and the filters
@@ -634,7 +675,9 @@ function WorkTimeTableView({
         ))}
       </div>
 
-      {!loading && richEmptyState && rows.length === 0 ? (
+      {/* "No work time yet" is the first page's to say, and only once the rows on screen are the URL's: an empty LATER
+          page (a cursor about to be dropped) keeps the table, so First stays reachable. */}
+      {!loading && richEmptyState && rows.length === 0 && !isPending && (pager?.isFirstPage ?? true) ? (
         // No footer button: the other sections link their onboarding guide here, and
         // Worktime has no guide article to link to (`ONBOARDING_GUIDE_SLUGS` has no
         // entry for it), so the block ends with the bullets.
@@ -656,7 +699,9 @@ function WorkTimeTableView({
           itemName="result"
           totalCount={totalCount}
           emptyState={oneLineEmptyState('No work time entries for this period.')}
-          footer={infiniteScroll}
+          isPending={isPending}
+          pager={pager}
+          refresh={refresh}
           loadingCells={loading}
           layout={tableGrid.layout}
           settings={tableGrid.settings}
@@ -674,7 +719,8 @@ function WorkTimeTableViewPending({ showEmployee, showCustomer }: { showEmployee
       showCustomer={showCustomer}
       stats={null}
       rows={NO_ITEMS}
-      infiniteScroll={NO_NEXT_PAGE}
+      isPending={false}
+      pager={null}
       onEdit={noop}
       onDelete={noop}
       employeeFilterOptions={NO_ITEMS}
@@ -703,6 +749,11 @@ export interface WorkTimeTableProps {
   onAddWorkTimeOpenChange?: (open: boolean) => void;
   /** Pre-select + lock this customer in the "Add Work Time" modal. Memoize to keep it stable. */
   addDefaultCustomer?: { id: string; label: string; imageUrl?: string };
+  /**
+   * The URL prefix of the table's params, where its host shares the URL with other tables (a customer's tabs: `wt` →
+   * `wtSearch`, `wtFrom`, `wtCursor`, …). Omitted, the params keep their plain names (`search`, `from`, `cursor`, …).
+   */
+  paramPrefix?: string;
 }
 
 /** The filters above the table: one frame, drawn by the loading form and the loaded one. */
@@ -757,12 +808,13 @@ function WorkTimeFilters({
 }
 
 /**
- * Stats + search/date filters + paginated time-entry table + edit/delete (and optional
- * add) modals. Shared by the employee details page (single employee), the tenant Worktime
- * page (all users, Employee + Customer columns), and the customer details Worktime tab
- * (one customer, Employee column). The header/title and the "Add Work Time" trigger are
- * owned by the caller; this owns the data and the modals. In a loading scope it draws its
- * own loading state and reads nothing.
+ * Stats + search/date filters + paged time-entry table (First · Prev · Next, the cursor in
+ * the URL) + edit/delete (and optional add) modals. Shared by the employee details page
+ * (single employee), the tenant Worktime page (all users, Employee + Customer columns), and
+ * the customer details Worktime tab (one customer, Employee column, its params under
+ * `paramPrefix`). The header/title and the "Add Work Time" trigger are owned by the caller;
+ * this owns the data and the modals. In a loading scope it draws its own loading state and
+ * reads nothing.
  */
 export function WorkTimeTable(props: WorkTimeTableProps) {
   const scoped = useLoadingScope();
@@ -786,18 +838,34 @@ function LiveWorkTimeTable({
   addWorkTimeOpen,
   onAddWorkTimeOpenChange,
   addDefaultCustomer,
+  paramPrefix,
 }: WorkTimeTableProps) {
   const { toast } = useToast();
 
-  const { params, setParam, setParams } = useApiParams({
-    search: { type: 'string', default: '' },
-    employeeIds: { type: 'array', default: [] },
-    organizationIds: { type: 'array', default: [] },
-    from: { type: 'string', default: '' },
-    to: { type: 'string', default: '' },
+  // A change to the search, the dates or a funnel drops the pager's cursor in the SAME URL write (one history entry on
+  // page 2+, so Back returns to the old view).
+  const { params, setParam, setParams } = useApiParams(
+    {
+      search: { type: 'string', default: '' },
+      employeeIds: { type: 'array', default: [] },
+      organizationIds: { type: 'array', default: [] },
+      from: { type: 'string', default: '' },
+      to: { type: 'string', default: '' },
+    },
+    { prefix: paramPrefix, resetKeys: CURSOR_PAGER_KEYS, resetHistory: 'push' },
+  );
+  const pager = useCursorPager({
+    prefix: paramPrefix,
+    pageSize: PAGE_SIZE,
+    ...PAGED_LISTS.timeEntries,
+    resetOn: JSON.stringify(params),
   });
-  const { search, setSearch, debouncedSearch } = useSearchParam(params.search, value => setParam('search', value), 300);
+  // The box keeps the typed search; the shared hook debounces it into the URL, which is what the query reads.
+  const { search, setSearch } = useSearchParam(params.search, value => setParam('search', value), 300);
 
+  // The picker's own range, so a half-picked range (a start, no end yet) stays drawn while the URL catches up. The
+  // query reads the URL's range below, never this one: the URL write that carries new dates drops the cursor in the
+  // same navigation, so the two never meet in one request.
   const [range, setRangeState] = useState<DateRange | undefined>(() => rangeFromParams(params.from, params.to));
   const setRange = useCallback(
     (next: DateRange | undefined) => {
@@ -806,9 +874,7 @@ function LiveWorkTimeTable({
     },
     [setParams],
   );
-  // Adopt an externally-changed range (back/forward, a shared link) during render:
-  // the table below is keyed off `range`, so an effect would fetch and draw the
-  // previous window once before correcting itself.
+  // Adopt an externally-changed range (back/forward, a shared link) into the picker during render.
   const [lastParams, setLastParams] = useState({ from: params.from, to: params.to });
   if (params.from !== lastParams.from || params.to !== lastParams.to) {
     setLastParams({ from: params.from, to: params.to });
@@ -816,6 +882,7 @@ function LiveWorkTimeTable({
       setRangeState(rangeFromParams(params.from, params.to));
     }
   }
+  const urlRange = useMemo(() => rangeFromParams(params.from, params.to), [params.from, params.to]);
 
   const [editTarget, setEditTarget] = useState<ManualEntryEditTarget | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WorkTimeRow | null>(null);
@@ -869,13 +936,14 @@ function LiveWorkTimeTable({
   const richEmptyState =
     !employeeId &&
     !organizationGlobalId &&
-    !debouncedSearch &&
-    !range?.from &&
+    !params.search &&
+    !urlRange?.from &&
     employeeFilterIds.length === 0 &&
     customerFilterIds.length === 0;
 
+  // Memoized for its identity, not for speed: `useDeferredQuery` tells a pending refetch by comparing references.
   const filter = useMemo<WorkTimeFilter>(() => {
-    const dateRange = range?.from ? toInstantRange(range.from, range.to ?? range.from) : null;
+    const dateRange = urlRange?.from ? toInstantRange(urlRange.from, urlRange.to ?? urlRange.from) : null;
     const employeeIds = employeeId
       ? [ensureGlobalIdForType('User', employeeId)]
       : employeeFilterIds.length
@@ -892,39 +960,55 @@ function LiveWorkTimeTable({
       startedFrom: dateRange?.startedFrom ?? null,
       startedTo: dateRange?.startedTo ?? null,
     };
-  }, [employeeId, organizationGlobalId, employeeFilterIds, customerFilterIds, range]);
+  }, [employeeId, organizationGlobalId, employeeFilterIds, customerFilterIds, urlRange]);
 
+  // Deferred, page included: a filter, search or page move keeps the current rows on screen (dimmed) while the next
+  // ones are read, instead of dropping the table to its loading state.
+  const { deferredFilters, deferredSearch, deferredPage, isPending } = useDeferredQuery(
+    filter,
+    params.search,
+    pager.variables,
+  );
+  // One page per request, its cursor in the URL; forward only. Memoized for its identity: the page refetch below is
+  // built on it, and the timer's subscription depends on that.
   const vars = useMemo<QueryVars>(
-    () => ({ filter, search: debouncedSearch || null, first: PAGE_SIZE, after: null }),
-    [filter, debouncedSearch],
+    () => ({ filter: deferredFilters, search: deferredSearch || null, ...forwardPage(deferredPage, PAGE_SIZE) }),
+    [deferredFilters, deferredSearch, deferredPage],
   );
 
-  const [fetchKey, setFetchKey] = useState(0);
-  const refresh = useCallback(() => setFetchKey(key => key + 1), []);
+  // An entry added, edited or deleted here, or by the timer elsewhere, reads the page on screen again (the stats with
+  // it): the page has no connection to edit in place. A failed refetch keeps the page as it was; the next one, or the
+  // auto-refresh, corrects it.
+  const refetch = useRefetchPage<EmployeeWorkTimeRelayQueryType>(employeeWorkTimeRelayQuery, vars);
+  const refetchPage = useCallback(() => {
+    refetch().catch(noop);
+  }, [refetch]);
 
   useEffect(
     () =>
       subscribeTimeEntriesChanged(changedUserId => {
-        if (!employeeId || changedUserId === employeeId) refresh();
+        if (!employeeId || changedUserId === employeeId) refetchPage();
       }),
-    [employeeId, refresh],
+    [employeeId, refetchPage],
   );
 
   const handleConfirmDelete = useCallback(() => {
     if (!deleteTarget) return;
     deleteEntry({
       variables: { id: deleteTarget.id },
+      // The record leaves the store at once (the timer's recent entries read it too); the page is read again for the
+      // entry that moves up into it and for the totals.
       updater: makeDeleteTimeEntryUpdater(deleteTarget.id),
       onCompleted: () => {
         toast({ title: 'Time entry deleted', variant: 'success' });
         setDeleteTarget(null);
-        refresh();
+        refetchPage();
       },
       onError: err => {
         toast({ title: 'Failed to delete time entry', description: err.message, variant: 'destructive' });
       },
     });
-  }, [deleteTarget, deleteEntry, refresh, toast]);
+  }, [deleteTarget, deleteEntry, refetchPage, toast]);
 
   return (
     <div className={WORK_TIME_FRAME_CLASS}>
@@ -940,7 +1024,10 @@ function LiveWorkTimeTable({
           showEmployee={showEmployee}
           showCustomer={showCustomer}
           vars={vars}
-          fetchKey={fetchKey}
+          refetch={refetch}
+          isPending={isPending}
+          pager={pager}
+          paramPrefix={paramPrefix}
           onEdit={setEditTarget}
           onDelete={setDeleteTarget}
           employeeFilterOptions={employeeFilterOptions}
@@ -958,7 +1045,7 @@ function LiveWorkTimeTable({
           userId={employeeId}
           selectableUser={!employeeId}
           defaultCustomer={addDefaultCustomer}
-          onSuccess={refresh}
+          onSuccess={refetchPage}
         />
       )}
       <ManualEntryModal
@@ -967,7 +1054,7 @@ function LiveWorkTimeTable({
         userId={employeeId}
         selectableUser={!employeeId}
         onClose={() => setEditTarget(null)}
-        onSuccess={refresh}
+        onSuccess={refetchPage}
       />
       <ConfirmDialog
         open={!!deleteTarget}
