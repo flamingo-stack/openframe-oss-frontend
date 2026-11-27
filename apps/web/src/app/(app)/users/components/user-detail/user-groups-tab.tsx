@@ -1,34 +1,51 @@
 'use client';
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
-import { useDataTable, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  type AutoRefreshControlProps,
+  useDataTable,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  type CursorPagerFooterProps,
+  type CursorPagerVariables,
+  useCursorPager,
+  type UseCursorPagerReturn,
+} from '@flamingo-stack/openframe-frontend-core/hooks';
 import { memo, useMemo } from 'react';
-import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
-import type { userGroupsTab_query$key } from '@/__generated__/userGroupsTab_query.graphql';
-import type { userGroupsTabPaginationQuery as UserGroupsTabPaginationQueryType } from '@/__generated__/userGroupsTabPaginationQuery.graphql';
+import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { userGroupsTabQuery as UserGroupsTabQueryType } from '@/__generated__/userGroupsTabQuery.graphql';
-import { type InfiniteScroll, NO_NEXT_PAGE, oneLineEmptyState, useRetryKey } from '@/app/components/shared';
+import { oneLineEmptyState, useRetryKey } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
 import { useTableGrid } from '@/app/components/shared/table-layout-scope';
+import { forwardPage } from '@/app/hooks/forward-page';
+import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
+import { usePagedTable } from '@/app/hooks/use-paged-table';
+import { useRefetchPage } from '@/app/hooks/use-refetch-page';
+import { PAGED_LISTS } from '@/lib/paged-lists';
 import { getGroupRowId, type GroupRow, groupColumns, groupRowHref, toGroupRow } from '../groups-list/group-row';
 import { UserTabHeading } from './user-tab-heading';
 
 const GROUPS_PAGE_SIZE = 20;
 
+/**
+ * The tab's URL prefix: it shares the user page's query string with the Devices and Licences tabs (`devices…`,
+ * `licences…`), so its pager sits under `groups…` (`groupsCursor`, `groupsPage`, `groupsRefresh`).
+ */
+const PARAM_PREFIX = 'groups';
+
+/**
+ * The account's groups, one page per request, its cursor in the URL (no `@connection`: a cursor from a link must read
+ * exactly its page). `groups` pages forward only (`first` / `after`, `PAGED_LISTS.accountGroups`).
+ *
+ * Through `directoryAccount`, the account in `?id=` itself: `directoryUser(id).accounts` is every account the person
+ * holds. Direct membership, stored.
+ */
 const userGroupsTabQuery = graphql`
   query userGroupsTabQuery($id: ID!, $first: Int!, $after: String) {
-    ...userGroupsTab_query @arguments(id: $id, first: $first, after: $after)
-  }
-`;
-
-// Through `directoryAccount`, not `directoryUser(id).accounts`: Relay cannot page a connection inside a plural field,
-// and `DirectoryAccount` is not a Node (contract v0.3 §1). Direct membership, stored.
-const userGroupsTabFragment = graphql`
-  fragment userGroupsTab_query on Query
-  @refetchable(queryName: "userGroupsTabPaginationQuery")
-  @argumentDefinitions(id: { type: "ID!" }, first: { type: "Int", defaultValue: 20 }, after: { type: "String" }) {
     directoryAccount(id: $id) {
-      groups(first: $first, after: $after) @connection(key: "userGroupsTab_groups") {
+      groups(first: $first, after: $after) {
         totalCount
         edges {
           node {
@@ -37,6 +54,8 @@ const userGroupsTabFragment = graphql`
         }
         pageInfo {
           hasNextPage
+          hasPreviousPage
+          startCursor
           endCursor
         }
       }
@@ -51,11 +70,19 @@ const COLUMNS = groupColumns({ groupHeader: 'Group' });
 function GroupsTable({
   rows,
   totalCount,
-  infiniteScroll,
+  pager,
+  refresh,
+  isPending,
 }: {
   rows: readonly GroupRow[] | null;
+  /** The server's total, not the rows on the page. */
   totalCount: number;
-  infiniteScroll: InfiniteScroll;
+  /** The First · Prev · Next pager (`usePagedTable`); `null` while the page is read. */
+  pager: CursorPagerFooterProps | null;
+  /** The auto-refresh picker above the table (`usePagedTable`). */
+  refresh?: AutoRefreshControlProps;
+  /** The next page is being read and the rows on screen are the previous one's. */
+  isPending: boolean;
 }) {
   const loading = useLoadingScope();
   const tableGrid = useTableGrid('user-groups');
@@ -80,15 +107,30 @@ function GroupsTable({
         stickyHeader={false}
         itemName="result"
         totalCount={totalCount}
+        isPending={isPending}
         emptyState={oneLineEmptyState('This user is in no groups.')}
         rowHref={groupRowHref}
-        footer={rows && rows.length > 0 ? infiniteScroll : null}
+        pager={pager}
+        refresh={refresh}
       />
     </div>
   );
 }
 
-/** User page → Groups (Figma 1014:2086). `memo`'d: `TabNavigation` defers the body. */
+interface UserGroupsPageProps {
+  id: string;
+  /** The list's position in the URL: footer props, the stale check, the cursor drop. */
+  pager: UseCursorPagerReturn;
+  /** Deferred — the page variables to spread into the query (lag the URL while the next page is read). */
+  pageVariables: CursorPagerVariables;
+  /** The next page is being read and the rows on screen are the previous one's. */
+  isPending: boolean;
+}
+
+/**
+ * User page → Groups (Figma 1014:2086), one page at a time with First · Prev · Next. Owns the tab's pager (in the URL,
+ * under the tab's prefix); the rows suspend below it. `memo`'d: `TabNavigation` defers the body.
+ */
 export const UserGroupsTab = memo(function UserGroupsTabImpl({
   id,
   loading = false,
@@ -96,43 +138,71 @@ export const UserGroupsTab = memo(function UserGroupsTabImpl({
   id: string;
   loading?: boolean;
 }) {
+  const pager = useCursorPager({ prefix: PARAM_PREFIX, pageSize: GROUPS_PAGE_SIZE, ...PAGED_LISTS.accountGroups });
+  // The page is deferred: the rows on screen stay, dimmed, while the next page is read.
+  const { deferredPage, isPending } = useDeferredQuery(null, '', pager.variables);
   return (
-    <LoadingSuspense live label="Loading groups" gated={loading}>
-      <UserGroupsReader id={id} />
-    </LoadingSuspense>
+    <UserGroupsBoundary id={id} loading={loading} pager={pager} pageVariables={deferredPage} isPending={isPending} />
   );
 });
 
-function UserGroupsReader({ id }: { id: string }) {
-  if (useLoadingScope()) return <GroupsTable rows={null} totalCount={0} infiniteScroll={NO_NEXT_PAGE} />;
-  return <UserGroupsQuery id={id} />;
+/**
+ * The rows' boundaries. A cursor the server refuses drops to the first page (`StaleCursorBoundary`); any other error
+ * goes up unchanged.
+ */
+function UserGroupsBoundary(props: UserGroupsPageProps & { loading: boolean }) {
+  return (
+    <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
+      <UserGroupsLoading {...props} />
+    </StaleCursorBoundary>
+  );
 }
 
-function UserGroupsQuery({ id }: { id: string }) {
-  const retryKey = useRetryKey();
-  const queryData = useLazyLoadQuery<UserGroupsTabQueryType>(
-    userGroupsTabQuery,
-    { id, first: GROUPS_PAGE_SIZE, after: null },
-    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
+/** The rows' loading boundary, the whole output of its own component (the loading standard), under the
+ * stale-cursor boundary above. */
+function UserGroupsLoading({ loading, ...props }: UserGroupsPageProps & { loading: boolean }) {
+  return (
+    <LoadingSuspense live label="Loading groups" gated={loading}>
+      <UserGroupsReader {...props} />
+    </LoadingSuspense>
   );
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
-    UserGroupsTabPaginationQueryType,
-    userGroupsTab_query$key
-  >(userGroupsTabFragment, queryData);
+}
 
-  const groups = data.directoryAccount?.groups;
+function UserGroupsReader(props: UserGroupsPageProps) {
+  if (useLoadingScope()) return <GroupsTable rows={null} totalCount={0} pager={null} isPending={false} />;
+  return <UserGroupsQuery {...props} />;
+}
+
+/** The page the URL names, its footer and the auto-refresh. */
+function UserGroupsQuery({ id, pager, pageVariables, isPending }: UserGroupsPageProps) {
+  const retryKey = useRetryKey();
+  const variables: UserGroupsTabQueryType['variables'] = { id, ...forwardPage(pageVariables, GROUPS_PAGE_SIZE) };
+  const queryData = useLazyLoadQuery<UserGroupsTabQueryType>(userGroupsTabQuery, variables, {
+    fetchPolicy: 'store-and-network',
+    fetchKey: retryKey,
+  });
+  const refetch = useRefetchPage<UserGroupsTabQueryType>(userGroupsTabQuery, variables);
+
+  const groups = queryData.directoryAccount?.groups;
   const rows = useMemo(() => (groups ? groups.edges.map(edge => toGroupRow(edge.node)) : null), [groups]);
+  const paged = usePagedTable({
+    pager,
+    pageInfo: groups?.pageInfo,
+    rowCount: groups?.edges.length ?? 0,
+    prefix: PARAM_PREFIX,
+    refetch,
+    isPending,
+  });
   // A missing account is the header's to say ("User not found").
   if (!groups || !rows) return null;
 
-  const fetchNextPage = () => {
-    if (hasNext && !isLoadingNext) loadNext(GROUPS_PAGE_SIZE);
-  };
   return (
     <GroupsTable
       rows={rows}
       totalCount={groups.totalCount}
-      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+      pager={paged.pager}
+      refresh={paged.refresh}
+      isPending={isPending}
     />
   );
 }

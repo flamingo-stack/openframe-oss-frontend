@@ -1,19 +1,21 @@
 /**
  * What a suspend says once it answers: done, done with Microsoft's open sessions named, done with the provider's
- * re-read lagging, or refused.
+ * re-read lagging, or refused. A suspend that went through marks the Users list changed: a status can move a person
+ * in or out of its funnel, and the list is paged on the server.
  */
 
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ commit: vi.fn(), toast: vi.fn() }));
+const mocks = vi.hoisted(() => ({ commit: vi.fn(), toast: vi.fn(), markListChanged: vi.fn() }));
 
 vi.mock('react-relay', () => ({ graphql: () => null, useMutation: () => [mocks.commit, false] }));
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', async importOriginal => ({
   ...(await importOriginal<Record<string, unknown>>()),
   useToast: () => ({ toast: mocks.toast }),
 }));
+vi.mock('@/lib/list-refresh', () => ({ markListChanged: mocks.markListChanged }));
 
 import { useSuspendUser } from './use-suspend-user';
 
@@ -54,6 +56,7 @@ describe('useSuspendUser', () => {
   beforeEach(() => {
     mocks.commit.mockReset();
     mocks.toast.mockReset();
+    mocks.markListChanged.mockReset();
     hook = null;
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -106,6 +109,33 @@ describe('useSuspendUser', () => {
     });
     expect(toast).toMatchObject({ title: 'Could not suspend the user', variant: 'destructive' });
     expect(toast.description).toContain('The connection may not change sign-in.');
+  });
+
+  it.each([
+    ['done', {}],
+    [
+      'done with its re-read lagging',
+      { userErrors: [{ code: 'SYNC_PENDING', message: 'Not shown yet.', field: null }] },
+    ],
+  ])('marks the Users list changed once a suspend is %s', (_label, payload) => {
+    answer(true, payload);
+    expect(mocks.markListChanged).toHaveBeenCalledTimes(1);
+    expect(mocks.markListChanged).toHaveBeenCalledWith('directoryUsers');
+  });
+
+  it('marks the Users list changed once an unsuspend is done', () => {
+    answer(false, {});
+    expect(mocks.markListChanged).toHaveBeenCalledWith('directoryUsers');
+  });
+
+  it('leaves the Users list alone when the server refuses or the request fails', () => {
+    answer(true, {
+      person: null,
+      userErrors: [{ code: 'PERMISSION_DENIED', message: 'The connection may not change sign-in.', field: null }],
+    });
+    act(() => hook?.setSuspended(TARGET, true));
+    act(() => mocks.commit.mock.calls.at(-1)?.[0].onError(new Error('Network down')));
+    expect(mocks.markListChanged).not.toHaveBeenCalled();
   });
 
   it('settles the caller once the write answers, done or refused', () => {

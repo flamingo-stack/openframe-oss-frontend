@@ -3,13 +3,20 @@
  * does not reseed the form (`useSeedForm`), so it must not become what Save reads either: every field the user left
  * alone would then read as changed and go out with the value the form still holds, or be refused by a rule it never
  * had to meet.
+ *
+ * A save that lands marks the Users list changed: the list is paged on the server, and an edit can move the person in
+ * or out of its search and funnels.
  */
 
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { commit, toast } = vi.hoisted(() => ({ commit: vi.fn(), toast: vi.fn() }));
+const { commit, toast, markListChanged } = vi.hoisted(() => ({
+  commit: vi.fn(),
+  toast: vi.fn(),
+  markListChanged: vi.fn(),
+}));
 
 // `readInlineData` hands the node back: the fixture's records carry the nested fragments' fields flat.
 vi.mock('react-relay', async importOriginal => ({
@@ -23,6 +30,7 @@ vi.mock('@flamingo-stack/openframe-frontend-core/hooks', async importOriginal =>
   ...(await importOriginal<Record<string, unknown>>()),
   useToast: () => ({ toast }),
 }));
+vi.mock('@/lib/list-refresh', () => ({ markListChanged }));
 
 import { LIVE_DETAILS, userRecord } from './__tests__/edit-user-fixtures';
 import type { EditUserRecord } from './edit-user-form';
@@ -47,6 +55,7 @@ describe('useEditUserForm, Save', () => {
   beforeEach(() => {
     hook = null;
     commit.mockReset();
+    markListChanged.mockReset();
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -85,6 +94,29 @@ describe('useEditUserForm, Save', () => {
       organizationId: 'org-1',
       jobTitle: 'Lead',
     });
+  });
+
+  /** Saves a changed job title and answers the write as the server would. */
+  async function saveAndAnswer(payload: { person: unknown; userErrors: unknown[] }) {
+    act(() => root.render(<Harness record={storedUser('Design')} />));
+    act(() => hook?.form.setValue('jobTitle', 'Lead', { shouldDirty: true }));
+    await act(async () => hook?.handleSave());
+    await vi.waitFor(() => expect(commit).toHaveBeenCalledTimes(1));
+    act(() => commit.mock.calls[0]?.[0].onCompleted({ updateDirectoryUser: payload }));
+  }
+
+  it.each([
+    ['whole', { person: {}, userErrors: [] }],
+    ['in part', { person: {}, userErrors: [{ code: 'SYNC_PENDING', message: 'Not shown yet.', field: null }] }],
+  ])('marks the Users list changed once a save lands %s', async (_label, payload) => {
+    await saveAndAnswer(payload);
+    expect(markListChanged).toHaveBeenCalledTimes(1);
+    expect(markListChanged).toHaveBeenCalledWith('directoryUsers');
+  });
+
+  it('leaves the Users list alone when the server refuses the save', async () => {
+    await saveAndAnswer({ person: null, userErrors: [{ code: 'INVALID', message: 'Bad title', field: 'jobTitle' }] });
+    expect(markListChanged).not.toHaveBeenCalled();
   });
 
   it('sends nothing once a refetch finds no user, though the form keeps the seeded record', async () => {

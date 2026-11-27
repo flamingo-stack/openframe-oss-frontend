@@ -5,6 +5,7 @@ import { graphql, useMutation } from 'react-relay';
 import type { useSuspendUserMutation } from '@/__generated__/useSuspendUserMutation.graphql';
 import { userErrorsDescription } from '@/lib/form-save';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
+import { markListChanged } from '@/lib/list-refresh';
 
 // Selects what the user page reads. The accounts have ids, so the header's button and the Details tab's status tag
 // update in place; the person's own fields have none and wait for the page's next read (as with Edit User).
@@ -64,10 +65,13 @@ export function useSuspendUser() {
         onSettled?.();
         const sessions = suspended && sessionsStillOpen ? ` ${SESSIONS_STILL_OPEN}` : '';
         if (userErrors.length === 0) {
+          // The status moved: the Users list's page (narrowed by status, or showing it) is read again.
+          markListChanged('directoryUsers');
           toast({ title: doneTitle, description: `${done}${sessions}`, variant: 'success' });
           return;
         }
         if (person && userErrors.every(({ code }) => code === SYNC_PENDING)) {
+          markListChanged('directoryUsers');
           toast({
             title: doneTitle,
             description: `${userErrorsDescription(userErrors)}${sessions}`,
