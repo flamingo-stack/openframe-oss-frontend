@@ -61,10 +61,10 @@ function IncidentCheckRowIsland({ incidentId }: { incidentId: string }) {
 /** An optional strip: nothing is drawn until it is read. */
 function IncidentCheckRowReader({ incidentId }: { incidentId: string }) {
   if (useLoadingScope()) return null;
-  return <IncidentCheckRowLive incidentId={incidentId} />;
+  return <IncidentCheckRowQuery incidentId={incidentId} />;
 }
 
-function IncidentCheckRowLive({ incidentId }: { incidentId: string }) {
+function IncidentCheckRowQuery({ incidentId }: { incidentId: string }) {
   const { insight } = useLazyLoadQuery<IncidentCheckRowQueryType>(
     incidentCheckRowQuery,
     { id: incidentId },
