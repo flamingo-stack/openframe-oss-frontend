@@ -18,6 +18,7 @@ import {
   type Touchpoint,
 } from './registration-attribution';
 import { runtimeEnv } from './runtime-config';
+import { clearSignupStartedIn } from './signup-started-in';
 import { refreshTokens } from './token-refresh-manager';
 import { getAccessTokenSync, getRefreshToken, getTokenEpoch, isBearerAuthMode } from './token-store';
 
@@ -422,11 +423,15 @@ class AuthApiClient {
     // explicit caller-supplied object must not smuggle blank strings into the JSON body.
     const { attribution, ...rest } = payload;
     const normalized = attribution ? normalizeAttribution(attribution) : undefined;
-    return request<T>('/sas/oauth/register', {
+    const response = await request<T>('/sas/oauth/register', {
       method: 'POST',
       headers: await recaptchaHeaders('signup'),
       body: JSON.stringify({ ...rest, ...(normalized ? { attribution: normalized } : {}) }),
     });
+    // The organization exists: a later sign-up in this tab did not begin in the desktop app. A refused one keeps the
+    // marker for the retry.
+    if (response.ok) clearSignupStartedIn();
+    return response;
   }
 
   getRegistrationProviders<T = unknown>() {

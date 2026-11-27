@@ -15,6 +15,7 @@ import { Toaster } from '@/lib/openframe-core-ui';
 import { PostHogAnalyticsBridge } from '@/lib/posthog/posthog-analytics-bridge';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { signupEmailSeedScript } from '@/lib/signup-email-seed';
+import { signupStartedInSeedScript } from '@/lib/signup-started-in';
 import { superUserSeedScript } from '@/lib/super-user-seed';
 import { getAppUrl } from '@/lib/utils';
 import { FeatureFlagsLoader } from '../components/feature-flags-loader';
@@ -136,7 +137,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             // The super user strip's room (`super-user-seed.ts`) in every mode, as the strip mounts in every
             // shell; it marks nothing unless the stored session was a super user's. The hub announcement's room
             // (`announcement-cache.ts`), for a stored one that would draw a bar here (CU-17tkuw69v1p). `/auth?email=`
-            // leaves the address here, before GTM and the attribution read it (`signup-email-seed.ts`).
+            // leaves the address here, before GTM and the attribution read it (`signup-email-seed.ts`), and so does
+            // the desktop hand-off's `started_in`, kept for the sign-up in this tab (`signup-started-in.ts`).
             __html:
               sidebarWidthFoucScript(isSaasTenantMode()) +
               (isSaasTenantMode()
@@ -144,7 +146,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 : '') +
               superUserSeedScript() +
               announcementSeedScript(runtimeEnv.libPlatform()) +
-              signupEmailSeedScript(),
+              signupEmailSeedScript() +
+              signupStartedInSeedScript(),
           }}
         />
       </head>

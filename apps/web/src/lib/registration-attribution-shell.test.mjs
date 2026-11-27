@@ -18,6 +18,8 @@ globalThis.window = {
     pathname: '/auth/',
     href: 'http://tauri.localhost/auth/?utm_source=desktop',
   },
+  // A marker in this storage would be a bug elsewhere; a shell never sends one all the same.
+  sessionStorage: { getItem: k => (k === 'of_signup_started_in' ? 'desktop' : null), removeItem: () => {} },
   localStorage: {
     getItem: k => (k in store ? store[k] : null),
     setItem: (k, v) => {
@@ -41,4 +43,8 @@ test('the desktop shell records no visit and sends none', () => {
   assert.equal(got.firstVisit.referrer, undefined);
   assert.equal(got.firstVisit.landingUrl, undefined);
   assert.equal(got.firstVisit.utmSource, 'desktop', 'the rest of the attribution still rides along');
+});
+
+test('a sign-up inside the shell sends no startedIn: its request already says which app it is', () => {
+  assert.equal(A.collectRegistrationAttribution().startedIn, undefined);
 });
