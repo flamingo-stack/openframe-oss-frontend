@@ -2,6 +2,7 @@
 
 import { type ReactNode, useEffect, useSyncExternalStore } from 'react';
 import { usePageFallback } from '@/app/components/page-fallback-context';
+import { FAIL_OPEN_AFTER_MS, useFailOpen } from '@/app/hooks/use-fail-open';
 import { useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
 import { resolveManagedStatusSupport } from '@/lib/device-status-probe';
 import {
@@ -42,8 +43,8 @@ function isKnownOnServer(): boolean {
 }
 
 /**
- * Holds the page until the flags have answered (the device status look, `DeviceStatusDisplayFromFlag`, is one) and the
- * app knows whether the backend's device status enum has MANAGED
+ * Holds the page until the flags have answered, or `FAIL_OPEN_AFTER_MS` has passed (the device status look,
+ * `DeviceStatusDisplayFromFlag`, is one), and the app knows whether the backend's device status enum has MANAGED
  * (`device-status-support.ts`), so the first device query a page builds already sends the right statuses. Asked
  * once per tab (a reload in the tab reuses the answer); the shell around the page renders meanwhile. Always mounted
  * and never swaps what it renders once ready, so nothing below remounts.
@@ -53,9 +54,11 @@ function isKnownOnServer(): boolean {
  */
 export function DeviceStatusSupportGate({ children }: { children: ReactNode }) {
   const known = useSyncExternalStore(subscribe, isKnown, isKnownOnServer);
-  // Settles on its own: `FeatureFlagsLoader` marks the flags loaded on a failed query too.
-  const flagsReady = useFeatureFlagsReady();
-  const ready = known && flagsReady;
+  // `FeatureFlagsLoader` marks the flags loaded on a failed query too, but it asks only once the session has resolved
+  // with a user: a session that never resolves never asks, and the page sat on its skeleton for good
+  // (CU-17tkuw69v8q). Bounded like the chrome's own wait; the shell shows the session screen by then anyway.
+  const flagsWaiting = useFailOpen(!useFeatureFlagsReady(), FAIL_OPEN_AFTER_MS, 'feature flags (device status gate)');
+  const ready = known && !flagsWaiting;
   const fallback = usePageFallback();
 
   useEffect(() => {
