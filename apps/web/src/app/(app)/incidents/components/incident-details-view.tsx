@@ -37,9 +37,6 @@ interface IncidentDetailsViewProps {
  */
 const TICKET_PREFILL_DESCRIPTION_MAX = 1000;
 
-/** The incidents lists read their page again (they page on the server: there is no connection to edit). */
-const markIncidentsChanged = () => markListChanged('insights');
-
 /**
  * The header island, with its own boundary. The title is static, but the action set is the record's
  * own answer — which transitions are legal depends on its status — so this is
@@ -115,9 +112,10 @@ function IncidentHeaderLoaded({ incident, transitions }: Required<IncidentHeader
   // Mingo's "open view": this incident rides on every message sent while the page is up.
   useTrackOpenView({ type: OPENFRAME_RECORD_KIND.INSIGHT, id: incident.insightId, label: incident.title });
   // A transition moves the incident between the lists' tabs and their counts: an incidents list mounted elsewhere
-  // reads its page again.
-  const { transition, snoozeTarget, cancelSnooze, confirmSnooze, isMutating, isSnoozing } =
-    useIncidentTransitions(markIncidentsChanged);
+  // reads its page again (the lists page on the server, so there is no connection to edit).
+  const { transition, snoozeTarget, cancelSnooze, confirmSnooze, isMutating, isSnoozing } = useIncidentTransitions(() =>
+    markListChanged('insights'),
+  );
 
   // The status button is named after the transition the technician most likely
   // wants — Resolve while the incident is open — and its menu lists every legal
