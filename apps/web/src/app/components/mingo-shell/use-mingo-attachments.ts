@@ -53,6 +53,8 @@ export function useMingoAttachments(
     onRemove: uploads.remove,
     // The ready files go with the message (their server ids) and leave the tray.
     onMessageSend: () => uploads.takeForSend().map(openFrameSentAttachmentOf),
+    // A send that fails brings the draft back; its files come back into the tray with it.
+    onMessageSendFailed: uploads.restore,
     onOpenAttachment: (attachment: OpenFrameMessageAttachment) => {
       void downloadFile(attachment.name, () => fetchMingoAttachmentDownloadUrl(attachment.id));
     },
