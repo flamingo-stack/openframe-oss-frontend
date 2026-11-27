@@ -38,6 +38,23 @@ describe('ticketService.sendMessage', () => {
     });
   });
 
+  it("sends a message's files by their ids, also with no text", async () => {
+    await ticketService.sendMessage('d-1', '', 'ADMIN_AI_CHAT', { attachmentIds: ['att_1', 'att_2'] });
+
+    expect(sentInput()).toEqual({
+      dialogId: 'd-1',
+      content: '',
+      chatType: 'ADMIN_AI_CHAT',
+      attachmentIds: ['att_1', 'att_2'],
+    });
+  });
+
+  it('sends no file field for a message without files', async () => {
+    await ticketService.sendMessage('d-1', 'hi', 'ADMIN_AI_CHAT', { attachmentIds: [] });
+
+    expect(sentInput()).not.toHaveProperty('attachmentIds');
+  });
+
   it('sends neither without them: a server without the fields still takes the message', async () => {
     await ticketService.sendMessage('d-1', 'hi', 'CLIENT_CHAT');
 

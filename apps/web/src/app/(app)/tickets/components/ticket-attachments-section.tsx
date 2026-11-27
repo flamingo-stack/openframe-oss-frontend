@@ -5,8 +5,11 @@ import { Button, TicketAttachmentsList, useLoadingScope } from '@flamingo-stack/
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type ChangeEvent, useRef, useState } from 'react';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { hasNativeFiles, pickNativeFiles } from '@/lib/native-files';
 import { formatFileSize } from '../../devices/utils/file-manager-utils';
+import { ticketAttachmentSourceLabel } from '../attachments/ticket-attachment-sources-query';
+import { useTicketAttachmentSources } from '../attachments/use-ticket-attachment-sources';
 import { useDownloadTicketAttachment } from '../hooks/use-ticket-attachments';
 import { useAddTicketAttachments, useDeleteTicketAttachment } from '../hooks/use-ticket-detail-mutations';
 import type { Dialog } from '../types/dialog.types';
@@ -25,11 +28,16 @@ export function TicketAttachmentsSection({ ticketId, attachments }: TicketAttach
   const { download } = useDownloadTicketAttachment();
   const addAttachments = useAddTicketAttachments(ticketId);
   const deleteAttachment = useDeleteTicketAttachment(ticketId);
+  // "Added from chat" on files a chat sent, read apart from the ticket while the chat attachments flag is on: a backend
+  // without the field refuses the whole document. Appearing late is fine, so the plain read does.
+  const chatAttachmentsEnabled = useFeatureFlag('mingo-chat-attachments');
+  const { data: sources } = useTicketAttachmentSources(ticketId, { enabled: chatAttachmentsEnabled });
 
   const uiAttachments = attachments.map(att => ({
     id: att.id,
     fileName: att.fileName,
     fileSize: att.fileSize ? formatFileSize(att.fileSize) : '',
+    sourceLabel: ticketAttachmentSourceLabel(sources?.get(att.id)),
     onDownload: () => download(att.id, att.fileName),
     onDelete: () => setPendingDelete({ id: att.id, fileName: att.fileName }),
   }));

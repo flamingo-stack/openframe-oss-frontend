@@ -223,6 +223,12 @@ export const featureFlags = {
       return getFlagValue('cancel-subscription', () => false);
     },
   },
+  /** Mingo chat files: each history page asks for the messages' files only while it is on. */
+  mingoChatAttachments: {
+    enabled(): boolean {
+      return getFlagValue('mingo-chat-attachments', () => false);
+    },
+  },
   /**
    * Dev/stage-only Stripe test-clock panel on Settings → Billing. Server-driven via
    * `feFeatureFlags` (`test-clock`), which the BE keeps in sync with the same

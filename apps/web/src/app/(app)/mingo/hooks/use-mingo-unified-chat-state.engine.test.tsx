@@ -8,8 +8,10 @@ import type { UseChatEngineConfig } from '@flamingo-stack/openframe-frontend-cor
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { apiClient } from '@/lib/api-client';
 import { getQueryClient } from '@/lib/query-client';
 import { mingoDialogLink } from '@/lib/routes';
+import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 import { ticketService } from '../../tickets/services';
 import { dialogModelQueryKey } from '../models/dialog-model-api';
 import { useMingoModelDraftStore } from '../models/mingo-model-draft-store';
@@ -124,6 +126,53 @@ describe('useMingoUnifiedChatState: the engine config', () => {
     expect(toast).toHaveBeenCalledWith(
       expect.objectContaining({ title: 'Rejection Failed', description: 'Unable to resolve request' }),
     );
+  });
+
+  it('sends the files the composer handed over by their server ids, and none on a message without', async () => {
+    const sendMessage = vi.spyOn(ticketService, 'sendMessage').mockResolvedValue();
+    render();
+    const transport = config().transport as Extract<UseChatEngineConfig['transport'], { publish: unknown }>;
+
+    await transport.publish('', {
+      dialogId: 'd-1',
+      openframeAttachments: [{ id: 'att_1', name: 'disk.log', mediaType: 'text/plain' }],
+    });
+    expect(sendMessage).toHaveBeenLastCalledWith(
+      'd-1',
+      '',
+      'ADMIN_AI_CHAT',
+      expect.objectContaining({ attachmentIds: ['att_1'] }),
+    );
+
+    await transport.publish('hi', { dialogId: 'd-1' });
+    expect(sendMessage).toHaveBeenLastCalledWith(
+      'd-1',
+      'hi',
+      'ADMIN_AI_CHAT',
+      expect.objectContaining({ attachmentIds: undefined }),
+    );
+  });
+
+  it("asks each history page for the messages' files only while their flag is on", async () => {
+    const post = vi
+      .spyOn(apiClient, 'post')
+      .mockResolvedValue({ ok: true, status: 200, data: { data: { messages: null } } });
+    render();
+    const read = () => {
+      const readPage = config().history?.fetchDialogMessages;
+      if (!readPage) throw new Error('the history has no page read');
+      return readPage({ dialogId: 'd-1' });
+    };
+    const askedFiles = () => /attachments \{/.test((post.mock.calls.at(-1)?.[1] as { query: string }).query);
+
+    useFeatureFlagsStore.getState().reset();
+    await read();
+    expect(askedFiles()).toBe(false);
+
+    useFeatureFlagsStore.getState().setFlags([{ name: 'mingo-chat-attachments', enabled: true }]);
+    await read();
+    expect(askedFiles()).toBe(true);
+    useFeatureFlagsStore.getState().reset();
   });
 
   it("creates a new chat on the draft's model behind its flag, then lets the draft go", async () => {

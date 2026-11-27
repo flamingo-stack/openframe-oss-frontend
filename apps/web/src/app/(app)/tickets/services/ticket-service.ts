@@ -470,7 +470,7 @@ export class TicketService implements TicketServiceInterface {
     chatType: ChatType,
     context?: SendMessageContext,
   ): Promise<void> {
-    const { contextItems, currentView, recentViews, currentPage, currentList } = context ?? {};
+    const { contextItems, currentView, recentViews, currentPage, currentList, attachmentIds } = context ?? {};
     const input: MingoSendMessageInput = {
       dialogId,
       content,
@@ -480,6 +480,8 @@ export class TicketService implements TicketServiceInterface {
       ...(recentViews?.length ? { recentViews } : {}),
       ...(currentPage ? { currentPage } : {}),
       ...(currentList ? { currentList } : {}),
+      // A backend without the field refuses the message: sent only with files, which only the flag lets stage.
+      ...(attachmentIds?.length ? { attachmentIds } : {}),
     };
     await runCommand('sendMessage', MINGO_SEND_MESSAGE_MUTATION, input);
   }

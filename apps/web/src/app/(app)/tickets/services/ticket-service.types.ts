@@ -157,6 +157,8 @@ export interface SendMessageContext {
   currentPage?: MessagePageRef;
   /** The list on that page, with its filters. */
   currentList?: MessageListRef;
+  /** The chat files the message carries (ready uploads, by the server's ids). Sent only when there are any. */
+  attachmentIds?: string[];
 }
 
 export interface TicketService {
