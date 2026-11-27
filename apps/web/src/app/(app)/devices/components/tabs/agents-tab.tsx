@@ -2,15 +2,25 @@
 
 import { InfoCard, type InfoCardData, Tag } from '@flamingo-stack/openframe-frontend-core';
 import { ToolBadge } from '@flamingo-stack/openframe-frontend-core/components';
-import { TerminalBrowserIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  ChocolateyLogoGreyIcon,
+  HomebrewLogoGreyIcon,
+  TerminalBrowserIcon,
+  WingetLogoGreyIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { LoadingItems, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { formatRelativeTime, normalizeToolTypeWithFallback } from '@flamingo-stack/openframe-frontend-core/utils';
-import type { ReactNode } from 'react';
+import type { ComponentType, ReactNode } from 'react';
+import { EmptyValue } from '@/app/components/shared/empty-value';
 import { EMPTY_CARD } from '@/app/components/shared/info-card-loading';
+import { PackageManagerType } from '@/generated/schema-enums';
 import { isSaasTenantMode } from '@/lib/app-mode';
 import { formatDateTime } from '@/lib/format-date';
+import { parseInstant } from '@/lib/graphql-scalars';
+import { useDevicePackageManagers } from '../../hooks/device-package-managers';
 import type { Device, InstalledAgent, ToolConnection } from '../../types/device.types';
 import { getAgentFooter } from '../../utils/agent-footer';
+import { type PackageManagerCard, packageManagerCards } from '../../utils/package-manager-cards';
 import {
   getExpectedAgentTypes,
   getToolConnectionDisplayStatus,
@@ -248,24 +258,66 @@ function agentCardData(agent: CombinedAgent): InfoCardData {
   return { items: items as InfoCardData['items'], footer: getAgentFooter(agent.toolType) };
 }
 
+/** The tab's section headings (Figma: AGENTS, then PACKAGE MANAGERS; the caption face sets the case). */
+const SECTION_TITLES = {
+  agents: 'Agents',
+  packageManagers: 'Package Managers',
+} as const;
+
+/** Each package manager's grey mark, as the agents' marks are drawn. */
+const PACKAGE_MANAGER_ICON: Record<PackageManagerType, ComponentType<{ size?: number }>> = {
+  [PackageManagerType.CHOCO]: ChocolateyLogoGreyIcon,
+  [PackageManagerType.WINGET]: WingetLogoGreyIcon,
+  [PackageManagerType.BREW]: HomebrewLogoGreyIcon,
+};
+
+/**
+ * The rows of a package manager's card: Agent, then Version and Updated (when its version arrived on the device, not
+ * when it last reported), or Status PENDING while OpenFrame installs it. No footer: the managers are not Flamingo builds.
+ * An installed manager reported without a version (an agent older than the version report) keeps its Version row with
+ * the empty mark, so the card does not read as broken.
+ */
+export function packageManagerCardData(card: PackageManagerCard): InfoCardData {
+  const Icon = PACKAGE_MANAGER_ICON[card.type];
+  const items: Array<{ label?: string; value: ReactNode }> = [
+    { label: AGENT_ROW_LABELS.agent, value: <ToolBadge label={card.label} icon={Icon ? <Icon size={16} /> : null} /> },
+  ];
+  if (card.pending) {
+    const pending = getAgentStatusTag('pending');
+    items.push({ label: AGENT_ROW_LABELS.status, value: <Tag label={pending.label} variant={pending.variant} /> });
+  } else {
+    items.push({ label: AGENT_ROW_LABELS.version, value: card.version ?? <EmptyValue /> });
+  }
+  const changedAt = card.versionChangedAt ? parseInstant(card.versionChangedAt) : null;
+  if (changedAt) items.push({ label: AGENT_ROW_LABELS.updated, value: formatRelativeTime(changedAt) });
+  // InfoCard models `value` as a string; these rows carry a badge and a tag (see agentCardData).
+  return { items: items as InfoCardData['items'] };
+}
+
 export function AgentsTab({ device }: AgentsTabProps) {
   const loading = useLoadingScope();
+  // The tab's own read, outside the device poll. Not read yet, refused by an older backend, or failed before its first
+  // answer: no section. A failed refetch keeps the last answer.
+  const { data: packageManagers } = useDevicePackageManagers(device?.machineId);
 
   if (loading) {
-    // The data is not touched: each slot is a card with no rows, drawn in its agent's loading shape.
+    // The data is not touched: each slot is a card with no rows, drawn in its agent's loading shape. The package
+    // managers have no skeleton: which ones a device has is unknown until its data arrives, and on a device with none
+    // the section would flash and go.
     return (
-      <AgentCards>
+      <CardSection title={SECTION_TITLES.agents}>
         <LoadingItems count={AGENT_CARD_SKELETONS.length}>
           {index => (
             <InfoCard data={EMPTY_CARD} skeleton={AGENT_CARD_SKELETONS[index]} className="h-full" data-loading-item />
           )}
         </LoadingItems>
-      </AgentCards>
+      </CardSection>
     );
   }
 
   const agents = combineAgents(device);
-  if (agents.length === 0) {
+  const managers = packageManagerCards(packageManagers);
+  if (agents.length === 0 && managers.length === 0) {
     return (
       <TabEmptyState
         icon={<TerminalBrowserIcon />}
@@ -276,24 +328,35 @@ export function AgentsTab({ device }: AgentsTabProps) {
   }
 
   return (
-    <AgentCards>
-      {agents.map((agent, idx) => (
-        <InfoCard
-          key={`${agent.agentType}-${agent.agentToolId || idx}`}
-          data={agentCardData(agent)}
-          className="h-full"
-          data-loading-item
-        />
-      ))}
-    </AgentCards>
+    <div className="flex flex-col gap-[var(--spacing-system-l)]">
+      {agents.length > 0 && (
+        <CardSection title={SECTION_TITLES.agents}>
+          {agents.map((agent, idx) => (
+            <InfoCard
+              key={`${agent.agentType}-${agent.agentToolId || idx}`}
+              data={agentCardData(agent)}
+              className="h-full"
+              data-loading-item
+            />
+          ))}
+        </CardSection>
+      )}
+      {managers.length > 0 && (
+        <CardSection title={SECTION_TITLES.packageManagers}>
+          {managers.map(card => (
+            <InfoCard key={card.type} data={packageManagerCardData(card)} className="h-full" data-loading-item />
+          ))}
+        </CardSection>
+      )}
+    </div>
   );
 }
 
-/** The section heading and the grid the cards sit in, loading and loaded alike. */
-function AgentCards({ children }: { children: ReactNode }) {
+/** A section heading and the grid its cards sit in, loading and loaded alike. */
+function CardSection({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
-      <h3 className="uppercase text-ods-text-secondary text-h5">Agent Versions</h3>
+      <h3 className="uppercase text-ods-text-secondary text-h5">{title}</h3>
       <div className="grid grid-cols-1 items-stretch gap-[var(--spacing-system-l)] content-md:grid-cols-2 content-lg:grid-cols-3">
         {children}
       </div>
