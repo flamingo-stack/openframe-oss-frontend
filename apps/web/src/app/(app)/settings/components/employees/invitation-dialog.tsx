@@ -18,23 +18,13 @@ interface InvitationDialogProps {
   kind: InvitationAction;
   isOpen: boolean;
   onClose: () => void;
-  /** The invitations listings in the store, the one on screen first. */
-  listingIds: readonly string[];
 }
 
 /** The confirmation an invitation's action opens. */
-export function InvitationDialog({ invitation, kind, isOpen, onClose, listingIds }: InvitationDialogProps) {
+export function InvitationDialog({ invitation, kind, isOpen, onClose }: InvitationDialogProps) {
   const data = useFragment(invitationDialogFragment, invitation);
   if (kind === 'resend') {
-    return <ConfirmResendInvitationModal invitation={data} isOpen={isOpen} onClose={onClose} listingIds={listingIds} />;
+    return <ConfirmResendInvitationModal invitation={data} isOpen={isOpen} onClose={onClose} />;
   }
-  return (
-    <ConfirmRevokeInvitationModal
-      invitation={data}
-      kind={kind}
-      isOpen={isOpen}
-      onClose={onClose}
-      listingIds={listingIds}
-    />
-  );
+  return <ConfirmRevokeInvitationModal invitation={data} kind={kind} isOpen={isOpen} onClose={onClose} />;
 }

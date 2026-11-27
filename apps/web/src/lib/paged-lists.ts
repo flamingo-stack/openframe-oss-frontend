@@ -11,6 +11,10 @@
  *   read to set it from the page index; off elsewhere until checked.
  *
  * The pager pages back through browser history everywhere; these only decide Prev on a shared link.
+ *
+ * Backend task CU-17tkuw68auf (backward paging and an `INVALID_CURSOR` error on the list APIs) is not deployed yet.
+ * Once saas-tenant ships it, a row flips to `serverPrev` here, list by list, after the deployed schema shows `last` /
+ * `before` on that list and a page back returns the rows before the cursor.
  */
 
 export interface PagedListCaps {
@@ -32,6 +36,9 @@ export const PAGED_LISTS = {
   scriptExecutions: SERVER_PREV,
   scheduleExecutions: SERVER_PREV,
   scheduleRuns: SERVER_PREV,
+  // The scripts table sends no sort, so its cursor always follows the default order `before` pages back on.
+  scripts: SERVER_PREV,
+  scriptSchedules: SERVER_PREV,
   // Group B: page-index cursors; `before: startCursor` reloads the same page until the backend fix.
   softwares: PAGE_INDEX,
   vulnerabilities: PAGE_INDEX,
@@ -43,10 +50,21 @@ export const PAGED_LISTS = {
   deviceVulnerabilities: PAGE_INDEX,
   // Group C: `before` returns the NEXT page. Never send it.
   assignedDevices: FORWARD_ONLY,
+  logs: FORWARD_ONLY,
   // Group D: forward only in the schema.
   users: FORWARD_ONLY,
   timeEntries: FORWARD_ONLY,
   remoteSessions: FORWARD_ONLY,
+  invitations: FORWARD_ONLY,
+  knowledgeBaseItems: FORWARD_ONLY,
+  archivedArticles: FORWARD_ONLY,
+  assignedItems: FORWARD_ONLY,
+  insights: FORWARD_ONLY,
+  directoryConnections: FORWARD_ONLY,
+  directoryUsers: FORWARD_ONLY,
+  directoryGroups: FORWARD_ONLY,
+  groupMembers: FORWARD_ONLY,
+  accountGroups: FORWARD_ONLY,
 } as const satisfies Record<string, PagedListCaps>;
 
 export type PagedListId = keyof typeof PAGED_LISTS;

@@ -6,7 +6,7 @@ import type { confirmRevokeInvitationModal_invitation$key } from '@/__generated_
 import type { confirmRevokeInvitationModalMutation } from '@/__generated__/confirmRevokeInvitationModalMutation.graphql';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
-import { decrementInvitationsCount, invalidateInvitationsListings } from './invitations-listing';
+import { markListChanged } from '@/lib/list-refresh';
 
 const confirmRevokeInvitationModalFragment = graphql`
   fragment confirmRevokeInvitationModal_invitation on Invitation {
@@ -16,9 +16,9 @@ const confirmRevokeInvitationModalFragment = graphql`
 `;
 
 const confirmRevokeInvitationModalMutationNode = graphql`
-  mutation confirmRevokeInvitationModalMutation($id: ID!, $connections: [ID!]!) {
+  mutation confirmRevokeInvitationModalMutation($id: ID!) {
     revokeInvitation(input: { id: $id }) {
-      revokedInvitationId @deleteEdge(connections: $connections)
+      revokedInvitationId
     }
   }
 `;
@@ -44,18 +44,10 @@ interface ConfirmRevokeInvitationModalProps {
   kind: keyof typeof WORDING;
   isOpen: boolean;
   onClose: () => void;
-  /** The invitations listings in the store: the row leaves each, and its count goes down. */
-  listingIds: readonly string[];
 }
 
-/** Revokes an invitation; its row leaves the block at once. */
-export function ConfirmRevokeInvitationModal({
-  invitation,
-  kind,
-  isOpen,
-  onClose,
-  listingIds,
-}: ConfirmRevokeInvitationModalProps) {
+/** Revokes an invitation; the invitations list reads its page again (the row and the counts are the server's). */
+export function ConfirmRevokeInvitationModal({ invitation, kind, isOpen, onClose }: ConfirmRevokeInvitationModalProps) {
   const { toast } = useToast();
   const { id, email } = useFragment(confirmRevokeInvitationModalFragment, invitation);
   const [commit, isInFlight] = useMutation<confirmRevokeInvitationModalMutation>(
@@ -65,13 +57,11 @@ export function ConfirmRevokeInvitationModal({
 
   const handleConfirm = () => {
     commit({
-      variables: { id, connections: [...listingIds] },
-      // The count drops at once; the refetch the stale mark starts brings the funnels' numbers.
-      updater: store => {
-        decrementInvitationsCount(store, listingIds);
-        invalidateInvitationsListings(store, listingIds);
+      variables: { id },
+      onCompleted: () => {
+        markListChanged('invitations');
+        onClose();
       },
-      onCompleted: onClose,
       onError: error => {
         toast({
           title: 'Error',

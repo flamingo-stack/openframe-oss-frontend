@@ -2,19 +2,16 @@
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import {
-  fetchQuery,
-  graphql,
-  useLazyLoadQuery,
-  usePaginationFragment,
-  useRelayEnvironment,
-  useSubscribeToInvalidationState,
-} from 'react-relay';
-import type { invitationsListTable_query$key } from '@/__generated__/invitationsListTable_query.graphql';
-import type { invitationsListTablePaginationQuery } from '@/__generated__/invitationsListTablePaginationQuery.graphql';
+import type { CursorPagerVariables, UseCursorPagerReturn } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { invitationsListTableQuery } from '@/__generated__/invitationsListTableQuery.graphql';
-import { NO_ITEMS, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
+import { NO_ITEMS, useRetryKey } from '@/app/components/shared';
+import { readCursor, StaleCursorBoundary } from '@/app/components/shared/stale-cursor-boundary';
+import { forwardPage } from '@/app/hooks/forward-page';
+import { usePagedTable } from '@/app/hooks/use-paged-table';
+import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { type TableLayout, tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
+import { useListRefreshEpoch } from '@/lib/list-refresh';
 import {
   type EmployeeSelections,
   invitationFilterOptions,
@@ -22,38 +19,31 @@ import {
   toInvitationFilter,
 } from './employee-filters';
 import { INVITATIONS_PAGE_SIZE } from './employees-columns';
-import { affectedInvitationsListings, invitationsListingId } from './invitations-listing';
 import { InvitationsTable } from './invitations-table';
 
+/**
+ * One page of open invitations per request, its cursor in the URL (`cursor`; no `@connection`: a cursor from a link
+ * must read exactly its page). `invitations` pages forward only (`first` / `after`). The funnels' counts ride along: a
+ * page move asks for them again with the same scope (the same answer).
+ */
 const invitationsListTableQueryNode = graphql`
-  query invitationsListTableQuery($filter: InvitationFilterInput, $search: String, $first: Int!) {
-    ...invitationsListTable_query @arguments(filter: $filter, search: $search, first: $first)
-    # Beside the fragment, not in it: the next page does not count the funnels again.
-    invitationFilters(filter: $filter, search: $search) {
-      ...employeeFilters_invitationFilters
-    }
-  }
-`;
-
-const invitationsListTableFragment = graphql`
-  fragment invitationsListTable_query on Query
-  @refetchable(queryName: "invitationsListTablePaginationQuery")
-  @argumentDefinitions(
-    filter: { type: "InvitationFilterInput" }
-    search: { type: "String" }
-    first: { type: "Int", defaultValue: 20 }
-    after: { type: "String" }
-  ) {
-    invitations(filter: $filter, search: $search, first: $first, after: $after)
-      @connection(key: "invitationsListTable_invitations") {
-      # The dialogs' mutations reach this connection by id; invite and resend mark it stale (invitations-listing.ts).
-      __id
+  query invitationsListTableQuery($filter: InvitationFilterInput, $search: String, $first: Int!, $after: String) {
+    invitations(filter: $filter, search: $search, first: $first, after: $after) {
       filteredCount
       edges {
         node {
           ...invitationsTable_invitation
         }
       }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    invitationFilters(filter: $filter, search: $search) {
+      ...employeeFilters_invitationFilters
     }
   }
 `;
@@ -68,17 +58,32 @@ interface InvitationsListTableProps {
   /** A deferred search or funnel lags its control: the rows on screen are the previous result. */
   isPending: boolean;
   stickyHeaderOffset: string;
+  /** The list's position in the URL: footer props, the stale check, the cursor drop. */
+  pager: UseCursorPagerReturn;
+  /** Deferred — the page variables to spread into the query (lag the URL while the next page is read). */
+  pageVariables: CursorPagerVariables;
 }
 
 /**
- * Open invitations, newest first, searched, narrowed and paged on the server, with their own boundary. In a loading
- * scope (the boundary's fallback) the reader draws the table over one page of placeholder rows with their real cells;
- * otherwise it runs the query, which suspends under that boundary.
+ * Open invitations, newest first, searched, narrowed and paged on the server (First · Prev · Next), with their own
+ * boundary. In a loading scope (the boundary's fallback) the reader draws the table over one page of placeholder rows
+ * with their real cells; otherwise it runs the query, which suspends under that boundary. A cursor the server refuses
+ * drops to the first page (`StaleCursorBoundary`); any other error goes up unchanged.
  *
  * The table's layout is the app's one table flag: the grid where it is on, card rows where it is off. Until the flag
  * is answered the list is a loading scope, so one table is never drawn and then replaced by the other.
  */
 export function InvitationsListTable(props: InvitationsListTableProps) {
+  return (
+    <StaleCursorBoundary cursor={readCursor(props.pageVariables)} onStaleCursor={props.pager.dropCursor}>
+      <InvitationsListTableLoading {...props} />
+    </StaleCursorBoundary>
+  );
+}
+
+/** The rows' loading boundary, the whole output of its own component (the loading standard), under the
+ * stale-cursor boundary above. */
+function InvitationsListTableLoading(props: InvitationsListTableProps) {
   return (
     <LoadingSuspense label="Loading invitations">
       <InvitationsListGate {...props} />
@@ -113,10 +118,9 @@ function InvitationsListReader(props: InvitationsListReaderProps) {
         filterOptions={NO_EMPLOYEE_FILTER_OPTIONS}
         selections={props.selections}
         onSelectionsChange={props.onSelectionsChange}
-        listingIds={affectedInvitationsListings(invitationsListingId(props.search))}
         isPending={false}
         stickyHeaderOffset={props.stickyHeaderOffset}
-        infiniteScroll={NO_NEXT_PAGE}
+        pager={null}
         layout={props.layout}
       />
     );
@@ -124,7 +128,11 @@ function InvitationsListReader(props: InvitationsListReaderProps) {
   return <InvitationsListQuery {...props} />;
 }
 
-/** The first page, the infinite scroll and the refetch a change marks stale. */
+/**
+ * The page the URL names, its footer and the auto-refresh. An invite, a revoke or a resend changes which invitations
+ * the page holds and the funnels' numbers, which is the server's answer: the dialog marks the list changed and the
+ * page is read again (`useListRefreshEpoch`), keeping the rows on screen until it arrives.
+ */
 function InvitationsListQuery({
   search,
   backendSelections,
@@ -133,53 +141,36 @@ function InvitationsListQuery({
   isPending,
   stickyHeaderOffset,
   layout,
+  pager,
+  pageVariables,
 }: InvitationsListReaderProps) {
-  const environment = useRelayEnvironment();
   const retryKey = useRetryKey();
+  const changed = useListRefreshEpoch('invitations');
   const filter = toInvitationFilter(backendSelections);
-  const variables = { filter, search: search || null, first: INVITATIONS_PAGE_SIZE };
+  const variables = { filter, search: search || null, ...forwardPage(pageVariables, INVITATIONS_PAGE_SIZE) };
   const queryData = useLazyLoadQuery<invitationsListTableQuery>(invitationsListTableQueryNode, variables, {
     fetchPolicy: 'store-and-network',
-    fetchKey: retryKey,
+    fetchKey: `${retryKey}:${changed}`,
   });
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
-    invitationsListTablePaginationQuery,
-    invitationsListTable_query$key
-  >(invitationsListTableFragment, queryData);
-  const { invitations } = data;
-
-  // A new invitation is the server's to place (does it match, where does it
-  // sort), and every change moves the funnels' numbers: the mutations mark the
-  // listing stale and it is read again here, with the funnels,
-  // without suspending the rows on screen — as many as are loaded, so a scrolled
-  // table keeps its length.
-  useSubscribeToInvalidationState([invitations.__id], () => {
-    const first = Math.max(invitations.edges.length, INVITATIONS_PAGE_SIZE);
-    fetchQuery(environment, invitationsListTableQueryNode, { ...variables, first }, { fetchPolicy: 'network-only' })
-      // The table keeps the rows it has; the next change asks again.
-      .subscribe({ error: () => {} });
-  });
+  const refetch = useRefetchPage<invitationsListTableQuery>(invitationsListTableQueryNode, variables);
+  const { edges, pageInfo, filteredCount } = queryData.invitations;
+  // A top-level page: its auto-refresh interval has no prefix, as its other params.
+  const paged = usePagedTable({ pager, pageInfo, rowCount: edges.length, refetch, isPending });
 
   return (
     <InvitationsTable
-      rows={invitations.edges.map(edge => edge.node)}
-      totalCount={invitations.filteredCount}
+      rows={edges.map(edge => edge.node)}
+      totalCount={filteredCount}
       search={search}
       isFiltered={filter !== null}
       filterOptions={invitationFilterOptions(queryData.invitationFilters, selections)}
       selections={selections}
       onSelectionsChange={onSelectionsChange}
-      listingIds={affectedInvitationsListings(invitations.__id)}
       isPending={isPending}
       stickyHeaderOffset={stickyHeaderOffset}
       layout={layout}
-      infiniteScroll={{
-        hasNextPage: hasNext,
-        isFetchingNextPage: isLoadingNext,
-        onLoadMore: () => {
-          if (hasNext && !isLoadingNext) loadNext(INVITATIONS_PAGE_SIZE);
-        },
-      }}
+      pager={paged.pager}
+      refresh={paged.refresh}
     />
   );
 }

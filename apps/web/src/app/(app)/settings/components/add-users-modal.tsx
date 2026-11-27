@@ -18,7 +18,7 @@ import { graphql, useMutation } from 'react-relay';
 import type { addUsersModalMutation } from '@/__generated__/addUsersModalMutation.graphql';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
-import { invalidateInvitationsListings } from './employees/invitations-listing';
+import { markListChanged } from '@/lib/list-refresh';
 import { describeInviteRefusals, refusedEmailIndexes } from './employees/invite-refusals';
 
 const addUsersModalMutationNode = graphql`
@@ -43,11 +43,9 @@ interface AddUsersModalProps {
   onClose: () => void;
   /** At least one invitation went out: the page shows them. */
   onInvited: () => void;
-  /** The invitations listings and counts to refetch with the new invitations. */
-  listingIds: readonly string[];
 }
 
-export function AddUsersModal({ isOpen, onClose, onInvited, listingIds }: AddUsersModalProps) {
+export function AddUsersModal({ isOpen, onClose, onInvited }: AddUsersModalProps) {
   const [rows, setRows] = useState<InviteRow[]>([{ email: '', role: 'ADMIN' }]);
   const [commit, isSubmitting] = useMutation<addUsersModalMutation>(addUsersModalMutationNode);
   const { toast } = useToast();
@@ -77,9 +75,9 @@ export function AddUsersModal({ isOpen, onClose, onInvited, listingIds }: AddUse
     if (emails.length === 0) return;
     commit({
       variables: { emails },
-      // A partial failure still sent the rest, so the listings refetch either way.
-      updater: store => invalidateInvitationsListings(store, listingIds),
       onCompleted: ({ inviteUsers: { userErrors } }) => {
+        // A partial failure still sent the rest, so the invitations list reads its page again either way.
+        markListChanged('invitations');
         const refused = describeInviteRefusals(emails, userErrors);
         if (!refused) {
           toast({ title: 'Invites sent', description: `${emails.length} user(s) invited`, variant: 'success' });

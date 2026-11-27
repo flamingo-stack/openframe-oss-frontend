@@ -53,8 +53,10 @@ export interface UseAutoRefreshReturn {
 
 /**
  * The table's auto-refresh: an interval in the URL (off by default), a timer that refetches the page on screen
- * silently. It ticks only while the session is healthy, the subscription open and the tab shown, starts again when
- * all three hold again, and never refetches while the last refetch is still out.
+ * silently. It ticks only while the session is healthy, the subscription open and the tab shown, and never refetches
+ * while the last refetch is still out. When all three hold again it catches up: a last refresh older than the interval
+ * runs at once, a newer one waits the rest of it (a restart of the whole interval would leave a 5 min table stale for
+ * up to twice that after every tab switch).
  */
 export function useAutoRefresh({
   prefix,
@@ -71,6 +73,8 @@ export function useAutoRefresh({
 
   // The latest refetch, read by the timer: a new page's refetch replaces the old one without restarting the timer.
   const refetchRef = useRef(refetch);
+  // When the last tick refetched (`Date.now()`); null until the first one. A restart of the timer waits from there.
+  const lastRefreshRef = useRef<number | null>(null);
   useEffect(() => {
     refetchRef.current = refetch;
   }, [refetch]);
@@ -87,10 +91,12 @@ export function useAutoRefresh({
         } catch {
           // A failed refresh keeps the page and its cursor; the next tick tries again.
         }
+        lastRefreshRef.current = Date.now();
       }
       if (!cancelled) timer = setTimeout(() => void tick(), intervalMs);
     };
-    timer = setTimeout(() => void tick(), intervalMs);
+    const last = lastRefreshRef.current;
+    timer = setTimeout(() => void tick(), last === null ? intervalMs : Math.max(0, last + intervalMs - Date.now()));
     return () => {
       cancelled = true;
       clearTimeout(timer);
