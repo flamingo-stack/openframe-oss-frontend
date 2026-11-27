@@ -176,7 +176,14 @@ export const mingoDialogs = createMingoGraphqlDialogs(postMingoGraphql, {
 });
 
 /** The open dialog's history, a page at a time; a failed read tries again (`retryingRead`). */
-const fetchMingoHistory = retryingRead(createMingoGraphqlHistory(postMingoGraphql, { chatType: ADMIN_CHAT_TYPE }));
+const fetchMingoHistory = retryingRead(
+  createMingoGraphqlHistory(postMingoGraphql, {
+    chatType: ADMIN_CHAT_TYPE,
+    // The messages' files, asked for page by page while `mingo-chat-attachments` is on: a backend without the field
+    // refuses the whole query, so off asks for nothing new.
+    attachments: () => featureFlags.mingoChatAttachments.enabled(),
+  }),
+);
 
 /** The open dialog's record; a dialog that does not resolve is noted, so the app can tell "gone" from "failed". */
 const fetchMingoDialog = retryingRead(async (dialogId: string) => {
@@ -256,6 +263,8 @@ function useMingoTransport(): ChatTransport {
           recentViews,
           currentPage,
           currentList,
+          // The files the composer handed over on Send (`useMingoAttachments`), by the server's ids.
+          attachmentIds: options.openframeAttachments?.map(file => file.id),
         });
         // A successful send is a tracked dashboard-activity event (relayed to HubSpot by the backend).
         trackDashboardActivity(EVENT_SUBTYPE.SEND_MINGO_MESSAGE);

@@ -195,6 +195,14 @@ vi.mock('../dev-onboarding-shortcuts', () => ({
 // The chip has tests of its own (its sources import Relay queries); none here.
 const pageChip = vi.hoisted(() => ({ node: null as ReactNode }));
 vi.mock('./use-page-chip', () => ({ usePageChip: () => pageChip.node }));
+// The files have tests of their own (`use-mingo-attachments.test.tsx`); here: what the dock hands the chat.
+const mingoFiles = vi.hoisted((): { value: unknown; state: unknown } => ({ value: undefined, state: null }));
+vi.mock('./use-mingo-attachments', () => ({
+  useMingoAttachments: (state: unknown) => {
+    mingoFiles.state = state;
+    return mingoFiles.value;
+  },
+}));
 // The props builder has tests of its own; here: what the dock asks of it.
 vi.mock('./use-openframe-chat-props', () => ({
   useOpenframeChatProps: (options: Record<string, unknown>) => {
@@ -302,6 +310,8 @@ describe('MingoComposerDock', () => {
     panel.loading = null;
     pageChip.node = null;
     builder.lastOptions = null;
+    mingoFiles.value = undefined;
+    mingoFiles.state = null;
     shell.mobile = false;
     identity.enabled = null;
     setSurface();
@@ -688,6 +698,17 @@ describe('MingoComposerDock', () => {
     shell.mobile = true;
     render('/mingo/');
     expect(props().safeAreaBottom).toBe(false);
+  });
+
+  it("hands the chat the composer's files for the session's chat, and none while they are off", () => {
+    render('/devices/');
+    expect(props().openframeAttachments).toBeUndefined();
+    const { chat } = surface.value as { chat: { state: unknown } };
+    expect(mingoFiles.state).toBe(chat.state);
+
+    mingoFiles.value = { items: [], fromHook: true };
+    render('/mingo/');
+    expect(props().openframeAttachments).toBe(mingoFiles.value);
   });
 
   it("lights the composer's edge on every route", () => {

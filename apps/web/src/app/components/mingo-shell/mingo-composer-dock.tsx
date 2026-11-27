@@ -86,6 +86,7 @@ import { useChatBehindPage } from './use-chat-behind-page';
 import { useComposerLauncherDrain, usePublishComposerDock } from './use-composer-launcher-drain';
 import { followsToChatPage, useComposerTarget } from './use-composer-target';
 import { useDockComposerInset } from './use-dock-composer-inset';
+import { useMingoAttachments } from './use-mingo-attachments';
 import { useOpenframeChatProps } from './use-openframe-chat-props';
 import { usePageChip } from './use-page-chip';
 
@@ -400,6 +401,8 @@ function DockChat({ route, chat }: DockChatProps) {
   }, [whatToAskInColumn, manhattan, handle]);
 
   const chatProps = useOpenframeChatProps({ dialogStatusOf: chat.dialogStatusOf });
+  // The composer's files (behind `mingo-chat-attachments`): undefined while off, so no attach control is drawn.
+  const attachments = useMingoAttachments(chat.state);
 
   // Over a page: the open chat is one click away. Up, its header leads to the chat's
   // own page or back to this one; down, a chip at the start of the composer's context
@@ -610,6 +613,7 @@ function DockChat({ route, chat }: DockChatProps) {
           safeAreaBottom={!isMobileShell()}
           // Mingo's edge light around the input, the hub launcher's: the one place to ask Mingo.
           composerEdgeLight
+          openframeAttachments={attachments}
         />
       </ChatEngineProvider>
       <ResetOnboardingDialog
