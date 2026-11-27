@@ -3,6 +3,7 @@
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { Filter02Icon, InfoCircleIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  type AutoRefreshControlProps,
   Button,
   type ColumnDef,
   DataTable,
@@ -26,7 +27,9 @@ import type {
 import { NO_ITEMS, oneLineEmptyState, useRetryKey } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
+import { useAutoRefresh } from '@/app/hooks/use-auto-refresh';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
+import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
 import { DirectoryLicenseSortField, DirectoryProvider, SortDirection } from '@/generated/schema-enums';
 import { EMPTY_VALUE } from '@/lib/empty-value';
@@ -192,7 +195,13 @@ function LicensesRows({
   sort,
   onSortChange,
   isPending,
-}: LicensesTableProps & { rows: readonly LicenseRow[]; notRead: boolean }) {
+  refresh,
+}: LicensesTableProps & {
+  rows: readonly LicenseRow[];
+  notRead: boolean;
+  /** The auto-refresh picker above the table, once the licences are read. */
+  refresh?: AutoRefreshControlProps;
+}) {
   const loading = useLoadingScope();
   // The grid table, behind the app's one table flag; card rows while it is off. Both of the section's branches (its
   // loading scope and the read rows) draw this table, so both draw the same layout.
@@ -229,6 +238,7 @@ function LicensesRows({
       sort={sort}
       onSortChange={onSortChange}
       emptyState={oneLineEmptyState(empty)}
+      refresh={refresh}
     />
   );
 }
@@ -263,11 +273,16 @@ function LicensesTableReader(props: LicensesTableProps) {
 function LicensesTableQuery(props: LicensesTableProps) {
   const { id, search, orderBy } = props;
   const retryKey = useRetryKey();
+  const variables = { id, search: search || null, orderBy };
   const { directoryConnection } = useLazyLoadQuery<TenantLicensesSectionQueryType>(
     tenantLicensesSectionQuery,
-    { id, search: search || null, orderBy },
+    variables,
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
+  // The whole list in one read, so the auto-refresh reads it again silently. Its interval sits under the section's own
+  // key (`licencesRefresh`): the tenant's page holds other tables.
+  const refetch = useRefetchPage<TenantLicensesSectionQueryType>(tenantLicensesSectionQuery, variables);
+  const { control: refresh } = useAutoRefresh({ prefix: 'licences', refetch });
   const licenses = directoryConnection?.licenses;
   const rows = useMemo<LicenseRow[]>(
     () =>
@@ -282,7 +297,7 @@ function LicensesTableQuery(props: LicensesTableProps) {
   );
   // The page above has already said "not found" for a missing record.
   if (!directoryConnection) return null;
-  return <LicensesRows {...props} rows={rows} notRead={directoryConnection.licenseSummary == null} />;
+  return <LicensesRows {...props} rows={rows} notRead={directoryConnection.licenseSummary == null} refresh={refresh} />;
 }
 
 /**

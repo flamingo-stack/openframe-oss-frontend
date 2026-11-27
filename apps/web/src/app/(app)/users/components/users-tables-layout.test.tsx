@@ -333,6 +333,9 @@ vi.mock('react-relay', () => ({
     isLoadingNext: false,
   }),
   useMutation: () => [() => {}, false],
+  // The auto-refresh's refetch (`useRefetchPage`): never called here, only built.
+  useRelayEnvironment: () => ({}),
+  fetchQuery: () => ({ toPromise: () => Promise.resolve() }),
 }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),

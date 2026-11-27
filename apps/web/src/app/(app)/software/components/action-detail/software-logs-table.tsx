@@ -2,6 +2,7 @@
 
 import { ClipboardListIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  type AutoRefreshControlProps,
   type ColumnDef,
   FilterModal,
   type NoDataProps,
@@ -23,6 +24,8 @@ import type { FacetOption } from '@/app/(app)/scripts/shared/utils/facet-options
 import { liveColumnMeta, useRetryKey } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { useTableGrid } from '@/app/components/shared/table-layout-scope';
+import { useAutoRefresh } from '@/app/hooks/use-auto-refresh';
+import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { softwareActionStatusLabel } from '../action-list/software-action-status-tag';
 import { singleColumnFilter } from '../shared/column-filters';
@@ -84,17 +87,22 @@ interface SoftwareLogsTableProps {
  */
 export function SoftwareLogsTable({ actionId, state }: SoftwareLogsTableProps) {
   const retryKey = useRetryKey();
-  const data = useLazyLoadQuery<SoftwareLogsTableQueryType>(
-    softwareLogsTableQuery,
-    { actionId },
-    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
-  );
-  return <SoftwareLogsRows allRows={data.softwareActionExecutions} state={state} />;
+  const variables = { actionId };
+  const data = useLazyLoadQuery<SoftwareLogsTableQueryType>(softwareLogsTableQuery, variables, {
+    fetchPolicy: 'store-and-network',
+    fetchKey: retryKey,
+  });
+  // The run's devices in one read, so the auto-refresh reads them again silently (the page's only table: `refresh`).
+  const refetch = useRefetchPage<SoftwareLogsTableQueryType>(softwareLogsTableQuery, variables);
+  const { control: refresh } = useAutoRefresh({ refetch });
+  return <SoftwareLogsRows allRows={data.softwareActionExecutions} state={state} refresh={refresh} />;
 }
 
 interface SoftwareLogsRowsProps {
   allRows: readonly LogRow[];
   state: ExecutionsTabState;
+  /** The auto-refresh picker above the table, once the run is read. */
+  refresh?: AutoRefreshControlProps;
 }
 
 /**
@@ -102,7 +110,7 @@ interface SoftwareLogsRowsProps {
  * header is real and the body is one page of placeholder rows with their real cells (`ActionDetailLogs` renders it
  * so before the run answers).
  */
-export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
+export function SoftwareLogsRows({ allRows, state, refresh }: SoftwareLogsRowsProps) {
   const {
     narrowSearch,
     isPending,
@@ -264,6 +272,7 @@ export function SoftwareLogsRows({ allRows, state }: SoftwareLogsRowsProps) {
         rowClassName={rowClassName}
         renderSubRow={renderSubRow}
         footer={null}
+        refresh={refresh}
       />
 
       <FilterModal
