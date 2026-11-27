@@ -255,6 +255,12 @@ describe('the monitoring tables and the table flag', () => {
       expect(policiesTable().rows.map(row => row.name)).toEqual(['Disk encryption']);
     });
 
+    it('hands the table the auto-refresh picker for the row above it', () => {
+      flag(false);
+      render(<Policies />);
+      expect(policiesTable().actions).toBeTruthy();
+    });
+
     it('keeps card rows where the flag is off, and where the server serves no value for it', () => {
       flag(false);
       render(<Policies />);

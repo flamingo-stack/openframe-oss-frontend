@@ -3,6 +3,7 @@
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { Filter02Icon, UsersIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  type AutoRefreshControlProps,
   Button,
   type ColumnDef,
   DataTable,
@@ -48,6 +49,8 @@ import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-
 import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { SearchToolbar } from '@/app/components/shared/search-toolbar';
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
+import { useAutoRefresh } from '@/app/hooks/use-auto-refresh';
+import { useRefetchPage } from '@/app/hooks/use-refetch-page';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import type { TableLayout } from '@/app/hooks/use-table-layout';
 import { DirectoryDeviceUserLink } from '@/generated/schema-enums';
@@ -308,13 +311,15 @@ const getRowId = (row: UserRow) => row.id;
 const rowHref = (row: UserRow) => row.href ?? null;
 const SKELETON_ROWS = 4;
 
-/** The table, from the rows it is handed (`null` while they are read). */
+/** The table, from the rows it is handed (`null` while they are read), with the auto-refresh picker once they are. */
 function DirectoryUsersRows({
   users,
   tableLayout,
+  refresh,
 }: {
   users: readonly DirectoryUser[] | null;
   tableLayout: TableLayout;
+  refresh?: AutoRefreshControlProps;
 }) {
   const loading = useLoadingScope();
   const [search, setSearch] = useState('');
@@ -399,6 +404,7 @@ function DirectoryUsersRows({
         // The grid table keeps the tab's natural height (the page scrolls); the card rows take neither option.
         layout={tableLayout}
         settings={DIRECTORY_USERS_TABLE_SETTINGS}
+        refresh={refresh}
       />
       <FilterModal
         isOpen={filtersOpen}
@@ -419,12 +425,16 @@ function DirectoryUsersRows({
 
 function DirectoryUsersQuery({ machineId, tableLayout }: { machineId: string; tableLayout: TableLayout }) {
   const retryKey = useRetryKey();
-  const { deviceDirectory } = useLazyLoadQuery<DirectoryUsersTabQueryType>(
-    directoryUsersTabQuery,
-    { machineId },
-    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
-  );
-  return <DirectoryUsersRows users={deviceDirectory.users} tableLayout={tableLayout} />;
+  const variables = { machineId };
+  const { deviceDirectory } = useLazyLoadQuery<DirectoryUsersTabQueryType>(directoryUsersTabQuery, variables, {
+    fetchPolicy: 'store-and-network',
+    fetchKey: retryKey,
+  });
+  // The users in one read, so the auto-refresh reads them again silently, under the tab's own key (`usersRefresh`):
+  // the device page's Overview writes its own plain `refresh` stamp after a script run.
+  const refetch = useRefetchPage<DirectoryUsersTabQueryType>(directoryUsersTabQuery, variables);
+  const { control: refresh } = useAutoRefresh({ prefix: 'users', refetch });
+  return <DirectoryUsersRows users={deviceDirectory.users} tableLayout={tableLayout} refresh={refresh} />;
 }
 
 function DirectoryUsersReader({ machineId, tableLayout }: { machineId: string | null; tableLayout: TableLayout }) {

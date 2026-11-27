@@ -13,6 +13,9 @@ const answer = vi.hoisted(() => ({ users: [] as unknown[] }));
 vi.mock('react-relay', () => ({
   graphql: () => ({}),
   useLazyLoadQuery: () => ({ deviceDirectory: { users: answer.users } }),
+  // The auto-refresh's refetch (`useRefetchPage`): never called here, only built.
+  useRelayEnvironment: () => ({}),
+  fetchQuery: () => ({ toPromise: () => Promise.resolve() }),
 }));
 vi.mock('@/graphql/directory/account-row-fields', () => ({ toAccountRow: (account: object) => account }));
 vi.mock('@/app/components/shared', async () => {

@@ -32,8 +32,9 @@ export interface UseAutoRefreshOptions {
   /** The table's URL prefix: the interval lives at `?<prefix>Refresh=`. */
   prefix?: string;
   /**
-   * Refetch the page on screen, silently (a Relay table: `useRefetchPage`). Resolves when the answer is in; the next
-   * tick waits for it, so one request is in flight at most. Omit on a react-query table: read `queryInterval`.
+   * Refetch the page on screen, silently (a Relay table: `useRefetchPage`; a react-query list: its query's `refetch`).
+   * Resolves when the answer is in; the next tick waits for it, so one request is in flight at most. Omitted, the
+   * caller polls through `queryInterval` instead (no catch-up after a hidden tab).
    */
   refetch?: () => Promise<unknown>;
   options?: readonly AutoRefreshOption[];

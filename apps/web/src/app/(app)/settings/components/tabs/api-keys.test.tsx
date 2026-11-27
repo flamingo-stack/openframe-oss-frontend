@@ -111,6 +111,8 @@ describe('ApiKeysTab', () => {
 
     expect(container.textContent).toContain('Billing export');
     expect(hasGridMarkup(container)).toBe(false);
+    // The row above the table holds the count and the auto-refresh picker, off by default.
+    expect(container.querySelector('[data-table-meta] [aria-label="Auto-refresh: Off"]')).not.toBeNull();
   });
 
   it('flag on: the grid table, filling the page, with its gear and the row menu as an action column', async () => {

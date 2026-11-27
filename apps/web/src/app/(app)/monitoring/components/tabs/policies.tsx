@@ -8,13 +8,20 @@ import {
   PolicySummaryCards,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { PlusCircleIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { DataTable, Input, LoadingWhen, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  AutoRefreshControl,
+  DataTable,
+  Input,
+  LoadingWhen,
+  PageLayout,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import { useGenerateWithAiAction } from '@/app/(app)/mingo/hooks/use-generate-with-ai-action';
 import { DIALOG_INTENT } from '@/app/(app)/tickets/constants';
 import { oneLineEmptyState, SectionLoadError } from '@/app/components/shared';
+import { useAutoRefresh } from '@/app/hooks/use-auto-refresh';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { tableLayoutFor, useTableGridGate } from '@/app/hooks/use-table-layout';
@@ -74,6 +81,9 @@ export function Policies() {
   );
 
   const { policies, isLoading, isOffline, hasData, canClaimEmpty, error, refetch, deletePolicy } = usePolicies();
+  // The list is read whole: a tick reads it again silently, under the tab's own key (`policiesRefresh`) beside the
+  // Queries tab's.
+  const { control: refresh } = useAutoRefresh({ prefix: 'policies', refetch: () => refetch() });
   const summary = useMemo(() => computePolicySummary(policies), [policies]);
 
   // `canClaimEmpty` is the shared precondition (see `lib/query-state.ts`): data
@@ -193,6 +203,7 @@ export function Policies() {
               stickyHeader
               stickyHeaderOffset={stickyHeaderOffset}
               rightSlot={<DataTable.RowCount loading={isLoading} />}
+              actions={<AutoRefreshControl {...refresh} />}
               skeletonRows={PAGE_SIZE}
               // The grid table is the page's main content: it takes the height the page leaves and scrolls inside
               // itself. A cards table reads neither the height nor the settings.
