@@ -61,6 +61,7 @@ import { useMingoContextMemory } from '@/app/(app)/mingo/context/use-context-mem
 import type { MingoUnifiedChat } from '@/app/(app)/mingo/hooks/use-mingo-unified-chat-state';
 import { useMingoChatSurface } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { useMingoTour } from '@/app/(app)/mingo/tour/use-mingo-tour';
+import { MINGO_MESSAGE_MAX_LENGTH } from '@/app/(app)/mingo/utils/send-failure-text';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { useHydrated } from '@/app/hooks/use-hydrated';
 import { isMobileShell } from '@/lib/platform';
@@ -594,6 +595,8 @@ function DockChat({ route, chat }: DockChatProps) {
           onModelClick={modelGate === 'off' ? () => navigate(routes.settings.aiSettings({ tab: 'mingo' })) : undefined}
           modelTooltip={modelGate === 'off' ? 'Change in Settings → AI Settings' : undefined}
           composerModelMenu={chat.modelSelection?.menu ?? undefined}
+          // The ai-agent refuses a message over it: the composer counts down to it and does not send past it.
+          composerMaxLength={MINGO_MESSAGE_MAX_LENGTH}
           // Over the page the thread is the chat's: its prompt; behind it, "continue or ask anew".
           composerPlaceholder={
             startWorkColumn
