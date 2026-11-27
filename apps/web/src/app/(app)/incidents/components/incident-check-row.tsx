@@ -38,8 +38,8 @@ const incidentCheckRowQuery = graphql`
 
 /**
  * The incident's check strip: the threshold it was measured against, where that threshold was set ("Tag · kiosk",
- * "Default · all devices"), and a link to the check's page. Nothing while the flag is off or the strip is read, and
- * nothing for an incident no built-in check opened or one recorded before thresholds were kept.
+ * "Default · all devices"), and a link to the check's page. Nothing while the flag is off, and nothing for an incident
+ * no built-in check opened or one recorded before thresholds were kept. While the strip is read it draws itself.
  */
 export function IncidentCheckRow({ incidentId }: { incidentId: string }) {
   if (useChecksGate() !== 'on') return null;
@@ -58,13 +58,13 @@ function IncidentCheckRowIsland({ incidentId }: { incidentId: string }) {
   );
 }
 
-/** An optional strip: nothing is drawn until it is read. */
 function IncidentCheckRowReader({ incidentId }: { incidentId: string }) {
-  if (useLoadingScope()) return null;
-  return <IncidentCheckRowQuery incidentId={incidentId} />;
+  // In a loading scope it draws the strip with no data and runs no read.
+  if (useLoadingScope()) return <IncidentCheckStrip />;
+  return <IncidentCheckRowLive incidentId={incidentId} />;
 }
 
-function IncidentCheckRowQuery({ incidentId }: { incidentId: string }) {
+function IncidentCheckRowLive({ incidentId }: { incidentId: string }) {
   const { insight } = useLazyLoadQuery<IncidentCheckRowQueryType>(
     incidentCheckRowQuery,
     { id: incidentId },
@@ -81,18 +81,32 @@ function IncidentCheckRowQuery({ incidentId }: { incidentId: string }) {
   const appliesTo = [...new Set(thresholds.map(item => thresholdScopeLabel(item.scopeType, item.scopeName ?? null)))];
 
   return (
+    <IncidentCheckStrip
+      strip={{ threshold, appliesTo: appliesTo.length > 0 ? appliesTo.join(', ') : null, check: insight.check ?? null }}
+    />
+  );
+}
+
+interface IncidentCheckStripProps {
+  /** Absent while the strip is read: it draws the usual incident's strip (threshold, where it applies, the check), each
+   *  value a bar. */
+  strip?: { threshold: string; appliesTo: string | null; check: string | null };
+}
+
+function IncidentCheckStrip({ strip }: IncidentCheckStripProps) {
+  return (
     <SummaryRow>
-      <SummaryCell optional>
-        <InfoCell value={threshold} label="Threshold" />
+      <SummaryCell>
+        <InfoCell value={strip?.threshold ?? ''} label="Threshold" />
       </SummaryCell>
-      {appliesTo.length > 0 && (
-        <SummaryCell optional>
-          <InfoCell value={appliesTo.join(', ')} label="Applies to" />
+      {(!strip || strip.appliesTo) && (
+        <SummaryCell>
+          <InfoCell value={strip?.appliesTo ?? ''} label="Applies to" />
         </SummaryCell>
       )}
-      {insight.check && (
-        <SummaryCell optional>
-          <IncidentCheckLinkCell check={insight.check} />
+      {(!strip || strip.check) && (
+        <SummaryCell>
+          <IncidentCheckLinkCell check={strip?.check ?? undefined} />
         </SummaryCell>
       )}
     </SummaryRow>
