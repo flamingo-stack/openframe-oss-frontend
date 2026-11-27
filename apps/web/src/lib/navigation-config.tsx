@@ -16,6 +16,7 @@ import {
   IdCardIcon,
   LaptopMobileIcon,
   LayersIcon,
+  ListCheckIcon,
   MonitorIcon,
   Parcel02Icon,
   QuestionCircleIcon,
@@ -74,6 +75,8 @@ export interface OnboardingNavState {
  */
 export interface NavigationFlags {
   insights: boolean;
+  /** `insight-check-settings`: Monitoring → Checks. */
+  insightCheckSettings: boolean;
   softwareManagement: boolean;
   tenantManagement: boolean;
   tenantManagementV2: boolean;
@@ -173,7 +176,7 @@ const NAV_MODULES = {
     prefixes: ['/monitoring'],
     category: NotificationCategory.MONITORING,
   },
-  // The two `/monitoring` tabs. No `tab` is the policies tab (the page's default).
+  // The `/monitoring` tabs. No `tab` is the policies tab (the page's default).
   policies: {
     label: 'Policies',
     icon: FolderShieldIcon,
@@ -187,7 +190,15 @@ const NAV_MODULES = {
     icon: BracketCurlyEllipsisVrIcon,
     path: routes.monitoring.root({ tab: 'queries' }),
     prefixes: ['/monitoring/query'],
-    match: [{ path: '/monitoring', exact: true, query: { tab: 'queries' } }, '/monitoring/query'],
+    match: [{ path: '/monitoring', exact: true, query: { tab: ['queries'] } }, '/monitoring/query'],
+  },
+  // The built-in health checks and a check's page. saas-tenant only, beside Incidents: the checks raise them.
+  checks: {
+    label: 'Checks',
+    icon: ListCheckIcon,
+    path: routes.monitoring.checks,
+    prefixes: ['/monitoring/checks', '/monitoring/check'],
+    gates: ['saas-tenant', 'insights', 'insightCheckSettings'],
   },
   // The Software module — behind `software-management`, like its routes. Its tabs
   // (Software Actions, Vulnerabilities) and their detail pages are pages under
@@ -342,7 +353,7 @@ const GROUPED_LAYOUT: { groups: readonly NavGroup[]; leaves: readonly NavModuleI
       icon: BracketCurlyIcon,
       children: ['scripts', 'schedules', 'policies', 'queries'],
     },
-    { id: 'monitor', label: 'Monitor', icon: ActivityIcon, children: ['incidents', 'logs'] },
+    { id: 'monitor', label: 'Monitor', icon: ActivityIcon, children: ['incidents', 'checks', 'logs'] },
   ],
   leaves: ['knowledge-base'],
 };
@@ -499,7 +510,8 @@ export const getGroupedNavigationItems = (
 
 /**
  * The right navigation of the three-column shell: five sections — Service Desk (Tickets,
- * Worktime), Monitoring (Incidents, Logs), Assets (Devices, Software), Directory (Customers,
+ * Worktime), Monitoring (Incidents, Checks,
+ * Logs), Assets (Devices, Software), Directory (Customers,
  * Users, Cloud Tenants), Automation (Scripts, Scheduled Scripts, Policies, Queries) — then
  * Knowledge Base, Help Center and Settings at the bottom. No Dashboard (Start Work replaces it)
  * and no Beta stamps (the design has none). Gates and badges as everywhere else.
@@ -507,7 +519,7 @@ export const getGroupedNavigationItems = (
 const SECTIONED_LAYOUT: { groups: readonly NavGroup[]; secondary: readonly NavModuleId[] } = {
   groups: [
     { id: 'service-desk', label: 'Service Desk', icon: HeadsetIcon, children: ['tickets', 'worktime'] },
-    { id: 'monitoring', label: 'Monitoring', icon: ActivityIcon, children: ['incidents', 'logs'] },
+    { id: 'monitoring', label: 'Monitoring', icon: ActivityIcon, children: ['incidents', 'checks', 'logs'] },
     { id: 'assets', label: 'Assets', icon: LayersIcon, children: ['devices', 'software'] },
     {
       id: 'directory',
@@ -528,6 +540,7 @@ const SECTIONED_LAYOUT: { groups: readonly NavGroup[]; secondary: readonly NavMo
 /** Every flag on: the placeholder's guess while the flags are unanswered (each gates in the "on shows it" direction). */
 const ALL_FLAGS_ON: NavigationFlags = {
   insights: true,
+  insightCheckSettings: true,
   softwareManagement: true,
   tenantManagement: true,
   tenantManagementV2: true,

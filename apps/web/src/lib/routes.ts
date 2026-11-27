@@ -464,6 +464,10 @@ export const routes = {
     queryNew: '/monitoring/query/new',
     queryEdit: (id: string | number) => withQuery('/monitoring/query/edit', { id }),
     policy: (id: string | number) => withQuery('/monitoring/policy', { id }),
+    /** The built-in health checks: their defaults and exceptions. */
+    checks: '/monitoring/checks',
+    /** A built-in check's page, by its key (`InsightCheck.check`, e.g. `resource-win-disk-low`). */
+    check: (check: string) => withQuery('/monitoring/check', { id: check }),
     policyNew: '/monitoring/policy/new',
     policyEdit: (id: string | number) => withQuery('/monitoring/policy/edit', { id }),
   },

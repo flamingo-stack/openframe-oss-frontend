@@ -2,11 +2,9 @@
 
 import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { CustomerInfoCell, TitleLines } from '@/app/components/shared';
-import { DETAIL_CELL_CLASS } from '@/app/components/shared/detail-cell';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { InsightStatus } from '@/generated/schema-enums';
 import { EMPTY_VALUE } from '@/lib/empty-value';
@@ -15,25 +13,10 @@ import { routes } from '@/lib/routes';
 import { formatInterval } from '../utils/format-interval';
 import { INCIDENT_TYPE_LABELS, labelOf } from '../utils/incident-labels';
 import type { Incident } from '../utils/incident-transform';
+import { IncidentCheckRow } from './incident-check-row';
+import { SummaryCell } from './incident-summary-cell';
+import { SummaryRow } from './incident-summary-row';
 import { IncidentSeverityTag, IncidentStatusTag } from './incident-tags';
-
-/** One strip of the card: cells wrap below the 4-up desktop layout instead of overflowing. */
-function Row({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex flex-wrap items-center gap-[var(--spacing-system-m)] border-b border-ods-border px-[var(--spacing-system-m)] py-[var(--spacing-system-s)] last:border-b-0">
-      {children}
-    </div>
-  );
-}
-
-/** A cell of the strip. `optional`: a cell only some incidents have. */
-function Cell({ optional, children }: { optional?: boolean; children: ReactNode }) {
-  return (
-    <div data-loading-optional={optional || undefined} className={cn(DETAIL_CELL_CLASS, 'min-h-16 items-center')}>
-      {children}
-    </div>
-  );
-}
 
 /** How many lines the detecting query's description typically runs to (a sentence or two at the card's width). */
 const DESCRIPTION_SKELETON_LINES = 2;
@@ -78,8 +61,8 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
         className="gap-[var(--spacing-system-xxs)] border-b border-ods-border p-[var(--spacing-system-m)]"
       />
 
-      <Row>
-        <Cell>
+      <SummaryRow>
+        <SummaryCell>
           <InfoCell
             loading={loading}
             icon={renderDeviceTypeIcon(
@@ -103,8 +86,8 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
             }
             label="Device"
           />
-        </Cell>
-        <Cell>
+        </SummaryCell>
+        <SummaryCell>
           <CustomerInfoCell
             label="Customer"
             customer={
@@ -117,40 +100,44 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
                 : null
             }
           />
-        </Cell>
-        <Cell>
+        </SummaryCell>
+        <SummaryCell>
           <InfoCell loading={loading} value={incident ? formatDateTime(incident.detectedAt) : ''} label="Detected" />
-        </Cell>
-        <Cell>{assigneeSlot}</Cell>
-      </Row>
+        </SummaryCell>
+        <SummaryCell>{assigneeSlot}</SummaryCell>
+      </SummaryRow>
 
-      <Row>
-        <Cell>
+      <SummaryRow>
+        <SummaryCell>
           <InfoCell loading={loading} value={<IncidentSeverityTag severity={incident?.severity} />} label="Severity" />
-        </Cell>
-        <Cell>
+        </SummaryCell>
+        <SummaryCell>
           <InfoCell
             loading={loading}
             value={incident ? labelOf(INCIDENT_TYPE_LABELS, incident.type) : ''}
             label="Category"
           />
-        </Cell>
-        <Cell>
+        </SummaryCell>
+        <SummaryCell>
           <InfoCell
             loading={loading}
             value={!incident || incident.interval === null ? EMPTY_VALUE : formatInterval(incident.interval)}
             label="Interval"
           />
-        </Cell>
-        <Cell>
+        </SummaryCell>
+        <SummaryCell>
           <InfoCell loading={loading} value={<IncidentStatusTag status={incident?.status} />} label="Status" />
-        </Cell>
+        </SummaryCell>
         {snoozedUntil && (
-          <Cell optional>
+          <SummaryCell optional>
             <InfoCell value={formatDateTime(snoozedUntil)} label="Until" />
-          </Cell>
+          </SummaryCell>
         )}
-      </Row>
+      </SummaryRow>
+
+      {/* What the finding was measured against and the check that made it: an optional strip, absent from an
+          incident no built-in check opened and from one recorded before thresholds were kept. */}
+      {incident && <IncidentCheckRow incidentId={incident.id} />}
     </div>
   );
 }

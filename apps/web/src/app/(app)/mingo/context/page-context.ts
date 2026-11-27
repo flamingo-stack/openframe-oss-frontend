@@ -179,6 +179,9 @@ export function resolvePageContext(href: string, openView: ContextRefWithLabel |
   const named = NAMED_PAGES[pathname];
   if (named) return { currentPage: named };
 
+  // Monitoring → Checks is the built-in checks' settings: no list module of the agent's names it.
+  if (pathname === routes.monitoring.checks) return { currentPage: pageRef('OTHER', navModuleLabel('checks')) };
+
   if (pathname === '/monitoring') {
     const queries = query.get('tab') === 'queries';
     const list: ListPage = queries ? { module: 'QUERIES', nav: 'queries' } : { module: 'POLICIES', nav: 'policies' };
