@@ -595,9 +595,9 @@ function DockChat({ route, chat }: DockChatProps) {
           onModelClick={modelGate === 'off' ? () => navigate(routes.settings.aiSettings({ tab: 'mingo' })) : undefined}
           modelTooltip={modelGate === 'off' ? 'Change in Settings → AI Settings' : undefined}
           composerModelMenu={chat.modelSelection?.menu ?? undefined}
-          // Over the page the thread is the chat's: its prompt; behind it, "continue or ask anew".
           // The ai-agent refuses a message over it: the composer counts down to it and does not send past it.
           composerMaxLength={MINGO_MESSAGE_MAX_LENGTH}
+          // Over the page the thread is the chat's: its prompt; behind it, "continue or ask anew".
           composerPlaceholder={
             startWorkColumn
               ? dockViewOf('home').placeholder
